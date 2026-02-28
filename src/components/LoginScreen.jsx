@@ -6,7 +6,7 @@ import {
 
 const DEMO_ACCOUNTS = [
   { role: 'admin', username: 'admin', password: 'admin123', label: 'Administrator', color: '#7c3aed' },
-  { role: 'graduate', username: 'juan.delacruz', password: 'grad123', label: 'Graduate', color: '#2563eb' },
+  { role: 'trainee', username: 'juan.delacruz', password: 'grad123', label: 'Trainee', color: '#2563eb' },
   { role: 'partner', username: 'techsolutions', password: 'partner123', label: 'Industry Partner', color: '#0ea5e9' },
 ];
 
@@ -82,28 +82,28 @@ export default function LoginScreen() {
             }}>TT</div>
             <div>
               <div style={{ fontSize: 28, fontWeight: 800, letterSpacing: '-0.02em' }}>TraineeTrack</div>
-              <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.5)', marginTop: 2 }}>Graduate Employability Platform</div>
+              <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.5)', marginTop: 2 }}>Competency & Certification Platform</div>
             </div>
           </div>
 
           <h1 style={{ fontSize: 38, fontWeight: 800, lineHeight: 1.15, marginBottom: 16, letterSpacing: '-0.02em' }}>
             Connecting<br />
             <span style={{ background: 'linear-gradient(90deg, #60a5fa, #38bdf8)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
-              Graduates
+              Trainees
             </span>{' '}to<br />Opportunity
           </h1>
 
           <p style={{ fontSize: 15, color: 'rgba(255,255,255,0.55)', lineHeight: 1.7, marginBottom: 36, maxWidth: 400 }}>
-            A web-based analytics and competency-based job matching platform for {appMetadata.orgName}
+            A web-based analytics and competency-based matching platform for {appMetadata.orgName}
           </p>
 
           {/* Feature highlights */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
             {[
               { icon: <BarChart2 size={16} />, text: 'Employment analytics & tracking' },
-              { icon: <Briefcase size={16} />, text: 'AI-powered competency matching' },
+              { icon: <Briefcase size={16} />, text: 'Competency-based opportunity matching' },
               { icon: <Users size={16} />, text: 'Direct industry partner connections' },
-              { icon: <BookOpen size={16} />, text: 'Skills gap analysis & recommendations' },
+              { icon: <BookOpen size={16} />, text: 'Certification progress & gap analysis' },
             ].map((f, i) => (
               <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 10, color: 'rgba(255,255,255,0.65)', fontSize: 14 }}>
                 <div style={{ color: '#60a5fa' }}>{f.icon}</div>

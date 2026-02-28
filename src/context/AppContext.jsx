@@ -26,10 +26,10 @@ export const AppProvider = ({ children }) => {
   };
 
   const [currentUser, setCurrentUser] = useState(null);
-  const [userRole, setUserRole] = useState(null); // 'admin' | 'graduate' | 'partner'
+  const [userRole, setUserRole] = useState(null); // 'admin' | 'trainee' | 'partner'
 
-  // ─── GRADUATES ────────────────────────────────────────────────────────────
-  const [graduates, setGraduates] = useState([
+  // ─── TRAINEES ────────────────────────────────────────────────────────────
+  const [trainees, setTrainees] = useState([
     {
       id: 1,
       name: 'Juan Dela Cruz',
@@ -50,14 +50,41 @@ export const AppProvider = ({ children }) => {
         'Apply programming skills',
         'Use web development tools',
       ],
-      employmentStatus: 'Employed', // Employed, Unemployed, Self-Employed, Underemployed
+      employmentStatus: 'Employed',
       employer: 'TechSolutions Inc.',
       jobTitle: 'Junior IT Technician',
       dateHired: '2024-09-01',
       monthsAfterGraduation: 5,
       photo: null,
       documents: { resume: 'uploaded', diploma: 'uploaded', tor: 'uploaded' },
-      achievements: ['Best Graduate 2024', 'Dean\'s Lister'],
+      achievements: ['Best Trainee 2024', 'Dean\'s Lister'],
+      accountStatus: 'Active', // Active | Disabled | Suspended
+      certificationProgress: [
+        {
+          certification: 'CSS NC II',
+          status: 'Completed',
+          enrolledDate: '2023-06-01',
+          competencies: [
+            { name: 'Install and configure computer systems', status: 'Passed', remarks: 'Excellent performance' },
+            { name: 'Set up computer networks', status: 'Passed', remarks: '' },
+            { name: 'Configure computer systems', status: 'Passed', remarks: '' },
+            { name: 'Diagnose and troubleshoot computer systems', status: 'Passed', remarks: '' },
+            { name: 'Diagnose and troubleshoot network problems', status: 'Passed', remarks: '' },
+          ],
+        },
+        {
+          certification: 'Web Development NC III',
+          status: 'In Progress',
+          enrolledDate: '2025-09-01',
+          competencies: [
+            { name: 'Develop interactive website', status: 'Passed', remarks: '' },
+            { name: 'Apply programming skills', status: 'Passed', remarks: '' },
+            { name: 'Use web development tools', status: 'Passed', remarks: '' },
+            { name: 'Employ best practice in developing websites', status: 'Pending Assessment', remarks: '' },
+            { name: 'Ensure website accessibility', status: 'Pending Assessment', remarks: '' },
+          ],
+        },
+      ],
       createdAt: new Date().toISOString(),
     },
     {
@@ -85,6 +112,20 @@ export const AppProvider = ({ children }) => {
       photo: null,
       documents: { resume: 'uploaded', diploma: 'uploaded', tor: null },
       achievements: [],
+      accountStatus: 'Active',
+      certificationProgress: [
+        {
+          certification: 'Electrical Installation NC II',
+          status: 'In Progress',
+          enrolledDate: '2025-06-15',
+          competencies: [
+            { name: 'Terminate and connect electrical wiring', status: 'Passed', remarks: '' },
+            { name: 'Install electrical protective devices', status: 'Passed', remarks: '' },
+            { name: 'Install lighting fixtures', status: 'Passed', remarks: '' },
+            { name: 'Install power load equipment', status: 'Failed', remarks: 'Needs to retake practical exam' },
+          ],
+        },
+      ],
       createdAt: new Date().toISOString(),
     },
     {
@@ -114,6 +155,31 @@ export const AppProvider = ({ children }) => {
       photo: null,
       documents: { resume: 'uploaded', diploma: null, tor: 'uploaded' },
       achievements: ['Top Performer - Automotive'],
+      accountStatus: 'Active',
+      certificationProgress: [
+        {
+          certification: 'Automotive NC II',
+          status: 'Completed',
+          enrolledDate: '2022-06-01',
+          competencies: [
+            { name: 'Perform mensuration and calculation', status: 'Passed', remarks: '' },
+            { name: 'Interpret drawings and sketches', status: 'Passed', remarks: '' },
+            { name: 'Perform shop maintenance', status: 'Passed', remarks: '' },
+            { name: 'Inspect and repair engine systems', status: 'Passed', remarks: '' },
+            { name: 'Service fuel and emission systems', status: 'Passed', remarks: '' },
+          ],
+        },
+        {
+          certification: 'Welding NC I',
+          status: 'Completed',
+          enrolledDate: '2023-01-15',
+          competencies: [
+            { name: 'Weld carbon steel pipes using SMAW process', status: 'Passed', remarks: '' },
+            { name: 'Weld carbon steel plates using MIG/MAG process', status: 'Passed', remarks: '' },
+            { name: 'Assess weld quality', status: 'Passed', remarks: '' },
+          ],
+        },
+      ],
       createdAt: new Date().toISOString(),
     },
     {
@@ -140,6 +206,21 @@ export const AppProvider = ({ children }) => {
       photo: null,
       documents: { resume: 'uploaded', diploma: 'uploaded', tor: 'uploaded' },
       achievements: [],
+      accountStatus: 'Active',
+      certificationProgress: [
+        {
+          certification: 'CSS NC II',
+          status: 'In Progress',
+          enrolledDate: '2025-08-01',
+          competencies: [
+            { name: 'Install and configure computer systems', status: 'Passed', remarks: '' },
+            { name: 'Set up computer networks', status: 'Pending Assessment', remarks: '' },
+            { name: 'Configure computer systems', status: 'Pending Assessment', remarks: '' },
+            { name: 'Diagnose and troubleshoot computer systems', status: 'Passed', remarks: '' },
+            { name: 'Diagnose and troubleshoot network problems', status: 'Pending Assessment', remarks: '' },
+          ],
+        },
+      ],
       createdAt: new Date().toISOString(),
     },
   ]);
@@ -158,7 +239,8 @@ export const AppProvider = ({ children }) => {
       industry: 'Information Technology',
       companySize: '51-200',
       website: 'www.techsolutions.ph',
-      verificationStatus: 'Approved', // Pending, Approved, Rejected
+      verificationStatus: 'Approved',
+      accountStatus: 'Active',
       documents: { businessPermit: 'uploaded', secRegistration: 'uploaded' },
       createdAt: new Date().toISOString(),
     },
@@ -175,6 +257,7 @@ export const AppProvider = ({ children }) => {
       companySize: '201-500',
       website: 'www.automech.com.ph',
       verificationStatus: 'Approved',
+      accountStatus: 'Active',
       documents: { businessPermit: 'uploaded', secRegistration: 'uploaded' },
       createdAt: new Date().toISOString(),
     },
@@ -191,12 +274,13 @@ export const AppProvider = ({ children }) => {
       companySize: '11-50',
       website: 'www.powergrid.ph',
       verificationStatus: 'Pending',
+      accountStatus: 'Active',
       documents: { businessPermit: 'uploaded', secRegistration: null },
       createdAt: new Date().toISOString(),
     },
   ]);
 
-  // ─── JOB POSTINGS ──────────────────────────────────────────────────────────
+  // ─── JOB / OPPORTUNITY POSTINGS ──────────────────────────────────────────
   const [jobPostings, setJobPostings] = useState([
     {
       id: 1,
@@ -204,18 +288,19 @@ export const AppProvider = ({ children }) => {
       companyName: 'TechSolutions Inc.',
       industry: 'Information Technology',
       title: 'Junior IT Technician',
+      opportunityType: 'Job', // Job | OJT | Apprenticeship
       ncLevel: 'CSS NC II',
       requiredCompetencies: [
         'Install and configure computer systems',
         'Set up computer networks',
         'Diagnose and troubleshoot computer systems',
       ],
-      description: 'We are looking for CSS NC II certified technicians to join our growing IT support team. Full training provided for fresh graduates.',
+      description: 'We are looking for CSS NC II certified technicians to join our growing IT support team. Full training provided for fresh trainees.',
       employmentType: 'Full-time',
       location: 'Makati City',
       salaryRange: '₱18,000 – ₱22,000/month',
       slots: 5,
-      status: 'Open', // Open, Closed, Filled
+      status: 'Open',
       datePosted: '2026-02-01',
       createdAt: new Date().toISOString(),
     },
@@ -225,13 +310,14 @@ export const AppProvider = ({ children }) => {
       companyName: 'TechSolutions Inc.',
       industry: 'Information Technology',
       title: 'Web Developer Trainee',
+      opportunityType: 'OJT',
       ncLevel: 'Web Development NC III',
       requiredCompetencies: [
         'Develop interactive website',
         'Apply programming skills',
         'Use web development tools',
       ],
-      description: 'Join our web development team as a trainee. You will work on real client projects under senior developers.',
+      description: 'Join our web development team as an OJT trainee. You will work on real client projects under senior developers.',
       employmentType: 'Full-time',
       location: 'Makati City',
       salaryRange: '₱20,000 – ₱25,000/month',
@@ -246,6 +332,7 @@ export const AppProvider = ({ children }) => {
       companyName: 'AutoMech Corporation',
       industry: 'Automotive',
       title: 'Automotive Technician',
+      opportunityType: 'Job',
       ncLevel: 'Automotive NC II',
       requiredCompetencies: [
         'Inspect and repair engine systems',
@@ -266,13 +353,14 @@ export const AppProvider = ({ children }) => {
       partnerId: 2,
       companyName: 'AutoMech Corporation',
       industry: 'Automotive',
-      title: 'Welder / Fabricator',
+      title: 'Welder / Fabricator Apprentice',
+      opportunityType: 'Apprenticeship',
       ncLevel: 'Welding NC I',
       requiredCompetencies: [
         'Weld carbon steel pipes using SMAW process',
         'Weld carbon steel plates using MIG/MAG process',
       ],
-      description: 'We need skilled welders for our fabrication shop. Experience preferred but fresh NC I holders are welcome.',
+      description: 'We need skilled welders for our fabrication shop. Apprenticeship program for NC I holders or those currently enrolled.',
       employmentType: 'Full-time',
       location: 'Caloocan City',
       salaryRange: '₱15,000 – ₱18,000/month',
@@ -287,16 +375,16 @@ export const AppProvider = ({ children }) => {
   const [applications, setApplications] = useState([
     {
       id: 1,
-      graduateId: 1,
+      traineeId: 1,
       jobId: 1,
-      status: 'Accepted', // Pending, Accepted, Rejected
+      status: 'Accepted',
       appliedAt: '2026-02-05',
       reviewedAt: '2026-02-10',
       notes: 'Excellent candidate with complete certifications.',
     },
     {
       id: 2,
-      graduateId: 1,
+      traineeId: 1,
       jobId: 2,
       status: 'Pending',
       appliedAt: '2026-02-12',
@@ -305,7 +393,7 @@ export const AppProvider = ({ children }) => {
     },
     {
       id: 3,
-      graduateId: 4,
+      traineeId: 4,
       jobId: 1,
       status: 'Rejected',
       appliedAt: '2026-02-06',
@@ -324,44 +412,70 @@ export const AppProvider = ({ children }) => {
     role: 'admin',
     phone: '+63 2 8000 0000',
     position: 'System Administrator',
+    accountStatus: 'Active',
   });
 
+  // ─── ACTIVITY LOG ──────────────────────────────────────────────────────────
+  const [activityLog, setActivityLog] = useState([
+    { id: 1, user: 'PSTDII Admin', action: 'Create', module: 'Trainees', description: 'Added trainee Juan Dela Cruz', prevValue: null, newValue: 'Juan Dela Cruz', timestamp: '2026-02-01T09:00:00' },
+    { id: 2, user: 'PSTDII Admin', action: 'Create', module: 'Trainees', description: 'Added trainee Maria Santos', prevValue: null, newValue: 'Maria Santos', timestamp: '2026-02-01T09:15:00' },
+    { id: 3, user: 'PSTDII Admin', action: 'Status Change', module: 'Partners', description: 'Approved partner TechSolutions Inc.', prevValue: 'Pending', newValue: 'Approved', timestamp: '2026-02-02T10:00:00' },
+    { id: 4, user: 'TechSolutions Inc.', action: 'Create', module: 'Opportunities', description: 'Posted opportunity: Junior IT Technician', prevValue: null, newValue: 'Junior IT Technician', timestamp: '2026-02-03T14:30:00' },
+    { id: 5, user: 'PSTDII Admin', action: 'Edit', module: 'Trainees', description: 'Updated employment status for Pedro Reyes', prevValue: 'Unemployed', newValue: 'Self-Employed', timestamp: '2026-02-10T11:00:00' },
+  ]);
+
+  const logActivity = (action, module, description, prevValue = null, newValue = null) => {
+    const entry = {
+      id: activityLog.length + 1,
+      user: currentUser?.name || currentUser?.companyName || 'System',
+      action,
+      module,
+      description,
+      prevValue,
+      newValue,
+      timestamp: new Date().toISOString(),
+    };
+    setActivityLog(prev => [entry, ...prev]);
+  };
+
   // ─── MATCH RATE CALCULATION ───────────────────────────────────────────────
-  const getMatchRate = (graduateId, jobId) => {
-    const graduate = graduates.find(g => g.id === graduateId);
+  const getMatchRate = (traineeId, jobId) => {
+    const trainee = trainees.find(t => t.id === traineeId);
     const job = jobPostings.find(j => j.id === jobId);
-    if (!graduate || !job) return 0;
+    if (!trainee || !job) return 0;
     if (job.requiredCompetencies.length === 0) return 100;
-    const matched = job.requiredCompetencies.filter(c => graduate.competencies.includes(c));
+    const matched = job.requiredCompetencies.filter(c => trainee.competencies.includes(c));
     return Math.round((matched.length / job.requiredCompetencies.length) * 100);
   };
 
-  const getGapAnalysis = (graduateId, jobId) => {
-    const graduate = graduates.find(g => g.id === graduateId);
+  const getGapAnalysis = (traineeId, jobId) => {
+    const trainee = trainees.find(t => t.id === traineeId);
     const job = jobPostings.find(j => j.id === jobId);
-    if (!graduate || !job) return [];
+    if (!trainee || !job) return [];
     return job.requiredCompetencies.map(comp => ({
       competency: comp,
-      status: graduate.competencies.includes(comp) ? 'Matched' : 'Missing',
+      status: trainee.competencies.includes(comp) ? 'Matched' : 'Missing',
     }));
   };
 
-  const getGraduateRecommendedJobs = (graduateId) => {
-    const graduate = graduates.find(g => g.id === graduateId);
-    if (!graduate) return [];
+  const getTraineeRecommendedJobs = (traineeId) => {
+    const trainee = trainees.find(t => t.id === traineeId);
+    if (!trainee) return [];
     return jobPostings
       .filter(j => j.status === 'Open')
-      .map(j => ({ ...j, matchRate: getMatchRate(graduateId, j.id) }))
+      .map(j => ({ ...j, matchRate: getMatchRate(traineeId, j.id) }))
       .sort((a, b) => b.matchRate - a.matchRate);
   };
 
   // ─── APPLICATION FUNCTIONS ────────────────────────────────────────────────
-  const applyToJob = (graduateId, jobId) => {
-    const existing = applications.find(a => a.graduateId === graduateId && a.jobId === jobId);
-    if (existing) return { success: false, error: 'Already applied to this job.' };
+  const applyToJob = (traineeId, jobId) => {
+    const existing = applications.find(a => a.traineeId === traineeId && a.jobId === jobId);
+    if (existing) return { success: false, error: 'Already applied to this opportunity.' };
+    const job = jobPostings.find(j => j.id === jobId);
+    const trainee = trainees.find(t => t.id === traineeId);
     const newApplication = {
       id: applications.length + 1,
-      graduateId,
+      traineeId,
       jobId,
       status: 'Pending',
       appliedAt: new Date().toISOString().split('T')[0],
@@ -369,17 +483,21 @@ export const AppProvider = ({ children }) => {
       notes: null,
     };
     setApplications([...applications, newApplication]);
+    logActivity('Create', 'Applications', `${trainee?.name || 'Trainee'} applied to ${job?.title || 'opportunity'}`, null, 'Pending');
     return { success: true };
   };
 
   const updateApplicationStatus = (applicationId, status, notes = null) => {
+    const app = applications.find(a => a.id === applicationId);
+    const prevStatus = app?.status;
     setApplications(applications.map(a =>
       a.id === applicationId ? { ...a, status, notes, reviewedAt: new Date().toISOString().split('T')[0] } : a
     ));
+    logActivity('Status Change', 'Applications', `Application #${applicationId} status changed`, prevStatus, status);
   };
 
-  const getGraduateApplications = (graduateId) => {
-    return applications.filter(a => a.graduateId === graduateId).map(a => {
+  const getTraineeApplications = (traineeId) => {
+    return applications.filter(a => a.traineeId === traineeId).map(a => {
       const job = jobPostings.find(j => j.id === a.jobId);
       return { ...a, job };
     });
@@ -387,8 +505,8 @@ export const AppProvider = ({ children }) => {
 
   const getJobApplicants = (jobId) => {
     return applications.filter(a => a.jobId === jobId).map(a => {
-      const graduate = graduates.find(g => g.id === a.graduateId);
-      return { ...a, graduate, matchRate: getMatchRate(a.graduateId, jobId) };
+      const trainee = trainees.find(t => t.id === a.traineeId);
+      return { ...a, trainee, matchRate: getMatchRate(a.traineeId, jobId) };
     });
   };
 
@@ -396,13 +514,13 @@ export const AppProvider = ({ children }) => {
     const partnerJobs = jobPostings.filter(j => j.partnerId === partnerId);
     return partnerJobs.flatMap(job =>
       applications.filter(a => a.jobId === job.id).map(a => {
-        const graduate = graduates.find(g => g.id === a.graduateId);
-        return { ...a, graduate, job, matchRate: getMatchRate(a.graduateId, job.id) };
+        const trainee = trainees.find(t => t.id === a.traineeId);
+        return { ...a, trainee, job, matchRate: getMatchRate(a.traineeId, job.id) };
       })
     );
   };
 
-  // ─── JOB FUNCTIONS ───────────────────────────────────────────────────────
+  // ─── JOB / OPPORTUNITY FUNCTIONS ───────────────────────────────────────────
   const addJobPosting = (jobData) => {
     const partner = partners.find(p => p.id === currentUser?.id);
     const newJob = {
@@ -410,33 +528,47 @@ export const AppProvider = ({ children }) => {
       id: jobPostings.length + 1,
       partnerId: currentUser?.id,
       companyName: partner?.companyName || 'Company',
+      opportunityType: jobData.opportunityType || 'Job',
       status: 'Open',
       datePosted: new Date().toISOString().split('T')[0],
       createdAt: new Date().toISOString(),
     };
     setJobPostings([...jobPostings, newJob]);
+    logActivity('Create', 'Opportunities', `Posted opportunity: ${newJob.title}`, null, newJob.title);
     return newJob;
   };
 
   const updateJobPosting = (jobId, updates) => {
+    const existing = jobPostings.find(j => j.id === jobId);
     setJobPostings(jobPostings.map(j => j.id === jobId ? { ...j, ...updates } : j));
+    if (updates.status) {
+      logActivity('Status Change', 'Opportunities', `${existing?.title} status changed`, existing?.status, updates.status);
+    } else {
+      logActivity('Edit', 'Opportunities', `Updated opportunity: ${existing?.title}`, null, null);
+    }
   };
 
   const deleteJobPosting = (jobId) => {
+    const existing = jobPostings.find(j => j.id === jobId);
     setJobPostings(jobPostings.filter(j => j.id !== jobId));
+    logActivity('Delete', 'Opportunities', `Deleted opportunity: ${existing?.title}`, existing?.title, null);
   };
 
   // ─── PARTNER FUNCTIONS ───────────────────────────────────────────────────
   const approvePartner = (partnerId) => {
+    const partner = partners.find(p => p.id === partnerId);
     setPartners(partners.map(p =>
       p.id === partnerId ? { ...p, verificationStatus: 'Approved' } : p
     ));
+    logActivity('Status Change', 'Partners', `Approved partner: ${partner?.companyName}`, partner?.verificationStatus, 'Approved');
   };
 
   const rejectPartner = (partnerId) => {
+    const partner = partners.find(p => p.id === partnerId);
     setPartners(partners.map(p =>
       p.id === partnerId ? { ...p, verificationStatus: 'Rejected' } : p
     ));
+    logActivity('Status Change', 'Partners', `Rejected partner: ${partner?.companyName}`, partner?.verificationStatus, 'Rejected');
   };
 
   const registerPartner = (partnerData) => {
@@ -444,18 +576,20 @@ export const AppProvider = ({ children }) => {
       ...partnerData,
       id: partners.length + 1,
       verificationStatus: 'Pending',
+      accountStatus: 'Active',
       documents: {},
       createdAt: new Date().toISOString(),
     };
     setPartners([...partners, newPartner]);
+    logActivity('Create', 'Partners', `New partner registered: ${newPartner.companyName}`, null, newPartner.companyName);
     return newPartner;
   };
 
-  // ─── GRADUATE FUNCTIONS ──────────────────────────────────────────────────
-  const addGraduate = (graduateData) => {
-    const newGraduate = {
-      ...graduateData,
-      id: graduates.length + 1,
+  // ─── TRAINEE FUNCTIONS ──────────────────────────────────────────────────
+  const addTrainee = (traineeData) => {
+    const newTrainee = {
+      ...traineeData,
+      id: trainees.length + 1,
       competencies: [],
       employmentStatus: 'Unemployed',
       employer: null,
@@ -465,19 +599,39 @@ export const AppProvider = ({ children }) => {
       photo: null,
       documents: {},
       achievements: [],
+      accountStatus: 'Active',
+      certificationProgress: [],
       createdAt: new Date().toISOString(),
     };
-    setGraduates([...graduates, newGraduate]);
-    return newGraduate;
+    setTrainees([...trainees, newTrainee]);
+    logActivity('Create', 'Trainees', `Added trainee: ${newTrainee.name}`, null, newTrainee.name);
+    return newTrainee;
   };
 
-  const updateGraduate = (graduateId, updates) => {
-    setGraduates(graduates.map(g => g.id === graduateId ? { ...g, ...updates } : g));
-    if (currentUser?.id === graduateId) setCurrentUser({ ...currentUser, ...updates });
+  const updateTrainee = (traineeId, updates) => {
+    const existing = trainees.find(t => t.id === traineeId);
+    setTrainees(trainees.map(t => t.id === traineeId ? { ...t, ...updates } : t));
+    if (currentUser?.id === traineeId) setCurrentUser({ ...currentUser, ...updates });
+    logActivity('Edit', 'Trainees', `Updated trainee: ${existing?.name}`, null, null);
   };
 
-  const deleteGraduate = (graduateId) => {
-    setGraduates(graduates.filter(g => g.id !== graduateId));
+  const deleteTrainee = (traineeId) => {
+    const existing = trainees.find(t => t.id === traineeId);
+    setTrainees(trainees.filter(t => t.id !== traineeId));
+    logActivity('Delete', 'Trainees', `Deleted trainee: ${existing?.name}`, existing?.name, null);
+  };
+
+  // ─── ACCOUNT MANAGEMENT ───────────────────────────────────────────────────
+  const updateAccountStatus = (accountType, accountId, newStatus) => {
+    if (accountType === 'trainee') {
+      const existing = trainees.find(t => t.id === accountId);
+      setTrainees(trainees.map(t => t.id === accountId ? { ...t, accountStatus: newStatus } : t));
+      logActivity('Status Change', 'Accounts', `${existing?.name} account status changed`, existing?.accountStatus, newStatus);
+    } else if (accountType === 'partner') {
+      const existing = partners.find(p => p.id === accountId);
+      setPartners(partners.map(p => p.id === accountId ? { ...p, accountStatus: newStatus } : p));
+      logActivity('Status Change', 'Accounts', `${existing?.companyName} account status changed`, existing?.accountStatus, newStatus);
+    }
   };
 
   // ─── AUTH FUNCTIONS ──────────────────────────────────────────────────────
@@ -490,18 +644,30 @@ export const AppProvider = ({ children }) => {
       localStorage.setItem('currentUser', JSON.stringify(adminAccount));
       return { success: true, role: 'admin' };
     }
-    // Check graduates
-    const graduate = graduates.find(g => (g.username === username || g.email === username) && g.password === password);
-    if (graduate) {
-      setUserRole('graduate');
-      setCurrentUser(graduate);
-      localStorage.setItem('userRole', 'graduate');
-      localStorage.setItem('currentUser', JSON.stringify(graduate));
-      return { success: true, role: 'graduate' };
+    // Check trainees
+    const trainee = trainees.find(t => (t.username === username || t.email === username) && t.password === password);
+    if (trainee) {
+      if (trainee.accountStatus === 'Disabled') {
+        return { success: false, error: 'Your account has been disabled. Please contact the administrator.' };
+      }
+      if (trainee.accountStatus === 'Suspended') {
+        return { success: false, error: 'Your account has been suspended. Please contact the administrator.' };
+      }
+      setUserRole('trainee');
+      setCurrentUser(trainee);
+      localStorage.setItem('userRole', 'trainee');
+      localStorage.setItem('currentUser', JSON.stringify(trainee));
+      return { success: true, role: 'trainee' };
     }
     // Check partners
     const partner = partners.find(p => (p.username === username || p.email === username) && p.password === password);
     if (partner) {
+      if (partner.accountStatus === 'Disabled') {
+        return { success: false, error: 'Your account has been disabled. Please contact the administrator.' };
+      }
+      if (partner.accountStatus === 'Suspended') {
+        return { success: false, error: 'Your account has been suspended. Please contact the administrator.' };
+      }
       if (partner.verificationStatus === 'Pending') {
         return { success: false, error: 'Your account is pending admin approval.' };
       }
@@ -535,11 +701,11 @@ export const AppProvider = ({ children }) => {
 
   // ─── ANALYTICS HELPERS ───────────────────────────────────────────────────
   const getEmploymentStats = () => {
-    const total = graduates.length;
-    const employed = graduates.filter(g => g.employmentStatus === 'Employed').length;
-    const selfEmployed = graduates.filter(g => g.employmentStatus === 'Self-Employed').length;
-    const underEmployed = graduates.filter(g => g.employmentStatus === 'Underemployed').length;
-    const unemployed = graduates.filter(g => g.employmentStatus === 'Unemployed').length;
+    const total = trainees.length;
+    const employed = trainees.filter(t => t.employmentStatus === 'Employed').length;
+    const selfEmployed = trainees.filter(t => t.employmentStatus === 'Self-Employed').length;
+    const underEmployed = trainees.filter(t => t.employmentStatus === 'Underemployed').length;
+    const unemployed = trainees.filter(t => t.employmentStatus === 'Unemployed').length;
     const employmentRate = total > 0 ? Math.round(((employed + selfEmployed) / total) * 100) : 0;
     return { total, employed, selfEmployed, underEmployed, unemployed, employmentRate };
   };
@@ -565,17 +731,17 @@ export const AppProvider = ({ children }) => {
       login,
       logout,
       NC_COMPETENCIES,
-      // Graduates
-      graduates,
-      addGraduate,
-      updateGraduate,
-      deleteGraduate,
+      // Trainees
+      trainees,
+      addTrainee,
+      updateTrainee,
+      deleteTrainee,
       // Partners
       partners,
       approvePartner,
       rejectPartner,
       registerPartner,
-      // Jobs
+      // Opportunities
       jobPostings,
       addJobPosting,
       updateJobPosting,
@@ -584,16 +750,22 @@ export const AppProvider = ({ children }) => {
       applications,
       applyToJob,
       updateApplicationStatus,
-      getGraduateApplications,
+      getTraineeApplications,
       getJobApplicants,
       getPartnerApplicants,
       // Matching
       getMatchRate,
       getGapAnalysis,
-      getGraduateRecommendedJobs,
+      getTraineeRecommendedJobs,
       // Analytics
       getEmploymentStats,
       getSkillsDemand,
+      // Activity Log
+      activityLog,
+      logActivity,
+      // Account Management
+      adminAccount,
+      updateAccountStatus,
     }}>
       {children}
     </AppContext.Provider>

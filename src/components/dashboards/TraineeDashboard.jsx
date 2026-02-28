@@ -4,7 +4,7 @@ import {
     LayoutDashboard, User, Briefcase, FileText, BarChart2, CheckCircle,
     LogOut, Bell, ChevronDown, Search, Filter, MapPin, Clock, Building2,
     TrendingUp, Award, Send, Star, AlertTriangle, CheckSquare, XCircle,
-    Edit, Upload, Download, ChevronRight, X, Eye, Plus, Target
+    Edit, Upload, Download, ChevronRight, X, Eye, Plus, Target, Menu
 } from 'lucide-react';
 
 // ─── REUSABLE LAYOUT ──────────────────────────────────────────────
@@ -12,16 +12,23 @@ const AppLayout = ({ sidebar, children, pageTitle, pageSubtitle }) => {
     const { currentUser, userRole, logout } = useApp();
     const [showProfileMenu, setShowProfileMenu] = useState(false);
     const [showNotif, setShowNotif] = useState(false);
-    const initials = currentUser?.name?.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase() || 'G';
+    const [sidebarOpen, setSidebarOpen] = useState(false);
+    const initials = currentUser?.name?.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase() || 'T';
 
     return (
         <div className="app-layout">
-            {sidebar}
+            {sidebarOpen && <div className="sidebar-overlay" onClick={() => setSidebarOpen(false)} />}
+            {React.cloneElement(sidebar, { mobileOpen: sidebarOpen, closeSidebar: () => setSidebarOpen(false) })}
             <div className="main-content">
                 <header className="top-header">
-                    <div>
-                        <div className="header-title">{pageTitle}</div>
-                        {pageSubtitle && <div className="header-subtitle">{pageSubtitle}</div>}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                        <button className="hamburger-btn" onClick={() => setSidebarOpen(true)}>
+                            <Menu size={20} />
+                        </button>
+                        <div>
+                            <div className="header-title">{pageTitle}</div>
+                            {pageSubtitle && <div className="header-subtitle">{pageSubtitle}</div>}
+                        </div>
                     </div>
                     <div className="header-actions">
                         <div style={{ position: 'relative' }}>
@@ -32,7 +39,7 @@ const AppLayout = ({ sidebar, children, pageTitle, pageSubtitle }) => {
                             {showNotif && (
                                 <div className="dropdown-menu" style={{ minWidth: 260, right: 0 }}>
                                     <div style={{ padding: '10px 14px', borderBottom: '1px solid #e2e8f0', fontWeight: 700, fontSize: 13 }}>Notifications</div>
-                                    {['New job match: Junior IT Technician', 'Your application was reviewed', 'Profile viewed by TechSolutions'].map((n, i) => (
+                                    {['New opportunity match: Junior IT Technician', 'Your application was reviewed', 'Profile viewed by TechSolutions'].map((n, i) => (
                                         <div key={i} className="dropdown-item" style={{ fontSize: 12.5, alignItems: 'flex-start', gap: 8 }}>
                                             <div style={{ width: 7, height: 7, borderRadius: '50%', background: '#3b82f6', marginTop: 4, flexShrink: 0 }} />
                                             {n}
@@ -45,7 +52,7 @@ const AppLayout = ({ sidebar, children, pageTitle, pageSubtitle }) => {
                             <div className="header-profile" onClick={() => setShowProfileMenu(!showProfileMenu)}>
                                 <div className="profile-avatar">{initials}</div>
                                 <div>
-                                    <div className="profile-name">{currentUser?.name || 'Graduate'}</div>
+                                    <div className="profile-name">{currentUser?.name || 'Trainee'}</div>
                                     <div className="profile-role">{userRole}</div>
                                 </div>
                                 <ChevronDown size={14} color="#94a3b8" />
@@ -67,31 +74,38 @@ const AppLayout = ({ sidebar, children, pageTitle, pageSubtitle }) => {
 };
 
 // ─── SIDEBAR ─────────────────────────────────────────────────────
-const GraduateSidebar = ({ activePage, setActivePage }) => {
+const TraineeSidebar = ({ activePage, setActivePage, mobileOpen, closeSidebar }) => {
     const { currentUser, logout } = useApp();
-    const initials = currentUser?.name?.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase() || 'G';
+    const initials = currentUser?.name?.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase() || 'T';
     const navItems = [
         { id: 'dashboard', label: 'Dashboard', icon: <LayoutDashboard size={17} /> },
         { id: 'profile', label: 'My Profile', icon: <User size={17} /> },
-        { id: 'recommendations', label: 'Job Recommendations', icon: <Briefcase size={17} /> },
+        { id: 'certification', label: 'Certification Progress', icon: <Award size={17} /> },
+        { id: 'recommendations', label: 'Opportunities', icon: <Briefcase size={17} /> },
         { id: 'applications', label: 'My Applications', icon: <FileText size={17} /> },
         { id: 'gap-analysis', label: 'Gap Analysis', icon: <BarChart2 size={17} /> },
         { id: 'employment', label: 'Employment Status', icon: <CheckCircle size={17} /> },
     ];
+
+    const handleNav = (id) => {
+        setActivePage(id);
+        if (closeSidebar) closeSidebar();
+    };
+
     return (
-        <nav className="sidebar">
+        <nav className={`sidebar ${mobileOpen ? 'open' : ''}`}>
             <div className="sidebar-brand">
                 <div className="sidebar-logo">TT</div>
                 <div className="sidebar-brand-text">
                     <div className="sidebar-brand-name">TraineeTrack</div>
-                    <div className="sidebar-brand-sub">Graduate Portal</div>
+                    <div className="sidebar-brand-sub">Trainee Portal</div>
                 </div>
             </div>
             <div className="sidebar-section-label">Navigation</div>
             <div className="sidebar-nav">
                 {navItems.map(item => (
                     <div key={item.id} className={`sidebar-item ${activePage === item.id ? 'active' : ''}`}
-                        onClick={() => setActivePage(item.id)}>
+                        onClick={() => handleNav(item.id)}>
                         {item.icon} {item.label}
                     </div>
                 ))}
@@ -101,7 +115,7 @@ const GraduateSidebar = ({ activePage, setActivePage }) => {
                     <div className="sidebar-avatar">{initials}</div>
                     <div className="sidebar-user-info">
                         <div className="sidebar-user-name">{currentUser?.name}</div>
-                        <div className="sidebar-user-role">Graduate</div>
+                        <div className="sidebar-user-role">Trainee</div>
                     </div>
                 </div>
                 <div className="sidebar-item" onClick={logout} style={{ color: '#f87171' }}>
@@ -126,11 +140,11 @@ const ProgressBar = ({ value, showLabel = true }) => {
 };
 
 // ─── PAGE 1: DASHBOARD ───────────────────────────────────────────
-const GradDashboardHome = ({ setActivePage }) => {
-    const { currentUser, graduates, jobPostings, applications, getGraduateRecommendedJobs, applyToJob } = useApp();
-    const grad = graduates.find(g => g.id === currentUser?.id) || graduates[0];
-    const myApps = applications.filter(a => a.graduateId === grad?.id);
-    const recJobs = getGraduateRecommendedJobs(grad?.id).slice(0, 3);
+const TraineeDashboardHome = ({ setActivePage }) => {
+    const { currentUser, trainees, jobPostings, applications, getTraineeRecommendedJobs, applyToJob } = useApp();
+    const trainee = trainees.find(t => t.id === currentUser?.id) || trainees[0];
+    const myApps = applications.filter(a => a.traineeId === trainee?.id);
+    const recJobs = getTraineeRecommendedJobs(trainee?.id).slice(0, 3);
 
     const stats = [
         {
@@ -145,18 +159,18 @@ const GradDashboardHome = ({ setActivePage }) => {
         },
         {
             label: 'Employment Status',
-            value: grad?.employmentStatus || 'Unemployed',
-            icon: <Briefcase size={22} color="#0ea5e9" />, bg: '#e0f2fe', sub: grad?.employer || 'Not employed'
+            value: trainee?.employmentStatus || 'Unemployed',
+            icon: <Briefcase size={22} color="#0ea5e9" />, bg: '#e0f2fe', sub: trainee?.employer || 'Not employed'
         },
         {
             label: 'Certifications',
-            value: grad?.certifications?.length || 0,
-            icon: <Award size={22} color="#16a34a" />, bg: '#dcfce7', sub: grad?.certifications?.join(', ').slice(0, 30) + '...' || ''
+            value: trainee?.certifications?.length || 0,
+            icon: <Award size={22} color="#16a34a" />, bg: '#dcfce7', sub: trainee?.certifications?.join(', ').slice(0, 30) + '...' || ''
         },
     ];
 
     const handleApply = (jobId) => {
-        const result = applyToJob(grad?.id, jobId);
+        const result = applyToJob(trainee?.id, jobId);
         if (!result.success) alert(result.error);
     };
 
@@ -166,18 +180,18 @@ const GradDashboardHome = ({ setActivePage }) => {
             <div style={{
                 background: 'linear-gradient(135deg, #1e3a5f 0%, #2563eb 100%)',
                 borderRadius: 16, padding: '24px 28px', marginBottom: 24, color: 'white',
-                display: 'flex', alignItems: 'center', justifyContent: 'space-between'
+                display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 16
             }}>
                 <div>
-                    <div style={{ fontSize: 22, fontWeight: 800 }}>Welcome back, {grad?.name?.split(' ')[0]}! 👋</div>
+                    <div style={{ fontSize: 22, fontWeight: 800 }}>Welcome back, {trainee?.name?.split(' ')[0]}! 👋</div>
                     <div style={{ fontSize: 13.5, color: 'rgba(255,255,255,0.7)', marginTop: 4 }}>
-                        {grad?.certifications?.length} certification{grad?.certifications?.length !== 1 ? 's' : ''} earned &bull; Graduation Year: {grad?.graduationYear}
+                        {trainee?.certifications?.length} certification{trainee?.certifications?.length !== 1 ? 's' : ''} earned &bull; Year: {trainee?.graduationYear}
                     </div>
                 </div>
                 <div style={{ textAlign: 'right' }}>
                     <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.5)', marginBottom: 4 }}>Your Best Match</div>
                     <div style={{ fontSize: 32, fontWeight: 800, lineHeight: 1 }}>{recJobs[0]?.matchRate || 0}%</div>
-                    <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.6)' }}>Job Compatibility</div>
+                    <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.6)' }}>Opportunity Compatibility</div>
                 </div>
             </div>
 
@@ -195,11 +209,11 @@ const GradDashboardHome = ({ setActivePage }) => {
                 ))}
             </div>
 
-            {/* Recommended Jobs */}
+            {/* Recommended Opportunities */}
             <div className="card">
                 <div className="section-header">
                     <div>
-                        <div className="section-title">Recommended Jobs</div>
+                        <div className="section-title">Recommended Opportunities</div>
                         <div className="section-subtitle">Based on your TESDA certifications and competencies</div>
                     </div>
                     <button className="btn btn-outline btn-sm" onClick={() => setActivePage('recommendations')}>
@@ -208,7 +222,7 @@ const GradDashboardHome = ({ setActivePage }) => {
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginTop: 8 }}>
                     {recJobs.map(job => (
-                        <div key={job.id} className="job-card" style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+                        <div key={job.id} className="job-card" style={{ display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap' }}>
                             <div style={{
                                 width: 44, height: 44, borderRadius: 10, background: 'linear-gradient(135deg, #dbeafe, #ede9fe)',
                                 display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0
@@ -221,13 +235,16 @@ const GradDashboardHome = ({ setActivePage }) => {
                                 <ProgressBar value={job.matchRate} />
                             </div>
                             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 6, flexShrink: 0 }}>
-                                <span className={`badge badge-${job.status.toLowerCase()}`}>{job.status}</span>
+                                <div style={{ display: 'flex', gap: 4 }}>
+                                    <span className={`badge badge-${job.status.toLowerCase()}`}>{job.status}</span>
+                                    <span className="badge badge-cyan" style={{ fontSize: 10 }}>{job.opportunityType}</span>
+                                </div>
                                 <button className="btn btn-primary btn-sm" onClick={() => handleApply(job.id)}>Apply</button>
                             </div>
                         </div>
                     ))}
                     {recJobs.length === 0 && (
-                        <div className="empty-state"><Briefcase size={40} /><h3>No open jobs found</h3><p>Check back soon!</p></div>
+                        <div className="empty-state"><Briefcase size={40} /><h3>No open opportunities found</h3><p>Check back soon!</p></div>
                     )}
                 </div>
             </div>
@@ -236,20 +253,19 @@ const GradDashboardHome = ({ setActivePage }) => {
 };
 
 // ─── PAGE 2: PROFILE ─────────────────────────────────────────────
-const GradProfile = () => {
-    const { currentUser, graduates, updateGraduate, NC_COMPETENCIES } = useApp();
-    const grad = graduates.find(g => g.id === currentUser?.id) || graduates[0];
+const TraineeProfile = () => {
+    const { currentUser, trainees, updateTrainee, NC_COMPETENCIES } = useApp();
+    const trainee = trainees.find(t => t.id === currentUser?.id) || trainees[0];
     const [editing, setEditing] = useState(false);
-    const [form, setForm] = useState({ ...grad });
-    const initials = grad?.name?.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase() || 'G';
+    const [form, setForm] = useState({ ...trainee });
+    const initials = trainee?.name?.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase() || 'T';
 
     const save = () => {
-        updateGraduate(grad.id, form);
+        updateTrainee(trainee.id, form);
         setEditing(false);
     };
 
     const allCompetencies = Object.values(NC_COMPETENCIES).flat();
-    const uniqueComp = [...new Set(allCompetencies)];
 
     return (
         <div>
@@ -265,10 +281,10 @@ const GradProfile = () => {
                 <div style={{ padding: '48px 24px 24px', position: 'relative' }}>
                     <div className="profile-avatar-large">{initials}</div>
                     <div style={{ paddingLeft: 0 }}>
-                        <h2 style={{ fontSize: 20, fontWeight: 800 }}>{grad?.name}</h2>
-                        <p style={{ fontSize: 13, color: '#64748b' }}>{grad?.email} &bull; Graduation Year: {grad?.graduationYear}</p>
+                        <h2 style={{ fontSize: 20, fontWeight: 800 }}>{trainee?.name}</h2>
+                        <p style={{ fontSize: 13, color: '#64748b' }}>{trainee?.email} &bull; Year: {trainee?.graduationYear}</p>
                         <div style={{ display: 'flex', gap: 8, marginTop: 10, flexWrap: 'wrap' }}>
-                            {grad?.certifications?.map(c => (
+                            {trainee?.certifications?.map(c => (
                                 <span key={c} className="badge badge-blue"><Award size={11} />{c}</span>
                             ))}
                         </div>
@@ -299,7 +315,7 @@ const GradProfile = () => {
                                     <input type={f.type} className="form-input" value={form[f.key] || ''} onChange={e => setForm({ ...form, [f.key]: e.target.value })} />
                                 )
                             ) : (
-                                <div style={{ fontSize: 13.5, color: '#475569', padding: '6px 0', borderBottom: '1px solid #f1f5f9' }}>{grad?.[f.key] || '—'}</div>
+                                <div style={{ fontSize: 13.5, color: '#475569', padding: '6px 0', borderBottom: '1px solid #f1f5f9' }}>{trainee?.[f.key] || '—'}</div>
                             )}
                         </div>
                     ))}
@@ -309,7 +325,7 @@ const GradProfile = () => {
                 <div className="card">
                     <div className="section-title" style={{ marginBottom: 16 }}>Competencies & Skills</div>
                     {allCompetencies.slice(0, 8).map(comp => {
-                        const has = grad?.competencies?.includes(comp);
+                        const has = trainee?.competencies?.includes(comp);
                         return (
                             <div key={comp} className="competency-item">
                                 {has ? <CheckSquare size={16} color="#16a34a" style={{ flexShrink: 0 }} /> : <XCircle size={16} color="#dc2626" style={{ flexShrink: 0 }} />}
@@ -325,7 +341,7 @@ const GradProfile = () => {
                 {/* Achievements */}
                 <div className="card">
                     <div className="section-title" style={{ marginBottom: 14 }}>Achievements</div>
-                    {grad?.achievements?.length > 0 ? grad.achievements.map((a, i) => (
+                    {trainee?.achievements?.length > 0 ? trainee.achievements.map((a, i) => (
                         <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 0', borderBottom: '1px solid #f1f5f9' }}>
                             <Star size={15} color="#f59e0b" />
                             <span style={{ fontSize: 13.5, color: '#475569' }}>{a}</span>
@@ -346,7 +362,7 @@ const GradProfile = () => {
                                 <FileText size={15} color="#64748b" />
                                 <span style={{ fontSize: 13.5, color: '#475569' }}>{doc.label}</span>
                             </div>
-                            {grad?.documents?.[doc.key] ? (
+                            {trainee?.documents?.[doc.key] ? (
                                 <div style={{ display: 'flex', gap: 6 }}>
                                     <button className="btn btn-outline btn-sm"><Eye size={12} /> View</button>
                                     <button className="btn btn-outline btn-sm"><Download size={12} /></button>
@@ -362,22 +378,143 @@ const GradProfile = () => {
     );
 };
 
-// ─── PAGE 3: JOB RECOMMENDATIONS ────────────────────────────────
-const JobRecommendations = () => {
-    const { currentUser, graduates, jobPostings, applications, getGraduateRecommendedJobs, applyToJob } = useApp();
-    const grad = graduates.find(g => g.id === currentUser?.id) || graduates[0];
-    const myApps = applications.filter(a => a.graduateId === grad?.id).map(a => a.jobId);
-    const allJobs = getGraduateRecommendedJobs(grad?.id);
+// ─── PAGE 3: CERTIFICATION PROGRESS ──────────────────────────────
+const CertificationProgress = () => {
+    const { currentUser, trainees } = useApp();
+    const trainee = trainees.find(t => t.id === currentUser?.id) || trainees[0];
+    const progress = trainee?.certificationProgress || [];
+
+    const getCompletionPercent = (cert) => {
+        if (!cert.competencies || cert.competencies.length === 0) return 0;
+        const passed = cert.competencies.filter(c => c.status === 'Passed').length;
+        return Math.round((passed / cert.competencies.length) * 100);
+    };
+
+    const statusBadge = (s) => {
+        const map = { Passed: 'badge-green', Failed: 'badge-red', 'Pending Assessment': 'badge-yellow' };
+        return <span className={`badge ${map[s] || 'badge-gray'}`}>{s}</span>;
+    };
+
+    const certStatusBadge = (s) => {
+        const map = { Completed: 'badge-green', 'In Progress': 'badge-blue', 'Not Started': 'badge-gray' };
+        return <span className={`badge ${map[s] || 'badge-gray'}`}>{s}</span>;
+    };
+
+    return (
+        <div>
+            <div className="page-header">
+                <div>
+                    <div className="page-title">Certification Progress</div>
+                    <div className="page-subtitle">Track your TESDA certification journey and competency status</div>
+                </div>
+                <div className="badge badge-blue">{progress.length} certification{progress.length !== 1 ? 's' : ''}</div>
+            </div>
+
+            {/* Overview Cards */}
+            <div className="stats-grid" style={{ marginBottom: 24 }}>
+                {[
+                    { label: 'Total Certifications', value: progress.length, icon: <Award size={22} color="#7c3aed" />, bg: '#ede9fe' },
+                    { label: 'Completed', value: progress.filter(p => p.status === 'Completed').length, icon: <CheckCircle size={22} color="#16a34a" />, bg: '#dcfce7' },
+                    { label: 'In Progress', value: progress.filter(p => p.status === 'In Progress').length, icon: <Clock size={22} color="#2563eb" />, bg: '#dbeafe' },
+                    { label: 'Overall Progress', value: progress.length > 0 ? `${Math.round(progress.reduce((s, c) => s + getCompletionPercent(c), 0) / progress.length)}%` : '0%', icon: <TrendingUp size={22} color="#d97706" />, bg: '#fef3c7' },
+                ].map((s, i) => (
+                    <div key={i} className="stat-card">
+                        <div className="stat-icon" style={{ background: s.bg }}>{s.icon}</div>
+                        <div className="stat-info">
+                            <div className="stat-label">{s.label}</div>
+                            <div className="stat-value">{s.value}</div>
+                        </div>
+                    </div>
+                ))}
+            </div>
+
+            {/* Certification Cards */}
+            {progress.map((cert, ci) => {
+                const pct = getCompletionPercent(cert);
+                return (
+                    <div key={ci} className="card" style={{ marginBottom: 16 }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16, flexWrap: 'wrap', gap: 8 }}>
+                            <div>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                                    <div style={{ width: 40, height: 40, borderRadius: 10, background: 'linear-gradient(135deg, #ede9fe, #dbeafe)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                        <Award size={20} color="#7c3aed" />
+                                    </div>
+                                    <div>
+                                        <div style={{ fontWeight: 700, fontSize: 16, color: '#0f172a' }}>{cert.certification}</div>
+                                        <div style={{ fontSize: 12, color: '#64748b' }}>Enrolled: {cert.enrolledDate}</div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                                {certStatusBadge(cert.status)}
+                                <span style={{ fontWeight: 800, fontSize: 18, color: pct >= 70 ? '#16a34a' : pct >= 40 ? '#d97706' : '#dc2626' }}>{pct}%</span>
+                            </div>
+                        </div>
+
+                        {/* Progress Bar */}
+                        <div style={{ marginBottom: 16 }}>
+                            <ProgressBar value={pct} />
+                        </div>
+
+                        {/* Competencies Table */}
+                        <div style={{ overflowX: 'auto' }}>
+                            <table className="data-table">
+                                <thead>
+                                    <tr>
+                                        <th>#</th>
+                                        <th>Unit of Competency</th>
+                                        <th>Status</th>
+                                        <th>Remarks</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {cert.competencies.map((comp, i) => (
+                                        <tr key={i}>
+                                            <td style={{ color: '#94a3b8', width: 40 }}>{i + 1}</td>
+                                            <td style={{ fontWeight: 500 }}>
+                                                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                                    {comp.status === 'Passed' ? <CheckSquare size={14} color="#16a34a" /> :
+                                                        comp.status === 'Failed' ? <XCircle size={14} color="#dc2626" /> :
+                                                            <Clock size={14} color="#d97706" />}
+                                                    {comp.name}
+                                                </div>
+                                            </td>
+                                            <td>{statusBadge(comp.status)}</td>
+                                            <td style={{ fontSize: 12.5, color: '#64748b', maxWidth: 200 }}>{comp.remarks || '—'}</td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                );
+            })}
+
+            {progress.length === 0 && (
+                <div className="empty-state"><Award size={48} /><h3>No certifications found</h3><p>Your certification progress will appear here once enrolled.</p></div>
+            )}
+        </div>
+    );
+};
+
+// ─── PAGE 4: OPPORTUNITIES (was JOB RECOMMENDATIONS) ─────────────
+const Opportunities = () => {
+    const { currentUser, trainees, jobPostings, applications, getTraineeRecommendedJobs, applyToJob } = useApp();
+    const trainee = trainees.find(t => t.id === currentUser?.id) || trainees[0];
+    const myApps = applications.filter(a => a.traineeId === trainee?.id).map(a => a.jobId);
+    const allJobs = getTraineeRecommendedJobs(trainee?.id);
 
     const [search, setSearch] = useState('');
     const [filterIndustry, setFilterIndustry] = useState('All');
     const [filterType, setFilterType] = useState('All');
     const [filterLocation, setFilterLocation] = useState('All');
+    const [filterOpType, setFilterOpType] = useState('All');
     const [selectedJob, setSelectedJob] = useState(null);
 
     const industries = ['All', ...new Set(jobPostings.map(j => j.industry))];
     const types = ['All', 'Full-time', 'Part-time', 'Contract', 'Internship'];
     const locations = ['All', ...new Set(jobPostings.map(j => j.location))];
+    const opTypes = ['All', 'Job', 'OJT', 'Apprenticeship'];
 
     const filtered = allJobs.filter(j => {
         const q = search.toLowerCase();
@@ -385,19 +522,20 @@ const JobRecommendations = () => {
             (j.title.toLowerCase().includes(q) || j.companyName.toLowerCase().includes(q)) &&
             (filterIndustry === 'All' || j.industry === filterIndustry) &&
             (filterType === 'All' || j.employmentType === filterType) &&
-            (filterLocation === 'All' || j.location === filterLocation)
+            (filterLocation === 'All' || j.location === filterLocation) &&
+            (filterOpType === 'All' || j.opportunityType === filterOpType)
         );
     });
 
     const handleApply = (jobId) => {
-        const r = applyToJob(grad?.id, jobId);
+        const r = applyToJob(trainee?.id, jobId);
         if (!r.success) alert(r.error);
     };
 
     return (
         <div>
             <div className="page-header">
-                <div><div className="page-title">Job Recommendations</div><div className="page-subtitle">Positions matched to your TESDA certifications</div></div>
+                <div><div className="page-title">Opportunities</div><div className="page-subtitle">Jobs, OJT, and apprenticeships matched to your qualifications</div></div>
                 <div className="badge badge-blue">{filtered.length} positions found</div>
             </div>
 
@@ -406,21 +544,22 @@ const JobRecommendations = () => {
                 <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'center' }}>
                     <div className="search-bar" style={{ flex: 1, minWidth: 200 }}>
                         <Search size={15} color="#94a3b8" />
-                        <input placeholder="Search job title or company..." value={search} onChange={e => setSearch(e.target.value)} />
+                        <input placeholder="Search title or company..." value={search} onChange={e => setSearch(e.target.value)} />
                     </div>
                     {[
+                        { label: 'Type', val: filterOpType, set: setFilterOpType, opts: opTypes },
                         { label: 'Industry', val: filterIndustry, set: setFilterIndustry, opts: industries },
                         { label: 'Location', val: filterLocation, set: setFilterLocation, opts: locations },
-                        { label: 'Type', val: filterType, set: setFilterType, opts: types },
+                        { label: 'Employment', val: filterType, set: setFilterType, opts: types },
                     ].map(f => (
-                        <select key={f.label} className="form-select" style={{ width: 'auto', minWidth: 140 }} value={f.val} onChange={e => f.set(e.target.value)}>
+                        <select key={f.label} className="form-select" style={{ width: 'auto', minWidth: 130 }} value={f.val} onChange={e => f.set(e.target.value)}>
                             {f.opts.map(o => <option key={o}>{o}</option>)}
                         </select>
                     ))}
                 </div>
             </div>
 
-            {/* Job Cards Grid */}
+            {/* Opportunity Cards Grid */}
             <div className="cards-grid">
                 {filtered.map(job => {
                     const applied = myApps.includes(job.id);
@@ -434,7 +573,10 @@ const JobRecommendations = () => {
                                     <div style={{ fontWeight: 700, fontSize: 14, color: '#0f172a' }}>{job.title}</div>
                                     <div style={{ fontSize: 12, color: '#64748b' }}>{job.companyName}</div>
                                 </div>
-                                <span className={`badge badge-${job.status.toLowerCase()}`}>{job.status}</span>
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: 4, alignItems: 'flex-end' }}>
+                                    <span className={`badge badge-${job.status.toLowerCase()}`}>{job.status}</span>
+                                    <span className="badge badge-cyan" style={{ fontSize: 10 }}>{job.opportunityType}</span>
+                                </div>
                             </div>
 
                             <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
@@ -467,10 +609,10 @@ const JobRecommendations = () => {
             </div>
 
             {filtered.length === 0 && (
-                <div className="empty-state"><Briefcase size={48} /><h3>No jobs found</h3><p>Try adjusting your filters.</p></div>
+                <div className="empty-state"><Briefcase size={48} /><h3>No opportunities found</h3><p>Try adjusting your filters.</p></div>
             )}
 
-            {/* Job Detail Modal */}
+            {/* Detail Modal */}
             {selectedJob && (
                 <div className="modal-overlay" onClick={() => setSelectedJob(null)}>
                     <div className="modal" style={{ maxWidth: 600 }} onClick={e => e.stopPropagation()}>
@@ -483,12 +625,13 @@ const JobRecommendations = () => {
                         </div>
                         <div style={{ display: 'flex', gap: 8, marginBottom: 16, flexWrap: 'wrap' }}>
                             <span className={`badge badge-${selectedJob.status.toLowerCase()}`}>{selectedJob.status}</span>
+                            <span className="badge badge-cyan">{selectedJob.opportunityType}</span>
                             <span className="badge badge-purple">{selectedJob.ncLevel}</span>
                             <span className="badge badge-gray">{selectedJob.employmentType}</span>
-                            <span className="badge badge-cyan">{selectedJob.matchRate}% Match</span>
+                            <span className="badge badge-blue">{selectedJob.matchRate}% Match</span>
                         </div>
                         <div style={{ marginBottom: 16 }}>
-                            <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 6 }}>Job Description</div>
+                            <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 6 }}>Description</div>
                             <p style={{ fontSize: 13.5, color: '#475569', lineHeight: 1.6 }}>{selectedJob.description}</p>
                         </div>
                         <div style={{ marginBottom: 16 }}>
@@ -502,7 +645,7 @@ const JobRecommendations = () => {
                         </div>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingTop: 16, borderTop: '1px solid #e2e8f0' }}>
                             <span style={{ fontSize: 14, fontWeight: 700, color: '#16a34a' }}>{selectedJob.salaryRange}</span>
-                            <button className="btn btn-primary" onClick={() => { applyToJob(grad?.id, selectedJob.id); setSelectedJob(null); }}>
+                            <button className="btn btn-primary" onClick={() => { applyToJob(trainee?.id, selectedJob.id); setSelectedJob(null); }}>
                                 <Send size={15} /> Apply Now
                             </button>
                         </div>
@@ -513,36 +656,34 @@ const JobRecommendations = () => {
     );
 };
 
-// ─── PAGE 4: GAP ANALYSIS ────────────────────────────────────────
+// ─── PAGE 5: GAP ANALYSIS ────────────────────────────────────────
 const GapAnalysis = () => {
-    const { currentUser, graduates, jobPostings, getGapAnalysis, getMatchRate } = useApp();
-    const grad = graduates.find(g => g.id === currentUser?.id) || graduates[0];
+    const { currentUser, trainees, jobPostings, getGapAnalysis, getMatchRate } = useApp();
+    const trainee = trainees.find(t => t.id === currentUser?.id) || trainees[0];
     const [selectedJobId, setSelectedJobId] = useState(jobPostings[0]?.id || null);
     const selectedJob = jobPostings.find(j => j.id === selectedJobId);
-    const analysis = selectedJobId ? getGapAnalysis(grad?.id, selectedJobId) : [];
-    const matchRate = selectedJobId ? getMatchRate(grad?.id, selectedJobId) : 0;
+    const analysis = selectedJobId ? getGapAnalysis(trainee?.id, selectedJobId) : [];
+    const matchRate = selectedJobId ? getMatchRate(trainee?.id, selectedJobId) : 0;
     const matched = analysis.filter(a => a.status === 'Matched');
     const missing = analysis.filter(a => a.status === 'Missing');
 
     return (
         <div>
             <div className="page-header">
-                <div><div className="page-title">Gap Analysis</div><div className="page-subtitle">Compare your competencies to job requirements</div></div>
+                <div><div className="page-title">Gap Analysis</div><div className="page-subtitle">Compare your competencies to opportunity requirements</div></div>
             </div>
 
-            {/* Job Selector */}
             <div className="card" style={{ marginBottom: 20 }}>
                 <div className="form-group" style={{ marginBottom: 0 }}>
-                    <label className="form-label">Select a Job Position to Analyze</label>
+                    <label className="form-label">Select an Opportunity to Analyze</label>
                     <select className="form-select" value={selectedJobId || ''} onChange={e => setSelectedJobId(Number(e.target.value))}>
-                        {jobPostings.map(j => <option key={j.id} value={j.id}>{j.title} — {j.companyName}</option>)}
+                        {jobPostings.map(j => <option key={j.id} value={j.id}>{j.title} — {j.companyName} ({j.opportunityType})</option>)}
                     </select>
                 </div>
             </div>
 
             {selectedJob && (
                 <>
-                    {/* Summary Cards */}
                     <div className="three-col" style={{ marginBottom: 20 }}>
                         {[
                             { label: 'Match Rate', value: `${matchRate}%`, icon: <TrendingUp size={22} color="#2563eb" />, bg: '#dbeafe' },
@@ -559,7 +700,6 @@ const GapAnalysis = () => {
                         ))}
                     </div>
 
-                    {/* Competency Table */}
                     <div className="card" style={{ marginBottom: 16 }}>
                         <div className="section-header">
                             <div>
@@ -598,7 +738,6 @@ const GapAnalysis = () => {
                         </div>
                     </div>
 
-                    {/* Recommendations */}
                     {missing.length > 0 && (
                         <div className="card" style={{ borderLeft: '4px solid #f59e0b' }}>
                             <div className="section-title" style={{ marginBottom: 12, color: '#92400e' }}>
@@ -629,11 +768,11 @@ const GapAnalysis = () => {
     );
 };
 
-// ─── PAGE 5: MY APPLICATIONS ──────────────────────────────────────
+// ─── PAGE 6: MY APPLICATIONS ──────────────────────────────────────
 const MyApplications = () => {
-    const { currentUser, graduates, getGraduateApplications } = useApp();
-    const grad = graduates.find(g => g.id === currentUser?.id) || graduates[0];
-    const myApps = getGraduateApplications(grad?.id);
+    const { currentUser, trainees, getTraineeApplications } = useApp();
+    const trainee = trainees.find(t => t.id === currentUser?.id) || trainees[0];
+    const myApps = getTraineeApplications(trainee?.id);
     const [search, setSearch] = useState('');
 
     const filtered = myApps.filter(a =>
@@ -649,11 +788,10 @@ const MyApplications = () => {
     return (
         <div>
             <div className="page-header">
-                <div><div className="page-title">My Applications</div><div className="page-subtitle">Track all your job applications</div></div>
+                <div><div className="page-title">My Applications</div><div className="page-subtitle">Track all your opportunity applications</div></div>
                 <div className="badge badge-blue">{myApps.length} total</div>
             </div>
 
-            {/* Stats row */}
             <div style={{ display: 'flex', gap: 12, marginBottom: 20, flexWrap: 'wrap' }}>
                 {[
                     { label: 'Total', count: myApps.length, color: '#2563eb', bg: '#dbeafe' },
@@ -669,7 +807,7 @@ const MyApplications = () => {
             </div>
 
             <div className="card">
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, flexWrap: 'wrap', gap: 12 }}>
                     <div className="section-title">Application History</div>
                     <div className="search-bar" style={{ width: 240 }}>
                         <Search size={14} color="#94a3b8" />
@@ -680,8 +818,9 @@ const MyApplications = () => {
                     <table className="data-table">
                         <thead>
                             <tr>
-                                <th>Job Title</th>
+                                <th>Title</th>
                                 <th>Company</th>
+                                <th>Type</th>
                                 <th>NC Level</th>
                                 <th>Date Applied</th>
                                 <th>Status</th>
@@ -698,6 +837,7 @@ const MyApplications = () => {
                                             {a.job?.companyName || '—'}
                                         </div>
                                     </td>
+                                    <td><span className="badge badge-cyan" style={{ fontSize: 10 }}>{a.job?.opportunityType || '—'}</span></td>
                                     <td><span className="badge badge-purple">{a.job?.ncLevel || '—'}</span></td>
                                     <td style={{ color: '#64748b', fontSize: 13 }}>{a.appliedAt}</td>
                                     <td>{statusBadge(a.status)}</td>
@@ -705,7 +845,7 @@ const MyApplications = () => {
                                 </tr>
                             ))}
                             {filtered.length === 0 && (
-                                <tr><td colSpan={6} style={{ textAlign: 'center', padding: 40, color: '#94a3b8' }}>No applications yet. Start applying!</td></tr>
+                                <tr><td colSpan={7} style={{ textAlign: 'center', padding: 40, color: '#94a3b8' }}>No applications yet. Start applying!</td></tr>
                             )}
                         </tbody>
                     </table>
@@ -715,16 +855,16 @@ const MyApplications = () => {
     );
 };
 
-// ─── PAGE 6: EMPLOYMENT STATUS ────────────────────────────────────
+// ─── PAGE 7: EMPLOYMENT STATUS ────────────────────────────────────
 const EmploymentStatus = () => {
-    const { currentUser, graduates, updateGraduate } = useApp();
-    const grad = graduates.find(g => g.id === currentUser?.id) || graduates[0];
+    const { currentUser, trainees, updateTrainee } = useApp();
+    const trainee = trainees.find(t => t.id === currentUser?.id) || trainees[0];
     const [editing, setEditing] = useState(false);
     const [form, setForm] = useState({
-        employmentStatus: grad?.employmentStatus || 'Unemployed',
-        employer: grad?.employer || '',
-        jobTitle: grad?.jobTitle || '',
-        dateHired: grad?.dateHired || '',
+        employmentStatus: trainee?.employmentStatus || 'Unemployed',
+        employer: trainee?.employer || '',
+        jobTitle: trainee?.jobTitle || '',
+        dateHired: trainee?.dateHired || '',
     });
 
     const statusColors = {
@@ -732,7 +872,7 @@ const EmploymentStatus = () => {
     };
 
     const save = () => {
-        updateGraduate(grad.id, { ...form, monthsAfterGraduation: form.dateHired ? Math.round((new Date() - new Date(form.dateHired)) / (1000 * 60 * 60 * 24 * 30)) : null });
+        updateTrainee(trainee.id, { ...form, monthsAfterGraduation: form.dateHired ? Math.round((new Date() - new Date(form.dateHired)) / (1000 * 60 * 60 * 24 * 30)) : null });
         setEditing(false);
     };
 
@@ -747,11 +887,11 @@ const EmploymentStatus = () => {
 
             <div className="card" style={{ marginBottom: 16 }}>
                 <div style={{ textAlign: 'center', padding: '20px 0 10px' }}>
-                    <div style={{ fontSize: 48, fontWeight: 800, color: statusColors[grad?.employmentStatus] || '#64748b', marginBottom: 8 }}>
-                        {grad?.employmentStatus || 'Unemployed'}
+                    <div style={{ fontSize: 48, fontWeight: 800, color: statusColors[trainee?.employmentStatus] || '#64748b', marginBottom: 8 }}>
+                        {trainee?.employmentStatus || 'Unemployed'}
                     </div>
-                    <div style={{ fontSize: 14, color: '#64748b' }}>{grad?.employer ? `at ${grad.employer}` : 'Currently not employed'}</div>
-                    {grad?.dateHired && <div style={{ fontSize: 12.5, color: '#94a3b8', marginTop: 4 }}>Since {grad.dateHired} &bull; {grad.monthsAfterGraduation} months after graduation</div>}
+                    <div style={{ fontSize: 14, color: '#64748b' }}>{trainee?.employer ? `at ${trainee.employer}` : 'Currently not employed'}</div>
+                    {trainee?.dateHired && <div style={{ fontSize: 12.5, color: '#94a3b8', marginTop: 4 }}>Since {trainee.dateHired} &bull; {trainee.monthsAfterGraduation} months after graduation</div>}
                 </div>
             </div>
 
@@ -764,22 +904,22 @@ const EmploymentStatus = () => {
                             {['Employed', 'Unemployed', 'Self-Employed', 'Underemployed'].map(s => <option key={s}>{s}</option>)}
                         </select>
                     ) : (
-                        <span className={`badge badge-${(grad?.employmentStatus || 'unemployed').toLowerCase().replace(' ', '-')}`} style={{ fontSize: 13 }}>{grad?.employmentStatus || 'Unemployed'}</span>
+                        <span className={`badge badge-${(trainee?.employmentStatus || 'unemployed').toLowerCase().replace(' ', '-')}`} style={{ fontSize: 13 }}>{trainee?.employmentStatus || 'Unemployed'}</span>
                     )}
                 </div>
-                {(editing ? form.employmentStatus !== 'Unemployed' : grad?.employmentStatus !== 'Unemployed') && (
+                {(editing ? form.employmentStatus !== 'Unemployed' : trainee?.employmentStatus !== 'Unemployed') && (
                     <>
                         <div className="form-group">
                             <label className="form-label">Employer / Company</label>
-                            {editing ? <input type="text" className="form-input" value={form.employer} onChange={e => setForm({ ...form, employer: e.target.value })} placeholder="Company name" /> : <div style={{ fontSize: 14, color: '#475569' }}>{grad?.employer || '—'}</div>}
+                            {editing ? <input type="text" className="form-input" value={form.employer} onChange={e => setForm({ ...form, employer: e.target.value })} placeholder="Company name" /> : <div style={{ fontSize: 14, color: '#475569' }}>{trainee?.employer || '—'}</div>}
                         </div>
                         <div className="form-group">
                             <label className="form-label">Job Title / Position</label>
-                            {editing ? <input type="text" className="form-input" value={form.jobTitle} onChange={e => setForm({ ...form, jobTitle: e.target.value })} placeholder="Your position" /> : <div style={{ fontSize: 14, color: '#475569' }}>{grad?.jobTitle || '—'}</div>}
+                            {editing ? <input type="text" className="form-input" value={form.jobTitle} onChange={e => setForm({ ...form, jobTitle: e.target.value })} placeholder="Your position" /> : <div style={{ fontSize: 14, color: '#475569' }}>{trainee?.jobTitle || '—'}</div>}
                         </div>
                         <div className="form-group">
                             <label className="form-label">Date Hired</label>
-                            {editing ? <input type="date" className="form-input" value={form.dateHired} onChange={e => setForm({ ...form, dateHired: e.target.value })} /> : <div style={{ fontSize: 14, color: '#475569' }}>{grad?.dateHired || '—'}</div>}
+                            {editing ? <input type="date" className="form-input" value={form.dateHired} onChange={e => setForm({ ...form, dateHired: e.target.value })} /> : <div style={{ fontSize: 14, color: '#475569' }}>{trainee?.dateHired || '—'}</div>}
                         </div>
                     </>
                 )}
@@ -788,39 +928,37 @@ const EmploymentStatus = () => {
     );
 };
 
-// ─── MAIN GRADUATE DASHBOARD ─────────────────────────────────────
-export default function GraduateDashboard() {
+// ─── MAIN TRAINEE DASHBOARD ─────────────────────────────────────
+export default function TraineeDashboard() {
     const [activePage, setActivePage] = useState('dashboard');
 
     const pageMap = {
-        dashboard: { title: 'Dashboard', sub: 'Overview of your employment journey' },
+        dashboard: { title: 'Trainee Dashboard', sub: 'Overview of your certification and employment journey' },
         profile: { title: 'My Profile', sub: 'Personal information and credentials' },
-        recommendations: { title: 'Job Recommendations', sub: 'Jobs matched to your qualifications' },
+        certification: { title: 'Certification Progress', sub: 'Track your TESDA certification status' },
+        recommendations: { title: 'Opportunities', sub: 'Jobs, OJT & apprenticeships matched to your qualifications' },
         applications: { title: 'My Applications', sub: 'Your application history and status' },
-        'gap-analysis': { title: 'Gap Analysis', sub: 'Compare competencies to job requirements' },
-        employment: { title: 'Employment Status', sub: 'Your current employment information' },
+        'gap-analysis': { title: 'Gap Analysis', sub: 'Compare competencies to opportunity requirements' },
+        employment: { title: 'Employment Status', sub: 'Your current employment details' },
     };
 
     const current = pageMap[activePage] || pageMap.dashboard;
 
     const renderPage = () => {
         switch (activePage) {
-            case 'dashboard': return <GradDashboardHome setActivePage={setActivePage} />;
-            case 'profile': return <GradProfile />;
-            case 'recommendations': return <JobRecommendations />;
+            case 'dashboard': return <TraineeDashboardHome setActivePage={setActivePage} />;
+            case 'profile': return <TraineeProfile />;
+            case 'certification': return <CertificationProgress />;
+            case 'recommendations': return <Opportunities />;
             case 'applications': return <MyApplications />;
             case 'gap-analysis': return <GapAnalysis />;
             case 'employment': return <EmploymentStatus />;
-            default: return <GradDashboardHome setActivePage={setActivePage} />;
+            default: return <TraineeDashboardHome setActivePage={setActivePage} />;
         }
     };
 
     return (
-        <AppLayout
-            sidebar={<GraduateSidebar activePage={activePage} setActivePage={setActivePage} />}
-            pageTitle={current.title}
-            pageSubtitle={current.sub}
-        >
+        <AppLayout sidebar={<TraineeSidebar activePage={activePage} setActivePage={setActivePage} />} pageTitle={current.title} pageSubtitle={current.sub}>
             {renderPage()}
         </AppLayout>
     );

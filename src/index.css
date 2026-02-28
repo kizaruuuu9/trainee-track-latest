@@ -832,12 +832,247 @@ body {
   box-shadow: var(--shadow-md);
 }
 
-/* ─── RESPONSIVE ──────────────────────────────────────────────────── */
+/* ─── HAMBURGER BUTTON ────────────────────────────────────────────── */
+.hamburger-btn {
+  display: none;
+  background: none;
+  border: 1px solid var(--gray-200);
+  border-radius: 8px;
+  padding: 6px 8px;
+  cursor: pointer;
+  color: var(--gray-500);
+  transition: all 0.15s;
+}
+.hamburger-btn:hover { background: var(--gray-50); color: var(--gray-700); }
+
+/* ─── SIDEBAR OVERLAY ─────────────────────────────────────────────── */
+.sidebar-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.45);
+  z-index: 99;
+  backdrop-filter: blur(2px);
+}
+
+/* ─── PROGRESS BAR ────────────────────────────────────────────────── */
+.progress-bar-wrap {
+  height: 7px;
+  background: var(--gray-100);
+  border-radius: 4px;
+  overflow: hidden;
+}
+.progress-bar-fill {
+  height: 100%;
+  border-radius: 4px;
+  transition: width 0.4s ease;
+}
+.progress-bar-fill.progress-high { background: linear-gradient(90deg, #16a34a, #22c55e); }
+.progress-bar-fill.progress-mid  { background: linear-gradient(90deg, #d97706, #f59e0b); }
+.progress-bar-fill.progress-low  { background: linear-gradient(90deg, #dc2626, #ef4444); }
+
+/* ─── EXTRA BADGES ────────────────────────────────────────────────── */
+.badge-green   { background: #dcfce7; color: #166534; }
+.badge-red     { background: #fee2e2; color: #991b1b; }
+.badge-yellow  { background: #fef3c7; color: #92400e; }
+.badge-cyan    { background: #cffafe; color: #155e75; }
+.badge-purple  { background: #ede9fe; color: #5b21b6; }
+.badge-blue    { background: #dbeafe; color: #1e40af; }
+.badge-gray    { background: #f1f5f9; color: #475569; }
+.badge-matched { background: #dcfce7; color: #166534; }
+.badge-missing { background: #fee2e2; color: #991b1b; }
+.badge-employed      { background: #dcfce7; color: #166534; }
+.badge-unemployed    { background: #fee2e2; color: #991b1b; }
+.badge-self-employed { background: #dbeafe; color: #1e40af; }
+.badge-underemployed { background: #fef3c7; color: #92400e; }
+.badge-open    { background: #dcfce7; color: #166534; }
+.badge-closed  { background: #fee2e2; color: #991b1b; }
+.badge-filled  { background: #e0f2fe; color: #075985; }
+.badge-approved { background: #dcfce7; color: #166534; }
+.badge-pending  { background: #fef3c7; color: #92400e; }
+.badge-rejected { background: #fee2e2; color: #991b1b; }
+.badge-accepted { background: #dcfce7; color: #166534; }
+
+/* ─── COMPETENCY ITEM ─────────────────────────────────────────────── */
+.competency-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--gray-50);
+}
+
+/* ─── JOB CARD ────────────────────────────────────────────────────── */
+.job-card {
+  padding: 14px;
+  border: 1.5px solid var(--gray-100);
+  border-radius: 12px;
+  background: var(--gray-25, #fcfcfd);
+  transition: all 0.15s;
+}
+.job-card:hover { border-color: var(--gray-200); box-shadow: var(--shadow-sm); }
+
+/* ─── CARDS GRID ──────────────────────────────────────────────────── */
+.cards-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 16px;
+}
+
+/* ─── LOGIN RESPONSIVE ────────────────────────────────────────────── */
+@media (max-width: 900px) {
+  .login-page > div {
+    grid-template-columns: 1fr !important;
+    max-width: 440px !important;
+    padding: 0 20px;
+  }
+  .login-page > div > div:first-child {
+    display: none;
+  }
+}
+
+/* ─── RESPONSIVE: TABLET ──────────────────────────────────────────── */
+@media (max-width: 1024px) {
+  .sidebar {
+    width: 220px;
+  }
+  .main-content {
+    margin-left: 220px;
+  }
+  .stats-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+/* ─── RESPONSIVE: MOBILE ──────────────────────────────────────────── */
 @media (max-width: 768px) {
-  .sidebar { transform: translateX(-100%); }
+  .hamburger-btn { display: flex; align-items: center; justify-content: center; }
+  .sidebar-overlay { display: block; }
+
+  .sidebar {
+    position: fixed;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    z-index: 100;
+    transform: translateX(-100%);
+    transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+    width: 260px;
+    box-shadow: none;
+  }
+  .sidebar.open {
+    transform: translateX(0);
+    box-shadow: 8px 0 24px rgba(0, 0, 0, 0.15);
+  }
+
   .main-content { margin-left: 0; }
-  .stats-grid { grid-template-columns: 1fr 1fr; }
-  .two-col, .three-col { grid-template-columns: 1fr; }
+
+  .top-header {
+    padding: 10px 14px;
+  }
+
+  .page-content {
+    padding: 14px;
+  }
+
+  .stats-grid {
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+  }
+
+  .stat-card {
+    padding: 12px;
+  }
+
+  .stat-icon {
+    width: 36px;
+    height: 36px;
+  }
+
+  .stat-value {
+    font-size: 18px;
+  }
+
+  .two-col, .three-col {
+    grid-template-columns: 1fr;
+  }
+
+  .cards-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .page-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 10px;
+  }
+
+  .page-title { font-size: 18px; }
+
+  .data-table {
+    font-size: 12px;
+  }
+  .data-table th,
+  .data-table td {
+    padding: 8px 10px;
+    white-space: nowrap;
+  }
+
+  .chart-wrap {
+    padding: 14px;
+  }
+
+  .card {
+    padding: 14px;
+  }
+
+  .modal {
+    margin: 10px;
+    max-height: 90vh;
+    overflow-y: auto;
+  }
+
+  .search-bar {
+    min-width: unset !important;
+    width: 100% !important;
+  }
+
+  .form-select {
+    width: 100% !important;
+    min-width: unset !important;
+  }
+
+  .header-actions > div .header-profile .profile-name,
+  .header-actions > div .header-profile .profile-role {
+    display: none;
+  }
+
+  .section-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+  }
+}
+
+/* ─── RESPONSIVE: SMALL MOBILE ────────────────────────────────────── */
+@media (max-width: 480px) {
+  .stats-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .header-title { font-size: 14px; }
+  .header-subtitle { font-size: 11px; }
+
+  .stat-card {
+    flex-direction: row;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .login-card {
+    padding: 20px !important;
+    margin: 10px;
+  }
 }
 
 /* ─── ANIMATIONS ──────────────────────────────────────────────────── */
