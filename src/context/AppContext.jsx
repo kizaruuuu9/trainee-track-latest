@@ -239,7 +239,7 @@ export const AppProvider = ({ children }) => {
       industry: 'Information Technology',
       companySize: '51-200',
       website: 'www.techsolutions.ph',
-      verificationStatus: 'Approved',
+      verificationStatus: 'Verified',
       accountStatus: 'Active',
       documents: { businessPermit: 'uploaded', secRegistration: 'uploaded' },
       createdAt: new Date().toISOString(),
@@ -256,7 +256,7 @@ export const AppProvider = ({ children }) => {
       industry: 'Automotive',
       companySize: '201-500',
       website: 'www.automech.com.ph',
-      verificationStatus: 'Approved',
+      verificationStatus: 'Verified',
       accountStatus: 'Active',
       documents: { businessPermit: 'uploaded', secRegistration: 'uploaded' },
       createdAt: new Date().toISOString(),
@@ -273,7 +273,7 @@ export const AppProvider = ({ children }) => {
       industry: 'Electrical / Construction',
       companySize: '11-50',
       website: 'www.powergrid.ph',
-      verificationStatus: 'Pending',
+      verificationStatus: 'Pending Verification',
       accountStatus: 'Active',
       documents: { businessPermit: 'uploaded', secRegistration: null },
       createdAt: new Date().toISOString(),
@@ -558,9 +558,9 @@ export const AppProvider = ({ children }) => {
   const approvePartner = (partnerId) => {
     const partner = partners.find(p => p.id === partnerId);
     setPartners(partners.map(p =>
-      p.id === partnerId ? { ...p, verificationStatus: 'Approved' } : p
+      p.id === partnerId ? { ...p, verificationStatus: 'Verified' } : p
     ));
-    logActivity('Status Change', 'Partners', `Approved partner: ${partner?.companyName}`, partner?.verificationStatus, 'Approved');
+    logActivity('Status Change', 'Partners', `Verified partner: ${partner?.companyName}`, partner?.verificationStatus, 'Verified');
   };
 
   const rejectPartner = (partnerId) => {
@@ -575,14 +575,25 @@ export const AppProvider = ({ children }) => {
     const newPartner = {
       ...partnerData,
       id: partners.length + 1,
-      verificationStatus: 'Pending',
+      verificationStatus: 'Pending Verification',
       accountStatus: 'Active',
-      documents: {},
+      documents: partnerData.documents || {},
       createdAt: new Date().toISOString(),
     };
     setPartners([...partners, newPartner]);
     logActivity('Create', 'Partners', `New partner registered: ${newPartner.companyName}`, null, newPartner.companyName);
     return newPartner;
+  };
+
+  const submitPartnerDocuments = (partnerId, documents) => {
+    const partner = partners.find(p => p.id === partnerId);
+    setPartners(partners.map(p =>
+      p.id === partnerId ? { ...p, documents: { ...p.documents, ...documents }, verificationStatus: 'Under Review' } : p
+    ));
+    if (currentUser?.id === partnerId) {
+      setCurrentUser(prev => ({ ...prev, documents: { ...prev.documents, ...documents }, verificationStatus: 'Under Review' }));
+    }
+    logActivity('Status Change', 'Partners', `${partner?.companyName} submitted documents for verification`, partner?.verificationStatus, 'Under Review');
   };
 
   // ─── TRAINEE FUNCTIONS ──────────────────────────────────────────────────
@@ -668,9 +679,6 @@ export const AppProvider = ({ children }) => {
       if (partner.accountStatus === 'Suspended') {
         return { success: false, error: 'Your account has been suspended. Please contact the administrator.' };
       }
-      if (partner.verificationStatus === 'Pending') {
-        return { success: false, error: 'Your account is pending admin approval.' };
-      }
       if (partner.verificationStatus === 'Rejected') {
         return { success: false, error: 'Your account has been rejected. Please contact PSTDII.' };
       }
@@ -741,6 +749,7 @@ export const AppProvider = ({ children }) => {
       approvePartner,
       rejectPartner,
       registerPartner,
+      submitPartnerDocuments,
       // Opportunities
       jobPostings,
       addJobPosting,

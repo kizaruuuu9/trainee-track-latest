@@ -11,7 +11,7 @@ const DEMO_ACCOUNTS = [
 ];
 
 export default function LoginScreen() {
-  const { login, appMetadata } = useApp();
+  const { login, appMetadata, registerPartner } = useApp();
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -20,6 +20,13 @@ export default function LoginScreen() {
   const [showForgot, setShowForgot] = useState(false);
   const [forgotSent, setForgotSent] = useState(false);
   const [forgotEmail, setForgotEmail] = useState('');
+
+  const [showRegister, setShowRegister] = useState(false);
+  const [regForm, setRegForm] = useState({
+    companyName: '', contactPerson: '', email: '', phone: '', address: '',
+    industry: '', companySize: '', website: '', username: '', password: ''
+  });
+  const [regSuccess, setRegSuccess] = useState(false);
 
   const handleLogin = async (e) => {
     e.preventDefault();
@@ -217,7 +224,7 @@ export default function LoginScreen() {
 
           <p style={{ textAlign: 'center', fontSize: 11.5, color: '#94a3b8', marginTop: 24 }}>
             New industry partner?{' '}
-            <a href="#" style={{ color: '#2563eb', fontWeight: 600, textDecoration: 'none' }}>Register your company</a>
+            <button type="button" onClick={() => setShowRegister(true)} style={{ color: '#2563eb', fontWeight: 600, background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'inherit', padding: 0 }}>Register your company</button>
           </p>
         </div>
       </div>
@@ -255,6 +262,106 @@ export default function LoginScreen() {
                 <div style={{ display: 'flex', gap: 10 }}>
                   <button type="button" className="btn btn-outline" style={{ flex: 1 }} onClick={() => setShowForgot(false)}>Cancel</button>
                   <button type="submit" className="btn btn-primary" style={{ flex: 1 }}>Send Reset Link</button>
+                </div>
+              </form>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Partner Registration Modal */}
+      {showRegister && (
+        <div className="modal-overlay" onClick={() => { if (!regSuccess) setShowRegister(false); }}>
+          <div className="modal" style={{ maxWidth: 600, maxHeight: '90vh', overflowY: 'auto' }} onClick={e => e.stopPropagation()}>
+            <div className="modal-header">
+              <h3 className="modal-title">Partner Registration</h3>
+              <button className="btn btn-outline btn-icon" onClick={() => setShowRegister(false)}>
+                <X size={16} />
+              </button>
+            </div>
+
+            {regSuccess ? (
+              <div style={{ textAlign: 'center', padding: '30px 0' }}>
+                <CheckCircle size={56} color="#16a34a" style={{ margin: '0 auto 16px' }} />
+                <h4 style={{ fontSize: 18, fontWeight: 700, marginBottom: 8 }}>Registration Submitted</h4>
+                <p style={{ fontSize: 14, color: '#64748b', marginBottom: 24, maxWidth: 400, margin: '0 auto 24px' }}>
+                  Thank you for registering! You can now log in and upload your Business Permit on your dashboard to begin the verification process.
+                </p>
+                <button className="btn btn-primary" onClick={() => {
+                  setShowRegister(false);
+                  setRegSuccess(false);
+                  setRegForm({
+                    companyName: '', contactPerson: '', email: '', phone: '', address: '',
+                    industry: '', companySize: '', website: '', username: '', password: ''
+                  });
+                }}>
+                  Return to Login
+                </button>
+              </div>
+            ) : (
+              <form onSubmit={(e) => {
+                e.preventDefault();
+                registerPartner(regForm);
+                setRegSuccess(true);
+              }}>
+                <div style={{ marginBottom: 20 }}>
+                  <div style={{ fontWeight: 600, fontSize: 14, marginBottom: 12, color: '#1e3a5f', borderBottom: '1px solid #e2e8f0', paddingBottom: 6 }}>Company Details</div>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                    <div className="form-group" style={{ marginBottom: 0 }}>
+                      <label className="form-label" style={{ fontSize: 12, marginBottom: 4 }}>Company Name *</label>
+                      <input className="form-input" required value={regForm.companyName} onChange={e => setRegForm({ ...regForm, companyName: e.target.value })} style={{ padding: '8px 12px' }} />
+                    </div>
+                    <div className="form-group" style={{ marginBottom: 0 }}>
+                      <label className="form-label" style={{ fontSize: 12, marginBottom: 4 }}>Contact Person *</label>
+                      <input className="form-input" required value={regForm.contactPerson} onChange={e => setRegForm({ ...regForm, contactPerson: e.target.value })} style={{ padding: '8px 12px' }} />
+                    </div>
+                    <div className="form-group" style={{ marginBottom: 0 }}>
+                      <label className="form-label" style={{ fontSize: 12, marginBottom: 4 }}>Email Address *</label>
+                      <input type="email" className="form-input" required value={regForm.email} onChange={e => setRegForm({ ...regForm, email: e.target.value })} style={{ padding: '8px 12px' }} />
+                    </div>
+                    <div className="form-group" style={{ marginBottom: 0 }}>
+                      <label className="form-label" style={{ fontSize: 12, marginBottom: 4 }}>Phone Number *</label>
+                      <input className="form-input" required value={regForm.phone} onChange={e => setRegForm({ ...regForm, phone: e.target.value })} style={{ padding: '8px 12px' }} />
+                    </div>
+                    <div className="form-group" style={{ gridColumn: 'span 2', marginBottom: 0 }}>
+                      <label className="form-label" style={{ fontSize: 12, marginBottom: 4 }}>Company Address *</label>
+                      <input className="form-input" required value={regForm.address} onChange={e => setRegForm({ ...regForm, address: e.target.value })} style={{ padding: '8px 12px' }} />
+                    </div>
+                    <div className="form-group" style={{ marginBottom: 0 }}>
+                      <label className="form-label" style={{ fontSize: 12, marginBottom: 4 }}>Industry *</label>
+                      <input className="form-input" required value={regForm.industry} onChange={e => setRegForm({ ...regForm, industry: e.target.value })} placeholder="e.g. Information Technology" style={{ padding: '8px 12px' }} />
+                    </div>
+                    <div className="form-group" style={{ marginBottom: 0 }}>
+                      <label className="form-label" style={{ fontSize: 12, marginBottom: 4 }}>Company Size</label>
+                      <select className="form-select" value={regForm.companySize} onChange={e => setRegForm({ ...regForm, companySize: e.target.value })} style={{ padding: '8px 12px' }}>
+                        <option value="">Select Size</option>
+                        <option>1-10</option>
+                        <option>11-50</option>
+                        <option>51-200</option>
+                        <option>201-500</option>
+                        <option>500+</option>
+                      </select>
+                    </div>
+                  </div>
+                </div>
+
+                <div style={{ marginBottom: 20 }}>
+                  <div style={{ fontWeight: 600, fontSize: 14, marginBottom: 12, color: '#1e3a5f', borderBottom: '1px solid #e2e8f0', paddingBottom: 6 }}>Account Credentials</div>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                    <div className="form-group" style={{ marginBottom: 0 }}>
+                      <label className="form-label" style={{ fontSize: 12, marginBottom: 4 }}>Username *</label>
+                      <input className="form-input" required value={regForm.username} onChange={e => setRegForm({ ...regForm, username: e.target.value })} style={{ padding: '8px 12px' }} />
+                    </div>
+                    <div className="form-group" style={{ marginBottom: 0 }}>
+                      <label className="form-label" style={{ fontSize: 12, marginBottom: 4 }}>Password *</label>
+                      <input type="password" className="form-input" required value={regForm.password} onChange={e => setRegForm({ ...regForm, password: e.target.value })} style={{ padding: '8px 12px' }} />
+                    </div>
+                  </div>
+                </div>
+
+                <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', paddingTop: 16, borderTop: '1px solid #e2e8f0' }}>
+                  <button type="button" className="btn btn-outline" onClick={() => setShowRegister(false)}>Cancel</button>
+                  <button type="submit" className="btn btn-primary">Submit Registration</button>
                 </div>
               </form>
             )}
