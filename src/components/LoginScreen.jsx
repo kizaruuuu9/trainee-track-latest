@@ -10,7 +10,7 @@ const DEMO_ACCOUNTS = [
   { role: 'partner', username: 'techsolutions', password: 'partner123', label: 'Industry Partner', color: '#0ea5e9' },
 ];
 
-export default function LoginScreen() {
+export default function LoginScreen({ onShowRegistration }) {
   const { login, appMetadata, registerPartner } = useApp();
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
@@ -225,6 +225,10 @@ export default function LoginScreen() {
           <p style={{ textAlign: 'center', fontSize: 11.5, color: '#94a3b8', marginTop: 24 }}>
             New industry partner?{' '}
             <button type="button" onClick={() => setShowRegister(true)} style={{ color: '#2563eb', fontWeight: 600, background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'inherit', padding: 0 }}>Register your company</button>
+          </p>
+          <p style={{ textAlign: 'center', fontSize: 11.5, color: '#94a3b8', marginTop: 8 }}>
+            New trainee?{' '}
+            <button type="button" onClick={() => onShowRegistration && onShowRegistration()} style={{ color: '#2563eb', fontWeight: 600, background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'inherit', padding: 0 }}>Register here</button>
           </p>
         </div>
       </div>

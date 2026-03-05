@@ -295,6 +295,7 @@ export const AppProvider = ({ children }) => {
         'Set up computer networks',
         'Diagnose and troubleshoot computer systems',
       ],
+      requiredSkills: ['Problem Solving', 'Teamwork', 'Communication'],
       description: 'We are looking for CSS NC II certified technicians to join our growing IT support team. Full training provided for fresh trainees.',
       employmentType: 'Full-time',
       location: 'Makati City',
@@ -317,6 +318,7 @@ export const AppProvider = ({ children }) => {
         'Apply programming skills',
         'Use web development tools',
       ],
+      requiredSkills: ['JavaScript', 'React', 'Node.js', 'UI/UX Design'],
       description: 'Join our web development team as an OJT trainee. You will work on real client projects under senior developers.',
       employmentType: 'Full-time',
       location: 'Makati City',
@@ -339,6 +341,7 @@ export const AppProvider = ({ children }) => {
         'Service fuel and emission systems',
         'Perform mensuration and calculation',
       ],
+      requiredSkills: ['Problem Solving', 'Critical Thinking', 'Teamwork'],
       description: 'AutoMech is hiring automotive technicians for our service center. NC II holders are preferred.',
       employmentType: 'Full-time',
       location: 'Caloocan City',
@@ -360,6 +363,7 @@ export const AppProvider = ({ children }) => {
         'Weld carbon steel pipes using SMAW process',
         'Weld carbon steel plates using MIG/MAG process',
       ],
+      requiredSkills: ['Teamwork', 'Time Management'],
       description: 'We need skilled welders for our fabrication shop. Apprenticeship program for NC I holders or those currently enrolled.',
       employmentType: 'Full-time',
       location: 'Caloocan City',
@@ -443,19 +447,55 @@ export const AppProvider = ({ children }) => {
     const trainee = trainees.find(t => t.id === traineeId);
     const job = jobPostings.find(j => j.id === jobId);
     if (!trainee || !job) return 0;
-    if (job.requiredCompetencies.length === 0) return 100;
-    const matched = job.requiredCompetencies.filter(c => trainee.competencies.includes(c));
-    return Math.round((matched.length / job.requiredCompetencies.length) * 100);
+
+    // Competency match (weighted 70%)
+    const compTotal = (job.requiredCompetencies || []).length;
+    const compMatched = compTotal > 0
+      ? job.requiredCompetencies.filter(c => (trainee.competencies || []).includes(c)).length
+      : 0;
+    const compScore = compTotal > 0 ? compMatched / compTotal : 1;
+
+    // Skills match (weighted 30%) — supports both {name, level} objects and plain strings
+    const jobSkills = (job.requiredSkills || []).map(s => s.toLowerCase());
+    const traineeSkillNames = (trainee.skills || []).map(s =>
+      (typeof s === 'object' ? s.name : s).toLowerCase()
+    );
+    const skillTotal = jobSkills.length;
+    const skillMatched = skillTotal > 0
+      ? jobSkills.filter(s => traineeSkillNames.includes(s)).length
+      : 0;
+    const skillScore = skillTotal > 0 ? skillMatched / skillTotal : 1;
+
+    // If job only has competencies, use 100% competency weight; if only skills, 100% skills
+    if (compTotal === 0 && skillTotal === 0) return 100;
+    if (compTotal === 0) return Math.round(skillScore * 100);
+    if (skillTotal === 0) return Math.round(compScore * 100);
+
+    return Math.round((compScore * 0.7 + skillScore * 0.3) * 100);
   };
 
   const getGapAnalysis = (traineeId, jobId) => {
     const trainee = trainees.find(t => t.id === traineeId);
     const job = jobPostings.find(j => j.id === jobId);
     if (!trainee || !job) return [];
-    return job.requiredCompetencies.map(comp => ({
+
+    const traineeSkillNames = (trainee.skills || []).map(s =>
+      (typeof s === 'object' ? s.name : s).toLowerCase()
+    );
+
+    const compGaps = (job.requiredCompetencies || []).map(comp => ({
       competency: comp,
-      status: trainee.competencies.includes(comp) ? 'Matched' : 'Missing',
+      type: 'competency',
+      status: (trainee.competencies || []).includes(comp) ? 'Matched' : 'Missing',
     }));
+
+    const skillGaps = (job.requiredSkills || []).map(skill => ({
+      competency: skill,
+      type: 'skill',
+      status: traineeSkillNames.includes(skill.toLowerCase()) ? 'Matched' : 'Missing',
+    }));
+
+    return [...compGaps, ...skillGaps];
   };
 
   const getTraineeRecommendedJobs = (traineeId) => {
@@ -707,6 +747,9 @@ export const AppProvider = ({ children }) => {
     }
   }, []);
 
+  // ─── REGISTRATION DATA (multi-step persist) ──────────────────────────────
+  const [registrationData, setRegistrationData] = useState({});
+
   // ─── ANALYTICS HELPERS ───────────────────────────────────────────────────
   const getEmploymentStats = () => {
     const total = trainees.length;
@@ -719,13 +762,16 @@ export const AppProvider = ({ children }) => {
   };
 
   const getSkillsDemand = () => {
-    const competencyCount = {};
+    const demandCount = {};
     jobPostings.filter(j => j.status === 'Open').forEach(job => {
-      job.requiredCompetencies.forEach(comp => {
-        competencyCount[comp] = (competencyCount[comp] || 0) + 1;
+      (job.requiredCompetencies || []).forEach(comp => {
+        demandCount[comp] = (demandCount[comp] || 0) + 1;
+      });
+      (job.requiredSkills || []).forEach(skill => {
+        demandCount[skill] = (demandCount[skill] || 0) + 1;
       });
     });
-    return Object.entries(competencyCount)
+    return Object.entries(demandCount)
       .map(([skill, count]) => ({ skill, count }))
       .sort((a, b) => b.count - a.count)
       .slice(0, 8);
@@ -775,6 +821,9 @@ export const AppProvider = ({ children }) => {
       // Account Management
       adminAccount,
       updateAccountStatus,
+      // Registration
+      registrationData,
+      setRegistrationData,
     }}>
       {children}
     </AppContext.Provider>
