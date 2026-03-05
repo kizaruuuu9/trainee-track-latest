@@ -2,31 +2,31 @@ import React, { useState } from 'react';
 import {
     User, CreditCard, GraduationCap, MapPin, Calendar,
     Mail, Lock, ShieldCheck, Image, CheckCircle, AlertTriangle, Eye, EyeOff,
-    Briefcase, Award, Sparkles, Heart, FileText, ExternalLink
+    Briefcase, Award, Sparkles, Heart, FileText, ExternalLink, Camera
 } from 'lucide-react';
 
-export default function Step4Confirmation({ step1Data, step2Data, step3Data }) {
+export default function Step4Confirmation({ step1Data, step2Data, step3Data, step4Data }) {
     const [showPassword, setShowPassword] = useState(false);
 
     // Build full address string
     const fullAddress = [
-        step2Data.detailedAddress,
-        step2Data.barangay,
-        step2Data.city,
-        step2Data.province,
-        step2Data.region
+        step3Data.detailedAddress,
+        step3Data.barangay,
+        step3Data.city,
+        step3Data.province,
+        step3Data.region
     ].filter(Boolean).join(', ');
 
     // Format birthdate
-    const formattedBirthdate = step2Data.birthdate
-        ? new Date(step2Data.birthdate + 'T00:00:00').toLocaleDateString('en-PH', {
+    const formattedBirthdate = step3Data.birthdate
+        ? new Date(step3Data.birthdate + 'T00:00:00').toLocaleDateString('en-PH', {
             year: 'numeric', month: 'long', day: 'numeric'
         })
         : '—';
 
     // Mask password for display
-    const maskedPassword = step2Data.password
-        ? showPassword ? step2Data.password : '•'.repeat(step2Data.password.length)
+    const maskedPassword = step3Data.password
+        ? showPassword ? step3Data.password : '•'.repeat(step3Data.password.length)
         : '—';
 
     const InfoRow = ({ icon: Icon, label, value, status }) => (
@@ -71,7 +71,7 @@ export default function Step4Confirmation({ step1Data, step2Data, step3Data }) {
     return (
         <div>
             <h3 style={{ fontSize: 16, fontWeight: 700, color: '#0f172a', marginBottom: 4 }}>
-                Step 4 — Review & Confirm
+                Step 5 — Review & Confirm
             </h3>
             <p style={{ fontSize: 13, color: '#94a3b8', marginBottom: 20 }}>
                 Please review your information before submitting your registration.
@@ -160,6 +160,31 @@ export default function Step4Confirmation({ step1Data, step2Data, step3Data }) {
                 )}
             </div>
 
+            {/* ─── Selfie Preview ─────────────────────────────── */}
+            {step2Data?.selfieUrl && (
+                <div className="reg-form-section" style={{ animation: 'fadeSlideIn 0.35s ease 0.05s both' }}>
+                    <div className="step2-section-header">
+                        <Camera size={16} /> <span>Selfie Verification</span>
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginTop: 12 }}>
+                        <div style={{
+                            width: 80, height: 80, borderRadius: '50%', overflow: 'hidden',
+                            border: '3px solid #22c55e', flexShrink: 0,
+                        }}>
+                            <img src={step2Data.selfieUrl} alt="Selfie" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                        </div>
+                        <div style={{
+                            display: 'flex', alignItems: 'center', gap: 6,
+                            fontSize: 12, fontWeight: 600, color: '#16a34a',
+                            background: '#f0fdf4', border: '1px solid #bbf7d0',
+                            borderRadius: 6, padding: '4px 10px',
+                        }}>
+                            <CheckCircle size={13} /> Face detected — Verified
+                        </div>
+                    </div>
+                </div>
+            )}
+
             {/* ─── Personal Details ───────────────────────────────── */}
             <div className="reg-form-section" style={{ animation: 'fadeSlideIn 0.35s ease 0.1s both' }}>
                 <div className="step2-section-header">
@@ -239,27 +264,27 @@ export default function Step4Confirmation({ step1Data, step2Data, step3Data }) {
                     <GraduationCap size={16} /> <span>Profile</span>
                 </div>
 
-                <InfoRow icon={GraduationCap} label="Status" value={step3Data?.status ? step3Data.status.charAt(0).toUpperCase() + step3Data.status.slice(1) : null} />
-                {step3Data?.status === 'graduate' && (
-                    <InfoRow icon={GraduationCap} label="School Graduated From" value={step3Data.graduateSchool} />
+                <InfoRow icon={GraduationCap} label="Status" value={step4Data?.status ? step4Data.status.charAt(0).toUpperCase() + step4Data.status.slice(1) : null} />
+                {step4Data?.status === 'graduate' && (
+                    <InfoRow icon={GraduationCap} label="School Graduated From" value={step4Data.graduateSchool} />
                 )}
-                <InfoRow icon={Briefcase} label="Currently Employed" value={step3Data?.isEmployed === 'yes' ? 'Yes' : step3Data?.isEmployed === 'no' ? 'No' : null} />
-                {step3Data?.isEmployed === 'yes' && (
+                <InfoRow icon={Briefcase} label="Currently Employed" value={step4Data?.isEmployed === 'yes' ? 'Yes' : step4Data?.isEmployed === 'no' ? 'No' : null} />
+                {step4Data?.isEmployed === 'yes' && (
                     <>
-                        <InfoRow icon={Briefcase} label="Current Work" value={step3Data.employmentWork} />
-                        <InfoRow icon={Calendar} label="Employment Start" value={step3Data.employmentStart} />
+                        <InfoRow icon={Briefcase} label="Current Work" value={step4Data.employmentWork} />
+                        <InfoRow icon={Calendar} label="Employment Start" value={step4Data.employmentStart} />
                     </>
                 )}
             </div>
 
             {/* ─── Education ──────────────────────────────────────── */}
-            {step3Data?.educHistory?.length > 0 && (
+            {step4Data?.educHistory?.length > 0 && (
                 <div className="reg-form-section" style={{ animation: 'fadeSlideIn 0.35s ease 0.4s both' }}>
                     <div className="step2-section-header">
-                        <GraduationCap size={16} /> <span>Education ({step3Data.educHistory.length})</span>
+                        <GraduationCap size={16} /> <span>Education ({step4Data.educHistory.length})</span>
                     </div>
-                    {step3Data.educHistory.map((edu, i) => (
-                        <div key={i} style={{ padding: '8px 0', borderBottom: i < step3Data.educHistory.length - 1 ? '1px solid #f1f5f9' : 'none' }}>
+                    {step4Data.educHistory.map((edu, i) => (
+                        <div key={i} style={{ padding: '8px 0', borderBottom: i < step4Data.educHistory.length - 1 ? '1px solid #f1f5f9' : 'none' }}>
                             <div style={{ fontSize: 14, fontWeight: 600, color: '#0f172a' }}>{edu.school || 'Untitled'}</div>
                             <div style={{ fontSize: 12.5, color: '#64748b' }}>{edu.degree}{edu.yearFrom || edu.yearTo ? ` (${edu.yearFrom}–${edu.yearTo})` : ''}</div>
                         </div>
@@ -268,13 +293,13 @@ export default function Step4Confirmation({ step1Data, step2Data, step3Data }) {
             )}
 
             {/* ─── Work Experience ────────────────────────────────── */}
-            {step3Data?.workExperience?.length > 0 && (
+            {step4Data?.workExperience?.length > 0 && (
                 <div className="reg-form-section" style={{ animation: 'fadeSlideIn 0.35s ease 0.45s both' }}>
                     <div className="step2-section-header">
-                        <Briefcase size={16} /> <span>Work Experience ({step3Data.workExperience.length})</span>
+                        <Briefcase size={16} /> <span>Work Experience ({step4Data.workExperience.length})</span>
                     </div>
-                    {step3Data.workExperience.map((work, i) => (
-                        <div key={i} style={{ padding: '8px 0', borderBottom: i < step3Data.workExperience.length - 1 ? '1px solid #f1f5f9' : 'none' }}>
+                    {step4Data.workExperience.map((work, i) => (
+                        <div key={i} style={{ padding: '8px 0', borderBottom: i < step4Data.workExperience.length - 1 ? '1px solid #f1f5f9' : 'none' }}>
                             <div style={{ fontSize: 14, fontWeight: 600, color: '#0f172a' }}>{work.position || 'Untitled'}</div>
                             <div style={{ fontSize: 12.5, color: '#64748b' }}>{work.company}{work.yearFrom || work.yearTo ? ` (${work.yearFrom}–${work.yearTo})` : ''}</div>
                         </div>
@@ -283,15 +308,15 @@ export default function Step4Confirmation({ step1Data, step2Data, step3Data }) {
             )}
 
             {/* ─── Licenses ──────────────────────────────────────── */}
-            {step3Data?.licenses?.length > 0 && (
+            {step4Data?.licenses?.length > 0 && (
                 <div className="reg-form-section" style={{ animation: 'fadeSlideIn 0.35s ease 0.5s both' }}>
                     <div className="step2-section-header">
-                        <Award size={16} /> <span>Licenses & Certifications ({step3Data.licenses.length})</span>
+                        <Award size={16} /> <span>Licenses & Certifications ({step4Data.licenses.length})</span>
                     </div>
-                    {step3Data.licenses.map((lic, i) => (
+                    {step4Data.licenses.map((lic, i) => (
                         <div key={i} style={{
                             padding: '12px 0',
-                            borderBottom: i < step3Data.licenses.length - 1 ? '1px solid #f1f5f9' : 'none',
+                            borderBottom: i < step4Data.licenses.length - 1 ? '1px solid #f1f5f9' : 'none',
                             display: 'flex', alignItems: 'flex-start', gap: 12,
                         }}>
                             <div style={{
@@ -331,15 +356,15 @@ export default function Step4Confirmation({ step1Data, step2Data, step3Data }) {
             )}
 
             {/* ─── Skills & Interests ────────────────────────────── */}
-            {((step3Data?.skills?.length > 0) || (step3Data?.interests?.length > 0)) && (
+            {((step4Data?.skills?.length > 0) || (step4Data?.interests?.length > 0)) && (
                 <div className="reg-form-section" style={{ animation: 'fadeSlideIn 0.35s ease 0.55s both' }}>
-                    {step3Data?.skills?.length > 0 && (
-                        <div style={{ marginBottom: step3Data?.interests?.length > 0 ? 16 : 0 }}>
+                    {step4Data?.skills?.length > 0 && (
+                        <div style={{ marginBottom: step4Data?.interests?.length > 0 ? 16 : 0 }}>
                             <div className="step2-section-header">
-                                <Sparkles size={16} /> <span>Skills ({step3Data.skills.length})</span>
+                                <Sparkles size={16} /> <span>Skills ({step4Data.skills.length})</span>
                             </div>
                             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-                                {step3Data.skills.map((skill, i) => {
+                                {step4Data.skills.map((skill, i) => {
                                     const isObj = typeof skill === 'object';
                                     const name = isObj ? skill.name : skill;
                                     const level = isObj ? skill.level : null;
@@ -364,13 +389,13 @@ export default function Step4Confirmation({ step1Data, step2Data, step3Data }) {
                             </div>
                         </div>
                     )}
-                    {step3Data?.interests?.length > 0 && (
+                    {step4Data?.interests?.length > 0 && (
                         <div>
                             <div className="step2-section-header">
-                                <Heart size={16} /> <span>Interests ({step3Data.interests.length})</span>
+                                <Heart size={16} /> <span>Interests ({step4Data.interests.length})</span>
                             </div>
                             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-                                {step3Data.interests.map((interest, i) => (
+                                {step4Data.interests.map((interest, i) => (
                                     <span key={i} style={{
                                         display: 'inline-block', padding: '5px 12px', borderRadius: 20,
                                         fontSize: 12.5, fontWeight: 600,
@@ -385,12 +410,12 @@ export default function Step4Confirmation({ step1Data, step2Data, step3Data }) {
             )}
 
             {/* ─── Resume ────────────────────────────────────────── */}
-            {step3Data?.resume && (
+            {step4Data?.resume && (
                 <div className="reg-form-section" style={{ animation: 'fadeSlideIn 0.35s ease 0.6s both' }}>
                     <div className="step2-section-header">
                         <FileText size={16} /> <span>Resume</span>
                     </div>
-                    <InfoRow icon={FileText} label="Uploaded File" value={step3Data.resume.name} />
+                    <InfoRow icon={FileText} label="Uploaded File" value={step4Data.resume.name} />
                 </div>
             )}
 

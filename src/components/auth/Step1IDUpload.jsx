@@ -471,11 +471,21 @@ export default function Step1IDUpload({ data, onChange, onValidChange }) {
         }
         if (data.ocrStatus === 'fail') {
             return (
-                <div className="ocr-banner ocr-fail">
-                    <AlertTriangle size={20} />
-                    <div>
-                        <strong>No ID Detected</strong>
-                        <p>Please enter details manually.</p>
+                <div className="ocr-banner ocr-fail" style={{ flexDirection: 'column', alignItems: 'flex-start', gap: 12 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                        <AlertTriangle size={20} />
+                        <strong>No Valid School ID Detected</strong>
+                    </div>
+                    <div style={{ fontSize: 13, lineHeight: 1.6 }}>
+                        <p style={{ margin: '0 0 8px 0' }}>We couldn't detect a valid <strong>PSTDI / TESDA School ID</strong> from the uploaded images.</p>
+                        <p style={{ margin: '0 0 8px 0' }}>Please make sure:</p>
+                        <ul style={{ margin: '0 0 8px 0', paddingLeft: 20 }}>
+                            <li>You are uploading your <strong>TESDA School ID</strong> (front and back)</li>
+                            <li>The photo is <strong>clear, well-lit, and not blurry</strong></li>
+                            <li>The ID is <strong>not cropped</strong> — all text and edges should be visible</li>
+                            <li>File format is <strong>PNG, JPG, or JPEG</strong></li>
+                        </ul>
+                        <p style={{ margin: 0, color: '#64748b' }}>Remove the uploaded images above and try again with a clearer photo.</p>
                     </div>
                 </div>
             );
@@ -501,8 +511,8 @@ export default function Step1IDUpload({ data, onChange, onValidChange }) {
             {/* OCR Status */}
             <OCRBanner />
 
-            {/* Auto-fill Form */}
-            {(data.ocrStatus === 'success' || data.ocrStatus === 'fail') && (
+            {/* Auto-fill Form — only shown when ID is successfully detected */}
+            {data.ocrStatus === 'success' && (
                 <div className="reg-form-section" style={{ animation: 'fadeSlideIn 0.35s ease' }}>
                     <div style={{ fontSize: 13, fontWeight: 600, color: '#475569', marginBottom: 14, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
                         Student Information

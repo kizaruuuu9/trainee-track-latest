@@ -1,16 +1,18 @@
 import React, { useState } from 'react';
 import { ArrowLeft, ArrowRight, CheckCircle, Loader } from 'lucide-react';
 import Step1IDUpload from './Step1IDUpload';
-import Step2PersonalInfo from './Step2PersonalInfo';
-import Step3ProfileSetup from './Step3ProfileSetup';
-import Step4Confirmation from './Step4Confirmation';
+import Step2SelfieVerification from './Step2SelfieVerification';
+import Step3PersonalInfo from './Step2PersonalInfo';
+import Step4ProfileSetup from './Step3ProfileSetup';
+import Step5Confirmation from './Step4Confirmation';
 import { supabase } from '../../lib/supabase';
 
 const STEPS = [
-  { number: 1, label: 'School ID Upload' },
-  { number: 2, label: 'Personal Info' },
-  { number: 3, label: 'Profile Setup' },
-  { number: 4, label: 'Review & Submit' },
+  { number: 1, label: 'School ID' },
+  { number: 2, label: 'Selfie' },
+  { number: 3, label: 'Personal Info' },
+  { number: 4, label: 'Profile Setup' },
+  { number: 5, label: 'Review' },
 ];
 
 export default function RegistrationFlow({ onBackToLogin }) {
@@ -27,6 +29,9 @@ export default function RegistrationFlow({ onBackToLogin }) {
       ocrStatus: null, // null | 'loading' | 'success' | 'fail'
     },
     step2: {
+      selfieUrl: null,
+    },
+    step3: {
       birthdate: '',
       regionCode: '', region: '',
       provinceCode: '', province: '',
@@ -38,7 +43,7 @@ export default function RegistrationFlow({ onBackToLogin }) {
       password: '',
       confirmPassword: '',
     },
-    step3: {
+    step4: {
       status: '',           // student | alumni | graduate
       graduateSchool: '',
       isEmployed: '',       // yes | no
@@ -55,6 +60,7 @@ export default function RegistrationFlow({ onBackToLogin }) {
   const [step1Valid, setStep1Valid] = useState(false);
   const [step2Valid, setStep2Valid] = useState(false);
   const [step3Valid, setStep3Valid] = useState(false);
+  const [step4Valid, setStep4Valid] = useState(false);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState('');
 
@@ -70,6 +76,10 @@ export default function RegistrationFlow({ onBackToLogin }) {
     setStepData(prev => ({ ...prev, step3: { ...prev.step3, ...data } }));
   };
 
+  const updateStep4 = (data) => {
+    setStepData(prev => ({ ...prev, step4: { ...prev.step4, ...data } }));
+  };
+
   const [submitted, setSubmitted] = useState(false);
 
   // Auto-detect: use localhost for dev, relative path for Vercel production
@@ -82,7 +92,7 @@ export default function RegistrationFlow({ onBackToLogin }) {
     setSaving(true);
     setSaveError('');
     try {
-      const { step1, step2, step3 } = stepData;
+      const { step1, step2, step3, step4 } = stepData;
       const timestamp = Date.now();
 
       // Upload front ID image to Supabase Storage (storage is fine client-side)
@@ -115,14 +125,29 @@ export default function RegistrationFlow({ onBackToLogin }) {
         }
       }
 
+      // Upload selfie image to Supabase Storage
+      let selfieUrl = null;
+      if (step2.selfieUrl) {
+        const selfieBlob = await fetch(step2.selfieUrl).then(r => r.blob());
+        const selfiePath = `selfies/${timestamp}_selfie.jpg`;
+        const { data: selfieData, error: selfieErr } = await supabase.storage
+          .from('registration-uploads')
+          .upload(selfiePath, selfieBlob, { contentType: 'image/jpeg' });
+        if (selfieErr) console.warn('Selfie upload warning:', selfieErr.message);
+        if (selfieData) {
+          const { data: urlData } = supabase.storage.from('registration-uploads').getPublicUrl(selfiePath);
+          selfieUrl = urlData?.publicUrl || null;
+        }
+      }
+
       // Upload resume to Supabase Storage
       let resumeUrl = null;
-      if (step3.resume?.file) {
-        const resumeBlob = await fetch(step3.resume.url).then(r => r.blob());
-        const resumePath = `resumes/${timestamp}_${step3.resume.name}`;
+      if (step4.resume?.file) {
+        const resumeBlob = await fetch(step4.resume.url).then(r => r.blob());
+        const resumePath = `resumes/${timestamp}_${step4.resume.name}`;
         const { data: resumeData, error: resumeErr } = await supabase.storage
           .from('registration-uploads')
-          .upload(resumePath, resumeBlob, { contentType: step3.resume.type });
+          .upload(resumePath, resumeBlob, { contentType: step4.resume.type });
         if (resumeErr) console.warn('Resume upload warning:', resumeErr.message);
         if (resumeData) {
           const { data: urlData } = supabase.storage.from('registration-uploads').getPublicUrl(resumePath);
@@ -132,7 +157,7 @@ export default function RegistrationFlow({ onBackToLogin }) {
 
       // Build full address
       const fullAddress = [
-        step2.detailedAddress, step2.barangay, step2.city, step2.province, step2.region
+        step3.detailedAddress, step3.barangay, step3.city, step3.province, step3.region
       ].filter(Boolean).join(', ');
 
       // Send to server API (password is hashed server-side, never stored in plain text)
@@ -140,7 +165,7 @@ export default function RegistrationFlow({ onBackToLogin }) {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          password: step2.password,
+          password: step3.password,
           registrationData: {
             // Step 1
             full_name: step1.fullName,
@@ -150,27 +175,29 @@ export default function RegistrationFlow({ onBackToLogin }) {
             front_id_url: frontIdUrl,
             back_id_url: backIdUrl,
             ocr_status: step1.ocrStatus,
-            // Step 2
-            birthdate: step2.birthdate || null,
-            email: step2.email,
-            email_verified: step2.emailVerified,
-            region: step2.region,
-            province: step2.province,
-            city: step2.city,
-            barangay: step2.barangay,
-            detailed_address: step2.detailedAddress,
+            // Step 2 — Selfie
+            selfie_url: selfieUrl,
+            // Step 3 — Personal Info
+            birthdate: step3.birthdate || null,
+            email: step3.email,
+            email_verified: step3.emailVerified,
+            region: step3.region,
+            province: step3.province,
+            city: step3.city,
+            barangay: step3.barangay,
+            detailed_address: step3.detailedAddress,
             address: fullAddress || step1.address,
-            // Step 3 — Profile
-            trainee_status: step3.status || null,
-            graduate_school: step3.graduateSchool || null,
-            is_employed: step3.isEmployed || null,
-            employment_work: step3.employmentWork || null,
-            employment_start: step3.employmentStart || null,
-            educ_history: step3.educHistory || [],
-            work_experience: step3.workExperience || [],
-            licenses: step3.licenses || [],
-            skills: step3.skills || [],
-            interests: step3.interests || [],
+            // Step 4 — Profile
+            trainee_status: step4.status || null,
+            graduate_school: step4.graduateSchool || null,
+            is_employed: step4.isEmployed || null,
+            employment_work: step4.employmentWork || null,
+            employment_start: step4.employmentStart || null,
+            educ_history: step4.educHistory || [],
+            work_experience: step4.workExperience || [],
+            licenses: step4.licenses || [],
+            skills: step4.skills || [],
+            interests: step4.interests || [],
             resume_url: resumeUrl,
           },
         }),
@@ -249,25 +276,33 @@ export default function RegistrationFlow({ onBackToLogin }) {
             />
           )}
           {currentStep === 2 && (
-            <Step2PersonalInfo
+            <Step2SelfieVerification
               data={stepData.step2}
               onChange={updateStep2}
               onValidChange={setStep2Valid}
-              step1Address={stepData.step1.address}
             />
           )}
           {currentStep === 3 && (
-            <Step3ProfileSetup
+            <Step3PersonalInfo
               data={stepData.step3}
               onChange={updateStep3}
               onValidChange={setStep3Valid}
+              step1Address={stepData.step1.address}
             />
           )}
-          {currentStep === 4 && !submitted && (
-            <Step4Confirmation
+          {currentStep === 4 && (
+            <Step4ProfileSetup
+              data={stepData.step4}
+              onChange={updateStep4}
+              onValidChange={setStep4Valid}
+            />
+          )}
+          {currentStep === 5 && !submitted && (
+            <Step5Confirmation
               step1Data={stepData.step1}
               step2Data={stepData.step2}
               step3Data={stepData.step3}
+              step4Data={stepData.step4}
             />
           )}
           {submitted && (
@@ -324,7 +359,7 @@ export default function RegistrationFlow({ onBackToLogin }) {
 
           <button
             className="btn btn-primary"
-            disabled={(currentStep === 1 && !step1Valid) || (currentStep === 2 && !step2Valid) || (currentStep === 3 && !step3Valid) || saving || submitted}
+            disabled={(currentStep === 1 && !step1Valid) || (currentStep === 2 && !step2Valid) || (currentStep === 3 && !step3Valid) || (currentStep === 4 && !step4Valid) || saving || submitted}
             onClick={() => {
               if (currentStep === STEPS.length) {
                 handleFinalSubmit();
