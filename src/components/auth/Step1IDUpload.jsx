@@ -193,6 +193,7 @@ export default function Step1IDUpload({ data, onChange, onValidChange }) {
     const [idDuplicateError, setIdDuplicateError] = useState('');
     const [idChecking, setIdChecking] = useState(false);
     const [idVerified, setIdVerified] = useState(false);
+
     const lastCheckedId = useRef('');
     const debounceTimer = useRef(null);
     const frontRef = useRef(null);
@@ -203,16 +204,19 @@ export default function Step1IDUpload({ data, onChange, onValidChange }) {
         ? 'http://localhost:3001'
         : '';
 
-    // ─── Auto-trigger duplicate check while typing (debounced) ───
+    // ─── Auto-trigger duplicate check when studentId changes (from OCR) ───
     useEffect(() => {
         const trimmed = data.studentId?.trim();
         // Only auto-check when format is valid
         if (!trimmed || !/^\d{2,4}-[A-Za-z0-9]{3,6}$/.test(trimmed)) return;
         if (trimmed === lastCheckedId.current) return;
+        // Reset state for new check
+        setIdDuplicateError('');
+        setIdVerified(false);
         clearTimeout(debounceTimer.current);
         debounceTimer.current = setTimeout(() => {
             checkStudentIdDuplicate(trimmed);
-        }, 800);
+        }, 500);
         return () => clearTimeout(debounceTimer.current);
     }, [data.studentId]);
 
@@ -250,6 +254,7 @@ export default function Step1IDUpload({ data, onChange, onValidChange }) {
             setIdChecking(false);
         }
     };
+
 
     // ─── Validation ──────────────────────────────────────────────
     const validate = useCallback((values) => {
@@ -385,6 +390,10 @@ export default function Step1IDUpload({ data, onChange, onValidChange }) {
         onChange({ [side]: null, ocrStatus: null });
         setRawOcrText('');
         setOcrProgress(0);
+        // Reset duplicate check state so re-upload triggers a fresh check
+        lastCheckedId.current = '';
+        setIdDuplicateError('');
+        setIdVerified(false);
     };
 
     // ─── Upload Zone Component ──────────────────────────────────
@@ -539,8 +548,10 @@ export default function Step1IDUpload({ data, onChange, onValidChange }) {
                                 <input
                                     className={`form-input ${idDuplicateError ? 'error' : getFieldStatus('studentId')}`}
                                     value={data.studentId}
-                                    onChange={(e) => { onChange({ studentId: e.target.value }); setIdDuplicateError(''); setIdVerified(false); lastCheckedId.current = ''; }}
-                                    onBlur={() => handleBlur('studentId')}
+                                    readOnly
+                                    tabIndex={-1}
+                                    style={{ backgroundColor: '#f1f5f9', cursor: 'not-allowed', color: '#475569' }}
+                                    title="This field is auto-filled from your School ID and cannot be edited"
                                     placeholder="e.g. 2024-00123"
                                 />
                                 {idChecking && (
