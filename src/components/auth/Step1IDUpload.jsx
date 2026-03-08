@@ -613,15 +613,13 @@ export default function Step1IDUpload({ data, onChange, onValidChange }) {
                         {/* Program */}
                         <div className="form-group" style={{ marginBottom: 0 }}>
                             <label className="form-label">Program Taken <span style={{ color: '#ef4444' }}>*</span></label>
-                            <select
-                                className={`form-select ${getFieldStatus('program')}`}
+                            <input
+                                className={`form-input ${getFieldStatus('program')}`}
                                 value={data.program}
                                 onChange={(e) => onChange({ program: e.target.value })}
                                 onBlur={() => handleBlur('program')}
-                            >
-                                <option value="">Select Program</option>
-                                {PROGRAMS.map(p => <option key={p} value={p}>{p}</option>)}
-                            </select>
+                                placeholder="e.g. Cookery NC II"
+                            />
                             {touched.program && errors.program && <div className="form-error">{errors.program}</div>}
                         </div>
 
