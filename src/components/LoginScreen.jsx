@@ -6,7 +6,6 @@ import {
 
 const DEMO_ACCOUNTS = [
   { role: 'admin', username: 'admin', password: 'admin123', label: 'Administrator', color: '#7c3aed' },
-  { role: 'trainee', username: 'juan.delacruz', password: 'grad123', label: 'Trainee', color: '#2563eb' },
   { role: 'partner', username: 'techsolutions', password: 'partner123', label: 'Industry Partner', color: '#0ea5e9' },
 ];
 
@@ -31,15 +30,18 @@ export default function LoginScreen({ onShowRegistration }) {
   const handleLogin = async (e) => {
     e.preventDefault();
     if (!username.trim() || !password.trim()) {
-      setError('Please enter your username and password.');
+      setError('Please enter your email and password.');
       return;
     }
     setLoading(true);
     setError('');
-    await new Promise(r => setTimeout(r, 600));
-    const result = login(username.trim(), password);
-    if (!result.success) {
-      setError(result.error || 'Invalid credentials. Please try again.');
+    try {
+      const result = await login(username.trim(), password);
+      if (!result.success) {
+        setError(result.error || 'Invalid credentials. Please try again.');
+      }
+    } catch (err) {
+      setError('Unable to connect to server. Please try again.');
     }
     setLoading(false);
   };
@@ -169,11 +171,11 @@ export default function LoginScreen({ onShowRegistration }) {
 
           <form onSubmit={handleLogin}>
             <div className="form-group">
-              <label className="form-label">Username or Email</label>
+              <label className="form-label">Email</label>
               <input
                 type="text"
                 className={`form-input${error ? ' error' : ''}`}
-                placeholder="Enter your username or email"
+                placeholder="Enter your email address"
                 value={username}
                 onChange={e => { setUsername(e.target.value); setError(''); }}
                 autoComplete="username"

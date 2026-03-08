@@ -272,6 +272,253 @@ app.post('/api/register', rateLimit, async (req, res) => {
     }
 });
 
+
+
+// ─── LOGIN ENDPOINT (Secure — verifies bcrypt hash, uses service role) ────
+app.post('/api/login', rateLimit, async (req, res) => {
+    const { email, password } = req.body;
+
+    if (!email || !password) {
+        return res.status(400).json({ error: 'Email and password are required.' });
+    }
+
+    try {
+        // Find user by email
+        const { data: user, error: queryError } = await supabaseAdmin
+            .from('registrations')
+            .select('*')
+            .eq('email', email.trim().toLowerCase())
+            .maybeSingle();
+
+        if (queryError) {
+            console.error('Login query error:', queryError);
+            return res.status(500).json({ error: 'An error occurred. Please try again.' });
+        }
+
+        if (!user) {
+            return res.status(401).json({ error: 'Invalid email or password.' });
+        }
+
+        // Verify password
+        if (!user.password_hash) {
+            return res.status(401).json({ error: 'Account setup incomplete. Please contact support.' });
+        }
+
+        const passwordMatch = await bcrypt.compare(password, user.password_hash);
+        if (!passwordMatch) {
+            return res.status(401).json({ error: 'Invalid email or password.' });
+        }
+
+        // Return user data (exclude sensitive fields)
+        const { password_hash, ...safeUser } = user;
+
+        console.log(`✅ Trainee login successful: ${safeUser.email}`);
+        res.json({ success: true, user: safeUser });
+    } catch (err) {
+        console.error('Login error:', err);
+        res.status(500).json({ error: 'Login failed. Please try again.' });
+    }
+});
+
+// ─── UPDATE PROFILE ENDPOINT (Secure — uses service role) ────
+app.post('/api/update-profile', rateLimit, async (req, res) => {
+    const { userId, updates } = req.body;
+
+    if (!userId || !updates) {
+        return res.status(400).json({ error: 'User ID and updates are required.' });
+    }
+
+    try {
+        // Map frontend field names to database column names
+        const dbUpdates = {};
+        if (updates.name !== undefined) dbUpdates.full_name = updates.name;
+        if (updates.email !== undefined) dbUpdates.email = updates.email;
+        if (updates.address !== undefined) dbUpdates.address = updates.address;
+        if (updates.birthday !== undefined) dbUpdates.birthdate = updates.birthday;
+        if (updates.gender !== undefined) dbUpdates.gender = updates.gender;
+        // Employment fields
+        if (updates.employmentStatus !== undefined) {
+            dbUpdates.is_employed = updates.employmentStatus === 'Employed' || updates.employmentStatus === 'Self-Employed' || updates.employmentStatus === 'Underemployed' ? 'yes' : 'no';
+            dbUpdates.employment_work = updates.employer || updates.jobTitle || null;
+        }
+        if (updates.employer !== undefined) dbUpdates.employment_work = updates.employer;
+        if (updates.dateHired !== undefined) dbUpdates.employment_start = updates.dateHired;
+        // JSONB fields
+        if (updates.skills !== undefined) dbUpdates.skills = updates.skills;
+        if (updates.interests !== undefined) dbUpdates.interests = updates.interests;
+        if (updates.certifications !== undefined) dbUpdates.licenses = updates.certifications;
+        if (updates.educHistory !== undefined) dbUpdates.educ_history = updates.educHistory;
+        if (updates.workExperience !== undefined) dbUpdates.work_experience = updates.workExperience;
+        if (updates.licenses !== undefined) dbUpdates.licenses = updates.licenses;
+        if (updates.traineeStatus !== undefined) dbUpdates.trainee_status = updates.traineeStatus;
+
+        if (Object.keys(dbUpdates).length === 0) {
+            return res.status(400).json({ error: 'No valid fields to update.' });
+        }
+
+        const { data, error } = await supabaseAdmin
+            .from('registrations')
+            .update(dbUpdates)
+            .eq('id', userId)
+            .select();
+
+        if (error) {
+            console.error('Profile update error:', error);
+            return res.status(400).json({ error: error.message });
+        }
+
+        // Return updated data (exclude password_hash)
+        const updated = data?.[0];
+        if (updated) {
+            delete updated.password_hash;
+        }
+
+        console.log(`✅ Profile updated for user: ${userId}`);
+        res.json({ success: true, user: updated });
+    } catch (err) {
+        console.error('Profile update error:', err);
+        res.status(500).json({ error: 'Failed to update profile. Please try again.' });
+    }
+});
+
+// ─── DOCUMENT UPLOAD ENDPOINT ────────────────────────────────────
+app.post('/api/documents/upload', rateLimit, async (req, res) => {
+    const { traineeId, label, fileName, fileType, fileData } = req.body;
+
+    if (!traineeId || !label || !fileName || !fileType || !fileData) {
+        return res.status(400).json({ error: 'All fields are required.' });
+    }
+
+    const allowedTypes = [
+        'application/pdf',
+        'application/msword',
+        'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+    ];
+    if (!allowedTypes.includes(fileType)) {
+        return res.status(400).json({ error: 'Only PDF, DOC, and DOCX files are allowed.' });
+    }
+
+    try {
+        // Convert base64 to buffer
+        const buffer = Buffer.from(fileData, 'base64');
+        const timestamp = Date.now();
+        const storagePath = `documents/${traineeId}/${timestamp}_${fileName}`;
+
+        // Upload to Supabase Storage
+        const { data: uploadData, error: uploadErr } = await supabaseAdmin.storage
+            .from('registration-uploads')
+            .upload(storagePath, buffer, { contentType: fileType });
+
+        if (uploadErr) {
+            console.error('Document upload error:', uploadErr);
+            return res.status(500).json({ error: 'Failed to upload file.' });
+        }
+
+        const { data: urlData } = supabaseAdmin.storage
+            .from('registration-uploads')
+            .getPublicUrl(storagePath);
+        const fileUrl = urlData?.publicUrl || '';
+
+        // Save metadata to trainee_documents table
+        const { data, error } = await supabaseAdmin
+            .from('trainee_documents')
+            .insert({
+                trainee_id: traineeId,
+                label,
+                file_url: fileUrl,
+                file_name: fileName,
+                file_type: fileType,
+            })
+            .select();
+
+        if (error) {
+            console.error('Document DB error:', error);
+            return res.status(400).json({ error: error.message });
+        }
+
+        console.log(`✅ Document uploaded for user: ${traineeId}`);
+        res.json({ success: true, document: data?.[0] });
+    } catch (err) {
+        console.error('Document upload error:', err);
+        res.status(500).json({ error: 'Failed to upload document.' });
+    }
+});
+
+// ─── DOCUMENT LIST ENDPOINT ─────────────────────────────────────
+app.get('/api/documents/:traineeId', async (req, res) => {
+    const { traineeId } = req.params;
+
+    try {
+        const { data, error } = await supabaseAdmin
+            .from('trainee_documents')
+            .select('*')
+            .eq('trainee_id', traineeId)
+            .order('uploaded_at', { ascending: false });
+
+        if (error) {
+            console.error('Document list error:', error);
+            return res.status(400).json({ error: error.message });
+        }
+
+        // Also fetch resume_url from registrations table
+        let registrationResumeUrl = null;
+        const { data: regData } = await supabaseAdmin
+            .from('registrations')
+            .select('resume_url')
+            .eq('id', traineeId)
+            .single();
+        if (regData?.resume_url) registrationResumeUrl = regData.resume_url;
+
+        res.json({ success: true, documents: data || [], registrationResumeUrl });
+    } catch (err) {
+        console.error('Document list error:', err);
+        res.status(500).json({ error: 'Failed to fetch documents.' });
+    }
+});
+
+// ─── DOCUMENT DELETE ENDPOINT ────────────────────────────────────
+app.delete('/api/documents/:docId', rateLimit, async (req, res) => {
+    const { docId } = req.params;
+
+    try {
+        // Get the document first to find the storage path
+        const { data: doc, error: fetchErr } = await supabaseAdmin
+            .from('trainee_documents')
+            .select('*')
+            .eq('id', docId)
+            .single();
+
+        if (fetchErr || !doc) {
+            return res.status(404).json({ error: 'Document not found.' });
+        }
+
+        // Extract storage path from URL
+        const urlParts = doc.file_url.split('/registration-uploads/');
+        if (urlParts[1]) {
+            await supabaseAdmin.storage
+                .from('registration-uploads')
+                .remove([decodeURIComponent(urlParts[1])]);
+        }
+
+        // Delete from database
+        const { error } = await supabaseAdmin
+            .from('trainee_documents')
+            .delete()
+            .eq('id', docId);
+
+        if (error) {
+            console.error('Document delete error:', error);
+            return res.status(400).json({ error: error.message });
+        }
+
+        console.log(`✅ Document deleted: ${docId}`);
+        res.json({ success: true });
+    } catch (err) {
+        console.error('Document delete error:', err);
+        res.status(500).json({ error: 'Failed to delete document.' });
+    }
+});
+
 app.listen(PORT, () => {
     console.log(`OTP Server running on http://localhost:${PORT}`);
 });

@@ -295,6 +295,7 @@ export default function RegistrationFlow({ onBackToLogin }) {
               data={stepData.step4}
               onChange={updateStep4}
               onValidChange={setStep4Valid}
+              userProgram={stepData.step1.program}
             />
           )}
           {currentStep === 5 && !submitted && (
@@ -341,40 +342,40 @@ export default function RegistrationFlow({ onBackToLogin }) {
 
         {/* Navigation Buttons */}
         {!submitted && (
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 24, paddingTop: 20, borderTop: '1px solid #e2e8f0' }}>
-          <button
-            className="btn btn-outline"
-            disabled={saving}
-            onClick={() => {
-              if (currentStep === 1) {
-                onBackToLogin();
-              } else {
-                setCurrentStep(prev => prev - 1);
-              }
-            }}
-          >
-            <ArrowLeft size={15} />
-            {currentStep === 1 ? 'Back to Login' : 'Previous'}
-          </button>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 24, paddingTop: 20, borderTop: '1px solid #e2e8f0' }}>
+            <button
+              className="btn btn-outline"
+              disabled={saving}
+              onClick={() => {
+                if (currentStep === 1) {
+                  onBackToLogin();
+                } else {
+                  setCurrentStep(prev => prev - 1);
+                }
+              }}
+            >
+              <ArrowLeft size={15} />
+              {currentStep === 1 ? 'Back to Login' : 'Previous'}
+            </button>
 
-          <button
-            className="btn btn-primary"
-            disabled={(currentStep === 1 && !step1Valid) || (currentStep === 2 && !step2Valid) || (currentStep === 3 && !step3Valid) || (currentStep === 4 && !step4Valid) || saving || submitted}
-            onClick={() => {
-              if (currentStep === STEPS.length) {
-                handleFinalSubmit();
-              } else {
-                setCurrentStep(prev => prev + 1);
-              }
-            }}
-          >
-            {saving ? (
-              <><Loader size={15} style={{ animation: 'ocr-spin 0.8s linear infinite' }} /> Submitting...</>
-            ) : (
-              <>{currentStep === STEPS.length ? 'Submit Registration' : 'Next Step'} <ArrowRight size={15} /></>
-            )}
-          </button>
-        </div>
+            <button
+              className="btn btn-primary"
+              disabled={(currentStep === 1 && !step1Valid) || (currentStep === 2 && !step2Valid) || (currentStep === 3 && !step3Valid) || (currentStep === 4 && !step4Valid) || saving || submitted}
+              onClick={() => {
+                if (currentStep === STEPS.length) {
+                  handleFinalSubmit();
+                } else {
+                  setCurrentStep(prev => prev + 1);
+                }
+              }}
+            >
+              {saving ? (
+                <><Loader size={15} style={{ animation: 'ocr-spin 0.8s linear infinite' }} /> Submitting...</>
+              ) : (
+                <>{currentStep === STEPS.length ? 'Submit Registration' : 'Next Step'} <ArrowRight size={15} /></>
+              )}
+            </button>
+          </div>
         )}
       </div>
     </div>

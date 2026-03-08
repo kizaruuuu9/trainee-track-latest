@@ -52,6 +52,8 @@ export default async function handler(req, res) {
     const expiresAt = new Date(Date.now() + OTP_EXPIRY_MIN * 60 * 1000).toISOString();
 
     // Store OTP in Supabase (upsert replaces any existing OTP for this email)
+    // Note: We no longer create a pending registration record here.
+    // The registration record will be created when the complete form is submitted.
     const { error: upsertErr } = await supabaseAdmin
         .from('otp_codes')
         .upsert({ email, otp, expires_at: expiresAt }, { onConflict: 'email' });

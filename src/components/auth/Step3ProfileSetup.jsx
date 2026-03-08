@@ -14,23 +14,59 @@ const SKILL_SUGGESTIONS = [
     'Photoshop', 'Video Editing', 'Social Media', 'SEO', 'Sales',
 ];
 
-const INTEREST_SUGGESTIONS = [
-    'Technology', 'Healthcare', 'Education', 'Finance', 'Marketing',
-    'Design', 'Engineering', 'Science', 'Arts', 'Music',
-    'Sports', 'Travel', 'Cooking', 'Photography', 'Writing',
-    'Gaming', 'Environment', 'Social Work', 'Entrepreneurship', 'AI',
-    'Data Science', 'Cybersecurity', 'Robotics', 'Blockchain', 'Cloud Computing',
-];
-
 const MAX_INTERESTS = 10;
 
-export default function Step3ProfileSetup({ data, onChange, onValidChange }) {
+// ─── Word Cloud Style Generator ─────────────────────────────────
+const getWordCloudStyle = (word) => {
+    let hash = 0;
+    for (let i = 0; i < word.length; i++) hash = word.charCodeAt(i) + ((hash << 5) - hash);
+    hash = Math.abs(hash);
+
+    // Text colors suitable for a light gradient background
+    const colors = [
+        '#ef4444', // red
+        '#f59e0b', // amber
+        '#10b981', // emerald
+        '#3b82f6', // blue
+        '#8b5cf6', // violet
+        '#ec4899', // pink
+        '#06b6d4', // cyan
+        '#6366f1', // indigo
+    ];
+
+    // Vary size between 16px to 28px based on hash for more dramatic effect
+    const sizes = [16, 18, 20, 22, 24, 26, 28];
+
+    const color = colors[hash % colors.length];
+    const fontSize = sizes[hash % sizes.length];
+
+    // Add slight rotation for true "word cloud" feel
+    const rotations = [-12, -8, -4, 0, 4, 8, 12];
+    const rotate = rotations[hash % rotations.length];
+
+    // Margin variance for scattered look
+    const margins = ['2px 10px', '8px 14px', '0px 16px', '12px 8px', '4px 20px'];
+    const margin = margins[hash % margins.length];
+
+    return {
+        color,
+        fontSize,
+        rotate: `${rotate}deg`,
+        margin
+    };
+};
+
+export default function Step3ProfileSetup({ data, onChange, onValidChange, userProgram }) {
     const [errors, setErrors] = useState({});
     const [touched, setTouched] = useState({});
     const [newSkill, setNewSkill] = useState('');
-    const [newInterest, setNewInterest] = useState('');
     const [showSkillSuggestions, setShowSkillSuggestions] = useState(false);
-    const [showInterestSuggestions, setShowInterestSuggestions] = useState(false);
+    const [newInterest, setNewInterest] = useState('');
+
+    // Auto-detect API base
+    const API_BASE = window.location.hostname === 'localhost'
+        ? 'http://localhost:3001'
+        : '';
 
     // ─── Validation ─────────────────────────────────────────────
     const validate = useCallback((d) => {
@@ -165,11 +201,11 @@ export default function Step3ProfileSetup({ data, onChange, onValidChange }) {
         if (current.includes(trimmed)) return;
         handleChange('interests', [...current, trimmed]);
         setNewInterest('');
-        setShowInterestSuggestions(false);
     };
 
-    const removeInterest = (interest) => {
-        const updated = (data.interests || []).filter(i => i !== interest);
+    const removeInterest = (index) => {
+        const updated = [...(data.interests || [])];
+        updated.splice(index, 1);
         handleChange('interests', updated);
     };
 
@@ -194,30 +230,10 @@ export default function Step3ProfileSetup({ data, onChange, onValidChange }) {
         setErrors(prev => { const { resume, ...rest } = prev; return rest; });
     };
 
-    // ─── Word Cloud Size Generator ──────────────────────────────
-    const getWordCloudStyle = (index, total) => {
-        // Vary sizes for visual interest
-        const sizes = [22, 18, 16, 14, 20, 15, 17, 13, 19, 16];
-        const colors = [
-            '#2563eb', '#7c3aed', '#059669', '#d97706', '#dc2626',
-            '#0891b2', '#4f46e5', '#16a34a', '#9333ea', '#0284c7'
-        ];
-        const rotations = [-12, 5, -5, 8, 0, -8, 3, -3, 10, -6];
-        return {
-            fontSize: sizes[index % sizes.length],
-            color: colors[index % colors.length],
-            transform: `rotate(${rotations[index % rotations.length]}deg)`,
-            fontWeight: index < 3 ? 800 : 600,
-        };
-    };
 
     const existingSkillNames = (data.skills || []).map(s => s.name);
     const filteredSkillSuggestions = SKILL_SUGGESTIONS.filter(
         s => s.toLowerCase().includes(newSkill.toLowerCase()) && !existingSkillNames.includes(s)
-    ).slice(0, 6);
-
-    const filteredInterestSuggestions = INTEREST_SUGGESTIONS.filter(
-        s => s.toLowerCase().includes(newInterest.toLowerCase()) && !(data.interests || []).includes(s)
     ).slice(0, 6);
 
     return (
@@ -649,70 +665,100 @@ export default function Step3ProfileSetup({ data, onChange, onValidChange }) {
                 {touched.skills && errors.skills && <div className="field-error" style={{ marginTop: 6 }}>{errors.skills}</div>}
             </div>
 
-            {/* ─── Interests (Word Cloud) ────────────────────────── */}
+            {/* ─── Interests ──────────────────────────────────────────────── */}
             <div className="reg-form-section" style={{ animation: 'fadeSlideIn 0.35s ease 0.3s both' }}>
                 <div className="step2-section-header">
                     <Heart size={16} /> <span>Interests <span className="required">*</span></span>
                 </div>
+                <div style={{ fontSize: 13, color: '#64748b', marginBottom: 16, marginTop: -4 }}>
+                    {(data.interests?.length || 0)}/10 interests selected
+                </div>
 
-                {/* Word Cloud Display */}
-                {(data.interests || []).length > 0 && (
-                    <div className="word-cloud-container">
-                        {(data.interests || []).map((interest, i) => {
-                            const style = getWordCloudStyle(i, (data.interests || []).length);
-                            return (
-                                <button
-                                    key={interest}
-                                    type="button"
-                                    className="word-cloud-word"
-                                    onClick={() => removeInterest(interest)}
-                                    style={style}
-                                    title={`Click to remove "${interest}"`}
-                                >
-                                    {interest}
-                                </button>
-                            );
-                        })}
-                    </div>
-                )}
+                {data.interests?.length > 0 && (
+                    <>
+                        <div style={{
+                            display: 'flex', flexWrap: 'wrap', marginBottom: 12,
+                            padding: '30px', background: 'linear-gradient(135deg, #f8fafc 0%, #f1f5f9 50%, #f8fafc 100%)',
+                            borderRadius: 16, border: '1px solid #e2e8f0',
+                            alignItems: 'center', justifyContent: 'center',
+                            minHeight: 180, position: 'relative', overflow: 'hidden',
+                            boxShadow: 'inset 0 4px 6px -1px rgba(0, 0, 0, 0.02)',
+                        }}>
+                            {/* Subtle glowing orb in background for depth */}
+                            <div style={{
+                                position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)',
+                                width: '60%', height: '60%', background: 'radial-gradient(circle, rgba(139,92,246,0.08) 0%, rgba(255,255,255,0) 70%)',
+                                pointerEvents: 'none', borderRadius: '50%'
+                            }} />
 
-                <p style={{ fontSize: 11, color: '#94a3b8', marginTop: 8, textAlign: 'center' }}>
-                    {(data.interests || []).length}/{MAX_INTERESTS} interests selected
-                    {(data.interests || []).length > 0 && ' — click a word to remove it'}
-                </p>
-
-                {/* Input with suggestions */}
-                {(data.interests || []).length < MAX_INTERESTS && (
-                    <div style={{ position: 'relative', marginTop: 10 }}>
-                        <div style={{ display: 'flex', gap: 8 }}>
-                            <input
-                                type="text"
-                                className="form-input"
-                                placeholder="Type an interest and press Enter..."
-                                value={newInterest}
-                                onChange={(e) => { setNewInterest(e.target.value); setShowInterestSuggestions(true); }}
-                                onFocus={() => setShowInterestSuggestions(true)}
-                                onBlur={() => setTimeout(() => setShowInterestSuggestions(false), 200)}
-                                onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addInterest(newInterest); } }}
-                            />
-                            <button type="button" className="btn btn-outline btn-sm" onClick={() => addInterest(newInterest)}
-                                disabled={!newInterest.trim() || (data.interests || []).length >= MAX_INTERESTS}>
-                                <Plus size={14} />
-                            </button>
-                        </div>
-                        {showInterestSuggestions && newInterest && filteredInterestSuggestions.length > 0 && (
-                            <div className="profile-suggestions-dropdown">
-                                {filteredInterestSuggestions.map((s) => (
-                                    <button key={s} type="button" className="profile-suggestion-item"
-                                        onMouseDown={() => addInterest(s)}>
-                                        {s}
+                            {(data.interests || []).map((interest, i) => {
+                                const wcStyle = getWordCloudStyle(interest);
+                                return (
+                                    <button
+                                        key={i}
+                                        type="button"
+                                        onClick={() => removeInterest(i)}
+                                        className="word-cloud-text-tag"
+                                        style={{
+                                            background: 'none', border: 'none', padding: 0,
+                                            color: wcStyle.color,
+                                            fontSize: wcStyle.fontSize,
+                                            fontWeight: 800,
+                                            transform: `rotate(${wcStyle.rotate})`,
+                                            margin: wcStyle.margin,
+                                            transition: 'all 0.2s cubic-bezier(0.34, 1.56, 0.64, 1)',
+                                            cursor: 'pointer',
+                                            userSelect: 'none',
+                                            position: 'relative',
+                                            zIndex: 2,
+                                            lineHeight: 1
+                                        }}
+                                        title="Click to remove"
+                                        onMouseEnter={(e) => {
+                                            e.currentTarget.style.transform = `rotate(0deg) scale(1.15)`;
+                                            e.currentTarget.style.zIndex = 10;
+                                            e.currentTarget.style.textDecoration = 'line-through';
+                                            e.currentTarget.style.textDecorationColor = '#ef4444';
+                                            e.currentTarget.style.textDecorationThickness = '3px';
+                                        }}
+                                        onMouseLeave={(e) => {
+                                            e.currentTarget.style.transform = `rotate(${wcStyle.rotate}) scale(1)`;
+                                            e.currentTarget.style.zIndex = 2;
+                                            e.currentTarget.style.textDecoration = 'none';
+                                        }}
+                                    >
+                                        {interest}
                                     </button>
-                                ))}
-                            </div>
-                        )}
-                    </div>
+                                );
+                            })}
+                        </div>
+                        <div style={{ fontSize: 13, color: '#94a3b8', textAlign: 'center', marginBottom: 16 }}>
+                            {(data.interests?.length || 0)}/10 interests selected — click a word to remove it
+                        </div>
+                    </>
                 )}
 
+                <div style={{ display: 'flex', gap: 8 }}>
+                    <input
+                        type="text"
+                        className="form-input"
+                        placeholder="Type an interest and press Enter..."
+                        value={newInterest}
+                        onChange={(e) => setNewInterest(e.target.value)}
+                        onKeyDown={(e) => {
+                            if (e.key === 'Enter') {
+                                e.preventDefault();
+                                addInterest(newInterest);
+                            }
+                        }}
+                        disabled={(data.interests?.length || 0) >= MAX_INTERESTS}
+                    />
+                    <button type="button" className="btn btn-outline btn-sm"
+                        onClick={() => addInterest(newInterest)}
+                        disabled={!newInterest.trim() || (data.interests?.length || 0) >= MAX_INTERESTS}>
+                        <Plus size={14} />
+                    </button>
+                </div>
                 {touched.interests && errors.interests && <div className="field-error" style={{ marginTop: 6 }}>{errors.interests}</div>}
             </div>
 

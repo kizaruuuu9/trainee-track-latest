@@ -659,11 +659,40 @@ export const AppProvider = ({ children }) => {
     return newTrainee;
   };
 
-  const updateTrainee = (traineeId, updates) => {
-    const existing = trainees.find(t => t.id === traineeId);
-    setTrainees(trainees.map(t => t.id === traineeId ? { ...t, ...updates } : t));
-    if (currentUser?.id === traineeId) setCurrentUser({ ...currentUser, ...updates });
-    logActivity('Edit', 'Trainees', `Updated trainee: ${existing?.name}`, null, null);
+  const updateTrainee = async (traineeId, updates) => {
+    // For Supabase-registered users (UUID string IDs), persist to database
+    const isSupabaseUser = typeof traineeId === 'string' && traineeId.includes('-');
+    if (isSupabaseUser) {
+      try {
+        const response = await fetch(`${API_BASE}/api/update-profile`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ userId: traineeId, updates }),
+        });
+        const result = await response.json();
+        if (!response.ok) {
+          console.error('Profile update failed:', result.error);
+          alert('Failed to save profile: ' + (result.error || 'Unknown error'));
+          return;
+        }
+        console.log('✅ Profile saved to database');
+      } catch (err) {
+        console.error('Profile update API error:', err);
+        alert('Unable to save profile. Please check your connection.');
+        return;
+      }
+    } else {
+      // In-memory trainees (mock data with numeric IDs)
+      const existing = trainees.find(t => t.id === traineeId);
+      setTrainees(trainees.map(t => t.id === traineeId ? { ...t, ...updates } : t));
+      logActivity('Edit', 'Trainees', `Updated trainee: ${existing?.name}`, null, null);
+    }
+    // Always update currentUser in state + localStorage
+    if (currentUser?.id === traineeId) {
+      const updatedUser = { ...currentUser, ...updates };
+      setCurrentUser(updatedUser);
+      localStorage.setItem('currentUser', JSON.stringify(updatedUser));
+    }
   };
 
   const deleteTrainee = (traineeId) => {
@@ -685,33 +714,23 @@ export const AppProvider = ({ children }) => {
     }
   };
 
+  // Auto-detect: use localhost for dev, relative path for Vercel production
+  const API_BASE = typeof window !== 'undefined' && window.location.hostname === 'localhost'
+    ? 'http://localhost:3001'
+    : '';
+
   // ─── AUTH FUNCTIONS ──────────────────────────────────────────────────────
-  const login = (username, password) => {
+  const login = async (email, password) => {
     // Check admin
-    if (adminAccount.username === username && adminAccount.password === password) {
+    if (adminAccount.username === email && adminAccount.password === password) {
       setUserRole('admin');
       setCurrentUser(adminAccount);
       localStorage.setItem('userRole', 'admin');
       localStorage.setItem('currentUser', JSON.stringify(adminAccount));
       return { success: true, role: 'admin' };
     }
-    // Check trainees
-    const trainee = trainees.find(t => (t.username === username || t.email === username) && t.password === password);
-    if (trainee) {
-      if (trainee.accountStatus === 'Disabled') {
-        return { success: false, error: 'Your account has been disabled. Please contact the administrator.' };
-      }
-      if (trainee.accountStatus === 'Suspended') {
-        return { success: false, error: 'Your account has been suspended. Please contact the administrator.' };
-      }
-      setUserRole('trainee');
-      setCurrentUser(trainee);
-      localStorage.setItem('userRole', 'trainee');
-      localStorage.setItem('currentUser', JSON.stringify(trainee));
-      return { success: true, role: 'trainee' };
-    }
-    // Check partners
-    const partner = partners.find(p => (p.username === username || p.email === username) && p.password === password);
+    // Check partners (still in-memory for now)
+    const partner = partners.find(p => (p.username === email || p.email === email) && p.password === password);
     if (partner) {
       if (partner.accountStatus === 'Disabled') {
         return { success: false, error: 'Your account has been disabled. Please contact the administrator.' };
@@ -728,7 +747,66 @@ export const AppProvider = ({ children }) => {
       localStorage.setItem('currentUser', JSON.stringify(partner));
       return { success: true, role: 'partner' };
     }
-    return { success: false, error: 'Invalid username or password.' };
+    // Check trainees via Supabase API (real registered accounts)
+    try {
+      const response = await fetch(`${API_BASE}/api/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: email.trim(), password }),
+      });
+      const result = await response.json();
+      if (response.ok && result.success) {
+        const reg = result.user;
+        // Map registration data to trainee user shape expected by the dashboard
+        const traineeUser = {
+          id: reg.id,
+          name: reg.full_name || 'Trainee',
+          email: reg.email || '',
+          username: reg.email || '',
+          phone: '',
+          address: reg.address || reg.detailed_address || [reg.barangay, reg.city, reg.province, reg.region].filter(Boolean).join(', ') || 'Philippines',
+          birthday: reg.birthdate || '',
+          gender: reg.gender || '',
+          studentId: reg.student_id || '',
+          program: reg.program || '',
+          graduationYear: reg.created_at ? new Date(reg.created_at).getFullYear() : new Date().getFullYear(),
+          certifications: (reg.licenses || []).map(l => typeof l === 'object' ? (l.name || l.title || '') : l).filter(Boolean),
+          competencies: [],
+          skills: [...new Set((reg.skills || []).map(s => typeof s === 'object' ? (s.name || s.title || JSON.stringify(s)) : String(s)).filter(Boolean))],
+          interests: [...new Set((reg.interests || []).map(i => typeof i === 'object' ? (i.name || i.title || JSON.stringify(i)) : String(i)).filter(Boolean))],
+          employmentStatus: reg.is_employed === 'yes' ? 'Employed' : 'Unemployed',
+          employer: reg.employment_work || null,
+          jobTitle: reg.employment_work || null,
+          dateHired: reg.employment_start || null,
+          monthsAfterGraduation: null,
+          photo: reg.selfie_url || null,
+          documents: {
+            resume: reg.resume_url || null,
+            frontId: reg.front_id_url || null,
+            backId: reg.back_id_url || null,
+          },
+          achievements: [],
+          accountStatus: 'Active',
+          certificationProgress: [],
+          educHistory: reg.educ_history || [],
+          workExperience: reg.work_experience || [],
+          licenses: reg.licenses || [],
+          traineeStatus: reg.trainee_status || '',
+          selfieUrl: reg.selfie_url || null,
+          createdAt: reg.created_at || new Date().toISOString(),
+        };
+        setUserRole('trainee');
+        setCurrentUser(traineeUser);
+        localStorage.setItem('userRole', 'trainee');
+        localStorage.setItem('currentUser', JSON.stringify(traineeUser));
+        return { success: true, role: 'trainee' };
+      } else {
+        return { success: false, error: result.error || 'Invalid email or password.' };
+      }
+    } catch (err) {
+      console.error('Login API error:', err);
+      return { success: false, error: 'Unable to connect to server. Please try again.' };
+    }
   };
 
   const logout = () => {

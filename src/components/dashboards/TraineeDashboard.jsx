@@ -1,11 +1,12 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useApp } from '../../context/AppContext';
 import {
     LayoutDashboard, User, Briefcase, FileText, BarChart2, CheckCircle,
     LogOut, Bell, ChevronDown, Search, Filter, MapPin, Clock, Building2,
     TrendingUp, Award, Send, Star, AlertTriangle, CheckSquare, XCircle,
     Edit, Upload, Download, ChevronRight, X, Eye, Plus, Target, Menu,
-    Home, BookOpen, Settings, ThumbsUp, MessageSquare, Share2, Bookmark
+    Home, BookOpen, Settings, ThumbsUp, MessageSquare, Share2, Bookmark,
+    Trash2
 } from 'lucide-react';
 
 /* ═══════════════════════════════════════════════════════════════════
@@ -28,7 +29,6 @@ const LinkedInTopNav = ({ activePage, setActivePage }) => {
         { id: 'recommendations', label: 'Opportunities', icon: <Briefcase size={20} /> },
         { id: 'applications', label: 'Applications', icon: <FileText size={20} /> },
         { id: 'gap-analysis', label: 'Gap Analysis', icon: <BarChart2 size={20} /> },
-        { id: 'employment', label: 'Employment', icon: <CheckCircle size={20} /> },
     ];
 
     return (
@@ -118,7 +118,7 @@ const LinkedInTopNav = ({ activePage, setActivePage }) => {
                                     View Profile
                                 </button>
                                 <div className="ln-dropdown-divider" />
-                                <div className="ln-dropdown-item" onClick={() => { setActivePage('employment'); setShowProfileMenu(false); }}>
+                                <div className="ln-dropdown-item" onClick={() => { setActivePage('profile'); setShowProfileMenu(false); }}>
                                     <Settings size={16} /> Settings
                                 </div>
                                 <div className="ln-dropdown-divider" />
@@ -189,8 +189,8 @@ const ProfileSideCard = ({ trainee, setActivePage }) => {
                         <span className="ln-profile-stat-label">Certifications</span>
                     </div>
                     <div className="ln-profile-stat-divider" />
-                    <div className="ln-profile-stat" onClick={() => setActivePage('recommendations')}>
-                        <span className="ln-profile-stat-num">{trainee?.competencies?.length || 0}</span>
+                    <div className="ln-profile-stat" onClick={() => setActivePage('profile')}>
+                        <span className="ln-profile-stat-num">{trainee?.skills?.length || 0}</span>
                         <span className="ln-profile-stat-label">Skills</span>
                     </div>
                 </div>
@@ -251,7 +251,6 @@ const QuickLinksWidget = ({ setActivePage }) => (
         {[
             { label: 'Gap Analysis', icon: <BarChart2 size={16} />, page: 'gap-analysis' },
             { label: 'My Applications', icon: <FileText size={16} />, page: 'applications' },
-            { label: 'Employment Status', icon: <TrendingUp size={16} />, page: 'employment' },
             { label: 'Certifications', icon: <Award size={16} />, page: 'certification' },
         ].map(link => (
             <button key={link.page} className="ln-quick-link" onClick={() => setActivePage(link.page)}>
@@ -278,7 +277,7 @@ const ProgressBar = ({ value, showLabel = true }) => {
 // ─── PAGE 1: DASHBOARD HOME (LinkedIn Feed-style) ───────────────
 const TraineeDashboardHome = ({ setActivePage }) => {
     const { currentUser, trainees, jobPostings, applications, getTraineeRecommendedJobs, applyToJob } = useApp();
-    const trainee = trainees.find(t => t.id === currentUser?.id) || trainees[0];
+    const trainee = currentUser || trainees[0];
     const myApps = applications.filter(a => a.traineeId === trainee?.id);
     const recJobs = getTraineeRecommendedJobs(trainee?.id).slice(0, 6);
 
@@ -417,18 +416,196 @@ const TraineeDashboardHome = ({ setActivePage }) => {
 
 // ─── PAGE 2: PROFILE ─────────────────────────────────────────────
 const TraineeProfile = () => {
-    const { currentUser, trainees, updateTrainee, NC_COMPETENCIES } = useApp();
-    const trainee = trainees.find(t => t.id === currentUser?.id) || trainees[0];
+    const { currentUser, trainees, updateTrainee } = useApp();
+    const trainee = currentUser || trainees[0];
     const [editing, setEditing] = useState(false);
     const [form, setForm] = useState({ ...trainee });
     const initials = trainee?.name?.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase() || 'T';
 
-    const save = () => {
-        updateTrainee(trainee.id, form);
+    // Skills state
+    const [newSkill, setNewSkill] = useState('');
+
+    // Interests state
+    const [newInterest, setNewInterest] = useState('');
+    const [interestsList, setInterestsList] = useState(trainee?.interests || []);
+
+    // Employment state
+    const [editingEmployment, setEditingEmployment] = useState(false);
+    const [empForm, setEmpForm] = useState({
+        employmentStatus: trainee?.employmentStatus || 'Unemployed',
+        employer: trainee?.employer || '',
+        jobTitle: trainee?.jobTitle || '',
+        dateHired: trainee?.dateHired || '',
+    });
+
+    // Documents state
+    const API_BASE = window.location.hostname === 'localhost' ? 'http://localhost:3001' : '';
+    const [documents, setDocuments] = useState([]);
+    const [docLabel, setDocLabel] = useState('');
+    const [docFile, setDocFile] = useState(null);
+    const [uploading, setUploading] = useState(false);
+    const [showUploadForm, setShowUploadForm] = useState(false);
+    const fileInputRef = useRef(null);
+    const resumeInputRef = useRef(null);
+    const [resume, setResume] = useState(null);
+    const [uploadingResume, setUploadingResume] = useState(false);
+
+    // Fetch documents on mount
+    useEffect(() => {
+        if (trainee?.id) {
+            fetch(`${API_BASE}/api/documents/${trainee.id}`)
+                .then(r => r.json())
+                .then(data => {
+                    if (data.success) {
+                        const resumeDoc = data.documents.find(d => d.label === 'Resume');
+                        if (resumeDoc) {
+                            setResume(resumeDoc);
+                        } else if (data.registrationResumeUrl) {
+                            // Fallback: resume from registration table
+                            setResume({ file_url: data.registrationResumeUrl, file_name: 'Resume', label: 'Resume' });
+                        }
+                        setDocuments(data.documents.filter(d => d.label !== 'Resume'));
+                    }
+                })
+                .catch(err => console.error('Fetch docs error:', err));
+        }
+    }, [trainee?.id]);
+
+    const save = async () => {
+        await updateTrainee(trainee.id, form);
         setEditing(false);
     };
 
-    const allCompetencies = Object.values(NC_COMPETENCIES).flat();
+    const saveEmployment = async () => {
+        await updateTrainee(trainee.id, {
+            ...empForm,
+            monthsAfterGraduation: empForm.dateHired ? Math.round((new Date() - new Date(empForm.dateHired)) / (1000 * 60 * 60 * 24 * 30)) : null
+        });
+        setEditingEmployment(false);
+    };
+
+    const addSkill = async () => {
+        if (!newSkill.trim()) return;
+        const currentSkills = form.skills || [];
+        if (currentSkills.includes(newSkill.trim())) { setNewSkill(''); return; }
+        const updatedSkills = [...currentSkills, newSkill.trim()];
+        setForm({ ...form, skills: updatedSkills });
+        await updateTrainee(trainee.id, { skills: updatedSkills });
+        setNewSkill('');
+    };
+
+    const removeSkill = async (skill) => {
+        const updatedSkills = (form.skills || []).filter(s => s !== skill);
+        setForm({ ...form, skills: updatedSkills });
+        await updateTrainee(trainee.id, { skills: updatedSkills });
+    };
+
+    const addInterest = async () => {
+        if (!newInterest.trim()) return;
+        if (interestsList.includes(newInterest.trim())) { setNewInterest(''); return; }
+        const updated = [...interestsList, newInterest.trim()];
+        setInterestsList(updated);
+        await updateTrainee(trainee.id, { interests: updated });
+        setNewInterest('');
+    };
+
+    const removeInterest = async (interest) => {
+        const updated = interestsList.filter(i => i !== interest);
+        setInterestsList(updated);
+        await updateTrainee(trainee.id, { interests: updated });
+    };
+
+    const handleDocUpload = async () => {
+        if (!docFile || !docLabel.trim()) return;
+        setUploading(true);
+        try {
+            const reader = new FileReader();
+            reader.onload = async () => {
+                const base64 = reader.result.split(',')[1];
+                const res = await fetch(`${API_BASE}/api/documents/upload`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        traineeId: trainee.id,
+                        label: docLabel.trim(),
+                        fileName: docFile.name,
+                        fileType: docFile.type,
+                        fileData: base64,
+                    }),
+                });
+                const result = await res.json();
+                if (result.success) {
+                    setDocuments(prev => [result.document, ...prev]);
+                    setDocLabel('');
+                    setDocFile(null);
+                    setShowUploadForm(false);
+                    if (fileInputRef.current) fileInputRef.current.value = '';
+                } else {
+                    alert(result.error || 'Upload failed.');
+                }
+                setUploading(false);
+            };
+            reader.readAsDataURL(docFile);
+        } catch (err) {
+            console.error('Upload error:', err);
+            alert('Failed to upload document.');
+            setUploading(false);
+        }
+    };
+
+    const deleteDoc = async (docId) => {
+        if (!confirm('Delete this document?')) return;
+        try {
+            const res = await fetch(`${API_BASE}/api/documents/${docId}`, { method: 'DELETE' });
+            const result = await res.json();
+            if (result.success) {
+                setDocuments(prev => prev.filter(d => d.id !== docId));
+            }
+        } catch (err) {
+            console.error('Delete error:', err);
+        }
+    };
+
+    const statusColors = {
+        Employed: '#057642', Unemployed: '#cc1016', 'Self-Employed': '#0a66c2', Underemployed: '#b24020'
+    };
+
+    const handleResumeUpload = async (file) => {
+        if (!file) return;
+        const allowed = ['application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'];
+        if (!allowed.includes(file.type)) { alert('Only PDF, DOC, DOCX files allowed.'); return; }
+        setUploadingResume(true);
+        try {
+            // Delete old resume if exists
+            if (resume?.id) {
+                await fetch(`${API_BASE}/api/documents/${resume.id}`, { method: 'DELETE' });
+            }
+            const reader = new FileReader();
+            reader.onload = async () => {
+                const base64 = reader.result.split(',')[1];
+                const res = await fetch(`${API_BASE}/api/documents/upload`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        traineeId: trainee.id,
+                        label: 'Resume',
+                        fileName: file.name,
+                        fileType: file.type,
+                        fileData: base64,
+                    }),
+                });
+                const result = await res.json();
+                if (result.success) {
+                    setResume(result.document);
+                } else { alert(result.error || 'Upload failed.'); }
+                setUploadingResume(false);
+            };
+            reader.readAsDataURL(file);
+        } catch (err) {
+            console.error('Resume upload error:', err);
+            setUploadingResume(false);
+        }
+    };
 
     return (
         <div className="ln-profile-page">
@@ -441,7 +618,7 @@ const TraineeProfile = () => {
                         <div className="ln-profile-header-top">
                             <div>
                                 <h1 className="ln-profile-header-name">{trainee?.name}</h1>
-                                <p className="ln-profile-header-headline">TESDA Trainee &bull; {trainee?.certifications?.join(', ')}</p>
+                                <p className="ln-profile-header-headline">TESDA Trainee &bull; {trainee?.certifications?.join(', ') || 'No certifications yet'}</p>
                                 <p className="ln-profile-header-loc"><MapPin size={14} /> {trainee?.address || 'Philippines'} &bull; Class of {trainee?.graduationYear}</p>
                                 <p className="ln-profile-header-contact">{trainee?.email}</p>
                             </div>
@@ -449,10 +626,41 @@ const TraineeProfile = () => {
                                 {editing ? <><CheckCircle size={15} /> Save Changes</> : <><Edit size={15} /> Edit Profile</>}
                             </button>
                         </div>
-                        <div className="ln-profile-certs-row">
-                            {trainee?.certifications?.map(c => (
-                                <span key={c} className="ln-cert-tag"><Award size={12} /> {c}</span>
-                            ))}
+                        {/* Resume section — bottom right */}
+                        <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 12 }}>
+                            <input
+                                ref={resumeInputRef}
+                                type="file"
+                                accept=".pdf,.doc,.docx"
+                                style={{ display: 'none' }}
+                                onChange={e => { handleResumeUpload(e.target.files[0]); e.target.value = ''; }}
+                            />
+                            {resume ? (
+                                <div style={{
+                                    display: 'flex', alignItems: 'center', gap: 10,
+                                    padding: '8px 14px', background: '#f0f7ff', borderRadius: 10,
+                                    border: '1px solid #cce0f5', fontSize: 13
+                                }}>
+                                    <FileText size={16} color="#0a66c2" />
+                                    <div style={{ minWidth: 0 }}>
+                                        <div style={{ fontWeight: 600, color: '#1e3a5f', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: 180 }}>{resume.file_name}</div>
+                                        <div style={{ fontSize: 11, color: 'rgba(0,0,0,0.4)' }}>Resume / CV</div>
+                                    </div>
+                                    <a href={resume.file_url} target="_blank" rel="noreferrer" className="ln-btn-sm ln-btn-outline" style={{ flexShrink: 0 }}><Eye size={12} /></a>
+                                    <button className="ln-btn-sm ln-btn-outline" onClick={() => resumeInputRef.current?.click()} style={{ flexShrink: 0 }} disabled={uploadingResume}>
+                                        <Upload size={12} /> {uploadingResume ? '...' : 'Update'}
+                                    </button>
+                                </div>
+                            ) : (
+                                <button
+                                    className="ln-btn-sm ln-btn-outline"
+                                    onClick={() => resumeInputRef.current?.click()}
+                                    disabled={uploadingResume}
+                                    style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 16px', fontSize: 13 }}
+                                >
+                                    <Upload size={14} /> {uploadingResume ? 'Uploading...' : 'Upload Resume / CV'}
+                                </button>
+                            )}
                         </div>
                     </div>
                 </div>
@@ -462,14 +670,11 @@ const TraineeProfile = () => {
                 <div className="ln-profile-main">
                     {/* Personal Info */}
                     <div className="ln-card">
-                        <div className="ln-section-header">
-                            <h3>Personal Information</h3>
-                        </div>
+                        <div className="ln-section-header"><h3>Personal Information</h3></div>
                         <div className="ln-info-grid">
                             {[
                                 { label: 'Full Name', key: 'name', type: 'text' },
                                 { label: 'Email', key: 'email', type: 'email' },
-                                { label: 'Phone', key: 'phone', type: 'text' },
                                 { label: 'Address', key: 'address', type: 'text' },
                                 { label: 'Birthday', key: 'birthday', type: 'date' },
                                 { label: 'Gender', key: 'gender', type: 'select', options: ['Male', 'Female', 'Other'] },
@@ -492,59 +697,167 @@ const TraineeProfile = () => {
                         </div>
                     </div>
 
-                    {/* Achievements */}
+                    {/* Employment Status Section */}
                     <div className="ln-card">
-                        <div className="ln-section-header"><h3>Achievements</h3></div>
-                        {trainee?.achievements?.length > 0 ? trainee.achievements.map((a, i) => (
-                            <div key={i} className="ln-achievement-item">
-                                <Star size={18} color="#f59e0b" />
-                                <span>{a}</span>
+                        <div className="ln-section-header">
+                            <h3>Employment Status</h3>
+                            <button className={`ln-btn-sm ${editingEmployment ? 'ln-btn-success' : 'ln-btn-outline'}`} onClick={editingEmployment ? saveEmployment : () => setEditingEmployment(true)}>
+                                {editingEmployment ? <><CheckCircle size={12} /> Save</> : <><Edit size={12} /> Edit</>}
+                            </button>
+                        </div>
+                        <div className="ln-info-grid">
+                            <div className="ln-info-item">
+                                <label className="ln-info-label">Status</label>
+                                {editingEmployment ? (
+                                    <select className="form-select" value={empForm.employmentStatus} onChange={e => setEmpForm({ ...empForm, employmentStatus: e.target.value })}>
+                                        {['Employed', 'Unemployed', 'Self-Employed', 'Underemployed'].map(s => <option key={s}>{s}</option>)}
+                                    </select>
+                                ) : (
+                                    <span className={`ln-badge ${statusColors[trainee?.employmentStatus] === '#057642' ? 'ln-badge-green' : statusColors[trainee?.employmentStatus] === '#cc1016' ? 'ln-badge-red' : 'ln-badge-blue'}`} style={{ fontSize: 13 }}>
+                                        {trainee?.employmentStatus || 'Unemployed'}
+                                    </span>
+                                )}
                             </div>
-                        )) : <div className="ln-empty-widget" style={{ padding: 24 }}><Star size={28} style={{ opacity: 0.3 }} /><p>No achievements added yet</p></div>}
+                            {(editingEmployment ? empForm.employmentStatus !== 'Unemployed' : trainee?.employmentStatus !== 'Unemployed') && (
+                                <>
+                                    <div className="ln-info-item">
+                                        <label className="ln-info-label">Employer / Company</label>
+                                        {editingEmployment ? <input type="text" className="form-input" value={empForm.employer} onChange={e => setEmpForm({ ...empForm, employer: e.target.value })} placeholder="Company name" /> : <div className="ln-info-value">{trainee?.employer || '—'}</div>}
+                                    </div>
+                                    <div className="ln-info-item">
+                                        <label className="ln-info-label">Job Title</label>
+                                        {editingEmployment ? <input type="text" className="form-input" value={empForm.jobTitle} onChange={e => setEmpForm({ ...empForm, jobTitle: e.target.value })} placeholder="Your position" /> : <div className="ln-info-value">{trainee?.jobTitle || '—'}</div>}
+                                    </div>
+                                    <div className="ln-info-item">
+                                        <label className="ln-info-label">Date Hired</label>
+                                        {editingEmployment ? <input type="date" className="form-input" value={empForm.dateHired} onChange={e => setEmpForm({ ...empForm, dateHired: e.target.value })} /> : <div className="ln-info-value">{trainee?.dateHired || '—'}</div>}
+                                    </div>
+                                </>
+                            )}
+                        </div>
                     </div>
                 </div>
 
                 <div className="ln-profile-sidebar">
-                    {/* Competencies */}
+                    {/* Skills Section (editable) */}
                     <div className="ln-card">
-                        <div className="ln-section-header"><h3>Skills & Competencies</h3></div>
-                        {allCompetencies.slice(0, 8).map(comp => {
-                            const has = trainee?.competencies?.includes(comp);
-                            return (
-                                <div key={comp} className="ln-skill-item">
-                                    <div className="ln-skill-row">
-                                        {has ? <CheckSquare size={16} color="#057642" /> : <XCircle size={16} color="#cc1016" />}
-                                        <span className="ln-skill-name">{comp}</span>
-                                    </div>
-                                    {has && <span className="ln-skill-badge">Acquired</span>}
-                                </div>
-                            );
-                        })}
+                        <div className="ln-section-header"><h3>Skills</h3></div>
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 12, padding: '0 16px' }}>
+                            {(form.skills || []).length > 0 ? (form.skills || []).map((skill, i) => (
+                                <span key={i} style={{
+                                    display: 'inline-flex', alignItems: 'center', gap: 6,
+                                    padding: '6px 12px', background: '#dbeafe', color: '#1e3a5f',
+                                    borderRadius: 20, fontSize: 13, fontWeight: 600
+                                }}>
+                                    {typeof skill === 'string' ? skill : JSON.stringify(skill)}
+                                    <button onClick={() => removeSkill(skill)} style={{
+                                        background: 'none', border: 'none', cursor: 'pointer',
+                                        padding: 0, display: 'flex', color: '#64748b'
+                                    }}><X size={14} /></button>
+                                </span>
+                            )) : <div className="ln-empty-widget" style={{ padding: 16, width: '100%' }}><p style={{ margin: 0 }}>No skills added yet</p></div>}
+                        </div>
+                        <div style={{ display: 'flex', gap: 8, padding: '0 16px 16px' }}>
+                            <input
+                                type="text" className="form-input" placeholder="Add a skill..."
+                                value={newSkill} onChange={e => setNewSkill(e.target.value)}
+                                onKeyDown={e => { if (e.key === 'Enter') addSkill(); }}
+                                style={{ flex: 1, fontSize: 13 }}
+                            />
+                            <button className="ln-btn-sm ln-btn-primary" onClick={addSkill} disabled={!newSkill.trim()}>
+                                <Plus size={14} />
+                            </button>
+                        </div>
                     </div>
 
-                    {/* Documents */}
+                    {/* Interests Section (editable word cloud) */}
                     <div className="ln-card">
-                        <div className="ln-section-header"><h3>Documents</h3></div>
-                        {[
-                            { key: 'resume', label: 'Resume / CV' },
-                            { key: 'diploma', label: 'Diploma' },
-                            { key: 'tor', label: 'Transcript of Records' },
-                        ].map(doc => (
-                            <div key={doc.key} className="ln-doc-item">
+                        <div className="ln-section-header"><h3>Interests</h3></div>
+                        <div style={{
+                            display: 'flex', flexWrap: 'wrap', gap: 10, justifyContent: 'center', alignItems: 'center',
+                            padding: 20, margin: '0 16px 12px', background: '#f8fafc', borderRadius: 12, border: '1px solid #e2e8f0', minHeight: 80
+                        }}>
+                            {interestsList.length > 0 ? interestsList.map((interest, i) => {
+                                const sizes = [14, 17, 20, 15, 18];
+                                const colors = ['#0a66c2', '#7c3aed', '#057642', '#b24020', '#1e3a5f'];
+                                return (
+                                    <span key={i} className="ln-interest-word" onClick={() => removeInterest(interest)} style={{
+                                        display: 'inline-flex', alignItems: 'center',
+                                        fontSize: sizes[i % sizes.length],
+                                        fontWeight: 600 + (i % 3) * 100,
+                                        color: colors[i % colors.length],
+                                        padding: '4px 10px',
+                                        cursor: 'pointer',
+                                    }}>
+                                        {interest}
+                                    </span>
+                                );
+                            }) : <div className="ln-empty-widget" style={{ padding: 16, width: '100%' }}><p style={{ margin: 0 }}>No interests added yet</p></div>}
+                        </div>
+                        <div style={{ display: 'flex', gap: 8, padding: '0 16px 16px' }}>
+                            <input
+                                type="text" className="form-input" placeholder="Add an interest..."
+                                value={newInterest} onChange={e => setNewInterest(e.target.value)}
+                                onKeyDown={e => { if (e.key === 'Enter') addInterest(); }}
+                                style={{ flex: 1, fontSize: 13 }}
+                            />
+                            <button className="ln-btn-sm ln-btn-primary" onClick={addInterest} disabled={!newInterest.trim()}>
+                                <Plus size={14} />
+                            </button>
+                        </div>
+                    </div>
+
+                    {/* Documents Section (real uploads) */}
+                    <div className="ln-card">
+                        <div className="ln-section-header">
+                            <h3>Documents</h3>
+                            <button className="ln-btn-sm ln-btn-primary" onClick={() => setShowUploadForm(!showUploadForm)}>
+                                {showUploadForm ? <><X size={12} /> Cancel</> : <><Plus size={12} /> Add</>}
+                            </button>
+                        </div>
+
+                        {showUploadForm && (
+                            <div style={{ marginBottom: 16, padding: 16, background: '#f8fafc', borderRadius: 10, border: '1px solid #e2e8f0' }}>
+                                <div style={{ marginBottom: 10 }}>
+                                    <label className="ln-info-label" style={{ marginBottom: 4, display: 'block' }}>Document Label</label>
+                                    <input type="text" className="form-input" placeholder="e.g. Resume, Diploma, TOR..." value={docLabel} onChange={e => setDocLabel(e.target.value)} style={{ fontSize: 13 }} />
+                                </div>
+                                <div style={{ marginBottom: 10 }}>
+                                    <label className="ln-info-label" style={{ marginBottom: 4, display: 'block' }}>File (PDF, DOC, DOCX only)</label>
+                                    <input
+                                        ref={fileInputRef}
+                                        type="file"
+                                        accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                                        onChange={e => setDocFile(e.target.files[0] || null)}
+                                        style={{ fontSize: 13 }}
+                                    />
+                                </div>
+                                <button className="ln-btn-sm ln-btn-success" onClick={handleDocUpload} disabled={uploading || !docFile || !docLabel.trim()} style={{ width: '100%' }}>
+                                    {uploading ? 'Uploading...' : <><Upload size={12} /> Upload Document</>}
+                                </button>
+                            </div>
+                        )}
+
+                        {documents.length > 0 ? documents.map(doc => (
+                            <div key={doc.id} className="ln-doc-item">
                                 <div className="ln-doc-info">
                                     <FileText size={16} color="rgba(0,0,0,0.5)" />
-                                    <span>{doc.label}</span>
-                                </div>
-                                {trainee?.documents?.[doc.key] ? (
-                                    <div style={{ display: 'flex', gap: 6 }}>
-                                        <button className="ln-btn-sm ln-btn-outline"><Eye size={12} /> View</button>
-                                        <button className="ln-btn-sm ln-btn-outline"><Download size={12} /></button>
+                                    <div>
+                                        <span style={{ fontWeight: 600, fontSize: 13 }}>{doc.label}</span>
+                                        <div style={{ fontSize: 11, color: 'rgba(0,0,0,0.4)' }}>{doc.file_name}</div>
                                     </div>
-                                ) : (
-                                    <button className="ln-btn-sm ln-btn-outline"><Upload size={12} /> Upload</button>
-                                )}
+                                </div>
+                                <div style={{ display: 'flex', gap: 6 }}>
+                                    <a href={doc.file_url} target="_blank" rel="noreferrer" className="ln-btn-sm ln-btn-outline"><Eye size={12} /> View</a>
+                                    <button className="ln-btn-sm ln-btn-outline" onClick={() => deleteDoc(doc.id)} style={{ color: '#cc1016' }}><Trash2 size={12} /></button>
+                                </div>
                             </div>
-                        ))}
+                        )) : !showUploadForm && (
+                            <div className="ln-empty-widget" style={{ padding: 20 }}>
+                                <FileText size={28} style={{ opacity: 0.3 }} />
+                                <p>No documents uploaded yet</p>
+                            </div>
+                        )}
                     </div>
                 </div>
             </div>
@@ -552,107 +865,81 @@ const TraineeProfile = () => {
     );
 };
 
-// ─── PAGE 3: CERTIFICATION PROGRESS ──────────────────────────────
+// ─── PAGE 3: CERTIFICATIONS ──────────────────────────────────────
 const CertificationProgress = () => {
-    const { currentUser, trainees } = useApp();
-    const trainee = trainees.find(t => t.id === currentUser?.id) || trainees[0];
-    const progress = trainee?.certificationProgress || [];
+    const { currentUser, trainees, updateTrainee } = useApp();
+    const trainee = currentUser || trainees[0];
+    const [certs, setCerts] = useState(trainee?.certifications || []);
+    const [newCert, setNewCert] = useState('');
+    const [adding, setAdding] = useState(false);
 
-    const getCompletionPercent = (cert) => {
-        if (!cert.competencies || cert.competencies.length === 0) return 0;
-        const passed = cert.competencies.filter(c => c.status === 'Passed').length;
-        return Math.round((passed / cert.competencies.length) * 100);
+    const addCert = async () => {
+        if (!newCert.trim()) return;
+        if (certs.includes(newCert.trim())) { setNewCert(''); return; }
+        const updated = [...certs, newCert.trim()];
+        setCerts(updated);
+        await updateTrainee(trainee.id, { certifications: updated });
+        setNewCert('');
+        setAdding(false);
     };
 
-    const statusBadge = (s) => {
-        const map = { Passed: 'ln-badge-green', Failed: 'ln-badge-red', 'Pending Assessment': 'ln-badge-yellow' };
-        return <span className={`ln-badge ${map[s] || 'ln-badge-gray'}`}>{s}</span>;
-    };
-
-    const certStatusBadge = (s) => {
-        const map = { Completed: 'ln-badge-green', 'In Progress': 'ln-badge-blue', 'Not Started': 'ln-badge-gray' };
-        return <span className={`ln-badge ${map[s] || 'ln-badge-gray'}`}>{s}</span>;
+    const removeCert = async (cert) => {
+        if (!confirm(`Remove "${cert}" from your certifications?`)) return;
+        const updated = certs.filter(c => c !== cert);
+        setCerts(updated);
+        await updateTrainee(trainee.id, { certifications: updated });
     };
 
     return (
         <div className="ln-page-content">
             <div className="ln-page-header">
                 <div>
-                    <h1 className="ln-page-title">Certification Progress</h1>
-                    <p className="ln-page-subtitle">Track your TESDA certification journey</p>
+                    <h1 className="ln-page-title">My Certifications</h1>
+                    <p className="ln-page-subtitle">Manage your TESDA certifications</p>
                 </div>
-                <span className="ln-badge ln-badge-blue">{progress.length} certification{progress.length !== 1 ? 's' : ''}</span>
+                <button className="ln-btn ln-btn-primary" onClick={() => setAdding(!adding)}>
+                    {adding ? <><X size={15} /> Cancel</> : <><Plus size={15} /> Add Certification</>}
+                </button>
             </div>
 
-            {/* Overview Stats */}
-            <div className="ln-stats-grid-4">
-                {[
-                    { label: 'Total Certifications', value: progress.length, icon: <Award size={22} />, color: '#7c3aed' },
-                    { label: 'Completed', value: progress.filter(p => p.status === 'Completed').length, icon: <CheckCircle size={22} />, color: '#057642' },
-                    { label: 'In Progress', value: progress.filter(p => p.status === 'In Progress').length, icon: <Clock size={22} />, color: '#0a66c2' },
-                    { label: 'Overall Progress', value: progress.length > 0 ? `${Math.round(progress.reduce((s, c) => s + getCompletionPercent(c), 0) / progress.length)}%` : '0%', icon: <TrendingUp size={22} />, color: '#b24020' },
-                ].map((s, i) => (
-                    <div key={i} className="ln-stat-card">
-                        <div className="ln-stat-card-icon" style={{ color: s.color }}>{s.icon}</div>
-                        <div className="ln-stat-card-value">{s.value}</div>
-                        <div className="ln-stat-card-label">{s.label}</div>
+            {adding && (
+                <div className="ln-card" style={{ marginBottom: 16, padding: 20 }}>
+                    <h3 style={{ margin: '0 0 12px', fontSize: 15 }}>Add New Certification</h3>
+                    <div style={{ display: 'flex', gap: 10 }}>
+                        <input
+                            type="text" className="form-input" placeholder="e.g. NC II - Computer Systems Servicing"
+                            value={newCert} onChange={e => setNewCert(e.target.value)}
+                            onKeyDown={e => { if (e.key === 'Enter') addCert(); }}
+                            style={{ flex: 1 }}
+                        />
+                        <button className="ln-btn ln-btn-success" onClick={addCert} disabled={!newCert.trim()}>
+                            <CheckCircle size={15} /> Add
+                        </button>
                     </div>
-                ))}
-            </div>
+                </div>
+            )}
 
-            {/* Certification Cards */}
-            {progress.map((cert, ci) => {
-                const pct = getCompletionPercent(cert);
-                return (
-                    <div key={ci} className="ln-card" style={{ marginBottom: 16 }}>
-                        <div className="ln-cert-card-header">
-                            <div className="ln-cert-card-left">
-                                <div className="ln-cert-card-icon"><Award size={22} /></div>
-                                <div>
-                                    <div className="ln-cert-card-name">{cert.certification}</div>
-                                    <div className="ln-cert-card-date">Enrolled: {cert.enrolledDate}</div>
-                                </div>
-                            </div>
-                            <div className="ln-cert-card-right">
-                                {certStatusBadge(cert.status)}
-                                <span className={`ln-cert-pct ${pct >= 70 ? 'high' : pct >= 40 ? 'mid' : 'low'}`}>{pct}%</span>
-                            </div>
+            {certs.length > 0 ? certs.map((cert, i) => (
+                <div key={i} className="ln-card" style={{ marginBottom: 12, padding: '16px 20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+                        <div style={{ width: 44, height: 44, borderRadius: 12, background: '#f0f4ff', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                            <Award size={22} color="#0a66c2" />
                         </div>
-
-                        <div style={{ margin: '16px 0' }}>
-                            <ProgressBar value={pct} />
-                        </div>
-
-                        <div style={{ overflowX: 'auto' }}>
-                            <table className="ln-table">
-                                <thead>
-                                    <tr><th>#</th><th>Unit of Competency</th><th>Status</th><th>Remarks</th></tr>
-                                </thead>
-                                <tbody>
-                                    {cert.competencies.map((comp, i) => (
-                                        <tr key={i}>
-                                            <td style={{ color: '#00000066', width: 40 }}>{i + 1}</td>
-                                            <td style={{ fontWeight: 500 }}>
-                                                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                                                    {comp.status === 'Passed' ? <CheckSquare size={14} color="#057642" /> :
-                                                        comp.status === 'Failed' ? <XCircle size={14} color="#cc1016" /> :
-                                                            <Clock size={14} color="#b24020" />}
-                                                    {comp.name}
-                                                </div>
-                                            </td>
-                                            <td>{statusBadge(comp.status)}</td>
-                                            <td style={{ fontSize: 13, color: 'rgba(0,0,0,0.5)', maxWidth: 200 }}>{comp.remarks || '—'}</td>
-                                        </tr>
-                                    ))}
-                                </tbody>
-                            </table>
+                        <div>
+                            <div style={{ fontWeight: 700, fontSize: 15, color: '#1e293b' }}>{cert}</div>
+                            <div style={{ fontSize: 12, color: 'rgba(0,0,0,0.45)' }}>TESDA Certification</div>
                         </div>
                     </div>
-                );
-            })}
-
-            {progress.length === 0 && (
-                <div className="ln-empty-state"><Award size={48} /><h3>No certifications found</h3><p>Your certification progress will appear here once enrolled.</p></div>
+                    <button className="ln-btn-sm ln-btn-outline" onClick={() => removeCert(cert)} style={{ color: '#cc1016' }}>
+                        <Trash2 size={14} /> Remove
+                    </button>
+                </div>
+            )) : !adding && (
+                <div className="ln-empty-state">
+                    <Award size={48} />
+                    <h3>No certifications yet</h3>
+                    <p>Click "Add Certification" to start adding your TESDA certifications.</p>
+                </div>
             )}
         </div>
     );
@@ -661,7 +948,7 @@ const CertificationProgress = () => {
 // ─── PAGE 4: OPPORTUNITIES ───────────────────────────────────────
 const Opportunities = () => {
     const { currentUser, trainees, jobPostings, applications, getTraineeRecommendedJobs, applyToJob } = useApp();
-    const trainee = trainees.find(t => t.id === currentUser?.id) || trainees[0];
+    const trainee = currentUser || trainees[0];
     const myApps = applications.filter(a => a.traineeId === trainee?.id).map(a => a.jobId);
     const allJobs = getTraineeRecommendedJobs(trainee?.id);
 
@@ -827,7 +1114,7 @@ const Opportunities = () => {
 // ─── PAGE 5: GAP ANALYSIS ────────────────────────────────────────
 const GapAnalysis = () => {
     const { currentUser, trainees, jobPostings, getGapAnalysis, getMatchRate } = useApp();
-    const trainee = trainees.find(t => t.id === currentUser?.id) || trainees[0];
+    const trainee = currentUser || trainees[0];
     const [selectedJobId, setSelectedJobId] = useState(jobPostings[0]?.id || null);
     const selectedJob = jobPostings.find(j => j.id === selectedJobId);
     const analysis = selectedJobId ? getGapAnalysis(trainee?.id, selectedJobId) : [];
@@ -928,7 +1215,7 @@ const GapAnalysis = () => {
 // ─── PAGE 6: MY APPLICATIONS ──────────────────────────────────────
 const MyApplications = () => {
     const { currentUser, trainees, getTraineeApplications } = useApp();
-    const trainee = trainees.find(t => t.id === currentUser?.id) || trainees[0];
+    const trainee = currentUser || trainees[0];
     const myApps = getTraineeApplications(trainee?.id);
     const [search, setSearch] = useState('');
 
@@ -1008,84 +1295,6 @@ const MyApplications = () => {
     );
 };
 
-// ─── PAGE 7: EMPLOYMENT STATUS ────────────────────────────────────
-const EmploymentStatus = () => {
-    const { currentUser, trainees, updateTrainee } = useApp();
-    const trainee = trainees.find(t => t.id === currentUser?.id) || trainees[0];
-    const [editing, setEditing] = useState(false);
-    const [form, setForm] = useState({
-        employmentStatus: trainee?.employmentStatus || 'Unemployed',
-        employer: trainee?.employer || '',
-        jobTitle: trainee?.jobTitle || '',
-        dateHired: trainee?.dateHired || '',
-    });
-
-    const statusColors = {
-        Employed: '#057642', Unemployed: '#cc1016', 'Self-Employed': '#0a66c2', Underemployed: '#b24020'
-    };
-
-    const save = () => {
-        updateTrainee(trainee.id, { ...form, monthsAfterGraduation: form.dateHired ? Math.round((new Date() - new Date(form.dateHired)) / (1000 * 60 * 60 * 24 * 30)) : null });
-        setEditing(false);
-    };
-
-    return (
-        <div className="ln-page-content">
-            <div className="ln-page-header">
-                <div>
-                    <h1 className="ln-page-title">Employment Status</h1>
-                    <p className="ln-page-subtitle">Update your current employment information</p>
-                </div>
-                <button className={`ln-btn ${editing ? 'ln-btn-success' : 'ln-btn-primary'}`} onClick={editing ? save : () => setEditing(true)}>
-                    {editing ? <><CheckCircle size={15} /> Save</> : <><Edit size={15} /> Update Status</>}
-                </button>
-            </div>
-
-            <div className="ln-card" style={{ marginBottom: 16 }}>
-                <div className="ln-employment-status-hero">
-                    <div className="ln-employment-status-text" style={{ color: statusColors[trainee?.employmentStatus] || 'rgba(0,0,0,0.5)' }}>
-                        {trainee?.employmentStatus || 'Unemployed'}
-                    </div>
-                    <div style={{ fontSize: 15, color: 'rgba(0,0,0,0.6)' }}>{trainee?.employer ? `at ${trainee.employer}` : 'Currently not employed'}</div>
-                    {trainee?.dateHired && <div style={{ fontSize: 13, color: 'rgba(0,0,0,0.4)', marginTop: 4 }}>Since {trainee.dateHired} &bull; {trainee.monthsAfterGraduation} months after graduation</div>}
-                </div>
-            </div>
-
-            <div className="ln-card" style={{ maxWidth: 560 }}>
-                <div className="ln-section-header" style={{ marginBottom: 20 }}><h3>Update Employment Details</h3></div>
-                <div className="form-group">
-                    <label className="ln-info-label">Employment Status</label>
-                    {editing ? (
-                        <select className="ln-filter-select" style={{ width: '100%' }} value={form.employmentStatus} onChange={e => setForm({ ...form, employmentStatus: e.target.value })}>
-                            {['Employed', 'Unemployed', 'Self-Employed', 'Underemployed'].map(s => <option key={s}>{s}</option>)}
-                        </select>
-                    ) : (
-                        <span className={`ln-badge ${statusColors[trainee?.employmentStatus] === '#057642' ? 'ln-badge-green' : statusColors[trainee?.employmentStatus] === '#cc1016' ? 'ln-badge-red' : 'ln-badge-blue'}`} style={{ fontSize: 13 }}>
-                            {trainee?.employmentStatus || 'Unemployed'}
-                        </span>
-                    )}
-                </div>
-                {(editing ? form.employmentStatus !== 'Unemployed' : trainee?.employmentStatus !== 'Unemployed') && (
-                    <>
-                        <div className="form-group">
-                            <label className="ln-info-label">Employer / Company</label>
-                            {editing ? <input type="text" className="form-input" value={form.employer} onChange={e => setForm({ ...form, employer: e.target.value })} placeholder="Company name" /> : <div className="ln-info-value">{trainee?.employer || '—'}</div>}
-                        </div>
-                        <div className="form-group">
-                            <label className="ln-info-label">Job Title / Position</label>
-                            {editing ? <input type="text" className="form-input" value={form.jobTitle} onChange={e => setForm({ ...form, jobTitle: e.target.value })} placeholder="Your position" /> : <div className="ln-info-value">{trainee?.jobTitle || '—'}</div>}
-                        </div>
-                        <div className="form-group">
-                            <label className="ln-info-label">Date Hired</label>
-                            {editing ? <input type="date" className="form-input" value={form.dateHired} onChange={e => setForm({ ...form, dateHired: e.target.value })} /> : <div className="ln-info-value">{trainee?.dateHired || '—'}</div>}
-                        </div>
-                    </>
-                )}
-            </div>
-        </div>
-    );
-};
-
 // ─── MAIN TRAINEE DASHBOARD ─────────────────────────────────────
 export default function TraineeDashboard() {
     const [activePage, setActivePage] = useState('dashboard');
@@ -1098,7 +1307,6 @@ export default function TraineeDashboard() {
             case 'recommendations': return <Opportunities />;
             case 'applications': return <MyApplications />;
             case 'gap-analysis': return <GapAnalysis />;
-            case 'employment': return <EmploymentStatus />;
             default: return <TraineeDashboardHome setActivePage={setActivePage} />;
         }
     };

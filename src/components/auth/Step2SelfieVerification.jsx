@@ -131,8 +131,8 @@ export default function Step2SelfieVerification({ data, onChange, onValidChange 
             // Detect faces with minimum 1.5s delay so user sees the animation
             const [detections] = await Promise.all([
                 faceapi.detectAllFaces(img, new faceapi.TinyFaceDetectorOptions({
-                    inputSize: 416,
-                    scoreThreshold: 0.5,
+                    inputSize: 512,
+                    scoreThreshold: 0.1, // Even more permissive for different angles
                 })),
                 new Promise(r => setTimeout(r, 1500)),
             ]);
