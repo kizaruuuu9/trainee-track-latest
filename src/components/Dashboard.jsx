@@ -1,4 +1,4 @@
-import React from 'react';
+import React from 'react'; 
 import { useApp } from '../context/AppContext';
 import TraineeDashboard from './dashboards/TraineeDashboard';
 import PartnerDashboard from './dashboards/PartnerDashboard';
