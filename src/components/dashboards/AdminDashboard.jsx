@@ -78,8 +78,6 @@ const AdminSidebar = ({ activePage, setActivePage, mobileOpen, closeSidebar }) =
         { id: 'partners', label: 'Industry Partners', icon: <Building2 size={17} /> },
         { id: 'jobs', label: 'Opportunities Oversight', icon: <Briefcase size={17} /> },
         { id: 'employment', label: 'Employment Tracking', icon: <TrendingUp size={17} /> },
-        { id: 'analytics', label: 'Analytics Reports', icon: <BarChart2 size={17} /> },
-        { id: 'accounts', label: 'Account Management', icon: <UserCheck size={17} /> },
         { id: 'activity-log', label: 'Activity Log', icon: <FileText size={17} /> },
         { id: 'settings', label: 'System Settings', icon: <Settings size={17} /> },
     ];
@@ -127,18 +125,17 @@ const AdminHome = ({ setActivePage }) => {
         { label: 'Active Opportunities', value: jobPostings.filter(j => j.status === 'Open').length, icon: <Briefcase size={22} color="#d97706" />, bg: '#fef3c7', sub: `${jobPostings.length} total postings` },
     ];
     const employmentChartData = [
-        { name: 'Employed', value: stats.employed, color: '#16a34a' },
-        { name: 'Self-Employed', value: stats.selfEmployed, color: '#2563eb' },
-        { name: 'Underemployed', value: stats.underEmployed, color: '#d97706' },
-        { name: 'Unemployed', value: stats.unemployed, color: '#dc2626' },
+        { name: '🟦 Employed', value: stats.employed || 0, color: '#3b82f6' },
+        { name: '🟨 Seeking Employment', value: stats.seeking_employment || 0, color: '#eab308' },
+        { name: '🟥 Not Employed', value: stats.not_employed || 0, color: '#ef4444' },
     ];
-    const certData = [
-        { name: 'CSS NC II', trainees: trainees.filter(t => t.certifications.includes('CSS NC II')).length },
-        { name: 'Web Dev NC III', trainees: trainees.filter(t => t.certifications.includes('Web Development NC III')).length },
-        { name: 'Auto NC II', trainees: trainees.filter(t => t.certifications.includes('Automotive NC II')).length },
-        { name: 'Elec NC II', trainees: trainees.filter(t => t.certifications.includes('Electrical Installation NC II')).length },
-        { name: 'Welding NC I', trainees: trainees.filter(t => t.certifications.includes('Welding NC I')).length },
-    ];
+    // Build cert data dynamically from all programs that trainees hold
+    const allCerts = [...new Set(trainees.flatMap(t => t.certifications || []))];
+    const certData = allCerts.map(cert => ({
+        name: cert.length > 25 ? cert.replace(/\(.*?\)/g, '').trim().substring(0, 25) + '…' : cert,
+        fullName: cert,
+        trainees: trainees.filter(t => t.certifications.includes(cert)).length,
+    })).filter(c => c.trainees > 0);
     return (
         <div>
             <div style={{ background: 'linear-gradient(135deg, #4c1d95 0%, #7c3aed 60%, #db2777 100%)', borderRadius: 16, padding: '22px 28px', marginBottom: 24, color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12 }}>
@@ -179,22 +176,7 @@ const AdminHome = ({ setActivePage }) => {
                     </ResponsiveContainer>
                 </div>
             </div>
-            <div className="card">
-                <div className="section-title" style={{ marginBottom: 14 }}>Quick Actions</div>
-                <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-                    {[
-                        { label: 'Manage Trainees', icon: <Users size={15} />, page: 'trainees', color: '#7c3aed', bg: '#ede9fe' },
-                        { label: 'Approve Partners', icon: <Building2 size={15} />, page: 'partners', color: '#0ea5e9', bg: '#e0f2fe' },
-                        { label: 'Opportunities', icon: <Briefcase size={15} />, page: 'jobs', color: '#d97706', bg: '#fef3c7' },
-                        { label: 'Employment Tracking', icon: <TrendingUp size={15} />, page: 'employment', color: '#16a34a', bg: '#dcfce7' },
-                        { label: 'Analytics Reports', icon: <BarChart2 size={15} />, page: 'analytics', color: '#db2777', bg: '#fce7f3' },
-                    ].map(a => (
-                        <button key={a.page} className="btn btn-outline" onClick={() => setActivePage(a.page)} style={{ color: a.color, borderColor: a.bg, background: a.bg }}>
-                            {a.icon} {a.label}
-                        </button>
-                    ))}
-                </div>
-            </div>
+
         </div>
     );
 };
@@ -205,34 +187,25 @@ const ManageTrainees = () => {
     const [search, setSearch] = useState('');
     const [filterStatus, setFilterStatus] = useState('All');
     const [viewT, setViewT] = useState(null);
-    const [showAdd, setShowAdd] = useState(false);
-    const [newT, setNewT] = useState({ name: '', email: '', username: '', password: 'grad123', phone: '', address: '', graduationYear: 2024, certifications: [] });
     const [editT, setEditT] = useState(null);
     const filtered = trainees.filter(t => {
         const q = search.toLowerCase();
         return (t.name.toLowerCase().includes(q) || t.email.toLowerCase().includes(q)) && (filterStatus === 'All' || t.employmentStatus === filterStatus);
     });
     const statusBadge = (s) => {
-        const map = { Employed: 'badge-employed', Unemployed: 'badge-unemployed', 'Self-Employed': 'badge-self-employed', Underemployed: 'badge-underemployed' };
+        const map = { Employed: 'badge-employed', 'Seeking Employment': 'badge-self-employed', 'Not Employed': 'badge-unemployed' };
         return <span className={`badge ${map[s] || 'badge-gray'}`}>{s}</span>;
-    };
-    const handleAdd = () => {
-        if (!newT.name || !newT.email) return alert('Name and email are required.');
-        addTrainee({ ...newT, username: newT.username || newT.email.split('@')[0] });
-        setShowAdd(false);
-        setNewT({ name: '', email: '', username: '', password: 'grad123', phone: '', address: '', graduationYear: 2024, certifications: [] });
     };
     return (
         <div>
             <div className="page-header">
                 <div><div className="page-title">Manage Trainees</div><div className="page-subtitle">View and manage all registered trainees</div></div>
-                <button className="btn btn-primary" onClick={() => setShowAdd(true)}><Plus size={15} /> Add Trainee</button>
             </div>
             <div className="card">
                 <div style={{ display: 'flex', gap: 12, marginBottom: 16, flexWrap: 'wrap', alignItems: 'center' }}>
                     <div className="search-bar" style={{ flex: 1, minWidth: 200 }}><Search size={14} color="#94a3b8" /><input placeholder="Search by name or email..." value={search} onChange={e => setSearch(e.target.value)} /></div>
                     <select className="form-select" style={{ width: 'auto', minWidth: 160 }} value={filterStatus} onChange={e => setFilterStatus(e.target.value)}>
-                        {['All', 'Employed', 'Unemployed', 'Self-Employed', 'Underemployed'].map(s => <option key={s}>{s}</option>)}
+                        {['All', 'Employed', 'Seeking Employment', 'Not Employed'].map(s => <option key={s}>{s}</option>)}
                     </select>
                 </div>
                 <div style={{ overflowX: 'auto' }}>
@@ -288,27 +261,12 @@ const ManageTrainees = () => {
                         ))}
                         <div className="form-group"><label className="form-label">Employment Status</label>
                             <select className="form-select" value={editT.employmentStatus} onChange={e => setEditT({ ...editT, employmentStatus: e.target.value })}>
-                                {['Employed', 'Unemployed', 'Self-Employed', 'Underemployed'].map(s => <option key={s}>{s}</option>)}
+                                {['Employed', 'Seeking Employment', 'Not Employed'].map(s => <option key={s}>{s}</option>)}
                             </select>
                         </div>
                         <div style={{ display: 'flex', gap: 10 }}>
                             <button className="btn btn-outline" style={{ flex: 1 }} onClick={() => setEditT(null)}>Cancel</button>
                             <button className="btn btn-primary" style={{ flex: 1 }} onClick={() => { updateTrainee(editT.id, editT); setEditT(null); }}><CheckCircle size={15} /> Save</button>
-                        </div>
-                    </div>
-                </div>
-            )}
-            {showAdd && (
-                <div className="modal-overlay" onClick={() => setShowAdd(false)}>
-                    <div className="modal" style={{ maxWidth: 480 }} onClick={e => e.stopPropagation()}>
-                        <div className="modal-header"><h3 className="modal-title">Add New Trainee</h3><button className="btn btn-outline btn-icon" onClick={() => setShowAdd(false)}><X size={16} /></button></div>
-                        {[['name', 'Full Name *', 'text'], ['email', 'Email *', 'email'], ['username', 'Username', 'text'], ['password', 'Password', 'password'], ['phone', 'Phone', 'text'], ['address', 'Address', 'text']].map(([key, label, type]) => (
-                            <div key={key} className="form-group"><label className="form-label">{label}</label><input type={type} className="form-input" value={newT[key] || ''} onChange={e => setNewT({ ...newT, [key]: e.target.value })} /></div>
-                        ))}
-                        <div className="form-group"><label className="form-label">Year</label><input type="number" className="form-input" value={newT.graduationYear} onChange={e => setNewT({ ...newT, graduationYear: Number(e.target.value) })} /></div>
-                        <div style={{ display: 'flex', gap: 10 }}>
-                            <button className="btn btn-outline" style={{ flex: 1 }} onClick={() => setShowAdd(false)}>Cancel</button>
-                            <button className="btn btn-primary" style={{ flex: 1 }} onClick={handleAdd}><Plus size={15} /> Add Trainee</button>
                         </div>
                     </div>
                 </div>

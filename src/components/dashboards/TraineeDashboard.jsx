@@ -6,8 +6,9 @@ import {
     TrendingUp, Award, Send, Star, AlertTriangle, CheckSquare, XCircle,
     Edit, Upload, Download, ChevronRight, X, Eye, Plus, Target, Menu,
     Home, BookOpen, Settings, ThumbsUp, MessageSquare, Share2, Bookmark,
-    Trash2
+    Trash2, Camera, Loader
 } from 'lucide-react';
+import { supabase } from '../../lib/supabase';
 
 /* ═══════════════════════════════════════════════════════════════════
    LINKEDIN-STYLE TRAINEE DASHBOARD
@@ -25,10 +26,8 @@ const LinkedInTopNav = ({ activePage, setActivePage }) => {
     const navItems = [
         { id: 'dashboard', label: 'Home', icon: <Home size={20} /> },
         { id: 'profile', label: 'Profile', icon: <User size={20} /> },
-        { id: 'certification', label: 'Certifications', icon: <Award size={20} /> },
         { id: 'recommendations', label: 'Opportunities', icon: <Briefcase size={20} /> },
         { id: 'applications', label: 'Applications', icon: <FileText size={20} /> },
-        { id: 'gap-analysis', label: 'Gap Analysis', icon: <BarChart2 size={20} /> },
     ];
 
     return (
@@ -174,17 +173,26 @@ const ProfileSideCard = ({ trainee, setActivePage }) => {
     const initials = trainee?.name?.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase() || 'T';
     return (
         <div className="ln-card ln-profile-card">
-            <div className="ln-profile-banner" />
+            <div className="ln-profile-banner" style={trainee?.bannerUrl ? {
+                backgroundImage: `url(${trainee.bannerUrl})`,
+                backgroundSize: 'cover',
+                backgroundPosition: 'center',
+            } : {}} />
             <div className="ln-profile-card-body">
                 <div className="ln-profile-avatar-wrap">
-                    <div className="ln-profile-avatar-lg">{initials}</div>
+                    <div className="ln-profile-avatar-lg" style={trainee?.photo ? {
+                        backgroundImage: `url(${trainee.photo})`,
+                        backgroundSize: 'cover',
+                        backgroundPosition: 'center',
+                        fontSize: 0,
+                    } : {}}>{!trainee?.photo && initials}</div>
                 </div>
                 <h2 className="ln-profile-name">{trainee?.name}</h2>
                 <p className="ln-profile-headline">TESDA Trainee &bull; Class of {trainee?.graduationYear}</p>
                 <p className="ln-profile-location"><MapPin size={13} /> {trainee?.address || 'Philippines'}</p>
 
                 <div className="ln-profile-stats">
-                    <div className="ln-profile-stat" onClick={() => setActivePage('certification')}>
+                    <div className="ln-profile-stat" onClick={() => setActivePage('profile')}>
                         <span className="ln-profile-stat-num">{trainee?.certifications?.length || 0}</span>
                         <span className="ln-profile-stat-label">Certifications</span>
                     </div>
@@ -196,8 +204,8 @@ const ProfileSideCard = ({ trainee, setActivePage }) => {
                 </div>
 
                 <div className="ln-profile-certs">
-                    {trainee?.certifications?.map(c => (
-                        <span key={c} className="ln-cert-tag"><Award size={12} /> {c}</span>
+                    {trainee?.certifications?.slice(0, 3).map((c, i) => (
+                        <span key={i} className="ln-cert-tag"><Award size={12} /> {typeof c === 'string' ? c : c.name}</span>
                     ))}
                 </div>
 
@@ -249,9 +257,8 @@ const QuickLinksWidget = ({ setActivePage }) => (
     <div className="ln-card ln-widget">
         <div className="ln-widget-header"><span>Quick Links</span></div>
         {[
-            { label: 'Gap Analysis', icon: <BarChart2 size={16} />, page: 'gap-analysis' },
             { label: 'My Applications', icon: <FileText size={16} />, page: 'applications' },
-            { label: 'Certifications', icon: <Award size={16} />, page: 'certification' },
+            { label: 'My Profile', icon: <User size={16} />, page: 'profile' },
         ].map(link => (
             <button key={link.page} className="ln-quick-link" onClick={() => setActivePage(link.page)}>
                 {link.icon} {link.label}
@@ -281,8 +288,8 @@ const TraineeDashboardHome = ({ setActivePage }) => {
     const myApps = applications.filter(a => a.traineeId === trainee?.id);
     const recJobs = getTraineeRecommendedJobs(trainee?.id).slice(0, 6);
 
-    const handleApply = (jobId) => {
-        const result = applyToJob(trainee?.id, jobId);
+    const handleApply = async (jobId) => {
+        const result = await applyToJob(trainee?.id, jobId);
         if (!result.success) alert(result.error);
     };
 
@@ -344,8 +351,8 @@ const TraineeDashboardHome = ({ setActivePage }) => {
                         <button className="ln-feed-action-btn" onClick={() => setActivePage('recommendations')}>
                             <Briefcase size={16} /> Browse Opportunities
                         </button>
-                        <button className="ln-feed-action-btn" onClick={() => setActivePage('gap-analysis')}>
-                            <BarChart2 size={16} /> Gap Analysis
+                        <button className="ln-feed-action-btn" onClick={() => setActivePage('profile')}>
+                            <User size={16} /> My Profile
                         </button>
                         <button className="ln-feed-action-btn" onClick={() => setActivePage('applications')}>
                             <FileText size={16} /> My Applications
@@ -429,6 +436,18 @@ const TraineeProfile = () => {
     const [newInterest, setNewInterest] = useState('');
     const [interestsList, setInterestsList] = useState(trainee?.interests || []);
 
+    // Certification state
+    const [certs, setCerts] = useState(trainee?.certifications?.map(c => typeof c === 'string' ? { name: c, org: '', issue: '', exp: '', credId: '', url: '' } : c) || []);
+    const [savingCerts, setSavingCerts] = useState(false);
+
+    // Education state
+    const [educHistory, setEducHistory] = useState(trainee?.educHistory || []);
+    const [savingEduc, setSavingEduc] = useState(false);
+
+    // Work Experience state
+    const [workExperience, setWorkExperience] = useState(trainee?.workExperience || []);
+    const [savingWork, setSavingWork] = useState(false);
+
     // Employment state
     const [editingEmployment, setEditingEmployment] = useState(false);
     const [empForm, setEmpForm] = useState({
@@ -437,6 +456,12 @@ const TraineeProfile = () => {
         jobTitle: trainee?.jobTitle || '',
         dateHired: trainee?.dateHired || '',
     });
+
+    // Profile photo & banner state
+    const profilePicRef = useRef(null);
+    const bannerInputRef = useRef(null);
+    const [uploadingPhoto, setUploadingPhoto] = useState(false);
+    const [uploadingBanner, setUploadingBanner] = useState(false);
 
     // Documents state
     const API_BASE = window.location.hostname === 'localhost' ? 'http://localhost:3001' : '';
@@ -450,6 +475,74 @@ const TraineeProfile = () => {
     const [resume, setResume] = useState(null);
     const [uploadingResume, setUploadingResume] = useState(false);
 
+    // ─── Photo upload handler ──────────────────────────────
+    const handlePhotoUpload = async (file) => {
+        if (!file || !trainee?.id) return;
+        const allowed = ['image/png', 'image/jpeg', 'image/jpg', 'image/webp'];
+        if (!allowed.includes(file.type)) { alert('Please upload PNG, JPG, or WEBP images only.'); return; }
+        setUploadingPhoto(true);
+        try {
+            const ext = file.name.split('.').pop();
+            const path = `avatars/${trainee.id}/${Date.now()}_profile.${ext}`;
+            const { error: uploadErr } = await supabase.storage
+                .from('registration-uploads')
+                .upload(path, file, { contentType: file.type, upsert: true });
+            if (uploadErr) throw uploadErr;
+            const { data: urlData } = supabase.storage.from('registration-uploads').getPublicUrl(path);
+            const publicUrl = urlData?.publicUrl;
+            if (publicUrl) {
+                await updateTrainee(trainee.id, { photo: publicUrl });
+            }
+        } catch (err) {
+            console.error('Photo upload error:', err);
+            alert('Failed to upload photo.');
+        } finally {
+            setUploadingPhoto(false);
+        }
+    };
+
+    // ─── Banner upload handler ─────────────────────────────
+    const handleBannerUpload = async (file) => {
+        if (!file || !trainee?.id) return;
+        const allowed = ['image/png', 'image/jpeg', 'image/jpg', 'image/webp'];
+        if (!allowed.includes(file.type)) { alert('Please upload PNG, JPG, or WEBP images only.'); return; }
+        setUploadingBanner(true);
+        try {
+            const ext = file.name.split('.').pop();
+            const path = `banners/${trainee.id}/${Date.now()}_banner.${ext}`;
+            const { error: uploadErr } = await supabase.storage
+                .from('registration-uploads')
+                .upload(path, file, { contentType: file.type, upsert: true });
+            if (uploadErr) throw uploadErr;
+            const { data: urlData } = supabase.storage.from('registration-uploads').getPublicUrl(path);
+            const publicUrl = urlData?.publicUrl;
+            if (publicUrl) {
+                await updateTrainee(trainee.id, { bannerUrl: publicUrl });
+            }
+        } catch (err) {
+            console.error('Banner upload error:', err);
+            alert('Failed to upload banner.');
+        } finally {
+            setUploadingBanner(false);
+        }
+    };
+
+    // ─── Dynamic Arrays Handlers ────────────────────────────
+    const updateCert = (idx, field, val) => { const arr = [...certs]; arr[idx][field] = val; setCerts(arr); };
+    const addCertObj = () => setCerts([...certs, { name: '', org: '', issue: '', exp: '', credId: '', url: '', noExp: false }]);
+    const removeCertIdx = (idx) => { if (!confirm('Remove this certification?')) return; setCerts(certs.filter((_, i) => i !== idx)); };
+    const saveCerts = async () => { setSavingCerts(true); await updateTrainee(trainee.id, { certifications: certs }); setSavingCerts(false); };
+
+    const updateEduc = (idx, field, val) => { const arr = [...educHistory]; arr[idx][field] = val; setEducHistory(arr); };
+    const addEducObj = () => setEducHistory([...educHistory, { school: '', degree: '', from: '', to: '' }]);
+    const removeEducIdx = (idx) => { if (!confirm('Remove this education?')) return; setEducHistory(educHistory.filter((_, i) => i !== idx)); };
+    const saveEduc = async () => { setSavingEduc(true); await updateTrainee(trainee.id, { educHistory }); setSavingEduc(false); };
+
+    const updateWork = (idx, field, val) => { const arr = [...workExperience]; arr[idx][field] = val; setWorkExperience(arr); };
+    const addWorkObj = () => setWorkExperience([...workExperience, { company: '', position: '', from: '', to: '' }]);
+    const removeWorkIdx = (idx) => { if (!confirm('Remove this work experience?')) return; setWorkExperience(workExperience.filter((_, i) => i !== idx)); };
+    const saveWork = async () => { setSavingWork(true); await updateTrainee(trainee.id, { workExperience }); setSavingWork(false); };
+
     // Fetch documents on mount
     useEffect(() => {
         if (trainee?.id) {
@@ -457,12 +550,12 @@ const TraineeProfile = () => {
                 .then(r => r.json())
                 .then(data => {
                     if (data.success) {
-                        const resumeDoc = data.documents.find(d => d.label === 'Resume');
+                        const resumeDoc = data.documents.find(d => d.category === 'document' && d.label === 'Resume');
                         if (resumeDoc) {
                             setResume(resumeDoc);
                         } else if (data.registrationResumeUrl) {
-                            // Fallback: resume from registration table
-                            setResume({ file_url: data.registrationResumeUrl, file_name: 'Resume', label: 'Resume' });
+                            // Fallback: resume from students table
+                            setResume({ file_url: data.registrationResumeUrl, file_name: 'Resume', label: 'Resume', category: 'document' });
                         }
                         setDocuments(data.documents.filter(d => d.label !== 'Resume'));
                     }
@@ -609,16 +702,64 @@ const TraineeProfile = () => {
 
     return (
         <div className="ln-profile-page">
+            {/* Hidden file inputs */}
+            <input ref={profilePicRef} type="file" accept="image/*" style={{ display: 'none' }}
+                onChange={e => { handlePhotoUpload(e.target.files[0]); e.target.value = ''; }} />
+            <input ref={bannerInputRef} type="file" accept="image/*" style={{ display: 'none' }}
+                onChange={e => { handleBannerUpload(e.target.files[0]); e.target.value = ''; }} />
+
             {/* Profile Header Card */}
             <div className="ln-card ln-profile-header-card">
-                <div className="ln-profile-header-banner" />
+                <div className="ln-profile-header-banner" style={trainee?.bannerUrl ? {
+                    backgroundImage: `url(${trainee.bannerUrl})`,
+                    backgroundSize: 'cover',
+                    backgroundPosition: 'center',
+                } : {}}>
+                    <button className="ln-banner-change-btn" onClick={() => bannerInputRef.current?.click()} disabled={uploadingBanner}
+                        style={{
+                            position: 'absolute', top: 12, right: 12,
+                            background: 'rgba(0,0,0,0.6)', border: 'none', borderRadius: 8,
+                            color: 'white', padding: '6px 12px', fontSize: 12, fontWeight: 600,
+                            cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6,
+                            transition: 'background 0.2s',
+                        }}>
+                        <Camera size={14} /> {uploadingBanner ? 'Uploading...' : 'Change Banner'}
+                    </button>
+                </div>
                 <div className="ln-profile-header-body">
-                    <div className="ln-profile-header-avatar">{initials}</div>
+                    <div className="ln-profile-header-avatar" style={{
+                        position: 'relative', cursor: 'pointer',
+                        ...(trainee?.photo ? {
+                            backgroundImage: `url(${trainee.photo})`,
+                            backgroundSize: 'cover',
+                            backgroundPosition: 'center',
+                            fontSize: 0,
+                        } : {})
+                    }} onClick={() => profilePicRef.current?.click()}>
+                        {!trainee?.photo && initials}
+                        <div style={{
+                            position: 'absolute', bottom: 0, right: 0,
+                            width: 28, height: 28, borderRadius: '50%',
+                            background: '#0a66c2', border: '2px solid white',
+                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        }}>
+                            <Camera size={13} color="white" />
+                        </div>
+                        {uploadingPhoto && (
+                            <div style={{
+                                position: 'absolute', inset: 0, borderRadius: '50%',
+                                background: 'rgba(0,0,0,0.5)', display: 'flex',
+                                alignItems: 'center', justifyContent: 'center',
+                            }}>
+                                <Loader size={20} color="white" style={{ animation: 'ocr-spin 0.8s linear infinite' }} />
+                            </div>
+                        )}
+                    </div>
                     <div className="ln-profile-header-info">
                         <div className="ln-profile-header-top">
                             <div>
                                 <h1 className="ln-profile-header-name">{trainee?.name}</h1>
-                                <p className="ln-profile-header-headline">TESDA Trainee &bull; {trainee?.certifications?.join(', ') || 'No certifications yet'}</p>
+                                <p className="ln-profile-header-headline">TESDA Trainee &bull; {(trainee?.certifications?.length > 0) ? trainee.certifications.map(c => typeof c === 'string' ? c : c.name).slice(0, 2).join(', ') : 'No certifications yet'}</p>
                                 <p className="ln-profile-header-loc"><MapPin size={14} /> {trainee?.address || 'Philippines'} &bull; Class of {trainee?.graduationYear}</p>
                                 <p className="ln-profile-header-contact">{trainee?.email}</p>
                             </div>
@@ -735,6 +876,140 @@ const TraineeProfile = () => {
                                 </>
                             )}
                         </div>
+                    </div>
+
+                    {/* Educational History Section */}
+                    <div className="ln-card">
+                        <div className="ln-section-header">
+                            <h3>Educational History *</h3>
+                            <div style={{ display: 'flex', gap: 8 }}>
+                                {educHistory.length > 0 && (
+                                    <button className={`ln-btn-sm ${savingEduc ? 'ln-btn-success' : 'ln-btn-outline'}`} onClick={saveEduc} disabled={savingEduc}>
+                                        {savingEduc ? 'Saving...' : <><CheckCircle size={12} /> Save</>}
+                                    </button>
+                                )}
+                                <button className="ln-btn-sm ln-btn-primary" onClick={addEducObj}>
+                                    <Plus size={12} /> Add
+                                </button>
+                            </div>
+                        </div>
+                        {educHistory.map((edu, i) => (
+                            <div key={i} style={{ padding: '16px', borderBottom: i < educHistory.length - 1 ? '1px solid #f3f2ef' : 'none', marginBottom: i < educHistory.length - 1 ? 12 : 0, background: '#f8fafc', borderRadius: 8, border: '1px solid #e2e8f0', margin: '0 16px 16px' }}>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 16 }}>
+                                    <h4 style={{ margin: 0, fontSize: 13, color: '#475569' }}>Education #{i + 1}</h4>
+                                    <button className="ln-link-btn" style={{ color: '#cc1016', fontSize: 12, padding: 0 }} onClick={() => removeEducIdx(i)}><Trash2 size={13} /> Remove</button>
+                                </div>
+                                <div className="ln-info-grid" style={{ gap: 12 }}>
+                                    <div className="ln-info-item" style={{ gridColumn: '1 / -1' }}>
+                                        <input type="text" className="form-input" placeholder="School / University" value={edu.school || ''} onChange={e => updateEduc(i, 'school', e.target.value)} />
+                                    </div>
+                                    <div className="ln-info-item" style={{ gridColumn: '1 / -1' }}>
+                                        <input type="text" className="form-input" placeholder="Degree / Program (e.g. BS Computer Science)" value={edu.degree || ''} onChange={e => updateEduc(i, 'degree', e.target.value)} />
+                                    </div>
+                                    <div className="ln-info-item">
+                                        <input type="text" className="form-input" placeholder="Year From" value={edu.from || ''} onChange={e => updateEduc(i, 'from', e.target.value)} />
+                                    </div>
+                                    <div className="ln-info-item">
+                                        <input type="text" className="form-input" placeholder="Year To (or expected)" value={edu.to || ''} onChange={e => updateEduc(i, 'to', e.target.value)} />
+                                    </div>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+
+                    {/* Work Experience Section */}
+                    <div className="ln-card">
+                        <div className="ln-section-header">
+                            <h3>Work Experience (Optional)</h3>
+                            <div style={{ display: 'flex', gap: 8 }}>
+                                {workExperience.length > 0 && (
+                                    <button className={`ln-btn-sm ${savingWork ? 'ln-btn-success' : 'ln-btn-outline'}`} onClick={saveWork} disabled={savingWork}>
+                                        {savingWork ? 'Saving...' : <><CheckCircle size={12} /> Save</>}
+                                    </button>
+                                )}
+                                <button className="ln-btn-sm ln-btn-primary" onClick={addWorkObj}>
+                                    <Plus size={12} /> Add
+                                </button>
+                            </div>
+                        </div>
+                        {workExperience.map((work, i) => (
+                            <div key={i} style={{ padding: '16px', borderBottom: i < workExperience.length - 1 ? '1px solid #f3f2ef' : 'none', marginBottom: i < workExperience.length - 1 ? 12 : 0, background: '#f8fafc', borderRadius: 8, border: '1px solid #e2e8f0', margin: '0 16px 16px' }}>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 16 }}>
+                                    <h4 style={{ margin: 0, fontSize: 13, color: '#475569' }}>Experience #{i + 1}</h4>
+                                    <button className="ln-link-btn" style={{ color: '#cc1016', fontSize: 12, padding: 0 }} onClick={() => removeWorkIdx(i)}><Trash2 size={13} /> Remove</button>
+                                </div>
+                                <div className="ln-info-grid" style={{ gap: 12 }}>
+                                    <div className="ln-info-item" style={{ gridColumn: '1 / -1' }}>
+                                        <input type="text" className="form-input" placeholder="Company / Organization" value={work.company || ''} onChange={e => updateWork(i, 'company', e.target.value)} />
+                                    </div>
+                                    <div className="ln-info-item" style={{ gridColumn: '1 / -1' }}>
+                                        <input type="text" className="form-input" placeholder="Position / Role" value={work.position || ''} onChange={e => updateWork(i, 'position', e.target.value)} />
+                                    </div>
+                                    <div className="ln-info-item">
+                                        <input type="date" className="form-input" title="Start Date" value={work.from || ''} onChange={e => updateWork(i, 'from', e.target.value)} />
+                                        <span style={{ fontSize: 11, color: '#64748b', marginTop: 4, display: 'block' }}>Start Date</span>
+                                    </div>
+                                    <div className="ln-info-item">
+                                        <input type="date" className="form-input" title="End Date" value={work.to || ''} onChange={e => updateWork(i, 'to', e.target.value)} />
+                                        <span style={{ fontSize: 11, color: '#64748b', marginTop: 4, display: 'block' }}>End Date</span>
+                                    </div>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+
+                    {/* Certifications Section */}
+                    <div className="ln-card">
+                        <div className="ln-section-header">
+                            <h3>Licenses & Certifications (Optional)</h3>
+                            <div style={{ display: 'flex', gap: 8 }}>
+                                {certs.length > 0 && (
+                                    <button className={`ln-btn-sm ${savingCerts ? 'ln-btn-success' : 'ln-btn-outline'}`} onClick={saveCerts} disabled={savingCerts}>
+                                        {savingCerts ? 'Saving...' : <><CheckCircle size={12} /> Save</>}
+                                    </button>
+                                )}
+                                <button className="ln-btn-sm ln-btn-primary" onClick={addCertObj}>
+                                    <Plus size={12} /> Add
+                                </button>
+                            </div>
+                        </div>
+                        {certs.map((cert, i) => (
+                            <div key={i} style={{ padding: '16px', borderBottom: i < certs.length - 1 ? '1px solid #f3f2ef' : 'none', marginBottom: i < certs.length - 1 ? 12 : 0, background: '#f8fafc', borderRadius: 8, border: '1px solid #e2e8f0', margin: '0 16px 16px' }}>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 16 }}>
+                                    <h4 style={{ margin: 0, fontSize: 13, color: '#475569' }}>License/Cert #{i + 1}</h4>
+                                    <button className="ln-link-btn" style={{ color: '#cc1016', fontSize: 12, padding: 0 }} onClick={() => removeCertIdx(i)}><Trash2 size={13} /> Remove</button>
+                                </div>
+                                <div className="ln-info-grid" style={{ gap: 12 }}>
+                                    <div className="ln-info-item" style={{ gridColumn: '1 / -1' }}>
+                                        <label className="ln-info-label" style={{ marginBottom: 4 }}>Certification / License Name</label>
+                                        <input type="text" className="form-input" placeholder="e.g. AWS Certified Solutions Architect" value={cert.name || ''} onChange={e => updateCert(i, 'name', e.target.value)} />
+                                    </div>
+                                    <div className="ln-info-item" style={{ gridColumn: '1 / -1' }}>
+                                        <label className="ln-info-label" style={{ marginBottom: 4 }}>Issuing Organization</label>
+                                        <input type="text" className="form-input" placeholder="e.g. Amazon Web Services, Google, PRC" value={cert.org || ''} onChange={e => updateCert(i, 'org', e.target.value)} />
+                                    </div>
+                                    <div className="ln-info-item">
+                                        <label className="ln-info-label" style={{ marginBottom: 4 }}>Issue Date</label>
+                                        <input type="date" className="form-input" value={cert.issue || ''} onChange={e => updateCert(i, 'issue', e.target.value)} />
+                                    </div>
+                                    <div className="ln-info-item">
+                                        <label className="ln-info-label" style={{ marginBottom: 4 }}>Expiration Date</label>
+                                        <input type="date" className="form-input" disabled={cert.noExp} value={cert.exp || ''} onChange={e => updateCert(i, 'exp', e.target.value)} />
+                                        <label style={{ fontSize: 12, display: 'flex', alignItems: 'center', gap: 6, marginTop: 6, cursor: 'pointer', color: '#64748b' }}>
+                                            <input type="checkbox" checked={cert.noExp || false} onChange={e => updateCert(i, 'noExp', e.target.checked)} /> Does not expire
+                                        </label>
+                                    </div>
+                                    <div className="ln-info-item" style={{ gridColumn: '1 / -1' }}>
+                                        <label className="ln-info-label" style={{ marginBottom: 4 }}>Credential ID (optional)</label>
+                                        <input type="text" className="form-input" placeholder="e.g. AWS-12345" value={cert.credId || ''} onChange={e => updateCert(i, 'credId', e.target.value)} />
+                                    </div>
+                                    <div className="ln-info-item" style={{ gridColumn: '1 / -1' }}>
+                                        <label className="ln-info-label" style={{ marginBottom: 4 }}>Credential URL (optional)</label>
+                                        <input type="url" className="form-input" placeholder="https://credly.com/badges/abc123" value={cert.url || ''} onChange={e => updateCert(i, 'url', e.target.value)} />
+                                    </div>
+                                </div>
+                            </div>
+                        ))}
                     </div>
                 </div>
 
@@ -864,87 +1139,6 @@ const TraineeProfile = () => {
         </div>
     );
 };
-
-// ─── PAGE 3: CERTIFICATIONS ──────────────────────────────────────
-const CertificationProgress = () => {
-    const { currentUser, trainees, updateTrainee } = useApp();
-    const trainee = currentUser || trainees[0];
-    const [certs, setCerts] = useState(trainee?.certifications || []);
-    const [newCert, setNewCert] = useState('');
-    const [adding, setAdding] = useState(false);
-
-    const addCert = async () => {
-        if (!newCert.trim()) return;
-        if (certs.includes(newCert.trim())) { setNewCert(''); return; }
-        const updated = [...certs, newCert.trim()];
-        setCerts(updated);
-        await updateTrainee(trainee.id, { certifications: updated });
-        setNewCert('');
-        setAdding(false);
-    };
-
-    const removeCert = async (cert) => {
-        if (!confirm(`Remove "${cert}" from your certifications?`)) return;
-        const updated = certs.filter(c => c !== cert);
-        setCerts(updated);
-        await updateTrainee(trainee.id, { certifications: updated });
-    };
-
-    return (
-        <div className="ln-page-content">
-            <div className="ln-page-header">
-                <div>
-                    <h1 className="ln-page-title">My Certifications</h1>
-                    <p className="ln-page-subtitle">Manage your TESDA certifications</p>
-                </div>
-                <button className="ln-btn ln-btn-primary" onClick={() => setAdding(!adding)}>
-                    {adding ? <><X size={15} /> Cancel</> : <><Plus size={15} /> Add Certification</>}
-                </button>
-            </div>
-
-            {adding && (
-                <div className="ln-card" style={{ marginBottom: 16, padding: 20 }}>
-                    <h3 style={{ margin: '0 0 12px', fontSize: 15 }}>Add New Certification</h3>
-                    <div style={{ display: 'flex', gap: 10 }}>
-                        <input
-                            type="text" className="form-input" placeholder="e.g. NC II - Computer Systems Servicing"
-                            value={newCert} onChange={e => setNewCert(e.target.value)}
-                            onKeyDown={e => { if (e.key === 'Enter') addCert(); }}
-                            style={{ flex: 1 }}
-                        />
-                        <button className="ln-btn ln-btn-success" onClick={addCert} disabled={!newCert.trim()}>
-                            <CheckCircle size={15} /> Add
-                        </button>
-                    </div>
-                </div>
-            )}
-
-            {certs.length > 0 ? certs.map((cert, i) => (
-                <div key={i} className="ln-card" style={{ marginBottom: 12, padding: '16px 20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-                        <div style={{ width: 44, height: 44, borderRadius: 12, background: '#f0f4ff', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                            <Award size={22} color="#0a66c2" />
-                        </div>
-                        <div>
-                            <div style={{ fontWeight: 700, fontSize: 15, color: '#1e293b' }}>{cert}</div>
-                            <div style={{ fontSize: 12, color: 'rgba(0,0,0,0.45)' }}>TESDA Certification</div>
-                        </div>
-                    </div>
-                    <button className="ln-btn-sm ln-btn-outline" onClick={() => removeCert(cert)} style={{ color: '#cc1016' }}>
-                        <Trash2 size={14} /> Remove
-                    </button>
-                </div>
-            )) : !adding && (
-                <div className="ln-empty-state">
-                    <Award size={48} />
-                    <h3>No certifications yet</h3>
-                    <p>Click "Add Certification" to start adding your TESDA certifications.</p>
-                </div>
-            )}
-        </div>
-    );
-};
-
 // ─── PAGE 4: OPPORTUNITIES ───────────────────────────────────────
 const Opportunities = () => {
     const { currentUser, trainees, jobPostings, applications, getTraineeRecommendedJobs, applyToJob } = useApp();
@@ -975,8 +1169,8 @@ const Opportunities = () => {
         );
     });
 
-    const handleApply = (jobId) => {
-        const r = applyToJob(trainee?.id, jobId);
+    const handleApply = async (jobId) => {
+        const r = await applyToJob(trainee?.id, jobId);
         if (!r.success) alert(r.error);
     };
 
@@ -1100,7 +1294,7 @@ const Opportunities = () => {
                         </div>
                         <div className="ln-modal-footer">
                             <span style={{ fontSize: 15, fontWeight: 700, color: '#057642' }}>{selectedJob.salaryRange}</span>
-                            <button className="ln-btn ln-btn-primary" onClick={() => { applyToJob(trainee?.id, selectedJob.id); setSelectedJob(null); }}>
+                            <button className="ln-btn ln-btn-primary" onClick={async () => { await applyToJob(trainee?.id, selectedJob.id); setSelectedJob(null); }}>
                                 <Send size={15} /> Apply Now
                             </button>
                         </div>
@@ -1111,108 +1305,7 @@ const Opportunities = () => {
     );
 };
 
-// ─── PAGE 5: GAP ANALYSIS ────────────────────────────────────────
-const GapAnalysis = () => {
-    const { currentUser, trainees, jobPostings, getGapAnalysis, getMatchRate } = useApp();
-    const trainee = currentUser || trainees[0];
-    const [selectedJobId, setSelectedJobId] = useState(jobPostings[0]?.id || null);
-    const selectedJob = jobPostings.find(j => j.id === selectedJobId);
-    const analysis = selectedJobId ? getGapAnalysis(trainee?.id, selectedJobId) : [];
-    const matchRate = selectedJobId ? getMatchRate(trainee?.id, selectedJobId) : 0;
-    const matched = analysis.filter(a => a.status === 'Matched');
-    const missing = analysis.filter(a => a.status === 'Missing');
-
-    return (
-        <div className="ln-page-content">
-            <div className="ln-page-header">
-                <div>
-                    <h1 className="ln-page-title">Gap Analysis</h1>
-                    <p className="ln-page-subtitle">Compare your competencies to opportunity requirements</p>
-                </div>
-            </div>
-
-            <div className="ln-card" style={{ marginBottom: 16 }}>
-                <label className="ln-info-label" style={{ marginBottom: 8, display: 'block' }}>Select an Opportunity to Analyze</label>
-                <select className="ln-filter-select" style={{ width: '100%' }} value={selectedJobId || ''} onChange={e => setSelectedJobId(Number(e.target.value))}>
-                    {jobPostings.map(j => <option key={j.id} value={j.id}>{j.title} — {j.companyName} ({j.opportunityType})</option>)}
-                </select>
-            </div>
-
-            {selectedJob && (
-                <>
-                    <div className="ln-stats-grid-3">
-                        {[
-                            { label: 'Match Rate', value: `${matchRate}%`, icon: <TrendingUp size={22} />, color: '#0a66c2' },
-                            { label: 'Matched Skills', value: matched.length, icon: <CheckSquare size={22} />, color: '#057642' },
-                            { label: 'Missing Skills', value: missing.length, icon: <AlertTriangle size={22} />, color: '#cc1016' },
-                        ].map((s, i) => (
-                            <div key={i} className="ln-stat-card">
-                                <div className="ln-stat-card-icon" style={{ color: s.color }}>{s.icon}</div>
-                                <div className="ln-stat-card-value">{s.value}</div>
-                                <div className="ln-stat-card-label">{s.label}</div>
-                            </div>
-                        ))}
-                    </div>
-
-                    <div className="ln-card" style={{ marginBottom: 16 }}>
-                        <div className="ln-section-header">
-                            <h3>Competency Comparison</h3>
-                            <span style={{ fontSize: 13, color: 'rgba(0,0,0,0.5)' }}>{selectedJob.title} at {selectedJob.companyName}</span>
-                        </div>
-                        <div style={{ overflowX: 'auto' }}>
-                            <table className="ln-table">
-                                <thead>
-                                    <tr><th>#</th><th>Required Competency</th><th>Your Status</th><th>Status</th></tr>
-                                </thead>
-                                <tbody>
-                                    {analysis.map((a, i) => (
-                                        <tr key={i}>
-                                            <td style={{ color: 'rgba(0,0,0,0.4)', width: 40 }}>{i + 1}</td>
-                                            <td style={{ fontWeight: 500 }}>{a.competency}</td>
-                                            <td>
-                                                {a.status === 'Matched'
-                                                    ? <span style={{ fontSize: 13, color: '#057642', fontWeight: 600 }}>✓ You have this</span>
-                                                    : <span style={{ fontSize: 13, color: '#cc1016' }}>✗ Not yet acquired</span>
-                                                }
-                                            </td>
-                                            <td>
-                                                <span className={`ln-badge ${a.status === 'Matched' ? 'ln-badge-green' : 'ln-badge-red'}`}>{a.status}</span>
-                                            </td>
-                                        </tr>
-                                    ))}
-                                </tbody>
-                            </table>
-                        </div>
-                    </div>
-
-                    {missing.length > 0 && (
-                        <div className="ln-card ln-card-warning">
-                            <h3 className="ln-warning-title">
-                                <AlertTriangle size={18} /> Skill Gap Recommendations
-                            </h3>
-                            <p style={{ fontSize: 14, color: 'rgba(0,0,0,0.6)', marginBottom: 16 }}>
-                                You are missing <strong>{missing.length}</strong> competency/ies. Consider enrolling in TESDA training programs.
-                            </p>
-                            {missing.map((m, i) => (
-                                <div key={i} className="ln-gap-item">
-                                    <div className="ln-gap-num">{i + 1}</div>
-                                    <div>
-                                        <div style={{ fontWeight: 600, fontSize: 14, color: 'rgba(0,0,0,0.9)' }}>{m.competency}</div>
-                                        <div style={{ fontSize: 13, color: 'rgba(0,0,0,0.5)', marginTop: 2 }}>
-                                            Enroll in TESDA training programs at PSTDII to acquire this competency.
-                                        </div>
-                                    </div>
-                                </div>
-                            ))}
-                        </div>
-                    )}
-                </>
-            )}
-        </div>
-    );
-};
-
-// ─── PAGE 6: MY APPLICATIONS ──────────────────────────────────────
+// ─── PAGE 5: MY APPLICATIONS ──────────────────────────────────────
 const MyApplications = () => {
     const { currentUser, trainees, getTraineeApplications } = useApp();
     const trainee = currentUser || trainees[0];
@@ -1303,10 +1396,8 @@ export default function TraineeDashboard() {
         switch (activePage) {
             case 'dashboard': return <TraineeDashboardHome setActivePage={setActivePage} />;
             case 'profile': return <TraineeProfile />;
-            case 'certification': return <CertificationProgress />;
             case 'recommendations': return <Opportunities />;
             case 'applications': return <MyApplications />;
-            case 'gap-analysis': return <GapAnalysis />;
             default: return <TraineeDashboardHome setActivePage={setActivePage} />;
         }
     };

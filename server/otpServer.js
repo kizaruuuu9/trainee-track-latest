@@ -34,7 +34,7 @@ const supabaseAdmin = createClient(
 
 const app = express();
 app.use(cors());
-app.use(express.json({ limit: '10mb' }));
+app.use(express.json({ limit: '50mb' }));
 
 const PORT = 3001;
 
@@ -88,12 +88,15 @@ app.post('/api/send-otp', rateLimit, async (req, res) => {
         return res.status(500).json({ error: 'Server misconfiguration: Gmail credentials not set in .env.local' });
     }
 
-    // Check if email is already registered
-    const { data: existing } = await supabaseAdmin
-        .from('registrations')
-        .select('id')
-        .eq('email', email)
-        .maybeSingle();
+    // Check if email is already registered in auth
+    const { data: { users }, error: authErr } = await supabaseAdmin.auth.admin.listUsers();
+
+    if (authErr) {
+        console.error('Auth fetch error:', authErr);
+        return res.status(500).json({ error: 'Failed to check email. Please try again.' });
+    }
+
+    const existing = users.find(u => u.email === email);
 
     if (existing) {
         return res.status(409).json({ error: 'This email is already registered. Please use a different email or log in.' });
@@ -139,6 +142,27 @@ app.post('/api/send-otp', rateLimit, async (req, res) => {
     } catch (error) {
         console.error('Error sending email:', error);
         res.status(500).json({ error: 'Failed to send OTP email. Please check server logs.' });
+    }
+});
+
+// Admin Data Endpoint (Bypass RLS for Admin Dashboard)
+app.get('/api/admin/data', rateLimit, async (req, res) => {
+    try {
+        const { data: stds, error: stdsErr } = await supabaseAdmin
+            .from('students')
+            .select('*, programs(name)');
+
+        const { data: parts, error: partsErr } = await supabaseAdmin
+            .from('industry_partners')
+            .select('*');
+
+        if (stdsErr) throw stdsErr;
+        if (partsErr) throw partsErr;
+
+        res.json({ students: stds || [], partners: parts || [] });
+    } catch (error) {
+        console.error('Admin data fetch error:', error);
+        res.status(500).json({ error: 'Failed to fetch admin data.' });
     }
 });
 
@@ -190,196 +214,165 @@ app.post('/api/check-duplicate', async (req, res) => {
     }
 
     try {
-        const { data: existing } = await supabaseAdmin
-            .from('registrations')
-            .select('id')
-            .eq(field, value)
-            .maybeSingle();
+        if (field === 'email') {
+            const { data: { users }, error } = await supabaseAdmin.auth.admin.listUsers();
+            if (error) throw error;
+            const exists = users.some(u => u.email === value);
+            return res.json({ exists });
+        } else if (field === 'student_id') {
+            const { data: existing } = await supabaseAdmin
+                .from('students')
+                .select('id')
+                .eq('student_id', value)
+                .maybeSingle();
 
-        return res.json({ exists: !!existing });
+            return res.json({ exists: !!existing });
+        }
     } catch (err) {
         console.error('Duplicate check error:', err);
         return res.status(500).json({ error: 'Check failed' });
     }
 });
 
-// ─── REGISTER ENDPOINT (Secure — hashes password, uses service role) ────
+// ─── REGISTER ENDPOINT (Atomic — creates auth user, profile, student) ────
 app.post('/api/register', rateLimit, async (req, res) => {
-    const { registrationData, password } = req.body;
+    const { email, password, fullName, studentId, program, address, gender, birthdate, frontIdBase64, backIdBase64, selfieBase64 } = req.body;
 
-    if (!registrationData || !password) {
-        return res.status(400).json({ error: 'Registration data and password are required' });
+    if (!email || !password || !fullName || !studentId) {
+        return res.status(400).json({ error: 'Email, password, full name, and student ID are required.' });
     }
 
     if (!process.env.SUPABASE_SERVICE_ROLE_KEY) {
         return res.status(500).json({ error: 'Server misconfiguration: SUPABASE_SERVICE_ROLE_KEY not set' });
     }
 
+    let userId = null;
+
     try {
-        // Check for duplicate email
-        const { data: existingEmail } = await supabaseAdmin
-            .from('registrations')
+        // 1. Check for duplicate student ID
+        const { data: existingStudent } = await supabaseAdmin
+            .from('students')
             .select('id')
-            .eq('email', registrationData.email)
+            .eq('student_id', studentId)
             .maybeSingle();
 
-        if (existingEmail) {
-            return res.status(409).json({ error: 'This email is already registered.' });
-        }
-
-        // Check for duplicate student ID
-        const { data: existingId } = await supabaseAdmin
-            .from('registrations')
-            .select('id')
-            .eq('student_id', registrationData.student_id)
-            .maybeSingle();
-
-        if (existingId) {
+        if (existingStudent) {
             return res.status(409).json({ error: 'This Student ID is already registered.' });
         }
 
-        // Hash the password (10 salt rounds)
-        const passwordHash = await bcrypt.hash(password, 10);
+        // 2. Create auth user (auto-confirmed)
+        const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
+            email,
+            password,
+            email_confirm: true,
+        });
 
-        // Insert into Supabase using service role (bypasses RLS)
-        const { data, error } = await supabaseAdmin
-            .from('registrations')
-            .insert({
-                ...registrationData,
-                password_hash: passwordHash,
-                status: 'pending',
-            })
-            .select();
-
-        if (error) {
-            console.error('Registration DB error:', error);
-            return res.status(400).json({ error: error.message });
+        if (authError) {
+            if (authError.message?.includes('already been registered') || authError.status === 422) {
+                return res.status(409).json({ error: 'This email is already registered.' });
+            }
+            throw new Error(authError.message);
         }
 
-        // Don't return sensitive data
-        const safeData = data?.[0] ? {
-            id: data[0].id,
-            full_name: data[0].full_name,
-            email: data[0].email,
-            status: data[0].status,
-            created_at: data[0].created_at,
-        } : null;
+        userId = authData.user.id;
 
-        res.json({ success: true, registration: safeData });
+        // 3. Upsert profile (in case a dashboard trigger already created it)
+        const { error: profileError } = await supabaseAdmin
+            .from('profiles')
+            .upsert({ id: userId, user_type: 'student' });
+
+        if (profileError) throw new Error(`Profile creation failed: ${profileError.message}`);
+
+        // 4. Upload images
+        const timestamp = Date.now();
+        let frontIdUrl = null, backIdUrl = null, selfieUrl = null;
+
+        if (frontIdBase64) {
+            const base64Data = frontIdBase64.includes(',') ? frontIdBase64.split(',')[1] : frontIdBase64;
+            const buffer = Buffer.from(base64Data, 'base64');
+            const filePath = `ids/${userId}/${timestamp}_front.jpg`;
+            const { error: upErr } = await supabaseAdmin.storage.from('registration-uploads').upload(filePath, buffer, { contentType: 'image/jpeg' });
+            if (!upErr) {
+                const { data: urlData } = supabaseAdmin.storage.from('registration-uploads').getPublicUrl(filePath);
+                frontIdUrl = urlData?.publicUrl || null;
+            }
+        }
+
+        if (backIdBase64) {
+            const base64Data = backIdBase64.includes(',') ? backIdBase64.split(',')[1] : backIdBase64;
+            const buffer = Buffer.from(base64Data, 'base64');
+            const filePath = `ids/${userId}/${timestamp}_back.jpg`;
+            const { error: upErr } = await supabaseAdmin.storage.from('registration-uploads').upload(filePath, buffer, { contentType: 'image/jpeg' });
+            if (!upErr) {
+                const { data: urlData } = supabaseAdmin.storage.from('registration-uploads').getPublicUrl(filePath);
+                backIdUrl = urlData?.publicUrl || null;
+            }
+        }
+
+        if (selfieBase64) {
+            const base64Data = selfieBase64.includes(',') ? selfieBase64.split(',')[1] : selfieBase64;
+            const buffer = Buffer.from(base64Data, 'base64');
+            const filePath = `selfies/${userId}/${timestamp}_selfie.jpg`;
+            const { error: upErr } = await supabaseAdmin.storage.from('registration-uploads').upload(filePath, buffer, { contentType: 'image/jpeg' });
+            if (!upErr) {
+                const { data: urlData } = supabaseAdmin.storage.from('registration-uploads').getPublicUrl(filePath);
+                selfieUrl = urlData?.publicUrl || null;
+            }
+        }
+
+        // 5. Look up program_id
+        let programId = null;
+        if (program) {
+            const { data: progData } = await supabaseAdmin.from('programs').select('id').eq('name', program).maybeSingle();
+            programId = progData?.id || null;
+        }
+
+        // 5. Upsert student record
+        const genderVal = gender?.toLowerCase() === 'male' ? 'male'
+            : gender?.toLowerCase() === 'female' ? 'female' : 'other';
+
+        const { error: studentError } = await supabaseAdmin
+            .from('students')
+            .upsert({
+                id: userId,
+                full_name: fullName,
+                student_id: studentId,
+                program_id: programId,
+                gender: genderVal,
+                front_id_url: frontIdUrl,
+                back_id_url: backIdUrl,
+                selfie_url: selfieUrl,
+                birthdate: birthdate || null,
+                detailed_address: address || null,
+            });
+
+        if (studentError) throw new Error(`Student record creation failed: ${studentError.message}`);
+
+        console.log(`✅ Registration successful: ${email} (${userId})`);
+        res.json({ success: true, userId });
+
     } catch (err) {
         console.error('Registration error:', err);
-        res.status(500).json({ error: 'Failed to register. Please try again.' });
+
+        // Cleanup on failure
+        if (userId) {
+            try {
+                await supabaseAdmin.from('students').delete().eq('id', userId);
+                await supabaseAdmin.from('profiles').delete().eq('id', userId);
+                await supabaseAdmin.auth.admin.deleteUser(userId);
+                console.log('Cleaned up failed registration for:', userId);
+            } catch (cleanupErr) {
+                console.error('Cleanup error:', cleanupErr);
+            }
+        }
+
+        res.status(500).json({ error: err.message || 'Failed to register. Please try again.' });
     }
 });
 
 
 
-// ─── LOGIN ENDPOINT (Secure — verifies bcrypt hash, uses service role) ────
-app.post('/api/login', rateLimit, async (req, res) => {
-    const { email, password } = req.body;
 
-    if (!email || !password) {
-        return res.status(400).json({ error: 'Email and password are required.' });
-    }
-
-    try {
-        // Find user by email
-        const { data: user, error: queryError } = await supabaseAdmin
-            .from('registrations')
-            .select('*')
-            .eq('email', email.trim().toLowerCase())
-            .maybeSingle();
-
-        if (queryError) {
-            console.error('Login query error:', queryError);
-            return res.status(500).json({ error: 'An error occurred. Please try again.' });
-        }
-
-        if (!user) {
-            return res.status(401).json({ error: 'Invalid email or password.' });
-        }
-
-        // Verify password
-        if (!user.password_hash) {
-            return res.status(401).json({ error: 'Account setup incomplete. Please contact support.' });
-        }
-
-        const passwordMatch = await bcrypt.compare(password, user.password_hash);
-        if (!passwordMatch) {
-            return res.status(401).json({ error: 'Invalid email or password.' });
-        }
-
-        // Return user data (exclude sensitive fields)
-        const { password_hash, ...safeUser } = user;
-
-        console.log(`✅ Trainee login successful: ${safeUser.email}`);
-        res.json({ success: true, user: safeUser });
-    } catch (err) {
-        console.error('Login error:', err);
-        res.status(500).json({ error: 'Login failed. Please try again.' });
-    }
-});
-
-// ─── UPDATE PROFILE ENDPOINT (Secure — uses service role) ────
-app.post('/api/update-profile', rateLimit, async (req, res) => {
-    const { userId, updates } = req.body;
-
-    if (!userId || !updates) {
-        return res.status(400).json({ error: 'User ID and updates are required.' });
-    }
-
-    try {
-        // Map frontend field names to database column names
-        const dbUpdates = {};
-        if (updates.name !== undefined) dbUpdates.full_name = updates.name;
-        if (updates.email !== undefined) dbUpdates.email = updates.email;
-        if (updates.address !== undefined) dbUpdates.address = updates.address;
-        if (updates.birthday !== undefined) dbUpdates.birthdate = updates.birthday;
-        if (updates.gender !== undefined) dbUpdates.gender = updates.gender;
-        // Employment fields
-        if (updates.employmentStatus !== undefined) {
-            dbUpdates.is_employed = updates.employmentStatus === 'Employed' || updates.employmentStatus === 'Self-Employed' || updates.employmentStatus === 'Underemployed' ? 'yes' : 'no';
-            dbUpdates.employment_work = updates.employer || updates.jobTitle || null;
-        }
-        if (updates.employer !== undefined) dbUpdates.employment_work = updates.employer;
-        if (updates.dateHired !== undefined) dbUpdates.employment_start = updates.dateHired;
-        // JSONB fields
-        if (updates.skills !== undefined) dbUpdates.skills = updates.skills;
-        if (updates.interests !== undefined) dbUpdates.interests = updates.interests;
-        if (updates.certifications !== undefined) dbUpdates.licenses = updates.certifications;
-        if (updates.educHistory !== undefined) dbUpdates.educ_history = updates.educHistory;
-        if (updates.workExperience !== undefined) dbUpdates.work_experience = updates.workExperience;
-        if (updates.licenses !== undefined) dbUpdates.licenses = updates.licenses;
-        if (updates.traineeStatus !== undefined) dbUpdates.trainee_status = updates.traineeStatus;
-
-        if (Object.keys(dbUpdates).length === 0) {
-            return res.status(400).json({ error: 'No valid fields to update.' });
-        }
-
-        const { data, error } = await supabaseAdmin
-            .from('registrations')
-            .update(dbUpdates)
-            .eq('id', userId)
-            .select();
-
-        if (error) {
-            console.error('Profile update error:', error);
-            return res.status(400).json({ error: error.message });
-        }
-
-        // Return updated data (exclude password_hash)
-        const updated = data?.[0];
-        if (updated) {
-            delete updated.password_hash;
-        }
-
-        console.log(`✅ Profile updated for user: ${userId}`);
-        res.json({ success: true, user: updated });
-    } catch (err) {
-        console.error('Profile update error:', err);
-        res.status(500).json({ error: 'Failed to update profile. Please try again.' });
-    }
-});
 
 // ─── DOCUMENT UPLOAD ENDPOINT ────────────────────────────────────
 app.post('/api/documents/upload', rateLimit, async (req, res) => {
@@ -419,11 +412,23 @@ app.post('/api/documents/upload', rateLimit, async (req, res) => {
             .getPublicUrl(storagePath);
         const fileUrl = urlData?.publicUrl || '';
 
-        // Save metadata to trainee_documents table
+        if (label === 'Resume') {
+            const { error: updateErr } = await supabaseAdmin
+                .from('students')
+                .update({ resume_url: fileUrl })
+                .eq('id', traineeId);
+
+            if (updateErr) {
+                console.error('Resume update DB error:', updateErr);
+            }
+        }
+
+        // Save metadata to student_documents table
         const { data, error } = await supabaseAdmin
-            .from('trainee_documents')
+            .from('student_documents')
             .insert({
-                trainee_id: traineeId,
+                student_id: traineeId,
+                category: label === 'Resume' ? 'document' : 'certification',
                 label,
                 file_url: fileUrl,
                 file_name: fileName,
@@ -450,9 +455,9 @@ app.get('/api/documents/:traineeId', async (req, res) => {
 
     try {
         const { data, error } = await supabaseAdmin
-            .from('trainee_documents')
+            .from('student_documents')
             .select('*')
-            .eq('trainee_id', traineeId)
+            .eq('student_id', traineeId)
             .order('uploaded_at', { ascending: false });
 
         if (error) {
@@ -460,13 +465,14 @@ app.get('/api/documents/:traineeId', async (req, res) => {
             return res.status(400).json({ error: error.message });
         }
 
-        // Also fetch resume_url from registrations table
+        // Also fetch resume_url from students table
         let registrationResumeUrl = null;
         const { data: regData } = await supabaseAdmin
-            .from('registrations')
+            .from('students')
             .select('resume_url')
             .eq('id', traineeId)
-            .single();
+            .maybeSingle();
+
         if (regData?.resume_url) registrationResumeUrl = regData.resume_url;
 
         res.json({ success: true, documents: data || [], registrationResumeUrl });
@@ -483,7 +489,7 @@ app.delete('/api/documents/:docId', rateLimit, async (req, res) => {
     try {
         // Get the document first to find the storage path
         const { data: doc, error: fetchErr } = await supabaseAdmin
-            .from('trainee_documents')
+            .from('student_documents')
             .select('*')
             .eq('id', docId)
             .single();
@@ -502,7 +508,7 @@ app.delete('/api/documents/:docId', rateLimit, async (req, res) => {
 
         // Delete from database
         const { error } = await supabaseAdmin
-            .from('trainee_documents')
+            .from('student_documents')
             .delete()
             .eq('id', docId);
 
@@ -519,6 +525,10 @@ app.delete('/api/documents/:docId', rateLimit, async (req, res) => {
     }
 });
 
-app.listen(PORT, () => {
-    console.log(`OTP Server running on http://localhost:${PORT}`);
-});
+if (process.env.NODE_ENV !== 'production') {
+    app.listen(PORT, () => {
+        console.log(`OTP Server running on http://localhost:${PORT}`);
+    });
+}
+
+export default app;

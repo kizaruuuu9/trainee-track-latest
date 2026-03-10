@@ -1,18 +1,11 @@
 import React, { useState } from 'react';
 import { ArrowLeft, ArrowRight, CheckCircle, Loader } from 'lucide-react';
 import Step1IDUpload from './Step1IDUpload';
-import Step2SelfieVerification from './Step2SelfieVerification';
-import Step3PersonalInfo from './Step2PersonalInfo';
-import Step4ProfileSetup from './Step3ProfileSetup';
-import Step5Confirmation from './Step4Confirmation';
-import { supabase } from '../../lib/supabase';
+import Step2PersonalInfo from './Step2PersonalInfo';
 
 const STEPS = [
   { number: 1, label: 'School ID' },
-  { number: 2, label: 'Selfie' },
-  { number: 3, label: 'Personal Info' },
-  { number: 4, label: 'Profile Setup' },
-  { number: 5, label: 'Review' },
+  { number: 2, label: 'Account Setup' },
 ];
 
 export default function RegistrationFlow({ onBackToLogin }) {
@@ -26,43 +19,22 @@ export default function RegistrationFlow({ onBackToLogin }) {
       program: '',
       address: '',
       gender: '',
-      ocrStatus: null, // null | 'loading' | 'success' | 'fail'
+      ocrStatus: null,
     },
     step2: {
-      selfieUrl: null,
-    },
-    step3: {
       birthdate: '',
-      regionCode: '', region: '',
-      provinceCode: '', province: '',
-      cityCode: '', city: '',
-      barangayCode: '', barangay: '',
-      detailedAddress: '',
+      selfieUrl: null,
       email: '',
       emailVerified: false,
       password: '',
       confirmPassword: '',
     },
-    step4: {
-      status: '',           // student | alumni | graduate
-      graduateSchool: '',
-      isEmployed: '',       // yes | no
-      employmentWork: '',
-      employmentStart: '',
-      educHistory: [],
-      workExperience: [],
-      licenses: [],
-      skills: [],
-      interests: [],
-      resume: null,
-    },
   });
   const [step1Valid, setStep1Valid] = useState(false);
   const [step2Valid, setStep2Valid] = useState(false);
-  const [step3Valid, setStep3Valid] = useState(false);
-  const [step4Valid, setStep4Valid] = useState(false);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState('');
+  const [submitted, setSubmitted] = useState(false);
 
   const updateStep1 = (data) => {
     setStepData(prev => ({ ...prev, step1: { ...prev.step1, ...data } }));
@@ -72,148 +44,50 @@ export default function RegistrationFlow({ onBackToLogin }) {
     setStepData(prev => ({ ...prev, step2: { ...prev.step2, ...data } }));
   };
 
-  const updateStep3 = (data) => {
-    setStepData(prev => ({ ...prev, step3: { ...prev.step3, ...data } }));
-  };
-
-  const updateStep4 = (data) => {
-    setStepData(prev => ({ ...prev, step4: { ...prev.step4, ...data } }));
-  };
-
-  const [submitted, setSubmitted] = useState(false);
-
-  // Auto-detect: use localhost for dev, relative path for Vercel production
-  const API_BASE = window.location.hostname === 'localhost'
-    ? 'http://localhost:3001'
-    : '';
-
-  // ─── Final Submit — Save everything via secure server API ────
+  // ─── Final Submit — Call server API for atomic registration ────
   const handleFinalSubmit = async () => {
     setSaving(true);
     setSaveError('');
     try {
-      const { step1, step2, step3, step4 } = stepData;
-      const timestamp = Date.now();
+      const { step1, step2 } = stepData;
 
-      // Upload front ID image to Supabase Storage (storage is fine client-side)
-      let frontIdUrl = null;
-      if (step1.frontID) {
-        const frontBlob = await fetch(step1.frontID.url).then(r => r.blob());
-        const frontPath = `ids/${timestamp}_front_${step1.frontID.name}`;
-        const { data: frontData, error: frontErr } = await supabase.storage
-          .from('registration-uploads')
-          .upload(frontPath, frontBlob, { contentType: frontBlob.type });
-        if (frontErr) console.warn('Front ID upload warning:', frontErr.message);
-        if (frontData) {
-          const { data: urlData } = supabase.storage.from('registration-uploads').getPublicUrl(frontPath);
-          frontIdUrl = urlData?.publicUrl || null;
-        }
-      }
+      // Determine API base URL
+      const API_BASE = import.meta.env.VITE_API_URL
+        || (import.meta.env.DEV ? 'http://localhost:3001' : '');
 
-      // Upload back ID image to Supabase Storage
-      let backIdUrl = null;
-      if (step1.backID) {
-        const backBlob = await fetch(step1.backID.url).then(r => r.blob());
-        const backPath = `ids/${timestamp}_back_${step1.backID.name}`;
-        const { data: backData, error: backErr } = await supabase.storage
-          .from('registration-uploads')
-          .upload(backPath, backBlob, { contentType: backBlob.type });
-        if (backErr) console.warn('Back ID upload warning:', backErr.message);
-        if (backData) {
-          const { data: urlData } = supabase.storage.from('registration-uploads').getPublicUrl(backPath);
-          backIdUrl = urlData?.publicUrl || null;
-        }
-      }
-
-      // Upload selfie image to Supabase Storage
-      let selfieUrl = null;
-      if (step2.selfieUrl) {
-        const selfieBlob = await fetch(step2.selfieUrl).then(r => r.blob());
-        const selfiePath = `selfies/${timestamp}_selfie.jpg`;
-        const { data: selfieData, error: selfieErr } = await supabase.storage
-          .from('registration-uploads')
-          .upload(selfiePath, selfieBlob, { contentType: 'image/jpeg' });
-        if (selfieErr) console.warn('Selfie upload warning:', selfieErr.message);
-        if (selfieData) {
-          const { data: urlData } = supabase.storage.from('registration-uploads').getPublicUrl(selfiePath);
-          selfieUrl = urlData?.publicUrl || null;
-        }
-      }
-
-      // Upload resume to Supabase Storage
-      let resumeUrl = null;
-      if (step4.resume?.file) {
-        const resumeBlob = await fetch(step4.resume.url).then(r => r.blob());
-        const resumePath = `resumes/${timestamp}_${step4.resume.name}`;
-        const { data: resumeData, error: resumeErr } = await supabase.storage
-          .from('registration-uploads')
-          .upload(resumePath, resumeBlob, { contentType: step4.resume.type });
-        if (resumeErr) console.warn('Resume upload warning:', resumeErr.message);
-        if (resumeData) {
-          const { data: urlData } = supabase.storage.from('registration-uploads').getPublicUrl(resumePath);
-          resumeUrl = urlData?.publicUrl || null;
-        }
-      }
-
-      // Build full address
-      const fullAddress = [
-        step3.detailedAddress, step3.barangay, step3.city, step3.province, step3.region
-      ].filter(Boolean).join(', ');
-
-      // Send to server API (password is hashed server-side, never stored in plain text)
-      const response = await fetch(`${API_BASE}/api/register`, {
+      const res = await fetch(`${API_BASE}/api/register`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          password: step3.password,
-          registrationData: {
-            // Step 1
-            full_name: step1.fullName,
-            student_id: step1.studentId,
-            program: step1.program,
-            gender: step1.gender,
-            front_id_url: frontIdUrl,
-            back_id_url: backIdUrl,
-            ocr_status: step1.ocrStatus,
-            // Step 2 — Selfie
-            selfie_url: selfieUrl,
-            // Step 3 — Personal Info
-            birthdate: step3.birthdate || null,
-            email: step3.email,
-            email_verified: step3.emailVerified,
-            region: step3.region,
-            province: step3.province,
-            city: step3.city,
-            barangay: step3.barangay,
-            detailed_address: step3.detailedAddress,
-            address: fullAddress || step1.address,
-            // Step 4 — Profile
-            trainee_status: step4.status || null,
-            graduate_school: step4.graduateSchool || null,
-            is_employed: step4.isEmployed || null,
-            employment_work: step4.employmentWork || null,
-            employment_start: step4.employmentStart || null,
-            educ_history: step4.educHistory || [],
-            work_experience: step4.workExperience || [],
-            licenses: step4.licenses || [],
-            skills: step4.skills || [],
-            interests: step4.interests || [],
-            resume_url: resumeUrl,
-          },
+          email: step2.email,
+          password: step2.password,
+          fullName: step1.fullName,
+          studentId: step1.studentId,
+          program: step1.program,
+          address: step1.address,
+          gender: step1.gender,
+          birthdate: step2.birthdate,
+          frontIdBase64: step1.frontID?.url || null,
+          backIdBase64: step1.backID?.url || null,
+          selfieBase64: step2.selfieUrl || null,
         }),
       });
 
-      const result = await response.json();
+      const result = await res.json();
 
-      if (!response.ok) {
-        throw new Error(result.error || 'Registration failed');
+      if (!res.ok) {
+        throw new Error(result.error || 'Registration failed. Please try again.');
       }
 
-      console.log('Registration saved successfully:', result.registration);
+      console.log('✅ SUCCESS: Your registration data has been successfully saved to the database!');
       setSubmitted(true);
     } catch (err) {
       console.error('Registration error:', err);
-      setSaveError(err.message || 'Failed to save. Please try again.');
+      if (err.message === 'Failed to fetch') {
+        setSaveError('Unable to connect to the server. Please check your internet connection or try again later.');
+      } else {
+        setSaveError(err.message || 'Failed to register. Please try again.');
+      }
     } finally {
       setSaving(false);
     }
@@ -275,35 +149,11 @@ export default function RegistrationFlow({ onBackToLogin }) {
               onValidChange={setStep1Valid}
             />
           )}
-          {currentStep === 2 && (
-            <Step2SelfieVerification
+          {currentStep === 2 && !submitted && (
+            <Step2PersonalInfo
               data={stepData.step2}
               onChange={updateStep2}
               onValidChange={setStep2Valid}
-            />
-          )}
-          {currentStep === 3 && (
-            <Step3PersonalInfo
-              data={stepData.step3}
-              onChange={updateStep3}
-              onValidChange={setStep3Valid}
-              step1Address={stepData.step1.address}
-            />
-          )}
-          {currentStep === 4 && (
-            <Step4ProfileSetup
-              data={stepData.step4}
-              onChange={updateStep4}
-              onValidChange={setStep4Valid}
-              userProgram={stepData.step1.program}
-            />
-          )}
-          {currentStep === 5 && !submitted && (
-            <Step5Confirmation
-              step1Data={stepData.step1}
-              step2Data={stepData.step2}
-              step3Data={stepData.step3}
-              step4Data={stepData.step4}
             />
           )}
           {submitted && (
@@ -321,13 +171,13 @@ export default function RegistrationFlow({ onBackToLogin }) {
                 <CheckCircle size={32} style={{ color: 'white' }} />
               </div>
               <h3 style={{ fontSize: 20, fontWeight: 800, color: '#0f172a', marginBottom: 8 }}>
-                Registration Submitted!
+                Registration Successful!
               </h3>
               <p style={{ fontSize: 14, color: '#64748b', maxWidth: 360, margin: '0 auto 24px', lineHeight: 1.6 }}>
-                Your registration has been submitted successfully. An administrator will review your application. You will be notified via email at <strong>{stepData.step2.email}</strong>.
+                Your account has been created. You can now log in with your email <strong>{stepData.step2.email}</strong> and password.
               </p>
               <button className="btn btn-primary" onClick={onBackToLogin}>
-                Back to Login
+                Go to Login
               </button>
             </div>
           )}
@@ -360,7 +210,7 @@ export default function RegistrationFlow({ onBackToLogin }) {
 
             <button
               className="btn btn-primary"
-              disabled={(currentStep === 1 && !step1Valid) || (currentStep === 2 && !step2Valid) || (currentStep === 3 && !step3Valid) || (currentStep === 4 && !step4Valid) || saving || submitted}
+              disabled={(currentStep === 1 && !step1Valid) || (currentStep === 2 && !step2Valid) || saving || submitted}
               onClick={() => {
                 if (currentStep === STEPS.length) {
                   handleFinalSubmit();
@@ -370,9 +220,9 @@ export default function RegistrationFlow({ onBackToLogin }) {
               }}
             >
               {saving ? (
-                <><Loader size={15} style={{ animation: 'ocr-spin 0.8s linear infinite' }} /> Submitting...</>
+                <><Loader size={15} style={{ animation: 'ocr-spin 0.8s linear infinite' }} /> Creating Account...</>
               ) : (
-                <>{currentStep === STEPS.length ? 'Submit Registration' : 'Next Step'} <ArrowRight size={15} /></>
+                <>{currentStep === STEPS.length ? 'Create Account' : 'Next Step'} <ArrowRight size={15} /></>
               )}
             </button>
           </div>

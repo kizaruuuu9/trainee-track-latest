@@ -583,8 +583,9 @@ const VerificationPage = () => {
 // ─── PAGE: POST JOB ───────────────────────────────────────────────
 const PostJob = ({ setActivePage, opportunityType = 'Job' }) => {
   const { addJobPosting, NC_COMPETENCIES, currentUser } = useApp();
+  const ncKeys = Object.keys(NC_COMPETENCIES);
   const [form, setForm] = useState({
-    title: '', opportunityType, ncLevel: 'CSS NC II', description: '',
+    title: '', opportunityType, ncLevel: ncKeys[0] || '', description: '',
     employmentType: opportunityType === 'OJT' ? 'Internship' : 'Full-time', location: '', salaryRange: '', slots: 1,
     requiredCompetencies: [],
   });

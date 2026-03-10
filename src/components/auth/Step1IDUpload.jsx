@@ -3,19 +3,9 @@ import {
     Upload, X, CheckCircle, AlertTriangle, Image, Loader, Eye
 } from 'lucide-react';
 import Tesseract from 'tesseract.js';
+import { supabase } from '../../lib/supabase';
 
 const ACCEPTED_TYPES = ['image/png', 'image/jpeg', 'image/jpg'];
-
-const PROGRAMS = [
-    'CSS NC II',
-    'Web Development NC III',
-    'Automotive NC II',
-    'Electrical Installation NC II',
-    'Welding NC I',
-    'Bookkeeping NC III',
-    'Cookery NC II',
-    'Food and Beverage Services NC II',
-];
 
 const GENDERS = ['Male', 'Female', 'Prefer not to say'];
 
@@ -29,7 +19,7 @@ function formatTitleCase(str) {
 
 // ─── OCR Text Parser ──────────────────────────────────────────
 // Attempts to extract structured student info from raw OCR text
-function parseOCRText(frontText, backText) {
+function parseOCRText(frontText, backText, programs) {
     // Combine both sides for field parsing (name/ID from front, address from back)
     const combinedLines = [...frontText.split('\n'), ...backText.split('\n')]
         .map(l => l.trim()).filter(Boolean);
@@ -47,7 +37,8 @@ function parseOCRText(frontText, backText) {
     //  - Must have a known TESDA program (CSS, Cookery, Welding, etc.)
     const hasFrontIDLabel = /id\s*no/i.test(frontText);
     const hasFrontStudentId = /\b20\d{2}[-–][A-Za-z0-9]{3,6}\b/.test(frontText);
-    const hasFrontProgram = PROGRAMS.some(prog => {
+    const progNames = programs.map(p => typeof p === 'string' ? p : p.name);
+    const hasFrontProgram = progNames.some(prog => {
         const keywords = prog.toLowerCase().split(/\s+/).filter(w => w.length > 2);
         return keywords.some(kw => lowerFront.includes(kw));
     });
@@ -56,10 +47,26 @@ function parseOCRText(frontText, backText) {
     //  - Must have "School Administrator" (unique to PSTDI back layout)
     const hasBackAdmin = lowerBack.includes('school administrator') || lowerBack.includes('administrator');
 
-    const isPSTDI = hasFrontIDLabel && hasFrontStudentId && hasFrontProgram && hasBackAdmin;
+    // Relaxed verification: only the Student ID pattern is required.
+    // Other factors are optional — users can edit extracted info manually.
+    // The Student ID is critical because it's used for duplicate account prevention.
+    const hasProgramsLoaded = programs.length > 0;
+    const confidenceFactors = [hasFrontIDLabel, hasFrontStudentId, hasFrontProgram && hasProgramsLoaded, hasBackAdmin].filter(Boolean).length;
 
-    if (!isPSTDI) {
-        return null; // Not a PSTDI ID
+    // Debug: log each factor to help diagnose detection failures
+    console.log('─── OCR PSTDI Verification ───');
+    console.log('Programs loaded:', hasProgramsLoaded, `(${programs.length} programs)`);
+    console.log('Factor 1 - ID Label ("ID No"):', hasFrontIDLabel);
+    console.log('Factor 2 - Student ID (20XX-XXXX):', hasFrontStudentId);
+    console.log('Factor 3 - Program keyword:', hasFrontProgram);
+    console.log('Factor 4 - Back "administrator":', hasBackAdmin);
+    console.log('Confidence:', confidenceFactors, '/ 4');
+    console.log('Front text (first 300 chars):', frontText.substring(0, 300));
+    console.log('Back text (first 300 chars):', backText.substring(0, 300));
+
+    // Must have at least the Student ID pattern; reject only if nothing useful was found
+    if (!hasFrontStudentId) {
+        return null; // Can't find a student ID — not a valid school ID
     }
 
     // 1. Student ID — look explicitly for 20XX-XXXX format
@@ -76,11 +83,12 @@ function parseOCRText(frontText, backText) {
         else if (g.includes('m') || g === 'male') result.gender = 'Male';
     }
 
-    // 3. Program — fuzzy match against known programs (e.g. "CSS NC II")
+    // 3. Program — fuzzy match against known programs
+    // programs can be array of strings (from programsRef) or objects
     const lowerText = fullText.toLowerCase();
-    for (const prog of PROGRAMS) {
+    for (const prog of progNames) {
         const ncPart = prog.match(/NC\s+[IV]+/i);
-        const namePart = prog.replace(/NC\s+[IV]+/i, '').trim().toLowerCase();
+        const namePart = prog.replace(/NC\s+[IV]+/i, '').replace(/\s*\(.*\)$/, '').trim().toLowerCase();
         if (ncPart && lowerText.includes(ncPart[0].toLowerCase()) && lowerText.includes(namePart.split(' ')[0])) {
             result.program = prog;
             break;
@@ -193,23 +201,61 @@ export default function Step1IDUpload({ data, onChange, onValidChange }) {
     const [idDuplicateError, setIdDuplicateError] = useState('');
     const [idChecking, setIdChecking] = useState(false);
     const [idVerified, setIdVerified] = useState(false);
+    const [PROGRAMS, setPROGRAMS] = useState([]);
+    const programsRef = useRef([]);
 
     const lastCheckedId = useRef('');
     const debounceTimer = useRef(null);
     const frontRef = useRef(null);
     const backRef = useRef(null);
+    // Track uploaded file URLs via ref to avoid stale closure in handleFile
+    const uploadedFiles = useRef({ frontID: null, backID: null });
 
     // Auto-detect API base
     const API_BASE = window.location.hostname === 'localhost'
         ? 'http://localhost:3001'
         : '';
 
+    // ─── Fetch programs from Supabase on mount ──────────────────
+    useEffect(() => {
+        const fetchPrograms = async () => {
+            try {
+                const { data: rows, error } = await supabase
+                    .from('programs')
+                    .select('id, name, duration_hours')
+                    .eq('is_active', true)
+                    .order('sort_order')
+                    .order('name');
+                if (!error && rows) {
+                    // Build display labels — append hours when multiple programs share a base name
+                    const baseNames = rows.map(r => r.name.replace(/\s*\(.*\)$/, ''));
+                    const dupes = baseNames.filter((n, i) => baseNames.indexOf(n) !== i);
+                    const programList = rows.map(r => ({
+                        id: r.id,
+                        name: r.name,
+                        label: dupes.includes(r.name.replace(/\s*\(.*\)$/, '')) && r.duration_hours
+                            ? `${r.name} (${r.duration_hours} Hours)`
+                            : r.name,
+                    }));
+                    setPROGRAMS(programList);
+                    programsRef.current = programList.map(p => p.name);
+                }
+            } catch (err) {
+                console.error('Failed to load programs:', err);
+            }
+        };
+        fetchPrograms();
+    }, []);
+
     // ─── Auto-trigger duplicate check when studentId changes (from OCR) ───
     useEffect(() => {
+        // Only run the duplicate check after OCR has successfully completed
+        if (data.ocrStatus !== 'success') return;
+
         const trimmed = data.studentId?.trim();
         // Only auto-check when format is valid
         if (!trimmed || !/^\d{2,4}-[A-Za-z0-9]{3,6}$/.test(trimmed)) return;
-        if (trimmed === lastCheckedId.current) return;
+
         // Reset state for new check
         setIdDuplicateError('');
         setIdVerified(false);
@@ -218,30 +264,30 @@ export default function Step1IDUpload({ data, onChange, onValidChange }) {
             checkStudentIdDuplicate(trimmed);
         }, 500);
         return () => clearTimeout(debounceTimer.current);
-    }, [data.studentId]);
+    }, [data.studentId, data.ocrStatus]);
 
     // ─── Check student ID duplicate ──────────────────────────────
     const checkStudentIdDuplicate = async (studentId) => {
         const trimmed = studentId?.trim();
         if (!trimmed || !/^\d{2,4}-[A-Za-z0-9]{3,6}$/.test(trimmed)) return;
-        // Don't re-check the same value
-        if (trimmed === lastCheckedId.current) return;
+
         lastCheckedId.current = trimmed;
         setIdChecking(true);
         setIdDuplicateError('');
         setIdVerified(false);
         try {
-            // Run API call and minimum 1.5s delay in parallel so animation is always visible
+            // Check via backend endpoint to avoid permissions issues
             const [res] = await Promise.all([
                 fetch(`${API_BASE}/api/check-duplicate`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ field: 'student_id', value: trimmed }),
+                    body: JSON.stringify({ field: 'student_id', value: trimmed })
                 }),
                 new Promise(r => setTimeout(r, 1500)),
             ]);
-            const result = await res.json();
-            if (result.exists) {
+            const json = await res.json();
+
+            if (json.exists) {
                 setIdDuplicateError(`Student ID "${trimmed}" is already registered. If this is your ID, please go back and log in instead.`);
                 setIdVerified(false);
             } else {
@@ -298,13 +344,18 @@ export default function Step1IDUpload({ data, onChange, onValidChange }) {
         }
         const reader = new FileReader();
         reader.onload = (e) => {
-            onChange({ [side]: { name: file.name, url: e.target.result } });
+            const url = e.target.result;
+            onChange({ [side]: { name: file.name, url } });
+            // Store in ref so we always have the latest URL (avoids stale closure)
+            uploadedFiles.current[side] = url;
+
+            const frontUrl = uploadedFiles.current.frontID;
+            const backUrl = uploadedFiles.current.backID;
+
+            console.log('handleFile:', side, '| frontUrl:', !!frontUrl, '| backUrl:', !!backUrl);
+
             // If both IDs uploaded, trigger OCR
-            const otherExists = side === 'frontID' ? data.backID : data.frontID;
-            if (otherExists && data.ocrStatus !== 'success') {
-                // Use the front ID image URL for OCR (pass the newly read one if it's the front)
-                const frontUrl = side === 'frontID' ? e.target.result : data.frontID?.url;
-                const backUrl = side === 'backID' ? e.target.result : data.backID?.url;
+            if (frontUrl && backUrl && data.ocrStatus !== 'success') {
                 triggerOCR(frontUrl, backUrl);
             }
         };
@@ -313,6 +364,7 @@ export default function Step1IDUpload({ data, onChange, onValidChange }) {
 
     // ─── Real OCR with Tesseract.js ──────────────────────────────
     const triggerOCR = async (frontUrl, backUrl) => {
+        console.log('triggerOCR called — starting Tesseract recognition...');
         onChange({ ocrStatus: 'loading' });
         setOcrProgress(0);
         setRawOcrText('');
@@ -347,7 +399,7 @@ export default function Step1IDUpload({ data, onChange, onValidChange }) {
             setRawOcrText(frontText + '\n---BACK---\n' + backText);
 
             // Parse front and back for school verification + field extraction
-            const parsed = parseOCRText(frontText, backText);
+            const parsed = parseOCRText(frontText, backText, programsRef.current);
             if (!parsed) {
                 onChange({ ocrStatus: 'fail' });
                 return;
@@ -388,6 +440,7 @@ export default function Step1IDUpload({ data, onChange, onValidChange }) {
 
     const removeFile = (side) => {
         onChange({ [side]: null, ocrStatus: null });
+        uploadedFiles.current[side] = null;
         setRawOcrText('');
         setOcrProgress(0);
         // Reset duplicate check state so re-upload triggers a fresh check
@@ -512,7 +565,7 @@ export default function Step1IDUpload({ data, onChange, onValidChange }) {
             </p>
 
             {/* Upload Areas */}
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 20 }}>
+            <div className="reg-upload-grid">
                 <UploadZone side="frontID" label="Front of School ID" fileData={data.frontID} inputRef={frontRef} />
                 <UploadZone side="backID" label="Back of School ID" fileData={data.backID} inputRef={backRef} />
             </div>
@@ -527,9 +580,9 @@ export default function Step1IDUpload({ data, onChange, onValidChange }) {
                         Student Information
                     </div>
 
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+                    <div className="reg-form-grid">
                         {/* Full Name */}
-                        <div className="form-group" style={{ gridColumn: 'span 2', marginBottom: 0 }}>
+                        <div className="form-group reg-full-width" style={{ marginBottom: 0 }}>
                             <label className="form-label">Full Name <span style={{ color: '#ef4444' }}>*</span></label>
                             <input
                                 className={`form-input ${getFieldStatus('fullName')}`}
@@ -613,18 +666,22 @@ export default function Step1IDUpload({ data, onChange, onValidChange }) {
                         {/* Program */}
                         <div className="form-group" style={{ marginBottom: 0 }}>
                             <label className="form-label">Program Taken <span style={{ color: '#ef4444' }}>*</span></label>
-                            <input
-                                className={`form-input ${getFieldStatus('program')}`}
+                            <select
+                                className={`form-select ${getFieldStatus('program')}`}
                                 value={data.program}
                                 onChange={(e) => onChange({ program: e.target.value })}
                                 onBlur={() => handleBlur('program')}
-                                placeholder="e.g. Cookery NC II"
-                            />
+                            >
+                                <option value="">— Select Program —</option>
+                                {PROGRAMS.map((prog) => (
+                                    <option key={prog.id || prog.name} value={prog.name}>{prog.label || prog.name}</option>
+                                ))}
+                            </select>
                             {touched.program && errors.program && <div className="form-error">{errors.program}</div>}
                         </div>
 
                         {/* Address */}
-                        <div className="form-group" style={{ gridColumn: 'span 2', marginBottom: 0 }}>
+                        <div className="form-group reg-full-width" style={{ marginBottom: 0 }}>
                             <label className="form-label">Address <span style={{ color: '#ef4444' }}>*</span></label>
                             <input
                                 className={`form-input ${getFieldStatus('address')}`}

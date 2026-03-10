@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
+import { supabase } from '../lib/supabase';
 
 const AppContext = createContext();
 
@@ -8,13 +9,119 @@ export const useApp = () => {
   return context;
 };
 
-// All TESDA NC Competencies by qualification
+// All TESDA NC Competencies by qualification (16 PSTDI programs)
 const NC_COMPETENCIES = {
-  'CSS NC II': ['Install and configure computer systems', 'Set up computer networks', 'Configure computer systems', 'Diagnose and troubleshoot computer systems', 'Diagnose and troubleshoot network problems'],
-  'Web Development NC III': ['Develop interactive website', 'Apply programming skills', 'Use web development tools', 'Employ best practice in developing websites', 'Ensure website accessibility'],
-  'Automotive NC II': ['Perform mensuration and calculation', 'Interpret drawings and sketches', 'Perform shop maintenance', 'Inspect and repair engine systems', 'Service fuel and emission systems'],
-  'Electrical Installation NC II': ['Terminate and connect electrical wiring', 'Install electrical protective devices', 'Install lighting fixtures', 'Install power load equipment'],
-  'Welding NC I': ['Weld carbon steel pipes using SMAW process', 'Weld carbon steel plates using MIG/MAG process', 'Assess weld quality'],
+  'Events Management Services NC III': [
+    'Plan and Develop Event Proposal or Bid', 'Develop an Event Concept', 'Develop Event Program',
+    'Select Event Venue and Site', 'Develop and Update Event Industry Knowledge',
+    'Provide On-Site Event Management Services', 'Manage Contractors for Indoor Events',
+    'Develop and Update Knowledge on Protocol', 'Conduct Supervised Industry Learning',
+  ],
+  'Bread and Pastry Production NC II': [
+    'Prepare and Produce Bakery Products', 'Prepare and Produce Pastry Products',
+    'Prepare and Present Gateaux, Tortes and Cakes', 'Prepare and Display Petits Fours',
+    'Present Desserts', 'Observe Workplace Hygiene Procedures', 'Provide Effective Customer Service',
+    'Conduct Supervised Industry Learning',
+  ],
+  'Barista NC II': [
+    'Prepare Espresso', 'Texture Milk', 'Prepare and Serve Coffee Beverages',
+    'Perform Basic Maintenance of Machine and Equipment',
+    'Perform Basic Cashiering and General Control Procedures',
+    'Observe Workplace Hygiene Procedures', 'Provide Effective Customer Service',
+  ],
+  'Heavy Equipment Operation (Forklift) NC II': [
+    'Prepare Construction Materials and Tools', 'Observe Procedures, Specifications and Manuals of Instruction',
+    'Interpret Technical Drawings and Plans', 'Perform Mensuration and Calculations',
+    'Maintain Tools and Equipment', 'Perform Pre- and Post-Operation Procedures for Forklift',
+    'Perform Basic Preventive Maintenance Servicing for Forklift', 'Perform Productive Operation for Forklift',
+  ],
+  'Contact Center Services NC II': [
+    'Apply Quality Standards', 'Perform Computer Operations',
+    'Communicate Effectively in English for Customer Service',
+    'Perform Customer Service Delivery Processes',
+    'Demonstrate Ability to Effectively Engage Customers',
+  ],
+  'Shielded Metal Arc Welding (SMAW) NC I': [
+    'Apply Safety Practices', 'Interpret Drawings and Sketches', 'Perform Industry Calculations',
+    'Contribute to Quality System', 'Use Hand Tools', 'Prepare Weld Materials',
+    'Setup Welding Equipment', 'Fit Up Weld Materials', 'Repair Welds',
+    'Weld Carbon Steel Plates Using SMAW',
+  ],
+  'Housekeeping NC II': [
+    'Provide Housekeeping Services to Guests', 'Clean and Prepare Rooms for Incoming Guests',
+    'Provide Valet/Butler Service', 'Laundry Linen and Guest Clothes',
+    'Clean Public Areas, Facilities and Equipment', 'Deal With/Handle Intoxicated Guests',
+    'Observe Workplace Hygiene Procedures', 'Provide Effective Customer Service',
+  ],
+  'Food and Beverage Services NC II': [
+    'Prepare the Dining Room/Restaurant Area for Service',
+    'Welcome Guests and Take Food and Beverage Orders', 'Promote Food and Beverage Products',
+    'Provide Food and Beverage Services to Guests', 'Provide Room Service',
+    'Receive and Handle Guest Concerns', 'Observe Workplace Hygiene Procedures',
+    'Provide Effective Customer Service',
+  ],
+  'Driving NC II (118 Hours)': [
+    'Apply Appropriate Sealant/Adhesive', 'Move and Position Vehicle',
+    'Perform Mensuration and Calculation', 'Read, Interpret and Apply Specifications and Manuals',
+    'Use and Apply Lubricant/Coolant', 'Perform Shop Maintenance',
+    'Carry Out Minor Vehicle Maintenance and Servicing', 'Drive Light Vehicle',
+    'Obey and Observe Traffic Rules and Regulations',
+    'Implement and Coordinate Accident-Emergency Procedures',
+  ],
+  'Computer Systems Servicing NC II': [
+    'Install and Configure Computer Systems', 'Set-Up Computer Networks',
+    'Set-Up Computer Servers', 'Maintain and Repair Computer Systems and Networks',
+  ],
+  'Hilot (Wellness Massage) NC II': [
+    'Implement and Monitor Infection Control Policies and Procedures',
+    'Respond Effectively to Difficulty/Challenging Behavior', 'Apply Basic First Aid',
+    'Maintain High Standards of Patient/Client Services',
+    'Plan the Hilot Wellness Program of Client/s', 'Provide Pre-Service to Hilot Client/s',
+    'Apply Hilot Wellness Massage Techniques', 'Provide Post Advice and Post-Services to Hilot Clients',
+  ],
+  'Driving (Passenger Bus / Straight Truck) NC III': [
+    'Apply Appropriate Sealant/Adhesive', 'Interpret/Draw Technical Drawing',
+    'Move and Position Vehicle', 'Perform Job Estimate', 'Perform Mensuration and Calculation',
+    'Read, Interpret and Apply Specifications and Manuals', 'Use and Apply Lubricant/Coolant',
+    'Perform Shop Maintenance',
+    'Perform Minor Maintenance and Servicing on Vehicles Classified under LTO Restriction Codes 3 Up to 5',
+    'Perform Pre- and Post-Operation Procedures for Vehicles Classified under LTO Restriction Codes 3 Up to 5',
+    'Obey and Observe Traffic Rules and Regulations', 'Observe Road Health and Safety Practices',
+    'Implement and Coordinate Accident-Emergency Procedures',
+    'Drive Passenger Bus', 'Drive Straight Truck',
+  ],
+  'Cookery NC II': [
+    'Clean and Maintain Kitchen Premises', 'Prepare Stocks, Sauces and Soups',
+    'Prepare Appetizers', 'Prepare Salads and Dressing', 'Prepare Sandwiches',
+    'Prepare Meat Dishes', 'Prepare Vegetable Dishes', 'Prepare Egg Dishes',
+    'Prepare Starch Dishes', 'Prepare Poultry and Game Dishes', 'Prepare Seafood Dishes',
+    'Prepare Desserts', 'Package Prepared Food',
+    'Observe Workplace Hygiene Procedures', 'Provide Effective Customer Service',
+  ],
+  'Driving NC II (137 Hours)': [
+    'Apply Appropriate Sealant/Adhesive', 'Move and Position Vehicle',
+    'Perform Mensuration and Calculation', 'Read, Interpret and Apply Specifications and Manuals',
+    'Use and Apply Lubricant/Coolant', 'Perform Shop Maintenance',
+    'Carry Out Minor Vehicle Maintenance and Servicing', 'Drive Light Vehicle',
+    'Obey and Observe Traffic Rules and Regulations',
+    'Implement and Coordinate Accident-Emergency Procedures',
+  ],
+  'Automotive Servicing NC I': [
+    'Validate Vehicle Specification', 'Move and Position Vehicle', 'Utilize Automotive Tools',
+    'Perform Mensuration and Calculation', 'Utilize Workshop Facilities and Equipment',
+    'Prepare Servicing Parts and Consumables', 'Prepare Vehicle for Servicing and Releasing',
+    'Perform Pre-Delivery Inspection', 'Perform Periodic Maintenance of Automotive Engine',
+    'Perform Periodic Maintenance of Drive Train', 'Perform Periodic Maintenance of Brake System',
+    'Perform Periodic Maintenance of Suspension System', 'Perform Periodic Maintenance of Steering System',
+  ],
+  'Automotive Servicing (Engine Repair) NC II': [
+    'Validate Vehicle Specification', 'Move and Position Vehicle', 'Utilize Automotive Tools',
+    'Perform Mensuration and Calculation', 'Utilize Workshop Facilities and Equipment',
+    'Prepare Servicing Parts and Consumables', 'Prepare Vehicle for Servicing and Releasing',
+    'Diagnose and Repair Engine Cooling and Lubrication System',
+    'Diagnose and Repair Intake and Exhaust System',
+    'Diagnose and Overhaul Engine Mechanical System',
+  ],
 };
 
 export const AppProvider = ({ children }) => {
@@ -41,14 +148,14 @@ export const AppProvider = ({ children }) => {
       birthday: '1999-04-15',
       gender: 'Male',
       graduationYear: 2024,
-      certifications: ['CSS NC II', 'Web Development NC III'],
+      certifications: ['Computer Systems Servicing NC II', 'Contact Center Services NC II'],
       competencies: [
-        'Install and configure computer systems',
-        'Set up computer networks',
-        'Configure computer systems',
-        'Develop interactive website',
-        'Apply programming skills',
-        'Use web development tools',
+        'Install and Configure Computer Systems',
+        'Set-Up Computer Networks',
+        'Maintain and Repair Computer Systems and Networks',
+        'Communicate Effectively in English for Customer Service',
+        'Perform Customer Service Delivery Processes',
+        'Demonstrate Ability to Effectively Engage Customers',
       ],
       employmentStatus: 'Employed',
       employer: 'TechSolutions Inc.',
@@ -61,27 +168,26 @@ export const AppProvider = ({ children }) => {
       accountStatus: 'Active', // Active | Disabled | Suspended
       certificationProgress: [
         {
-          certification: 'CSS NC II',
+          certification: 'Computer Systems Servicing NC II',
           status: 'Completed',
           enrolledDate: '2023-06-01',
           competencies: [
-            { name: 'Install and configure computer systems', status: 'Passed', remarks: 'Excellent performance' },
-            { name: 'Set up computer networks', status: 'Passed', remarks: '' },
-            { name: 'Configure computer systems', status: 'Passed', remarks: '' },
-            { name: 'Diagnose and troubleshoot computer systems', status: 'Passed', remarks: '' },
-            { name: 'Diagnose and troubleshoot network problems', status: 'Passed', remarks: '' },
+            { name: 'Install and Configure Computer Systems', status: 'Passed', remarks: 'Excellent performance' },
+            { name: 'Set-Up Computer Networks', status: 'Passed', remarks: '' },
+            { name: 'Set-Up Computer Servers', status: 'Passed', remarks: '' },
+            { name: 'Maintain and Repair Computer Systems and Networks', status: 'Passed', remarks: '' },
           ],
         },
         {
-          certification: 'Web Development NC III',
+          certification: 'Contact Center Services NC II',
           status: 'In Progress',
           enrolledDate: '2025-09-01',
           competencies: [
-            { name: 'Develop interactive website', status: 'Passed', remarks: '' },
-            { name: 'Apply programming skills', status: 'Passed', remarks: '' },
-            { name: 'Use web development tools', status: 'Passed', remarks: '' },
-            { name: 'Employ best practice in developing websites', status: 'Pending Assessment', remarks: '' },
-            { name: 'Ensure website accessibility', status: 'Pending Assessment', remarks: '' },
+            { name: 'Apply Quality Standards', status: 'Passed', remarks: '' },
+            { name: 'Perform Computer Operations', status: 'Passed', remarks: '' },
+            { name: 'Communicate Effectively in English for Customer Service', status: 'Passed', remarks: '' },
+            { name: 'Perform Customer Service Delivery Processes', status: 'Pending Assessment', remarks: '' },
+            { name: 'Demonstrate Ability to Effectively Engage Customers', status: 'Pending Assessment', remarks: '' },
           ],
         },
       ],
@@ -98,11 +204,11 @@ export const AppProvider = ({ children }) => {
       birthday: '2000-07-22',
       gender: 'Female',
       graduationYear: 2024,
-      certifications: ['Electrical Installation NC II'],
+      certifications: ['Cookery NC II'],
       competencies: [
-        'Terminate and connect electrical wiring',
-        'Install electrical protective devices',
-        'Install lighting fixtures',
+        'Clean and Maintain Kitchen Premises',
+        'Prepare Stocks, Sauces and Soups',
+        'Prepare Meat Dishes',
       ],
       employmentStatus: 'Unemployed',
       employer: null,
@@ -115,14 +221,14 @@ export const AppProvider = ({ children }) => {
       accountStatus: 'Active',
       certificationProgress: [
         {
-          certification: 'Electrical Installation NC II',
+          certification: 'Cookery NC II',
           status: 'In Progress',
           enrolledDate: '2025-06-15',
           competencies: [
-            { name: 'Terminate and connect electrical wiring', status: 'Passed', remarks: '' },
-            { name: 'Install electrical protective devices', status: 'Passed', remarks: '' },
-            { name: 'Install lighting fixtures', status: 'Passed', remarks: '' },
-            { name: 'Install power load equipment', status: 'Failed', remarks: 'Needs to retake practical exam' },
+            { name: 'Clean and Maintain Kitchen Premises', status: 'Passed', remarks: '' },
+            { name: 'Prepare Stocks, Sauces and Soups', status: 'Passed', remarks: '' },
+            { name: 'Prepare Meat Dishes', status: 'Passed', remarks: '' },
+            { name: 'Prepare Seafood Dishes', status: 'Failed', remarks: 'Needs to retake practical exam' },
           ],
         },
       ],
@@ -139,13 +245,13 @@ export const AppProvider = ({ children }) => {
       birthday: '1998-12-05',
       gender: 'Male',
       graduationYear: 2023,
-      certifications: ['Automotive NC II', 'Welding NC I'],
+      certifications: ['Automotive Servicing NC I', 'Shielded Metal Arc Welding (SMAW) NC I'],
       competencies: [
-        'Perform mensuration and calculation',
-        'Inspect and repair engine systems',
-        'Service fuel and emission systems',
-        'Weld carbon steel pipes using SMAW process',
-        'Weld carbon steel plates using MIG/MAG process',
+        'Perform Mensuration and Calculation',
+        'Perform Periodic Maintenance of Automotive Engine',
+        'Perform Periodic Maintenance of Brake System',
+        'Weld Carbon Steel Plates Using SMAW',
+        'Setup Welding Equipment',
       ],
       employmentStatus: 'Self-Employed',
       employer: 'Own Auto Shop',
@@ -158,25 +264,25 @@ export const AppProvider = ({ children }) => {
       accountStatus: 'Active',
       certificationProgress: [
         {
-          certification: 'Automotive NC II',
+          certification: 'Automotive Servicing NC I',
           status: 'Completed',
           enrolledDate: '2022-06-01',
           competencies: [
-            { name: 'Perform mensuration and calculation', status: 'Passed', remarks: '' },
-            { name: 'Interpret drawings and sketches', status: 'Passed', remarks: '' },
-            { name: 'Perform shop maintenance', status: 'Passed', remarks: '' },
-            { name: 'Inspect and repair engine systems', status: 'Passed', remarks: '' },
-            { name: 'Service fuel and emission systems', status: 'Passed', remarks: '' },
+            { name: 'Perform Mensuration and Calculation', status: 'Passed', remarks: '' },
+            { name: 'Validate Vehicle Specification', status: 'Passed', remarks: '' },
+            { name: 'Utilize Automotive Tools', status: 'Passed', remarks: '' },
+            { name: 'Perform Periodic Maintenance of Automotive Engine', status: 'Passed', remarks: '' },
+            { name: 'Perform Periodic Maintenance of Brake System', status: 'Passed', remarks: '' },
           ],
         },
         {
-          certification: 'Welding NC I',
+          certification: 'Shielded Metal Arc Welding (SMAW) NC I',
           status: 'Completed',
           enrolledDate: '2023-01-15',
           competencies: [
-            { name: 'Weld carbon steel pipes using SMAW process', status: 'Passed', remarks: '' },
-            { name: 'Weld carbon steel plates using MIG/MAG process', status: 'Passed', remarks: '' },
-            { name: 'Assess weld quality', status: 'Passed', remarks: '' },
+            { name: 'Weld Carbon Steel Plates Using SMAW', status: 'Passed', remarks: '' },
+            { name: 'Setup Welding Equipment', status: 'Passed', remarks: '' },
+            { name: 'Prepare Weld Materials', status: 'Passed', remarks: '' },
           ],
         },
       ],
@@ -193,10 +299,10 @@ export const AppProvider = ({ children }) => {
       birthday: '2001-03-18',
       gender: 'Female',
       graduationYear: 2024,
-      certifications: ['CSS NC II'],
+      certifications: ['Computer Systems Servicing NC II'],
       competencies: [
-        'Install and configure computer systems',
-        'Diagnose and troubleshoot computer systems',
+        'Install and Configure Computer Systems',
+        'Maintain and Repair Computer Systems and Networks',
       ],
       employmentStatus: 'Underemployed',
       employer: 'SM Department Store',
@@ -209,15 +315,14 @@ export const AppProvider = ({ children }) => {
       accountStatus: 'Active',
       certificationProgress: [
         {
-          certification: 'CSS NC II',
+          certification: 'Computer Systems Servicing NC II',
           status: 'In Progress',
           enrolledDate: '2025-08-01',
           competencies: [
-            { name: 'Install and configure computer systems', status: 'Passed', remarks: '' },
-            { name: 'Set up computer networks', status: 'Pending Assessment', remarks: '' },
-            { name: 'Configure computer systems', status: 'Pending Assessment', remarks: '' },
-            { name: 'Diagnose and troubleshoot computer systems', status: 'Passed', remarks: '' },
-            { name: 'Diagnose and troubleshoot network problems', status: 'Pending Assessment', remarks: '' },
+            { name: 'Install and Configure Computer Systems', status: 'Passed', remarks: '' },
+            { name: 'Set-Up Computer Networks', status: 'Pending Assessment', remarks: '' },
+            { name: 'Set-Up Computer Servers', status: 'Pending Assessment', remarks: '' },
+            { name: 'Maintain and Repair Computer Systems and Networks', status: 'Passed', remarks: '' },
           ],
         },
       ],
@@ -289,14 +394,14 @@ export const AppProvider = ({ children }) => {
       industry: 'Information Technology',
       title: 'Junior IT Technician',
       opportunityType: 'Job', // Job | OJT | Apprenticeship
-      ncLevel: 'CSS NC II',
+      ncLevel: 'Computer Systems Servicing NC II',
       requiredCompetencies: [
-        'Install and configure computer systems',
-        'Set up computer networks',
-        'Diagnose and troubleshoot computer systems',
+        'Install and Configure Computer Systems',
+        'Set-Up Computer Networks',
+        'Maintain and Repair Computer Systems and Networks',
       ],
       requiredSkills: ['Problem Solving', 'Teamwork', 'Communication'],
-      description: 'We are looking for CSS NC II certified technicians to join our growing IT support team. Full training provided for fresh trainees.',
+      description: 'We are looking for Computer Systems Servicing NC II certified technicians to join our growing IT support team. Full training provided for fresh trainees.',
       employmentType: 'Full-time',
       location: 'Makati City',
       salaryRange: '₱18,000 – ₱22,000/month',
@@ -312,14 +417,14 @@ export const AppProvider = ({ children }) => {
       industry: 'Information Technology',
       title: 'Web Developer Trainee',
       opportunityType: 'OJT',
-      ncLevel: 'Web Development NC III',
+      ncLevel: 'Contact Center Services NC II',
       requiredCompetencies: [
-        'Develop interactive website',
-        'Apply programming skills',
-        'Use web development tools',
+        'Communicate Effectively in English for Customer Service',
+        'Perform Customer Service Delivery Processes',
+        'Demonstrate Ability to Effectively Engage Customers',
       ],
-      requiredSkills: ['JavaScript', 'React', 'Node.js', 'UI/UX Design'],
-      description: 'Join our web development team as an OJT trainee. You will work on real client projects under senior developers.',
+      requiredSkills: ['Communication', 'English Proficiency', 'Customer Service', 'Problem Solving'],
+      description: 'Join our contact center team as an OJT trainee. You will handle customer interactions under senior team leads.',
       employmentType: 'Full-time',
       location: 'Makati City',
       salaryRange: '₱20,000 – ₱25,000/month',
@@ -335,14 +440,14 @@ export const AppProvider = ({ children }) => {
       industry: 'Automotive',
       title: 'Automotive Technician',
       opportunityType: 'Job',
-      ncLevel: 'Automotive NC II',
+      ncLevel: 'Automotive Servicing NC I',
       requiredCompetencies: [
-        'Inspect and repair engine systems',
-        'Service fuel and emission systems',
-        'Perform mensuration and calculation',
+        'Perform Periodic Maintenance of Automotive Engine',
+        'Perform Periodic Maintenance of Brake System',
+        'Perform Mensuration and Calculation',
       ],
       requiredSkills: ['Problem Solving', 'Critical Thinking', 'Teamwork'],
-      description: 'AutoMech is hiring automotive technicians for our service center. NC II holders are preferred.',
+      description: 'AutoMech is hiring automotive technicians for our service center. Automotive Servicing NC holders are preferred.',
       employmentType: 'Full-time',
       location: 'Caloocan City',
       salaryRange: '₱16,000 – ₱20,000/month',
@@ -358,13 +463,13 @@ export const AppProvider = ({ children }) => {
       industry: 'Automotive',
       title: 'Welder / Fabricator Apprentice',
       opportunityType: 'Apprenticeship',
-      ncLevel: 'Welding NC I',
+      ncLevel: 'Shielded Metal Arc Welding (SMAW) NC I',
       requiredCompetencies: [
-        'Weld carbon steel pipes using SMAW process',
-        'Weld carbon steel plates using MIG/MAG process',
+        'Weld Carbon Steel Plates Using SMAW',
+        'Setup Welding Equipment',
       ],
       requiredSkills: ['Teamwork', 'Time Management'],
-      description: 'We need skilled welders for our fabrication shop. Apprenticeship program for NC I holders or those currently enrolled.',
+      description: 'We need skilled welders for our fabrication shop. Apprenticeship program for SMAW NC I holders or those currently enrolled.',
       employmentType: 'Full-time',
       location: 'Caloocan City',
       salaryRange: '₱15,000 – ₱18,000/month',
@@ -442,36 +547,178 @@ export const AppProvider = ({ children }) => {
     setActivityLog(prev => [entry, ...prev]);
   };
 
-  // ─── MATCH RATE CALCULATION ───────────────────────────────────────────────
+  // Fetch external jobs from Remotive API
+  useEffect(() => {
+    const fetchExternalJobs = async () => {
+      try {
+        const res = await fetch('https://remotive.com/api/remote-jobs?limit=25');
+        const data = await res.json();
+        if (data && data.jobs) {
+          const externalJobs = data.jobs.map(j => ({
+            id: `ext-${j.id}`,
+            partnerId: null,
+            companyName: j.company_name,
+            industry: j.category || 'Information Technology',
+            title: j.title,
+            opportunityType: 'Job',
+            ncLevel: 'Any',
+            requiredCompetencies: [],
+            requiredSkills: j.tags || [],
+            description: j.description.replace(/<[^>]*>?/gm, '').substring(0, 300) + '...',
+            employmentType: j.job_type === 'full_time' ? 'Full-time' : 'Contract',
+            location: j.candidate_required_location || 'Remote',
+            salaryRange: j.salary || 'Competitive',
+            slots: 1,
+            status: 'Open',
+            datePosted: j.publication_date.split('T')[0],
+            createdAt: j.publication_date,
+            isExternal: true,
+            url: j.url
+          }));
+
+          setJobPostings(prev => {
+            // Avoid duplicate fetches on strict mode
+            const existingExt = prev.some(p => String(p.id).startsWith('ext-'));
+            if (existingExt) return prev;
+            return [...prev, ...externalJobs];
+          });
+        }
+      } catch (err) {
+        console.error('Failed to fetch external jobs:', err);
+      }
+    };
+    fetchExternalJobs();
+  }, []);
+
+  // ─── ML-INSPIRED RECOMMENDATION ENGINE ────────────────────────────────────
+  // Multi-factor weighted scoring with fuzzy matching and personalization
+
+  // Tokenize and normalize text for comparison
+  const tokenize = (text) => {
+    if (!text) return [];
+    return String(text).toLowerCase()
+      .replace(/[^a-z0-9\s]/g, ' ')
+      .split(/\s+/)
+      .filter(w => w.length > 2);
+  };
+
+  // Jaccard similarity between two token sets
+  const jaccardSimilarity = (setA, setB) => {
+    if (setA.length === 0 && setB.length === 0) return 1;
+    if (setA.length === 0 || setB.length === 0) return 0;
+    const a = new Set(setA);
+    const b = new Set(setB);
+    const intersection = [...a].filter(x => b.has(x)).length;
+    const union = new Set([...a, ...b]).size;
+    return union > 0 ? intersection / union : 0;
+  };
+
+  // Fuzzy token match — partial word overlap (e.g. "troubleshoot" matches "troubleshooting")
+  const fuzzyTokenMatch = (tokenA, tokenB) => {
+    if (tokenA === tokenB) return 1;
+    if (tokenA.length < 4 || tokenB.length < 4) return 0;
+    const shorter = tokenA.length < tokenB.length ? tokenA : tokenB;
+    const longer = tokenA.length < tokenB.length ? tokenB : tokenA;
+    return longer.includes(shorter) ? 0.8 : 0;
+  };
+
+  // Count how many items in needles fuzzy-match items in haystack
+  const fuzzySetOverlap = (needles, haystack) => {
+    if (needles.length === 0) return 0;
+    let matched = 0;
+    for (const n of needles) {
+      const nTokens = tokenize(n);
+      for (const h of haystack) {
+        const hTokens = tokenize(h);
+        // Exact match
+        if (n.toLowerCase() === h.toLowerCase()) { matched++; break; }
+        // Token overlap
+        const overlap = jaccardSimilarity(nTokens, hTokens);
+        if (overlap >= 0.5) { matched += overlap; break; }
+        // Fuzzy substring
+        const fuzzy = nTokens.some(nt => hTokens.some(ht => fuzzyTokenMatch(nt, ht) > 0));
+        if (fuzzy) { matched += 0.6; break; }
+      }
+    }
+    return matched / needles.length;
+  };
+
   const getMatchRate = (traineeId, jobId) => {
     const trainee = trainees.find(t => t.id === traineeId);
     const job = jobPostings.find(j => j.id === jobId);
     if (!trainee || !job) return 0;
 
-    // Competency match (weighted 70%)
+    // Factor 1: Competency match (40%)
     const compTotal = (job.requiredCompetencies || []).length;
-    const compMatched = compTotal > 0
-      ? job.requiredCompetencies.filter(c => (trainee.competencies || []).includes(c)).length
-      : 0;
-    const compScore = compTotal > 0 ? compMatched / compTotal : 1;
+    const traineeComps = trainee.competencies || [];
+    const compScore = compTotal > 0 ? fuzzySetOverlap(job.requiredCompetencies, traineeComps) : 0;
 
-    // Skills match (weighted 30%) — supports both {name, level} objects and plain strings
-    const jobSkills = (job.requiredSkills || []).map(s => s.toLowerCase());
-    const traineeSkillNames = (trainee.skills || []).map(s =>
-      (typeof s === 'object' ? s.name : s).toLowerCase()
+    // Factor 2: Skills match (25%)
+    const jobSkills = (job.requiredSkills || []).map(s => String(s).toLowerCase());
+    const traineeSkills = (trainee.skills || []).map(s =>
+      (typeof s === 'object' ? s.name : String(s)).toLowerCase()
     );
-    const skillTotal = jobSkills.length;
-    const skillMatched = skillTotal > 0
-      ? jobSkills.filter(s => traineeSkillNames.includes(s)).length
-      : 0;
-    const skillScore = skillTotal > 0 ? skillMatched / skillTotal : 1;
+    const skillScore = jobSkills.length > 0 ? fuzzySetOverlap(jobSkills, traineeSkills) : 0;
 
-    // If job only has competencies, use 100% competency weight; if only skills, 100% skills
-    if (compTotal === 0 && skillTotal === 0) return 100;
-    if (compTotal === 0) return Math.round(skillScore * 100);
-    if (skillTotal === 0) return Math.round(compScore * 100);
+    // Factor 3: Certification/NC Level alignment (20%)
+    const traineeCerts = (trainee.certifications || []).map(c => c.toLowerCase());
+    const jobNC = (job.ncLevel || '').toLowerCase();
+    let certScore = 0;
+    if (jobNC) {
+      if (traineeCerts.some(c => c === jobNC)) certScore = 1;
+      else if (traineeCerts.some(c => c.includes(jobNC.split(' ')[0]))) certScore = 0.6;
+      else {
+        const ncTokens = tokenize(jobNC);
+        const certTokens = traineeCerts.flatMap(c => tokenize(c));
+        certScore = jaccardSimilarity(ncTokens, certTokens);
+      }
+    }
 
-    return Math.round((compScore * 0.7 + skillScore * 0.3) * 100);
+    // Factor 4: Interest alignment (10%) — trainee interests vs job description keywords
+    const traineeInterests = (trainee.interests || []).map(i => i.toLowerCase());
+    const descTokens = tokenize(job.description + ' ' + job.title + ' ' + (job.industry || ''));
+    let interestScore = 0;
+    if (traineeInterests.length > 0 && descTokens.length > 0) {
+      const interestTokens = traineeInterests.flatMap(i => tokenize(i));
+      interestScore = jaccardSimilarity(interestTokens, descTokens);
+    }
+
+    // Factor 5: Recency boost (5%) — jobs posted within 30 days get full score
+    let recencyScore = 0.5;
+    if (job.datePosted) {
+      const daysSincePosted = (Date.now() - new Date(job.datePosted).getTime()) / (1000 * 60 * 60 * 24);
+      recencyScore = daysSincePosted <= 7 ? 1 : daysSincePosted <= 30 ? 0.8 : daysSincePosted <= 90 ? 0.5 : 0.2;
+    }
+
+    // Weighted combination
+    const weights = { comp: 0.40, skill: 0.25, cert: 0.20, interest: 0.10, recency: 0.05 };
+
+    // Adaptive weights: if job has no competencies, redistribute weight to skills/certs
+    let activeWeights = { ...weights };
+    if (compTotal === 0) {
+      activeWeights.comp = 0;
+      activeWeights.skill += weights.comp * 0.5;
+      activeWeights.cert += weights.comp * 0.5;
+    }
+    if (jobSkills.length === 0) {
+      activeWeights.skill = 0;
+      activeWeights.comp += weights.skill * 0.6;
+      activeWeights.cert += weights.skill * 0.4;
+    }
+
+    const raw = (
+      activeWeights.comp * compScore +
+      activeWeights.skill * skillScore +
+      activeWeights.cert * certScore +
+      activeWeights.interest * interestScore +
+      activeWeights.recency * recencyScore
+    );
+
+    // Normalize to sum of active weights
+    const totalWeight = Object.values(activeWeights).reduce((s, w) => s + w, 0);
+    const normalized = totalWeight > 0 ? raw / totalWeight : 0;
+
+    return Math.min(100, Math.max(0, Math.round(normalized * 100)));
   };
 
   const getGapAnalysis = (traineeId, jobId) => {
@@ -507,22 +754,41 @@ export const AppProvider = ({ children }) => {
       .sort((a, b) => b.matchRate - a.matchRate);
   };
 
-  // ─── APPLICATION FUNCTIONS ────────────────────────────────────────────────
-  const applyToJob = (traineeId, jobId) => {
+  const applyToJob = async (traineeId, jobId) => {
+    const job = jobPostings.find(j => j.id === jobId);
+
+    // Handle external jobs
+    if (job?.isExternal && job?.url) {
+      window.open(job.url, '_blank', 'noopener,noreferrer');
+      logActivity('Link Click', 'Opportunities', `${traineeId} clicked to apply to external job: ${job.title}`);
+      return { success: true, external: true };
+    }
+
     const existing = applications.find(a => a.traineeId === traineeId && a.jobId === jobId);
     if (existing) return { success: false, error: 'Already applied to this opportunity.' };
-    const job = jobPostings.find(j => j.id === jobId);
     const trainee = trainees.find(t => t.id === traineeId);
-    const newApplication = {
-      id: applications.length + 1,
-      traineeId,
-      jobId,
-      status: 'Pending',
-      appliedAt: new Date().toISOString().split('T')[0],
-      reviewedAt: null,
-      notes: null,
-    };
-    setApplications([...applications, newApplication]);
+
+    const isSupabaseUser = typeof traineeId === 'string' && traineeId.includes('-');
+
+    if (isSupabaseUser) {
+      const { data, error } = await supabase
+        .from('applications')
+        .insert({ student_id: traineeId, job_posting_id: jobId, status: 'Pending' })
+        .select()
+        .single();
+      if (error) return { success: false, error: error.message };
+      setApplications(prev => [...prev, {
+        id: data.id, traineeId, jobId, status: 'Pending',
+        appliedAt: data.created_at?.split('T')[0], reviewedAt: null, notes: null,
+      }]);
+    } else {
+      const newApplication = {
+        id: applications.length + 1, traineeId, jobId, status: 'Pending',
+        appliedAt: new Date().toISOString().split('T')[0], reviewedAt: null, notes: null,
+      };
+      setApplications([...applications, newApplication]);
+    }
+
     logActivity('Create', 'Applications', `${trainee?.name || 'Trainee'} applied to ${job?.title || 'opportunity'}`, null, 'Pending');
     return { success: true };
   };
@@ -664,20 +930,40 @@ export const AppProvider = ({ children }) => {
     const isSupabaseUser = typeof traineeId === 'string' && traineeId.includes('-');
     if (isSupabaseUser) {
       try {
-        const response = await fetch(`${API_BASE}/api/update-profile`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ userId: traineeId, updates }),
-        });
-        const result = await response.json();
-        if (!response.ok) {
-          console.error('Profile update failed:', result.error);
-          alert('Failed to save profile: ' + (result.error || 'Unknown error'));
-          return;
+        // Map dashboard field names to students table column names
+        const dbUpdates = {};
+        if (updates.name !== undefined) dbUpdates.full_name = updates.name;
+        if (updates.phone !== undefined) dbUpdates.phone = updates.phone;
+        if (updates.birthday !== undefined) dbUpdates.birthdate = updates.birthday;
+        if (updates.gender !== undefined) dbUpdates.gender = updates.gender?.toLowerCase();
+        if (updates.skills !== undefined) dbUpdates.skills = updates.skills;
+        if (updates.interests !== undefined) dbUpdates.interests = updates.interests;
+        if (updates.employmentStatus !== undefined) {
+          const statusMap = { 'Employed': 'employed', 'Unemployed': 'not_employed', 'Self-Employed': 'employed', 'Underemployed': 'employed' };
+          dbUpdates.employment_status = statusMap[updates.employmentStatus] || 'not_employed';
         }
-        console.log('✅ Profile saved to database');
+        if (updates.employer !== undefined) dbUpdates.employer = updates.employer;
+        if (updates.jobTitle !== undefined) dbUpdates.job_title = updates.jobTitle;
+        if (updates.dateHired !== undefined) dbUpdates.date_hired = updates.dateHired || null;
+        if (updates.photo !== undefined) dbUpdates.profile_picture_url = updates.photo;
+        if (updates.bannerUrl !== undefined) dbUpdates.banner_url = updates.bannerUrl;
+        if (updates.certifications !== undefined) dbUpdates.certifications = updates.certifications;
+        if (updates.educHistory !== undefined) dbUpdates.educ_history = updates.educHistory;
+        if (updates.workExperience !== undefined) dbUpdates.work_experience = updates.workExperience;
+
+        if (Object.keys(dbUpdates).length > 0) {
+          const { error } = await supabase
+            .from('students')
+            .update(dbUpdates)
+            .eq('id', traineeId);
+          if (error) {
+            console.error('Profile update failed:', error.message);
+            alert('Failed to save profile: ' + error.message);
+            return;
+          }
+        }
       } catch (err) {
-        console.error('Profile update API error:', err);
+        console.error('Profile update error:', err);
         alert('Unable to save profile. Please check your connection.');
         return;
       }
@@ -721,95 +1007,155 @@ export const AppProvider = ({ children }) => {
 
   // ─── AUTH FUNCTIONS ──────────────────────────────────────────────────────
   const login = async (email, password) => {
-    // Check admin
-    if (adminAccount.username === email && adminAccount.password === password) {
+
+    // Quick Demo Login Bypass for Admin
+    if (email === 'admin' && password === 'admin123') {
+      const adminUser = {
+        id: 'mock-admin-id',
+        name: 'Administrator (Demo)',
+        email: 'admin@pstdi.edu.ph',
+        username: 'admin',
+      };
       setUserRole('admin');
-      setCurrentUser(adminAccount);
+      setCurrentUser(adminUser);
       localStorage.setItem('userRole', 'admin');
-      localStorage.setItem('currentUser', JSON.stringify(adminAccount));
+      localStorage.setItem('currentUser', JSON.stringify(adminUser));
       return { success: true, role: 'admin' };
     }
-    // Check partners (still in-memory for now)
-    const partner = partners.find(p => (p.username === email || p.email === email) && p.password === password);
-    if (partner) {
-      if (partner.accountStatus === 'Disabled') {
-        return { success: false, error: 'Your account has been disabled. Please contact the administrator.' };
-      }
-      if (partner.accountStatus === 'Suspended') {
-        return { success: false, error: 'Your account has been suspended. Please contact the administrator.' };
-      }
-      if (partner.verificationStatus === 'Rejected') {
-        return { success: false, error: 'Your account has been rejected. Please contact PSTDII.' };
-      }
-      setUserRole('partner');
-      setCurrentUser(partner);
-      localStorage.setItem('userRole', 'partner');
-      localStorage.setItem('currentUser', JSON.stringify(partner));
-      return { success: true, role: 'partner' };
-    }
-    // Check trainees via Supabase API (real registered accounts)
+
     try {
-      const response = await fetch(`${API_BASE}/api/login`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: email.trim(), password }),
+      const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
+        email: email.trim(),
+        password,
       });
-      const result = await response.json();
-      if (response.ok && result.success) {
-        const reg = result.user;
-        // Map registration data to trainee user shape expected by the dashboard
-        const traineeUser = {
-          id: reg.id,
-          name: reg.full_name || 'Trainee',
-          email: reg.email || '',
-          username: reg.email || '',
-          phone: '',
-          address: reg.address || reg.detailed_address || [reg.barangay, reg.city, reg.province, reg.region].filter(Boolean).join(', ') || 'Philippines',
-          birthday: reg.birthdate || '',
-          gender: reg.gender || '',
-          studentId: reg.student_id || '',
-          program: reg.program || '',
-          graduationYear: reg.created_at ? new Date(reg.created_at).getFullYear() : new Date().getFullYear(),
-          certifications: (reg.licenses || []).map(l => typeof l === 'object' ? (l.name || l.title || '') : l).filter(Boolean),
-          competencies: [],
-          skills: [...new Set((reg.skills || []).map(s => typeof s === 'object' ? (s.name || s.title || JSON.stringify(s)) : String(s)).filter(Boolean))],
-          interests: [...new Set((reg.interests || []).map(i => typeof i === 'object' ? (i.name || i.title || JSON.stringify(i)) : String(i)).filter(Boolean))],
-          employmentStatus: reg.is_employed === 'yes' ? 'Employed' : 'Unemployed',
-          employer: reg.employment_work || null,
-          jobTitle: reg.employment_work || null,
-          dateHired: reg.employment_start || null,
-          monthsAfterGraduation: null,
-          photo: reg.selfie_url || null,
-          documents: {
-            resume: reg.resume_url || null,
-            frontId: reg.front_id_url || null,
-            backId: reg.back_id_url || null,
-          },
-          achievements: [],
-          accountStatus: 'Active',
-          certificationProgress: [],
-          educHistory: reg.educ_history || [],
-          workExperience: reg.work_experience || [],
-          licenses: reg.licenses || [],
-          traineeStatus: reg.trainee_status || '',
-          selfieUrl: reg.selfie_url || null,
-          createdAt: reg.created_at || new Date().toISOString(),
+      if (authError) return { success: false, error: authError.message };
+      const userId = authData.user.id;
+
+      // Check profile type
+      const { data: profile, error: profErr } = await supabase
+        .from('profiles')
+        .select('user_type')
+        .eq('id', userId)
+        .maybeSingle();
+
+      if (profErr || !profile) return { success: false, error: 'User profile not found.' };
+
+      // >>> 1. ADMIN LOGIN
+      if (profile.user_type === 'admin') {
+        const adminUser = {
+          id: userId,
+          name: 'Administrator',
+          email: authData.user.email,
+          username: authData.user.email,
         };
-        setUserRole('trainee');
-        setCurrentUser(traineeUser);
-        localStorage.setItem('userRole', 'trainee');
-        localStorage.setItem('currentUser', JSON.stringify(traineeUser));
-        return { success: true, role: 'trainee' };
-      } else {
-        return { success: false, error: result.error || 'Invalid email or password.' };
+        setUserRole('admin');
+        setCurrentUser(adminUser);
+        localStorage.setItem('userRole', 'admin');
+        localStorage.setItem('currentUser', JSON.stringify(adminUser));
+        return { success: true, role: 'admin' };
       }
+
+      // >>> 2. PARTNER LOGIN
+      if (profile.user_type === 'industry_partner') {
+        const { data: partnerRec, error: partErr } = await supabase.from('industry_partners').select('*').eq('id', userId).maybeSingle();
+        if (partErr || !partnerRec) return { success: false, error: 'Partner record not found.' };
+
+        const partnerUser = {
+          id: userId,
+          email: authData.user.email,
+          companyName: partnerRec.company_name,
+          contactPerson: partnerRec.contact_person,
+          industry: partnerRec.business_type || 'General',
+          verificationStatus: partnerRec.verification_status === 'verified' ? 'Approved' : partnerRec.verification_status === 'rejected' ? 'Rejected' : 'Pending',
+          photo: partnerRec.company_logo_url || null,
+          accountStatus: 'Active'
+        };
+
+        if (partnerUser.verificationStatus === 'Rejected') {
+          return { success: false, error: 'Your account has been rejected. Please contact PSTDII.' };
+        }
+
+        setUserRole('partner');
+        setCurrentUser(partnerUser);
+        localStorage.setItem('userRole', 'partner');
+        localStorage.setItem('currentUser', JSON.stringify(partnerUser));
+        return { success: true, role: 'partner' };
+      }
+
+      // >>> 3. STUDENT LOGIN
+      if (profile.user_type !== 'student') {
+        return { success: false, error: 'Invalid user type.' };
+      }
+
+      // Fetch student record with program name
+      const { data: student, error: studentErr } = await supabase
+        .from('students')
+        .select('*, programs(name)')
+        .eq('id', userId)
+        .maybeSingle();
+
+      if (studentErr || !student) {
+        return { success: false, error: 'Student record not found.' };
+      }
+
+      // Build trainee user object for the dashboard
+      const address = [student.detailed_address, student.barangay, student.city, student.province, student.region].filter(Boolean).join(', ');
+      const traineeUser = {
+        id: userId,
+        name: student.full_name || 'Trainee',
+        email: authData.user.email || '',
+        username: authData.user.email || '',
+        phone: student.phone || '',
+        address: address || 'Philippines',
+        birthday: student.birthdate || '',
+        gender: student.gender || '',
+        studentId: student.student_id || '',
+        program: student.programs?.name || '',
+        programId: student.program_id,
+        graduationYear: student.created_at ? new Date(student.created_at).getFullYear() : new Date().getFullYear(),
+        certifications: student.certifications || [],
+        educHistory: student.educ_history || [],
+        workExperience: student.work_experience || [],
+        competencies: [],
+        skills: student.skills || [],
+        interests: student.interests || [],
+        employmentStatus: student.employment_status === 'employed' ? 'Employed'
+          : student.employment_status === 'seeking_employment' ? 'Unemployed'
+            : student.employment_status === 'not_employed' ? 'Unemployed' : 'Unemployed',
+        employer: student.employer || null,
+        jobTitle: student.job_title || null,
+        dateHired: student.date_hired || null,
+        monthsAfterGraduation: null,
+        photo: student.profile_picture_url || null,
+        bannerUrl: student.banner_url || null,
+        documents: {
+          frontId: student.front_id_url || null,
+          backId: student.back_id_url || null,
+        },
+        achievements: [],
+        accountStatus: 'Active',
+        certificationProgress: [],
+        selfieUrl: student.selfie_url || null,
+        createdAt: student.created_at || new Date().toISOString(),
+      };
+
+      setUserRole('trainee');
+      setCurrentUser(traineeUser);
+      localStorage.setItem('userRole', 'trainee');
+      localStorage.setItem('currentUser', JSON.stringify(traineeUser));
+      return { success: true, role: 'trainee' };
     } catch (err) {
-      console.error('Login API error:', err);
+      console.error('Login error:', err);
       return { success: false, error: 'Unable to connect to server. Please try again.' };
     }
   };
 
-  const logout = () => {
+  const logout = async () => {
+    try {
+      await supabase.auth.signOut();
+    } catch (e) {
+      console.warn('Supabase sign out error:', e);
+    }
     setUserRole(null);
     setCurrentUser(null);
     localStorage.removeItem('userRole');
@@ -825,6 +1171,120 @@ export const AppProvider = ({ children }) => {
     }
   }, []);
 
+  // ─── Data Hydration (Supabase) ──────────────────────────────────────────
+  useEffect(() => {
+    if (!currentUser || !userRole) return;
+    const isSupabaseUser = typeof currentUser.id === 'string' && currentUser.id.includes('-');
+    if (!isSupabaseUser) return;
+
+    const fetchAllData = async () => {
+      // 1. Fetch Jobs
+      try {
+        const { data: jobs } = await supabase
+          .from('job_postings')
+          .select('*, industry_partners(company_name)')
+          .order('created_at', { ascending: false });
+
+        if (jobs) {
+          setJobPostings((prev) => {
+            const exts = prev.filter(p => String(p.id).startsWith('ext-'));
+            const mapped = jobs.map(j => ({
+              id: j.id,
+              partnerId: j.partner_id,
+              companyName: j.industry_partners?.company_name || 'Company',
+              industry: j.industry || 'General',
+              title: j.title,
+              opportunityType: j.opportunity_type || 'Job',
+              ncLevel: j.nc_level || '',
+              requiredCompetencies: j.required_competencies || [],
+              requiredSkills: j.required_skills || [],
+              description: j.description || '',
+              employmentType: j.employment_type || 'Full-time',
+              location: j.location || 'Philippines',
+              salaryRange: j.salary_range || '',
+              slots: j.slots || 1,
+              status: j.status || 'Open',
+              datePosted: j.created_at?.split('T')[0],
+              createdAt: j.created_at,
+            }));
+            return [...mapped, ...exts];
+          });
+        }
+      } catch (err) { console.warn(err); }
+
+      // 2. Fetch Admin Metrics
+      if (userRole === 'admin') {
+        try {
+          const res = await fetch(`${API_BASE}/api/admin/data`);
+          const adminData = await res.json();
+
+          if (adminData.students) {
+            const tMap = adminData.students.map(student => {
+              const address = [student.detailed_address, student.barangay, student.city, student.province, student.region].filter(Boolean).join(', ');
+              return {
+                id: student.id,
+                name: student.full_name || 'Trainee',
+                email: 'Protected', // Auth emails are in auth.users
+                phone: student.phone || '',
+                address: address || 'Philippines',
+                graduationYear: student.created_at ? new Date(student.created_at).getFullYear() : new Date().getFullYear(),
+                certifications: student.certifications || [],
+                employmentStatus: student.employment_status === 'employed' ? 'Employed' : student.employment_status === 'seeking_employment' ? 'Seeking Employment' : 'Not Employed',
+              };
+            });
+            setTrainees(tMap);
+          }
+
+          if (adminData.partners) {
+            const pMap = adminData.partners.map(p => ({
+              id: p.id,
+              companyName: p.company_name,
+              contactPerson: p.contact_person,
+              industry: p.business_type || 'General',
+              email: p.contact_email || '',
+              verificationStatus: p.verification_status === 'verified' ? 'Approved' : p.verification_status === 'rejected' ? 'Rejected' : 'Pending',
+            }));
+            setPartners(pMap);
+          }
+        } catch (err) {
+          console.error("Failed to load admin data:", err);
+        }
+      }
+    };
+
+    const fetchApplications = async () => {
+      // TODO: Uncomment once the 'applications' table is created in Supabase
+      // try {
+      //   const { data: apps, error } = await supabase
+      //     .from('applications')
+      //     .select('*')
+      //     .eq('student_id', currentUser.id);
+
+      //   if (error && error.code !== '42P01') {
+      //     console.warn('Failed to fetch applications from Supabase:', error);
+      //   }
+
+      //   if (apps) {
+      //     const mapped = apps.map(a => ({
+      //       id: a.id,
+      //       traineeId: a.student_id,
+      //       jobId: a.job_posting_id,
+      //       status: a.status || 'Pending',
+      //       appliedAt: a.created_at?.split('T')[0],
+      //       reviewedAt: a.reviewed_at?.split('T')[0] || null,
+      //       notes: a.notes || null,
+      //     }));
+      //     setApplications(mapped);
+      //   }
+      // } catch (err) {
+      //   console.warn('Exception while fetching applications:', err);
+      // }
+    };
+
+    fetchAllData();
+    fetchApplications();
+  }, [currentUser?.id, userRole]);
+
   // ─── REGISTRATION DATA (multi-step persist) ──────────────────────────────
   const [registrationData, setRegistrationData] = useState({});
 
@@ -832,11 +1292,25 @@ export const AppProvider = ({ children }) => {
   const getEmploymentStats = () => {
     const total = trainees.length;
     const employed = trainees.filter(t => t.employmentStatus === 'Employed').length;
-    const selfEmployed = trainees.filter(t => t.employmentStatus === 'Self-Employed').length;
-    const underEmployed = trainees.filter(t => t.employmentStatus === 'Underemployed').length;
-    const unemployed = trainees.filter(t => t.employmentStatus === 'Unemployed').length;
-    const employmentRate = total > 0 ? Math.round(((employed + selfEmployed) / total) * 100) : 0;
-    return { total, employed, selfEmployed, underEmployed, unemployed, employmentRate };
+    const seeking_employment = trainees.filter(t => t.employmentStatus === 'Seeking Employment').length;
+    const not_employed = trainees.filter(t => t.employmentStatus === 'Not Employed').length;
+
+    // For backward compatibility with mock data elements still waiting to be cleared, treat 'Unemployed' and 'Self-Employed'
+    const legacyEmployed = trainees.filter(t => t.employmentStatus === 'Self-Employed' || t.employmentStatus === 'Underemployed').length;
+    const legacyUnemployed = trainees.filter(t => t.employmentStatus === 'Unemployed').length;
+
+    const employmentRate = total > 0 ? Math.round(((employed + legacyEmployed) / total) * 100) : 0;
+
+    return {
+      total,
+      employed: employed + legacyEmployed,
+      seeking_employment: seeking_employment + legacyUnemployed,
+      not_employed,
+      employmentRate,
+      selfEmployed: 0,
+      underEmployed: 0,
+      unemployed: seeking_employment + legacyUnemployed
+    };
   };
 
   const getSkillsDemand = () => {

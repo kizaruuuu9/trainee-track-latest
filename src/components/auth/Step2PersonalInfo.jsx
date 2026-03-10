@@ -1,11 +1,11 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
-    Calendar, MapPin, Mail, Lock, Eye, EyeOff, CheckCircle, XCircle,
-    Loader, Send, ShieldCheck
+    Calendar, Camera, Mail, Lock, Eye, EyeOff, CheckCircle, XCircle,
+    Loader, Send, ShieldCheck, Upload, AlertTriangle, RotateCcw, X
 } from 'lucide-react';
+import * as faceapi from 'face-api.js';
 
-// ─── PSGC API Base ──────────────────────────────────────────
-const PSGC_API = 'https://psgc.cloud/api';
+const ACCEPTED_IMG_TYPES = ['image/png', 'image/jpeg', 'image/jpg'];
 
 // ─── Password strength rules ──────────────────────────────────
 const PASSWORD_RULES = [
@@ -16,18 +16,24 @@ const PASSWORD_RULES = [
     { id: 'special', label: 'Special character (!@#$...)', test: (pw) => /[!@#$%^&*()_+\-=[\]{};':"\\|,.<>/?]/.test(pw) },
 ];
 
-export default function Step2PersonalInfo({ data, onChange, onValidChange, step1Address }) {
+export default function Step2PersonalInfo({ data, onChange, onValidChange }) {
     const [errors, setErrors] = useState({});
     const [touched, setTouched] = useState({});
     const [showPassword, setShowPassword] = useState(false);
     const [showConfirm, setShowConfirm] = useState(false);
 
-    // PSGC dropdown data
-    const [regions, setRegions] = useState([]);
-    const [provinces, setProvinces] = useState([]);
-    const [cities, setCities] = useState([]);
-    const [barangays, setBarangays] = useState([]);
-    const [loadingPsgc, setLoadingPsgc] = useState({ regions: false, provinces: false, cities: false, barangays: false });
+    // Selfie state
+    const [selfieMode, setSelfieMode] = useState(null); // null | 'camera' | 'upload'
+    const [cameraReady, setCameraReady] = useState(false);
+    const [modelsLoaded, setModelsLoaded] = useState(false);
+    const [modelsLoading, setModelsLoading] = useState(false);
+    const [detecting, setDetecting] = useState(false);
+    const [faceResult, setFaceResult] = useState(null); // null | 'success' | 'no-face' | 'multi-face'
+    const [selfieError, setSelfieError] = useState('');
+    const videoRef = useRef(null);
+    const canvasRef = useRef(null);
+    const streamRef = useRef(null);
+    const fileInputRef = useRef(null);
 
     // OTP state
     const [otpSent, setOtpSent] = useState(false);
@@ -37,84 +43,118 @@ export default function Step2PersonalInfo({ data, onChange, onValidChange, step1
     const [otpError, setOtpError] = useState('');
     const [otpCooldown, setOtpCooldown] = useState(0);
 
-    // ─── Load Regions on mount ──────────────────────────────────
+    // ─── Load face-api models on mount ───────────────────────────
     useEffect(() => {
-        const fetchRegions = async () => {
-            setLoadingPsgc(prev => ({ ...prev, regions: true }));
+        const loadModels = async () => {
+            if (modelsLoaded || modelsLoading) return;
+            setModelsLoading(true);
             try {
-                const res = await fetch(`${PSGC_API}/regions`);
-                const data = await res.json();
-                setRegions(data.sort((a, b) => a.name.localeCompare(b.name)));
+                await faceapi.nets.tinyFaceDetector.loadFromUri('/models');
+                setModelsLoaded(true);
             } catch (err) {
-                console.error('Failed to load regions:', err);
+                console.error('Failed to load face detection models:', err);
+                setSelfieError('Failed to load face detection. Please refresh the page.');
+            } finally {
+                setModelsLoading(false);
             }
-            setLoadingPsgc(prev => ({ ...prev, regions: false }));
         };
-        fetchRegions();
+        loadModels();
+        return () => stopCamera();
     }, []);
-
-    // ─── Load Provinces when Region changes ──────────────────────
-    useEffect(() => {
-        if (!data.regionCode) { setProvinces([]); setCities([]); setBarangays([]); return; }
-        const fetchProvinces = async () => {
-            setLoadingPsgc(prev => ({ ...prev, provinces: true }));
-            try {
-                // NCR doesn't have provinces, it has cities directly
-                if (data.regionCode === '1300000000') {
-                    setProvinces([]);
-                    // Fetch cities directly for NCR
-                    const res = await fetch(`${PSGC_API}/regions/${data.regionCode}/cities-municipalities`);
-                    const citiesData = await res.json();
-                    setCities(citiesData.sort((a, b) => a.name.localeCompare(b.name)));
-                } else {
-                    const res = await fetch(`${PSGC_API}/regions/${data.regionCode}/provinces`);
-                    const data2 = await res.json();
-                    setProvinces(data2.sort((a, b) => a.name.localeCompare(b.name)));
-                    setCities([]);
-                }
-                setBarangays([]);
-            } catch (err) {
-                console.error('Failed to load provinces:', err);
+    // ─── Camera Functions ────────────────────────────────────────
+    const startCamera = async () => {
+        setSelfieMode('camera');
+        setFaceResult(null);
+        setSelfieError('');
+        try {
+            const stream = await navigator.mediaDevices.getUserMedia({
+                video: { facingMode: 'user', width: { ideal: 640 }, height: { ideal: 480 } }
+            });
+            streamRef.current = stream;
+            if (videoRef.current) {
+                videoRef.current.srcObject = stream;
+                videoRef.current.onloadedmetadata = () => {
+                    videoRef.current.play();
+                    setCameraReady(true);
+                };
             }
-            setLoadingPsgc(prev => ({ ...prev, provinces: false }));
-        };
-        fetchProvinces();
-    }, [data.regionCode]);
+        } catch (err) {
+            console.error('Camera access error:', err);
+            setSelfieError('Could not access camera. Please allow camera permissions or upload a photo instead.');
+            setSelfieMode(null);
+        }
+    };
 
-    // ─── Load Cities when Province changes ───────────────────────
-    useEffect(() => {
-        if (!data.provinceCode) { setCities([]); setBarangays([]); return; }
-        const fetchCities = async () => {
-            setLoadingPsgc(prev => ({ ...prev, cities: true }));
-            try {
-                const res = await fetch(`${PSGC_API}/provinces/${data.provinceCode}/cities-municipalities`);
-                const citiesData = await res.json();
-                setCities(citiesData.sort((a, b) => a.name.localeCompare(b.name)));
-                setBarangays([]);
-            } catch (err) {
-                console.error('Failed to load cities:', err);
-            }
-            setLoadingPsgc(prev => ({ ...prev, cities: false }));
-        };
-        fetchCities();
-    }, [data.provinceCode]);
+    const stopCamera = () => {
+        if (streamRef.current) {
+            streamRef.current.getTracks().forEach(track => track.stop());
+            streamRef.current = null;
+        }
+        setCameraReady(false);
+    };
 
-    // ─── Load Barangays when City changes ────────────────────────
-    useEffect(() => {
-        if (!data.cityCode) { setBarangays([]); return; }
-        const fetchBarangays = async () => {
-            setLoadingPsgc(prev => ({ ...prev, barangays: true }));
-            try {
-                const res = await fetch(`${PSGC_API}/cities-municipalities/${data.cityCode}/barangays`);
-                const brgyData = await res.json();
-                setBarangays(brgyData.sort((a, b) => a.name.localeCompare(b.name)));
-            } catch (err) {
-                console.error('Failed to load barangays:', err);
-            }
-            setLoadingPsgc(prev => ({ ...prev, barangays: false }));
+    const capturePhoto = () => {
+        if (!videoRef.current || !canvasRef.current) return;
+        const video = videoRef.current;
+        const canvas = canvasRef.current;
+        canvas.width = video.videoWidth;
+        canvas.height = video.videoHeight;
+        const ctx = canvas.getContext('2d');
+        ctx.translate(canvas.width, 0);
+        ctx.scale(-1, 1);
+        ctx.drawImage(video, 0, 0);
+        ctx.setTransform(1, 0, 0, 1, 0, 0);
+        const dataUrl = canvas.toDataURL('image/jpeg', 0.85);
+        stopCamera();
+        setSelfieMode(null);
+        processSelfie(dataUrl);
+    };
+
+    const handleSelfieUpload = (file) => {
+        if (!file) return;
+        if (!ACCEPTED_IMG_TYPES.includes(file.type)) {
+            setSelfieError('Please upload PNG, JPG, or JPEG files only.');
+            return;
+        }
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            setSelfieMode(null);
+            processSelfie(e.target.result);
         };
-        fetchBarangays();
-    }, [data.cityCode]);
+        reader.readAsDataURL(file);
+    };
+
+    const processSelfie = async (imageDataUrl) => {
+        onChange({ selfieUrl: imageDataUrl });
+        setDetecting(true);
+        setFaceResult(null);
+        setSelfieError('');
+        try {
+            const img = new window.Image();
+            img.src = imageDataUrl;
+            await new Promise((resolve, reject) => { img.onload = resolve; img.onerror = reject; });
+            const [detections] = await Promise.all([
+                faceapi.detectAllFaces(img, new faceapi.TinyFaceDetectorOptions({ inputSize: 512, scoreThreshold: 0.1 })),
+                new Promise(r => setTimeout(r, 1500)),
+            ]);
+            if (detections.length === 0) setFaceResult('no-face');
+            else if (detections.length > 1) setFaceResult('multi-face');
+            else setFaceResult('success');
+        } catch (err) {
+            console.error('Face detection error:', err);
+            setSelfieError('Face detection failed. Please try again.');
+            setFaceResult(null);
+        } finally {
+            setDetecting(false);
+        }
+    };
+
+    const resetSelfie = () => {
+        onChange({ selfieUrl: null });
+        setFaceResult(null);
+        setSelfieError('');
+        setDetecting(false);
+    };
 
     // ─── OTP Cooldown Timer ──────────────────────────────────────
     useEffect(() => {
@@ -139,11 +179,10 @@ export default function Step2PersonalInfo({ data, onChange, onValidChange, step1
             if (age < 15) e.birthdate = 'You must be at least 15 years old';
         }
 
-        // Address
-        if (!values.regionCode) e.region = 'Region is required';
-        if (!values.cityCode) e.city = 'City/Municipality is required';
-        if (!values.barangayCode) e.barangay = 'Barangay is required';
-        if (!values.detailedAddress?.trim()) e.detailedAddress = 'Detailed address is required';
+        // Selfie
+        if (!values.selfieUrl) {
+            e.selfie = 'Selfie verification is required';
+        }
 
         // Email
         if (!values.email?.trim()) {
@@ -174,8 +213,10 @@ export default function Step2PersonalInfo({ data, onChange, onValidChange, step1
     useEffect(() => {
         const errs = validate(data);
         setErrors(errs);
-        onValidChange(Object.keys(errs).length === 0);
-    }, [data, validate, onValidChange]);
+        // Also require face detection success
+        const selfieOk = !!data.selfieUrl && faceResult === 'success';
+        onValidChange(Object.keys(errs).length === 0 && selfieOk);
+    }, [data, validate, onValidChange, faceResult]);
 
     const handleBlur = (field) => {
         setTouched(prev => ({ ...prev, [field]: true }));
@@ -212,7 +253,11 @@ export default function Step2PersonalInfo({ data, onChange, onValidChange, step1
             setOtpSent(true);
             setOtpCooldown(60);
         } catch (err) {
-            setOtpError(err.message || 'Error connecting to OTP server.');
+            if (err.message === 'Failed to fetch') {
+                setOtpError('Unable to connect to the server. Please check your connection.');
+            } else {
+                setOtpError(err.message || 'Error connecting to OTP server.');
+            }
         } finally {
             setOtpLoading(false);
         }
@@ -239,47 +284,14 @@ export default function Step2PersonalInfo({ data, onChange, onValidChange, step1
             }
         } catch (err) {
             console.error('OTP verify error:', err);
-            setOtpError(err.message || 'Error verifying OTP.');
+            if (err.message === 'Failed to fetch') {
+                setOtpError('Unable to connect to the server. Please check your connection.');
+            } else {
+                setOtpError(err.message || 'Error verifying OTP.');
+            }
         } finally {
             setOtpVerifying(false);
         }
-    };
-
-    // ─── PSGC Change Handlers ────────────────────────────────────
-    const handleRegionChange = (e) => {
-        const code = e.target.value;
-        const name = regions.find(r => r.code === code)?.name || '';
-        onChange({
-            regionCode: code, region: name,
-            provinceCode: '', province: '',
-            cityCode: '', city: '',
-            barangayCode: '', barangay: ''
-        });
-    };
-
-    const handleProvinceChange = (e) => {
-        const code = e.target.value;
-        const name = provinces.find(p => p.code === code)?.name || '';
-        onChange({
-            provinceCode: code, province: name,
-            cityCode: '', city: '',
-            barangayCode: '', barangay: ''
-        });
-    };
-
-    const handleCityChange = (e) => {
-        const code = e.target.value;
-        const name = cities.find(c => c.code === code)?.name || '';
-        onChange({
-            cityCode: code, city: name,
-            barangayCode: '', barangay: ''
-        });
-    };
-
-    const handleBarangayChange = (e) => {
-        const code = e.target.value;
-        const name = barangays.find(b => b.code === code)?.name || '';
-        onChange({ barangayCode: code, barangay: name });
     };
 
     // Password strength percentage
@@ -316,96 +328,171 @@ export default function Step2PersonalInfo({ data, onChange, onValidChange, step1
                 </div>
             </div>
 
-            {/* ─── B. ADDRESS (PSGC) ──────────────────────────────── */}
+            {/* ─── B. SELFIE VERIFICATION ──────────────────────── */}
             <div className="reg-form-section" style={{ animation: 'fadeSlideIn 0.35s ease 0.1s both' }}>
                 <div className="step2-section-header">
-                    <MapPin size={16} /> <span>Address</span>
+                    <Camera size={16} /> <span>Selfie Verification</span>
                 </div>
 
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
-                    {/* Region */}
-                    <div className="form-group" style={{ marginBottom: 0 }}>
-                        <label className="form-label">Region <span style={{ color: '#ef4444' }}>*</span></label>
-                        <select
-                            className={`form-select ${getFieldStatus('region')}`}
-                            value={data.regionCode || ''}
-                            onChange={handleRegionChange}
-                            onBlur={() => handleBlur('region')}
-                            disabled={loadingPsgc.regions}
-                        >
-                            <option value="">{loadingPsgc.regions ? 'Loading...' : 'Select Region'}</option>
-                            {regions.map(r => <option key={r.code} value={r.code}>{r.name}</option>)}
-                        </select>
-                        {touched.region && errors.region && <div className="form-error">{errors.region}</div>}
+                {/* Info Banner */}
+                <div className="ocr-banner ocr-success" style={{ marginBottom: 16, background: '#eff6ff', color: '#1e40af', border: '1px solid #bfdbfe' }}>
+                    <Camera size={18} />
+                    <div style={{ fontSize: 12.5, lineHeight: 1.5 }}>
+                        <strong>Why do we need a selfie?</strong> This verifies you are the rightful owner of the School ID you uploaded. An admin will review it alongside your ID.
                     </div>
+                </div>
 
-                    {/* Province (not shown for NCR) */}
-                    {data.regionCode !== '1300000000' && (
-                        <div className="form-group" style={{ marginBottom: 0 }}>
-                            <label className="form-label">Province</label>
-                            <select
-                                className={`form-select ${getFieldStatus('province')}`}
-                                value={data.provinceCode || ''}
-                                onChange={handleProvinceChange}
-                                onBlur={() => handleBlur('province')}
-                                disabled={!data.regionCode || loadingPsgc.provinces}
-                            >
-                                <option value="">{loadingPsgc.provinces ? 'Loading...' : 'Select Province'}</option>
-                                {provinces.map(p => <option key={p.code} value={p.code}>{p.name}</option>)}
-                            </select>
+                {/* Models Loading */}
+                {modelsLoading && (
+                    <div className="ocr-banner ocr-loading" style={{ marginBottom: 12 }}>
+                        <div className="ocr-spinner" />
+                        <div><strong>Loading face detection...</strong></div>
+                    </div>
+                )}
+
+                {/* Selfie Error */}
+                {selfieError && (
+                    <div className="ocr-banner ocr-fail" style={{ marginBottom: 12 }}>
+                        <AlertTriangle size={18} />
+                        <div><strong>Error</strong><p>{selfieError}</p></div>
+                    </div>
+                )}
+
+                {/* Capture Options */}
+                {!data.selfieUrl && selfieMode !== 'camera' && (
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14, marginBottom: 16 }}>
+                        <button
+                            onClick={startCamera}
+                            disabled={!modelsLoaded}
+                            style={{
+                                display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+                                gap: 10, padding: '28px 16px',
+                                border: '2px dashed #cbd5e1', borderRadius: 12,
+                                background: modelsLoaded ? '#f8fafc' : '#f1f5f9',
+                                cursor: modelsLoaded ? 'pointer' : 'not-allowed',
+                                transition: 'all 0.2s', opacity: modelsLoaded ? 1 : 0.5,
+                            }}
+                            onMouseEnter={(e) => { if (modelsLoaded) { e.currentTarget.style.borderColor = '#2563eb'; e.currentTarget.style.background = '#eff6ff'; } }}
+                            onMouseLeave={(e) => { e.currentTarget.style.borderColor = '#cbd5e1'; e.currentTarget.style.background = modelsLoaded ? '#f8fafc' : '#f1f5f9'; }}
+                        >
+                            <div style={{ width: 44, height: 44, borderRadius: '50%', background: 'linear-gradient(135deg, #2563eb, #3b82f6)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                <Camera size={20} style={{ color: 'white' }} />
+                            </div>
+                            <div style={{ textAlign: 'center' }}>
+                                <div style={{ fontSize: 13, fontWeight: 700, color: '#0f172a' }}>Take a Selfie</div>
+                                <div style={{ fontSize: 11.5, color: '#94a3b8', marginTop: 2 }}>Use your camera</div>
+                            </div>
+                        </button>
+                        <button
+                            onClick={() => fileInputRef.current?.click()}
+                            disabled={!modelsLoaded}
+                            style={{
+                                display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+                                gap: 10, padding: '28px 16px',
+                                border: '2px dashed #cbd5e1', borderRadius: 12,
+                                background: modelsLoaded ? '#f8fafc' : '#f1f5f9',
+                                cursor: modelsLoaded ? 'pointer' : 'not-allowed',
+                                transition: 'all 0.2s', opacity: modelsLoaded ? 1 : 0.5,
+                            }}
+                            onMouseEnter={(e) => { if (modelsLoaded) { e.currentTarget.style.borderColor = '#2563eb'; e.currentTarget.style.background = '#eff6ff'; } }}
+                            onMouseLeave={(e) => { e.currentTarget.style.borderColor = '#cbd5e1'; e.currentTarget.style.background = modelsLoaded ? '#f8fafc' : '#f1f5f9'; }}
+                        >
+                            <div style={{ width: 44, height: 44, borderRadius: '50%', background: 'linear-gradient(135deg, #7c3aed, #8b5cf6)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                <Upload size={20} style={{ color: 'white' }} />
+                            </div>
+                            <div style={{ textAlign: 'center' }}>
+                                <div style={{ fontSize: 13, fontWeight: 700, color: '#0f172a' }}>Upload Photo</div>
+                                <div style={{ fontSize: 11.5, color: '#94a3b8', marginTop: 2 }}>From your device</div>
+                            </div>
+                        </button>
+                        <input ref={fileInputRef} type="file" accept=".png,.jpg,.jpeg" style={{ display: 'none' }} onChange={(e) => handleSelfieUpload(e.target.files[0])} />
+                    </div>
+                )}
+
+                {/* Camera View */}
+                {selfieMode === 'camera' && (
+                    <div style={{ marginBottom: 16 }}>
+                        <div style={{ position: 'relative', borderRadius: 12, overflow: 'hidden', border: '2px solid #2563eb', background: '#000', maxWidth: 480, margin: '0 auto' }}>
+                            <video ref={videoRef} autoPlay playsInline muted style={{ width: '100%', display: 'block', transform: 'scaleX(-1)' }} />
+                            <div style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', width: '55%', height: '70%', border: '3px dashed rgba(255,255,255,0.5)', borderRadius: '50%', pointerEvents: 'none' }} />
+                            {!cameraReady && (
+                                <div style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', color: 'white' }}>
+                                    <Loader size={24} style={{ animation: 'ocr-spin 0.8s linear infinite' }} />
+                                </div>
+                            )}
                         </div>
-                    )}
-
-                    {/* City / Municipality */}
-                    <div className="form-group" style={{ marginBottom: 0 }}>
-                        <label className="form-label">City / Municipality <span style={{ color: '#ef4444' }}>*</span></label>
-                        <select
-                            className={`form-select ${getFieldStatus('city')}`}
-                            value={data.cityCode || ''}
-                            onChange={handleCityChange}
-                            onBlur={() => handleBlur('city')}
-                            disabled={(!data.provinceCode && data.regionCode !== '1300000000') || loadingPsgc.cities}
-                        >
-                            <option value="">{loadingPsgc.cities ? 'Loading...' : 'Select City'}</option>
-                            {cities.map(c => <option key={c.code} value={c.code}>{c.name}</option>)}
-                        </select>
-                        {touched.city && errors.city && <div className="form-error">{errors.city}</div>}
-                    </div>
-
-                    {/* Barangay */}
-                    <div className="form-group" style={{ marginBottom: 0 }}>
-                        <label className="form-label">Barangay <span style={{ color: '#ef4444' }}>*</span></label>
-                        <select
-                            className={`form-select ${getFieldStatus('barangay')}`}
-                            value={data.barangayCode || ''}
-                            onChange={handleBarangayChange}
-                            onBlur={() => handleBlur('barangay')}
-                            disabled={!data.cityCode || loadingPsgc.barangays}
-                        >
-                            <option value="">{loadingPsgc.barangays ? 'Loading...' : 'Select Barangay'}</option>
-                            {barangays.map(b => <option key={b.code} value={b.code}>{b.name}</option>)}
-                        </select>
-                        {touched.barangay && errors.barangay && <div className="form-error">{errors.barangay}</div>}
-                    </div>
-                </div>
-
-                {/* Detailed Address */}
-                <div className="form-group" style={{ marginTop: 14, marginBottom: 0 }}>
-                    <label className="form-label">Detailed Home Address <span style={{ color: '#ef4444' }}>*</span></label>
-                    <input
-                        className={`form-input ${getFieldStatus('detailedAddress')}`}
-                        value={data.detailedAddress || ''}
-                        onChange={(e) => onChange({ detailedAddress: e.target.value })}
-                        onBlur={() => handleBlur('detailedAddress')}
-                        placeholder="House/Unit No., Street, Subdivision, etc."
-                    />
-                    {touched.detailedAddress && errors.detailedAddress && <div className="form-error">{errors.detailedAddress}</div>}
-                    {step1Address && (
-                        <div className="step2-ocr-hint">
-                            From ID: <strong>{step1Address}</strong>
+                        <div style={{ display: 'flex', gap: 12, justifyContent: 'center', marginTop: 14 }}>
+                            <button className="btn btn-outline" onClick={() => { stopCamera(); setSelfieMode(null); }}><X size={15} /> Cancel</button>
+                            <button className="btn btn-primary" onClick={capturePhoto} disabled={!cameraReady}><Camera size={15} /> Capture</button>
                         </div>
-                    )}
-                </div>
+                        <p style={{ fontSize: 12, color: '#94a3b8', textAlign: 'center', marginTop: 6 }}>Position your face inside the oval guide, then click Capture</p>
+                    </div>
+                )}
+
+                <canvas ref={canvasRef} style={{ display: 'none' }} />
+
+                {/* Selfie Preview + Detection */}
+                {data.selfieUrl && (
+                    <div style={{ marginBottom: 16 }}>
+                        <div style={{ position: 'relative', borderRadius: 12, overflow: 'hidden', border: `2px solid ${faceResult === 'success' ? '#22c55e' : faceResult ? '#ef4444' : '#cbd5e1'}`, maxWidth: 320, margin: '0 auto', transition: 'border-color 0.3s' }}>
+                            <img src={data.selfieUrl} alt="Selfie preview" style={{ width: '100%', display: 'block' }} />
+                            {detecting && (
+                                <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 10 }}>
+                                    <Loader size={28} style={{ color: 'white', animation: 'ocr-spin 0.8s linear infinite' }} />
+                                    <span style={{ color: 'white', fontSize: 13, fontWeight: 600 }}>Detecting face...</span>
+                                </div>
+                            )}
+                        </div>
+
+                        {detecting && (
+                            <div className="ocr-banner ocr-loading" style={{ marginTop: 10 }}>
+                                <div className="ocr-spinner" />
+                                <div style={{ flex: 1 }}>
+                                    <strong>Verifying your selfie...</strong>
+                                    <div className="progress-bar-wrap" style={{ marginTop: 6, height: 5 }}>
+                                        <div className="progress-bar-fill progress-high" style={{ width: '80%', background: 'linear-gradient(90deg, #2563eb, #3b82f6)', animation: 'idCheckPulse 1.5s ease-in-out infinite' }} />
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+
+                        {faceResult === 'success' && (
+                            <div className="ocr-banner ocr-success" style={{ marginTop: 10 }}>
+                                <CheckCircle size={18} />
+                                <div><strong>Face Detected Successfully</strong><p>Your selfie has been verified.</p></div>
+                            </div>
+                        )}
+                        {faceResult === 'no-face' && (
+                            <div className="ocr-banner ocr-fail" style={{ marginTop: 10 }}>
+                                <AlertTriangle size={18} />
+                                <div><strong>No Face Detected</strong><p>Please make sure your face is clearly visible and well-lit.</p></div>
+                            </div>
+                        )}
+                        {faceResult === 'multi-face' && (
+                            <div className="ocr-banner ocr-fail" style={{ marginTop: 10 }}>
+                                <AlertTriangle size={18} />
+                                <div><strong>Multiple Faces Detected</strong><p>Please take a selfie with only your face visible.</p></div>
+                            </div>
+                        )}
+
+                        <div style={{ textAlign: 'center', marginTop: 12 }}>
+                            <button className="btn btn-outline" onClick={resetSelfie}><RotateCcw size={14} /> Retake Selfie</button>
+                        </div>
+                    </div>
+                )}
+
+                {/* Tips */}
+                {!data.selfieUrl && selfieMode !== 'camera' && (
+                    <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 10, padding: 14, fontSize: 12.5, color: '#475569', lineHeight: 1.7 }}>
+                        <div style={{ fontWeight: 700, marginBottom: 6, color: '#0f172a' }}>Tips for a good selfie:</div>
+                        <ul style={{ margin: 0, paddingLeft: 18 }}>
+                            <li>Make sure your <strong>face is clearly visible</strong> and centered</li>
+                            <li>Use <strong>good lighting</strong> — avoid backlighting</li>
+                            <li>Remove <strong>sunglasses or face coverings</strong></li>
+                            <li>Look directly at the camera</li>
+                        </ul>
+                    </div>
+                )}
             </div>
 
             {/* ─── C. EMAIL & OTP ─────────────────────────────────── */}
@@ -523,7 +610,7 @@ export default function Step2PersonalInfo({ data, onChange, onValidChange, step1
                     <Lock size={16} /> <span>Create Password</span>
                 </div>
 
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+                <div className="reg-form-grid">
                     {/* Password */}
                     <div className="form-group" style={{ marginBottom: 0 }}>
                         <label className="form-label">Password <span style={{ color: '#ef4444' }}>*</span></label>
