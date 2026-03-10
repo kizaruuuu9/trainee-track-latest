@@ -22,7 +22,7 @@ export default function LoginScreen({ onShowRegistration }) {
 
   const [showRegister, setShowRegister] = useState(false);
   const [regForm, setRegForm] = useState({
-    companyName: '', contactPerson: '', email: '', phone: '', address: '',
+    companyName: '', contactPerson: '', email: '', address: '',
     industry: '', companySize: '', website: '', username: '', password: ''
   });
   const [regSuccess, setRegSuccess] = useState(false);
@@ -49,9 +49,17 @@ export default function LoginScreen({ onShowRegistration }) {
   const handleQuickLogin = async (account) => {
     setLoading(true);
     setError('');
-    await new Promise(r => setTimeout(r, 400));
-    login(account.username, account.password);
-    setLoading(false);
+    try {
+      await new Promise(r => setTimeout(r, 400));
+      const result = await login(account.username, account.password);
+      if (!result.success) {
+        setError(result.error || 'Quick login failed.');
+      }
+    } catch (err) {
+      setError('An unexpected error occurred during quick login.');
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleForgot = (e) => {
@@ -297,7 +305,7 @@ export default function LoginScreen({ onShowRegistration }) {
                   setShowRegister(false);
                   setRegSuccess(false);
                   setRegForm({
-                    companyName: '', contactPerson: '', email: '', phone: '', address: '',
+                    companyName: '', contactPerson: '', email: '', address: '',
                     industry: '', companySize: '', website: '', username: '', password: ''
                   });
                 }}>
@@ -326,8 +334,7 @@ export default function LoginScreen({ onShowRegistration }) {
                       <input type="email" className="form-input" required value={regForm.email} onChange={e => setRegForm({ ...regForm, email: e.target.value })} style={{ padding: '8px 12px' }} />
                     </div>
                     <div className="form-group" style={{ marginBottom: 0 }}>
-                      <label className="form-label" style={{ fontSize: 12, marginBottom: 4 }}>Phone Number *</label>
-                      <input className="form-input" required value={regForm.phone} onChange={e => setRegForm({ ...regForm, phone: e.target.value })} style={{ padding: '8px 12px' }} />
+
                     </div>
                     <div className="form-group" style={{ gridColumn: 'span 2', marginBottom: 0 }}>
                       <label className="form-label" style={{ fontSize: 12, marginBottom: 4 }}>Company Address *</label>

@@ -159,10 +159,40 @@ app.get('/api/admin/data', rateLimit, async (req, res) => {
         if (stdsErr) throw stdsErr;
         if (partsErr) throw partsErr;
 
-        res.json({ students: stds || [], partners: parts || [] });
+        const { data: authUsers, error: usersErr } = await supabaseAdmin.auth.admin.listUsers();
+        if (usersErr) console.warn('Could not fetch auth users for emails:', usersErr);
+
+        const mappedStds = (stds || []).map(std => {
+            const authRecord = authUsers?.users?.find(u => u.id === std.id);
+            return {
+                ...std,
+                email: authRecord ? authRecord.email : 'None'
+            };
+        });
+
+        res.json({ students: mappedStds, partners: parts || [] });
     } catch (error) {
         console.error('Admin data fetch error:', error);
         res.status(500).json({ error: 'Failed to fetch admin data.' });
+    }
+});
+
+// Admin Update Student Endpoint (Bypass RLS)
+app.post('/api/admin/update-student', rateLimit, async (req, res) => {
+    const { studentId, updates } = req.body;
+    if (!studentId || !updates) {
+        return res.status(400).json({ error: 'studentId and updates are required.' });
+    }
+    try {
+        const { error } = await supabaseAdmin
+            .from('students')
+            .update(updates)
+            .eq('id', studentId);
+        if (error) throw error;
+        res.json({ success: true });
+    } catch (error) {
+        console.error('Admin update student error:', error);
+        res.status(500).json({ error: 'Failed to update student.' });
     }
 });
 
@@ -236,7 +266,7 @@ app.post('/api/check-duplicate', async (req, res) => {
 
 // ─── REGISTER ENDPOINT (Atomic — creates auth user, profile, student) ────
 app.post('/api/register', rateLimit, async (req, res) => {
-    const { email, password, fullName, studentId, program, address, gender, birthdate, frontIdBase64, backIdBase64, selfieBase64 } = req.body;
+    const { email, password, fullName, studentId, program, address, gender, trainingStatus, graduationYear, birthdate, frontIdBase64, backIdBase64, selfieBase64 } = req.body;
 
     if (!email || !password || !fullName || !studentId) {
         return res.status(400).json({ error: 'Email, password, full name, and student ID are required.' });
@@ -339,6 +369,8 @@ app.post('/api/register', rateLimit, async (req, res) => {
                 student_id: studentId,
                 program_id: programId,
                 gender: genderVal,
+                training_status: trainingStatus,
+                graduation_year: trainingStatus === 'Graduated' ? graduationYear : null,
                 front_id_url: frontIdUrl,
                 back_id_url: backIdUrl,
                 selfie_url: selfieUrl,

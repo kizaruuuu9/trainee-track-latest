@@ -212,9 +212,7 @@ export default function Step1IDUpload({ data, onChange, onValidChange }) {
     const uploadedFiles = useRef({ frontID: null, backID: null });
 
     // Auto-detect API base
-    const API_BASE = window.location.hostname === 'localhost'
-        ? 'http://localhost:3001'
-        : '';
+
 
     // ─── Fetch programs from Supabase on mount ──────────────────
     useEffect(() => {
@@ -278,7 +276,7 @@ export default function Step1IDUpload({ data, onChange, onValidChange }) {
         try {
             // Check via backend endpoint to avoid permissions issues
             const [res] = await Promise.all([
-                fetch(`${API_BASE}/api/check-duplicate`, {
+                fetch(`/api/check-duplicate`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ field: 'student_id', value: trimmed })
@@ -314,6 +312,10 @@ export default function Step1IDUpload({ data, onChange, onValidChange }) {
         if (!values.program) e.program = 'Program is required';
         if (!values.address.trim()) e.address = 'Address is required';
         if (!values.gender) e.gender = 'Gender is required';
+        if (!values.trainingStatus) e.trainingStatus = 'Training Status is required';
+        if (values.trainingStatus === 'Graduated' && !values.graduationYear) {
+            e.graduationYear = 'Graduation Year is required';
+        }
         return e;
     }, []);
 
@@ -707,6 +709,45 @@ export default function Step1IDUpload({ data, onChange, onValidChange }) {
                             </select>
                             {touched.gender && errors.gender && <div className="form-error">{errors.gender}</div>}
                         </div>
+
+                        {/* Training Status */}
+                        <div className="form-group" style={{ marginBottom: 0 }}>
+                            <label className="form-label">Training Status <span style={{ color: '#ef4444' }}>*</span></label>
+                            <select
+                                className={`form-select ${getFieldStatus('trainingStatus')}`}
+                                value={data.trainingStatus || ''}
+                                onChange={(e) => {
+                                    onChange({ trainingStatus: e.target.value });
+                                    if (e.target.value === 'Student') {
+                                        onChange({ graduationYear: '' }); // Clear it if they switch back to student
+                                    }
+                                }}
+                                onBlur={() => handleBlur('trainingStatus')}
+                            >
+                                <option value="">Select Status</option>
+                                <option value="Student">Current Student</option>
+                                <option value="Graduated">Graduated</option>
+                            </select>
+                            {touched.trainingStatus && errors.trainingStatus && <div className="form-error">{errors.trainingStatus}</div>}
+                        </div>
+
+                        {/* Graduation Year (Only if Graduated) */}
+                        {data.trainingStatus === 'Graduated' && (
+                            <div className="form-group" style={{ marginBottom: 0 }}>
+                                <label className="form-label">Graduation Year <span style={{ color: '#ef4444' }}>*</span></label>
+                                <input
+                                    type="number"
+                                    min="1990"
+                                    max="2030"
+                                    className={`form-input ${getFieldStatus('graduationYear')}`}
+                                    value={data.graduationYear || ''}
+                                    onChange={(e) => onChange({ graduationYear: e.target.value })}
+                                    onBlur={() => handleBlur('graduationYear')}
+                                    placeholder="e.g. 2024"
+                                />
+                                {touched.graduationYear && errors.graduationYear && <div className="form-error">{errors.graduationYear}</div>}
+                            </div>
+                        )}
                     </div>
                 </div>
             )}

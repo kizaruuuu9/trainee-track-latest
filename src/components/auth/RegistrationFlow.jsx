@@ -19,6 +19,8 @@ export default function RegistrationFlow({ onBackToLogin }) {
       program: '',
       address: '',
       gender: '',
+      trainingStatus: '',
+      graduationYear: '',
       ocrStatus: null,
     },
     step2: {
@@ -66,6 +68,8 @@ export default function RegistrationFlow({ onBackToLogin }) {
           program: step1.program,
           address: step1.address,
           gender: step1.gender,
+          trainingStatus: step1.trainingStatus,
+          graduationYear: step1.graduationYear,
           birthdate: step2.birthdate,
           frontIdBase64: step1.frontID?.url || null,
           backIdBase64: step1.backID?.url || null,

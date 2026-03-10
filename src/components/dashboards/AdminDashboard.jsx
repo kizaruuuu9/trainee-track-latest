@@ -10,6 +10,7 @@ import {
     BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid,
     Tooltip, Legend, ResponsiveContainer
 } from 'recharts';
+import { Routes, Route, useNavigate, useLocation, Navigate } from 'react-router-dom';
 
 // â”€â”€â”€ LAYOUT â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 const AppLayout = ({ sidebar, children, pageTitle, pageSubtitle }) => {
@@ -183,7 +184,7 @@ const AdminHome = ({ setActivePage }) => {
 
 // â”€â”€â”€ PAGE 2: MANAGE TRAINEES â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 const ManageTrainees = () => {
-    const { trainees, addTrainee, updateTrainee, deleteTrainee } = useApp();
+    const { trainees, updateTrainee, deleteTrainee } = useApp();
     const [search, setSearch] = useState('');
     const [filterStatus, setFilterStatus] = useState('All');
     const [viewT, setViewT] = useState(null);
@@ -194,8 +195,11 @@ const ManageTrainees = () => {
     });
     const statusBadge = (s) => {
         const map = { Employed: 'badge-employed', 'Seeking Employment': 'badge-self-employed', 'Not Employed': 'badge-unemployed' };
-        return <span className={`badge ${map[s] || 'badge-gray'}`}>{s}</span>;
+        return <span className={`badge ${map[s] || 'badge-gray'}`}>{s || 'None'}</span>;
     };
+
+    console.log("AdminDashboard trainees array:", trainees, "filterStatus:", filterStatus, "filtered:", filtered);
+
     return (
         <div>
             <div className="page-header">
@@ -210,14 +214,18 @@ const ManageTrainees = () => {
                 </div>
                 <div style={{ overflowX: 'auto' }}>
                     <table className="data-table">
-                        <thead><tr><th>Name</th><th>Email</th><th>Certifications</th><th>Year</th><th>Employment Status</th><th>Actions</th></tr></thead>
+                        <thead><tr><th>Name</th><th>Email</th><th>Program</th><th>Training Status</th><th>Employment Status</th><th>Actions</th></tr></thead>
                         <tbody>
                             {filtered.map(t => (
                                 <tr key={t.id}>
-                                    <td style={{ fontWeight: 600 }}><div style={{ display: 'flex', alignItems: 'center', gap: 8 }}><div style={{ width: 30, height: 30, borderRadius: '50%', background: 'linear-gradient(135deg, #ede9fe, #dbeafe)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 800, color: '#7c3aed' }}>{t.name?.charAt(0)}</div>{t.name}</div></td>
-                                    <td style={{ fontSize: 13, color: '#64748b' }}>{t.email}</td>
-                                    <td><div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>{t.certifications?.slice(0, 2).map(c => <span key={c} className="badge badge-blue" style={{ fontSize: 10 }}>{c}</span>)}</div></td>
-                                    <td style={{ textAlign: 'center' }}>{t.graduationYear}</td>
+                                    <td style={{ fontWeight: 600 }}><div style={{ display: 'flex', alignItems: 'center', gap: 8 }}><div style={{ width: 30, height: 30, borderRadius: '50%', background: 'linear-gradient(135deg, #ede9fe, #dbeafe)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 800, color: '#7c3aed' }}>{(t.name && t.name !== 'Trainee' ? t.name : 'N').charAt(0)}</div>{t.name && t.name !== 'Trainee' ? t.name : 'None'}</div></td>
+                                    <td style={{ fontSize: 13, color: '#64748b' }}>{t.email && t.email !== 'Protected' ? t.email : 'None'}</td>
+                                    <td><span className="badge badge-blue" style={{ fontSize: 11, fontWeight: 500 }}>{t.program}</span></td>
+                                    <td style={{ textAlign: 'center' }}>
+                                        <span className={`badge ${t.trainingStatus === 'Graduated' ? 'badge-blue' : 'badge-gray'}`} style={{ fontSize: 11 }}>
+                                            {t.trainingStatus === 'Student' ? 'Current Student' : t.trainingStatus}
+                                        </span>
+                                    </td>
                                     <td>{statusBadge(t.employmentStatus)}</td>
                                     <td><div style={{ display: 'flex', gap: 6 }}>
                                         <button className="btn btn-outline btn-sm" onClick={() => setViewT(t)}><Eye size={12} /> View</button>
@@ -242,7 +250,7 @@ const ManageTrainees = () => {
                             <div style={{ marginTop: 8, display: 'flex', gap: 6, justifyContent: 'center', flexWrap: 'wrap' }}>{viewT.certifications?.map(c => <span key={c} className="badge badge-blue"><Award size={10} />{c}</span>)}</div>
                         </div>
                         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 14 }}>
-                            {[['Phone', viewT.phone], ['Address', viewT.address], ['Birthday', viewT.birthday], ['Year', viewT.graduationYear], ['Employment', viewT.employmentStatus], ['Employer', viewT.employer || 'â€”']].map(([k, v]) => (
+                            {[['Address', viewT.address], ['Birthday', viewT.birthday], ['Status', viewT.trainingStatus], ['Year', viewT.graduationYear], ['Employment', viewT.employmentStatus], ['Employer', viewT.employer || 'â€”']].map(([k, v]) => (
                                 <div key={k} style={{ padding: '8px 12px', background: '#f8fafc', borderRadius: 8 }}>
                                     <div style={{ fontSize: 10, color: '#94a3b8', textTransform: 'uppercase', fontWeight: 600 }}>{k}</div>
                                     <div style={{ fontSize: 13.5, fontWeight: 500, color: '#475569' }}>{v || 'â€”'}</div>
@@ -256,9 +264,22 @@ const ManageTrainees = () => {
                 <div className="modal-overlay" onClick={() => setEditT(null)}>
                     <div className="modal" style={{ maxWidth: 500 }} onClick={e => e.stopPropagation()}>
                         <div className="modal-header"><h3 className="modal-title">Edit Trainee</h3><button className="btn btn-outline btn-icon" onClick={() => setEditT(null)}><X size={16} /></button></div>
-                        {[['name', 'Full Name', 'text'], ['email', 'Email', 'email'], ['phone', 'Phone', 'text'], ['address', 'Address', 'text']].map(([key, label, type]) => (
+                        {[['name', 'Full Name', 'text'], ['email', 'Email', 'email'], ['address', 'Address', 'text']].map(([key, label, type]) => (
                             <div key={key} className="form-group"><label className="form-label">{label}</label><input type={type} className="form-input" value={editT[key] || ''} onChange={e => setEditT({ ...editT, [key]: e.target.value })} /></div>
                         ))}
+                        <div className="form-group"><label className="form-label">Training Status</label>
+                            <select className="form-select" value={editT.trainingStatus || 'Student'} onChange={e => {
+                                setEditT({ ...editT, trainingStatus: e.target.value, graduationYear: e.target.value === 'Student' ? '' : editT.graduationYear });
+                            }}>
+                                <option value="Student">Student</option>
+                                <option value="Graduated">Graduated</option>
+                            </select>
+                        </div>
+                        {editT.trainingStatus === 'Graduated' && (
+                            <div className="form-group"><label className="form-label">Graduation Year</label>
+                                <input type="number" className="form-input" value={editT.graduationYear || ''} onChange={e => setEditT({ ...editT, graduationYear: e.target.value })} />
+                            </div>
+                        )}
                         <div className="form-group"><label className="form-label">Employment Status</label>
                             <select className="form-select" value={editT.employmentStatus} onChange={e => setEditT({ ...editT, employmentStatus: e.target.value })}>
                                 {['Employed', 'Seeking Employment', 'Not Employed'].map(s => <option key={s}>{s}</option>)}
@@ -340,7 +361,7 @@ const ManagePartners = () => {
                             {statusBadge(viewPartner.verificationStatus)}
                         </div>
                         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 16 }}>
-                            {[['Contact', viewPartner.contactPerson], ['Email', viewPartner.email], ['Phone', viewPartner.phone], ['Address', viewPartner.address], ['Size', viewPartner.companySize], ['Website', viewPartner.website]].map(([k, v]) => (
+                            {[['Contact', viewPartner.contactPerson], ['Email', viewPartner.email], ['Address', viewPartner.address], ['Size', viewPartner.companySize], ['Website', viewPartner.website]].map(([k, v]) => (
                                 <div key={k} style={{ padding: '8px 12px', background: '#f8fafc', borderRadius: 8 }}><div style={{ fontSize: 10, color: '#94a3b8', textTransform: 'uppercase', fontWeight: 600 }}>{k}</div><div style={{ fontSize: 13, fontWeight: 500, color: '#475569' }}>{v || 'â€”'}</div></div>
                             ))}
                         </div>
@@ -751,7 +772,22 @@ const SystemSettings = () => {
 
 // â”€â”€â”€ MAIN EXPORT â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 export default function AdminDashboard() {
-    const [activePage, setActivePage] = useState('dashboard');
+    const navigate = useNavigate();
+    const location = useLocation();
+
+    // Deduce active page from URL for visual consistency in child components
+    const path = location.pathname.split('/').pop();
+    const activePage = (path === 'admin' || !path) ? 'dashboard' : path;
+
+    // Mock setActivePage to use navigate for smooth integration with existing buttons
+    const setActivePage = (page) => {
+        if (page === 'dashboard') {
+            navigate('/admin');
+        } else {
+            navigate(`/admin/${page}`);
+        }
+    };
+
     const pageMap = {
         dashboard: { title: 'Admin Dashboard', sub: 'System overview and management' },
         trainees: { title: 'Manage Trainees', sub: 'View and manage all registered trainees' },
@@ -763,24 +799,23 @@ export default function AdminDashboard() {
         'activity-log': { title: 'System Activity Log', sub: 'Audit trail of system actions' },
         settings: { title: 'System Settings', sub: 'Platform configuration' },
     };
+
     const current = pageMap[activePage] || pageMap.dashboard;
-    const renderPage = () => {
-        switch (activePage) {
-            case 'dashboard': return <AdminHome setActivePage={setActivePage} />;
-            case 'trainees': return <ManageTrainees />;
-            case 'partners': return <ManagePartners />;
-            case 'jobs': return <OpportunitiesOversight />;
-            case 'employment': return <EmploymentTracking />;
-            case 'analytics': return <Analytics />;
-            case 'accounts': return <AccountManagement />;
-            case 'activity-log': return <SystemActivityLog />;
-            case 'settings': return <SystemSettings />;
-            default: return <AdminHome setActivePage={setActivePage} />;
-        }
-    };
+
     return (
         <AppLayout sidebar={<AdminSidebar activePage={activePage} setActivePage={setActivePage} />} pageTitle={current.title} pageSubtitle={current.sub}>
-            {renderPage()}
+            <Routes>
+                <Route path="/" element={<AdminHome setActivePage={setActivePage} />} />
+                <Route path="/trainees" element={<ManageTrainees />} />
+                <Route path="/partners" element={<ManagePartners />} />
+                <Route path="/jobs" element={<OpportunitiesOversight />} />
+                <Route path="/employment" element={<EmploymentTracking />} />
+                <Route path="/analytics" element={<Analytics />} />
+                <Route path="/accounts" element={<AccountManagement />} />
+                <Route path="/activity-log" element={<SystemActivityLog />} />
+                <Route path="/settings" element={<SystemSettings />} />
+                <Route path="*" element={<Navigate to="/admin" replace />} />
+            </Routes>
         </AppLayout>
     );
 }

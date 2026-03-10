@@ -136,254 +136,10 @@ export const AppProvider = ({ children }) => {
   const [userRole, setUserRole] = useState(null); // 'admin' | 'trainee' | 'partner'
 
   // ─── TRAINEES ────────────────────────────────────────────────────────────
-  const [trainees, setTrainees] = useState([
-    {
-      id: 1,
-      name: 'Juan Dela Cruz',
-      email: 'juan@example.com',
-      username: 'juan.delacruz',
-      password: 'grad123',
-      phone: '+63 912 345 6789',
-      address: 'Caloocan City, Metro Manila',
-      birthday: '1999-04-15',
-      gender: 'Male',
-      graduationYear: 2024,
-      certifications: ['Computer Systems Servicing NC II', 'Contact Center Services NC II'],
-      competencies: [
-        'Install and Configure Computer Systems',
-        'Set-Up Computer Networks',
-        'Maintain and Repair Computer Systems and Networks',
-        'Communicate Effectively in English for Customer Service',
-        'Perform Customer Service Delivery Processes',
-        'Demonstrate Ability to Effectively Engage Customers',
-      ],
-      employmentStatus: 'Employed',
-      employer: 'TechSolutions Inc.',
-      jobTitle: 'Junior IT Technician',
-      dateHired: '2024-09-01',
-      monthsAfterGraduation: 5,
-      photo: null,
-      documents: { resume: 'uploaded', diploma: 'uploaded', tor: 'uploaded' },
-      achievements: ['Best Trainee 2024', 'Dean\'s Lister'],
-      accountStatus: 'Active', // Active | Disabled | Suspended
-      certificationProgress: [
-        {
-          certification: 'Computer Systems Servicing NC II',
-          status: 'Completed',
-          enrolledDate: '2023-06-01',
-          competencies: [
-            { name: 'Install and Configure Computer Systems', status: 'Passed', remarks: 'Excellent performance' },
-            { name: 'Set-Up Computer Networks', status: 'Passed', remarks: '' },
-            { name: 'Set-Up Computer Servers', status: 'Passed', remarks: '' },
-            { name: 'Maintain and Repair Computer Systems and Networks', status: 'Passed', remarks: '' },
-          ],
-        },
-        {
-          certification: 'Contact Center Services NC II',
-          status: 'In Progress',
-          enrolledDate: '2025-09-01',
-          competencies: [
-            { name: 'Apply Quality Standards', status: 'Passed', remarks: '' },
-            { name: 'Perform Computer Operations', status: 'Passed', remarks: '' },
-            { name: 'Communicate Effectively in English for Customer Service', status: 'Passed', remarks: '' },
-            { name: 'Perform Customer Service Delivery Processes', status: 'Pending Assessment', remarks: '' },
-            { name: 'Demonstrate Ability to Effectively Engage Customers', status: 'Pending Assessment', remarks: '' },
-          ],
-        },
-      ],
-      createdAt: new Date().toISOString(),
-    },
-    {
-      id: 2,
-      name: 'Maria Santos',
-      email: 'maria@example.com',
-      username: 'maria.santos',
-      password: 'grad123',
-      phone: '+63 917 654 3210',
-      address: 'Quezon City, Metro Manila',
-      birthday: '2000-07-22',
-      gender: 'Female',
-      graduationYear: 2024,
-      certifications: ['Cookery NC II'],
-      competencies: [
-        'Clean and Maintain Kitchen Premises',
-        'Prepare Stocks, Sauces and Soups',
-        'Prepare Meat Dishes',
-      ],
-      employmentStatus: 'Unemployed',
-      employer: null,
-      jobTitle: null,
-      dateHired: null,
-      monthsAfterGraduation: null,
-      photo: null,
-      documents: { resume: 'uploaded', diploma: 'uploaded', tor: null },
-      achievements: [],
-      accountStatus: 'Active',
-      certificationProgress: [
-        {
-          certification: 'Cookery NC II',
-          status: 'In Progress',
-          enrolledDate: '2025-06-15',
-          competencies: [
-            { name: 'Clean and Maintain Kitchen Premises', status: 'Passed', remarks: '' },
-            { name: 'Prepare Stocks, Sauces and Soups', status: 'Passed', remarks: '' },
-            { name: 'Prepare Meat Dishes', status: 'Passed', remarks: '' },
-            { name: 'Prepare Seafood Dishes', status: 'Failed', remarks: 'Needs to retake practical exam' },
-          ],
-        },
-      ],
-      createdAt: new Date().toISOString(),
-    },
-    {
-      id: 3,
-      name: 'Pedro Reyes',
-      email: 'pedro@example.com',
-      username: 'pedro.reyes',
-      password: 'grad123',
-      phone: '+63 922 111 2222',
-      address: 'Malabon City, Metro Manila',
-      birthday: '1998-12-05',
-      gender: 'Male',
-      graduationYear: 2023,
-      certifications: ['Automotive Servicing NC I', 'Shielded Metal Arc Welding (SMAW) NC I'],
-      competencies: [
-        'Perform Mensuration and Calculation',
-        'Perform Periodic Maintenance of Automotive Engine',
-        'Perform Periodic Maintenance of Brake System',
-        'Weld Carbon Steel Plates Using SMAW',
-        'Setup Welding Equipment',
-      ],
-      employmentStatus: 'Self-Employed',
-      employer: 'Own Auto Shop',
-      jobTitle: 'Shop Owner',
-      dateHired: '2024-01-10',
-      monthsAfterGraduation: 14,
-      photo: null,
-      documents: { resume: 'uploaded', diploma: null, tor: 'uploaded' },
-      achievements: ['Top Performer - Automotive'],
-      accountStatus: 'Active',
-      certificationProgress: [
-        {
-          certification: 'Automotive Servicing NC I',
-          status: 'Completed',
-          enrolledDate: '2022-06-01',
-          competencies: [
-            { name: 'Perform Mensuration and Calculation', status: 'Passed', remarks: '' },
-            { name: 'Validate Vehicle Specification', status: 'Passed', remarks: '' },
-            { name: 'Utilize Automotive Tools', status: 'Passed', remarks: '' },
-            { name: 'Perform Periodic Maintenance of Automotive Engine', status: 'Passed', remarks: '' },
-            { name: 'Perform Periodic Maintenance of Brake System', status: 'Passed', remarks: '' },
-          ],
-        },
-        {
-          certification: 'Shielded Metal Arc Welding (SMAW) NC I',
-          status: 'Completed',
-          enrolledDate: '2023-01-15',
-          competencies: [
-            { name: 'Weld Carbon Steel Plates Using SMAW', status: 'Passed', remarks: '' },
-            { name: 'Setup Welding Equipment', status: 'Passed', remarks: '' },
-            { name: 'Prepare Weld Materials', status: 'Passed', remarks: '' },
-          ],
-        },
-      ],
-      createdAt: new Date().toISOString(),
-    },
-    {
-      id: 4,
-      name: 'Ana Lim',
-      email: 'ana@example.com',
-      username: 'ana.lim',
-      password: 'grad123',
-      phone: '+63 933 444 5555',
-      address: 'Valenzuela City, Metro Manila',
-      birthday: '2001-03-18',
-      gender: 'Female',
-      graduationYear: 2024,
-      certifications: ['Computer Systems Servicing NC II'],
-      competencies: [
-        'Install and Configure Computer Systems',
-        'Maintain and Repair Computer Systems and Networks',
-      ],
-      employmentStatus: 'Underemployed',
-      employer: 'SM Department Store',
-      jobTitle: 'Sales Associate',
-      dateHired: '2024-07-15',
-      monthsAfterGraduation: 7,
-      photo: null,
-      documents: { resume: 'uploaded', diploma: 'uploaded', tor: 'uploaded' },
-      achievements: [],
-      accountStatus: 'Active',
-      certificationProgress: [
-        {
-          certification: 'Computer Systems Servicing NC II',
-          status: 'In Progress',
-          enrolledDate: '2025-08-01',
-          competencies: [
-            { name: 'Install and Configure Computer Systems', status: 'Passed', remarks: '' },
-            { name: 'Set-Up Computer Networks', status: 'Pending Assessment', remarks: '' },
-            { name: 'Set-Up Computer Servers', status: 'Pending Assessment', remarks: '' },
-            { name: 'Maintain and Repair Computer Systems and Networks', status: 'Passed', remarks: '' },
-          ],
-        },
-      ],
-      createdAt: new Date().toISOString(),
-    },
-  ]);
+  const [trainees, setTrainees] = useState([]);
 
   // ─── INDUSTRY PARTNERS ──────────────────────────────────────────────────────
-  const [partners, setPartners] = useState([
-    {
-      id: 1,
-      companyName: 'TechSolutions Inc.',
-      contactPerson: 'Roberto Cruz',
-      email: 'hr@techsolutions.ph',
-      username: 'techsolutions',
-      password: 'partner123',
-      phone: '+63 912 345 6789',
-      address: 'Makati City, Metro Manila',
-      industry: 'Information Technology',
-      companySize: '51-200',
-      website: 'www.techsolutions.ph',
-      verificationStatus: 'Verified',
-      accountStatus: 'Active',
-      documents: { businessPermit: 'uploaded', secRegistration: 'uploaded' },
-      createdAt: new Date().toISOString(),
-    },
-    {
-      id: 2,
-      companyName: 'AutoMech Corporation',
-      contactPerson: 'Lilian Flores',
-      email: 'hr@automech.com.ph',
-      username: 'automech',
-      password: 'partner123',
-      phone: '+63 917 987 6543',
-      address: 'Caloocan City, Metro Manila',
-      industry: 'Automotive',
-      companySize: '201-500',
-      website: 'www.automech.com.ph',
-      verificationStatus: 'Verified',
-      accountStatus: 'Active',
-      documents: { businessPermit: 'uploaded', secRegistration: 'uploaded' },
-      createdAt: new Date().toISOString(),
-    },
-    {
-      id: 3,
-      companyName: 'PowerGrid Solutions',
-      contactPerson: 'Mark Villanueva',
-      email: 'jobs@powergrid.ph',
-      username: 'powergrid',
-      password: 'partner123',
-      phone: '+63 922 333 4444',
-      address: 'Quezon City, Metro Manila',
-      industry: 'Electrical / Construction',
-      companySize: '11-50',
-      website: 'www.powergrid.ph',
-      verificationStatus: 'Pending Verification',
-      accountStatus: 'Active',
-      documents: { businessPermit: 'uploaded', secRegistration: null },
-      createdAt: new Date().toISOString(),
-    },
-  ]);
+  const [partners, setPartners] = useState([]);
 
   // ─── JOB / OPPORTUNITY POSTINGS ──────────────────────────────────────────
   const [jobPostings, setJobPostings] = useState([
@@ -511,6 +267,52 @@ export const AppProvider = ({ children }) => {
     },
   ]);
 
+  // ─── COMMUNITY POSTS ──────────────────────────────────────────────────
+  const [posts, setPosts] = useState([]);
+
+  const fetchPosts = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('posts')
+        .select('*')
+        .eq('is_active', true)
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+      setPosts(data || []);
+    } catch (err) {
+      console.error('Error fetching posts:', err);
+    }
+  };
+
+  const createPost = async (postData) => {
+    try {
+      if (!currentUser) throw new Error('You must be logged in to post');
+
+      const newPost = {
+        author_id: currentUser.id,
+        author_type: userRole === 'partner' ? 'industry_partner' : 'student',
+        ...postData,
+        tags: postData.tags || [],
+        created_at: new Date().toISOString(),
+      };
+
+      const { data, error } = await supabase
+        .from('posts')
+        .insert([newPost])
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      setPosts(prev => [data, ...prev]);
+      return { success: true, data };
+    } catch (err) {
+      console.error('Error creating post:', err);
+      return { success: false, error: err.message };
+    }
+  };
+
   // ─── ADMIN ACCOUNT ────────────────────────────────────────────────────────
   const [adminAccount] = useState({
     id: 1,
@@ -519,7 +321,7 @@ export const AppProvider = ({ children }) => {
     username: 'admin',
     password: 'admin123',
     role: 'admin',
-    phone: '+63 2 8000 0000',
+
     position: 'System Administrator',
     accountStatus: 'Active',
   });
@@ -549,6 +351,7 @@ export const AppProvider = ({ children }) => {
 
   // Fetch external jobs from Remotive API
   useEffect(() => {
+    fetchPosts();
     const fetchExternalJobs = async () => {
       try {
         const res = await fetch('https://remotive.com/api/remote-jobs?limit=25');
@@ -933,7 +736,7 @@ export const AppProvider = ({ children }) => {
         // Map dashboard field names to students table column names
         const dbUpdates = {};
         if (updates.name !== undefined) dbUpdates.full_name = updates.name;
-        if (updates.phone !== undefined) dbUpdates.phone = updates.phone;
+
         if (updates.birthday !== undefined) dbUpdates.birthdate = updates.birthday;
         if (updates.gender !== undefined) dbUpdates.gender = updates.gender?.toLowerCase();
         if (updates.skills !== undefined) dbUpdates.skills = updates.skills;
@@ -942,9 +745,12 @@ export const AppProvider = ({ children }) => {
           const statusMap = { 'Employed': 'employed', 'Unemployed': 'not_employed', 'Self-Employed': 'employed', 'Underemployed': 'employed' };
           dbUpdates.employment_status = statusMap[updates.employmentStatus] || 'not_employed';
         }
-        if (updates.employer !== undefined) dbUpdates.employer = updates.employer;
-        if (updates.jobTitle !== undefined) dbUpdates.job_title = updates.jobTitle;
-        if (updates.dateHired !== undefined) dbUpdates.date_hired = updates.dateHired || null;
+        if (updates.employer !== undefined) dbUpdates.employment_work = updates.employer;
+        if (updates.jobTitle !== undefined) dbUpdates.employment_work = updates.jobTitle || dbUpdates.employment_work;
+        if (updates.dateHired !== undefined) dbUpdates.employment_start = updates.dateHired || null;
+        if (updates.address !== undefined) dbUpdates.detailed_address = updates.address;
+        if (updates.trainingStatus !== undefined) dbUpdates.training_status = updates.trainingStatus;
+        if (updates.graduationYear !== undefined) dbUpdates.graduation_year = updates.graduationYear || null;
         if (updates.photo !== undefined) dbUpdates.profile_picture_url = updates.photo;
         if (updates.bannerUrl !== undefined) dbUpdates.banner_url = updates.bannerUrl;
         if (updates.certifications !== undefined) dbUpdates.certifications = updates.certifications;
@@ -952,14 +758,29 @@ export const AppProvider = ({ children }) => {
         if (updates.workExperience !== undefined) dbUpdates.work_experience = updates.workExperience;
 
         if (Object.keys(dbUpdates).length > 0) {
-          const { error } = await supabase
-            .from('students')
-            .update(dbUpdates)
-            .eq('id', traineeId);
-          if (error) {
-            console.error('Profile update failed:', error.message);
-            alert('Failed to save profile: ' + error.message);
-            return;
+          // If admin role, use server-side API to bypass RLS
+          if (userRole === 'admin') {
+            const resp = await fetch('/api/admin/update-student', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ studentId: traineeId, updates: dbUpdates }),
+            });
+            const result = await resp.json();
+            if (!resp.ok) {
+              console.error('Admin update failed:', result.error);
+              alert('Failed to save: ' + result.error);
+              return;
+            }
+          } else {
+            const { error } = await supabase
+              .from('students')
+              .update(dbUpdates)
+              .eq('id', traineeId);
+            if (error) {
+              console.error('Profile update failed:', error.message);
+              alert('Failed to save profile: ' + error.message);
+              return;
+            }
           }
         }
       } catch (err) {
@@ -1001,9 +822,6 @@ export const AppProvider = ({ children }) => {
   };
 
   // Auto-detect: use localhost for dev, relative path for Vercel production
-  const API_BASE = typeof window !== 'undefined' && window.location.hostname === 'localhost'
-    ? 'http://localhost:3001'
-    : '';
 
   // ─── AUTH FUNCTIONS ──────────────────────────────────────────────────────
   const login = async (email, password) => {
@@ -1011,7 +829,7 @@ export const AppProvider = ({ children }) => {
     // Quick Demo Login Bypass for Admin
     if (email === 'admin' && password === 'admin123') {
       const adminUser = {
-        id: 'mock-admin-id',
+        id: 'de305d54-75b4-431b-adb2-eb6b9e546014',
         name: 'Administrator (Demo)',
         email: 'admin@pstdi.edu.ph',
         username: 'admin',
@@ -1021,6 +839,25 @@ export const AppProvider = ({ children }) => {
       localStorage.setItem('userRole', 'admin');
       localStorage.setItem('currentUser', JSON.stringify(adminUser));
       return { success: true, role: 'admin' };
+    }
+
+    // Quick Demo Login Bypass for Partner
+    if (email === 'techsolutions' && password === 'partner123') {
+      const partnerUser = {
+        id: 'de305d54-75b4-431b-adb2-eb6b9e546015',
+        email: 'contact@techsolutions.com',
+        companyName: 'TechSolutions Inc.',
+        contactPerson: 'James Wilson',
+        industry: 'Software Development',
+        verificationStatus: 'Approved',
+        photo: null,
+        accountStatus: 'Active'
+      };
+      setUserRole('partner');
+      setCurrentUser(partnerUser);
+      localStorage.setItem('userRole', 'partner');
+      localStorage.setItem('currentUser', JSON.stringify(partnerUser));
+      return { success: true, role: 'partner' };
     }
 
     try {
@@ -1105,14 +942,15 @@ export const AppProvider = ({ children }) => {
         name: student.full_name || 'Trainee',
         email: authData.user.email || '',
         username: authData.user.email || '',
-        phone: student.phone || '',
+
         address: address || 'Philippines',
         birthday: student.birthdate || '',
         gender: student.gender || '',
         studentId: student.student_id || '',
         program: student.programs?.name || '',
         programId: student.program_id,
-        graduationYear: student.created_at ? new Date(student.created_at).getFullYear() : new Date().getFullYear(),
+        graduationYear: student.graduation_year || '',
+        trainingStatus: student.training_status || 'Student',
         certifications: student.certifications || [],
         educHistory: student.educ_history || [],
         workExperience: student.work_experience || [],
@@ -1122,9 +960,9 @@ export const AppProvider = ({ children }) => {
         employmentStatus: student.employment_status === 'employed' ? 'Employed'
           : student.employment_status === 'seeking_employment' ? 'Unemployed'
             : student.employment_status === 'not_employed' ? 'Unemployed' : 'Unemployed',
-        employer: student.employer || null,
-        jobTitle: student.job_title || null,
-        dateHired: student.date_hired || null,
+        employer: student.employment_work || null,
+        jobTitle: student.employment_work || null,
+        dateHired: student.employment_start || null,
         monthsAfterGraduation: null,
         photo: student.profile_picture_url || null,
         bannerUrl: student.banner_url || null,
@@ -1212,10 +1050,38 @@ export const AppProvider = ({ children }) => {
         }
       } catch (err) { console.warn(err); }
 
-      // 2. Fetch Admin Metrics
+      // 2. Fetch all public student profiles (for feed resolution)
+      try {
+        const { data: stds } = await supabase
+          .from('students')
+          .select('id, full_name, profile_picture_url');
+        if (stds) {
+          setTrainees(stds.map(s => ({
+            id: s.id,
+            name: s.full_name,
+            photo: s.profile_picture_url
+          })));
+        }
+      } catch (err) { console.warn(err); }
+
+      // 3. Fetch all public partner profiles (for feed resolution)
+      try {
+        const { data: pts } = await supabase
+          .from('industry_partners')
+          .select('id, company_name, company_logo_url');
+        if (pts) {
+          setPartners(pts.map(p => ({
+            id: p.id,
+            companyName: p.company_name,
+            company_logo_url: p.company_logo_url
+          })));
+        }
+      } catch (err) { console.warn(err); }
+
+      // 4. Fetch Admin Metrics
       if (userRole === 'admin') {
         try {
-          const res = await fetch(`${API_BASE}/api/admin/data`);
+          const res = await fetch(`/api/admin/data`);
           const adminData = await res.json();
 
           if (adminData.students) {
@@ -1224,14 +1090,17 @@ export const AppProvider = ({ children }) => {
               return {
                 id: student.id,
                 name: student.full_name || 'Trainee',
-                email: 'Protected', // Auth emails are in auth.users
-                phone: student.phone || '',
+                email: student.email || 'None',
+
                 address: address || 'Philippines',
-                graduationYear: student.created_at ? new Date(student.created_at).getFullYear() : new Date().getFullYear(),
+                graduationYear: student.graduation_year || 'None',
+                trainingStatus: student.training_status || 'Student',
                 certifications: student.certifications || [],
+                program: student.programs?.name || 'None',
                 employmentStatus: student.employment_status === 'employed' ? 'Employed' : student.employment_status === 'seeking_employment' ? 'Seeking Employment' : 'Not Employed',
               };
             });
+            console.log("Admin Data fetched mapped trainees:", tMap);
             setTrainees(tMap);
           }
 
@@ -1244,6 +1113,7 @@ export const AppProvider = ({ children }) => {
               email: p.contact_email || '',
               verificationStatus: p.verification_status === 'verified' ? 'Approved' : p.verification_status === 'rejected' ? 'Rejected' : 'Pending',
             }));
+            console.log("Admin Data fetched mapped partners:", pMap);
             setPartners(pMap);
           }
         } catch (err) {
@@ -1376,6 +1246,10 @@ export const AppProvider = ({ children }) => {
       // Registration
       registrationData,
       setRegistrationData,
+      // Community Posts
+      posts,
+      fetchPosts,
+      createPost,
     }}>
       {children}
     </AppContext.Provider>

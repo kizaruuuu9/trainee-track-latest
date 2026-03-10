@@ -1,12 +1,14 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { useApp } from '../../context/AppContext';
 import {
   LayoutDashboard, Briefcase, FileText, Users, Building2, LogOut,
   ChevronDown, Search, Plus, Eye, X, CheckCircle, XCircle,
   MapPin, Send, Award, ChevronRight, Trash2, Menu, Lock,
   Upload, AlertTriangle, Clock, ShieldCheck, FileCheck,
-  Bell, Home, Settings, TrendingUp, Bookmark, Target, Star
-} from 'lucide-react'; 
+  Bell, Home, Settings, TrendingUp, Bookmark, Target, Star,
+  Camera, ThumbsUp, MessageSquare, Share2
+} from 'lucide-react';
+import { Routes, Route, useNavigate, useLocation, Navigate } from 'react-router-dom';
 
 /* ═══════════════════════════════════════════════════════════════════
    LINKEDIN-STYLE PARTNER DASHBOARD
@@ -282,12 +284,77 @@ const RecruitmentStatsWidget = ({ myJobs, myApplicants }) => (
 
 // ─── PAGE 1: PARTNER DASHBOARD HOME ──────────────────────────────
 const PartnerHome = ({ setActivePage }) => {
-  const { currentUser, partners, jobPostings, getPartnerApplicants } = useApp();
-  const partner = partners.find(p => p.id === currentUser?.id);
+  const { currentUser, partners, jobPostings, getPartnerApplicants, posts, createPost, trainees } = useApp();
+  const partner = partners.find(p => p.id === currentUser?.id) || currentUser;
   const verified = isVerified(currentUser);
   const myJobs = jobPostings.filter(j => j.partnerId === currentUser?.id);
   const myApplicants = getPartnerApplicants(currentUser?.id);
   const initials = currentUser?.companyName?.charAt(0)?.toUpperCase() || 'P';
+
+  // Create Post state
+  const [postContent, setPostContent] = useState('');
+  const [isPosting, setIsPosting] = useState(false);
+  const [postType, setPostType] = useState('general');
+  const [selectedFile, setSelectedFile] = useState(null);
+  const [filePreview, setFilePreview] = useState(null);
+  const fileInputRef = useRef(null);
+
+  const handleFileChange = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    setSelectedFile(file);
+    if (file.type.startsWith('image/')) {
+      setFilePreview(URL.createObjectURL(file));
+    } else {
+      setFilePreview(null);
+    }
+  };
+
+  const handleCreatePost = async () => {
+    if (!postContent.trim() && !selectedFile) return;
+    setIsPosting(true);
+    let media_url = null;
+
+    try {
+      if (selectedFile) {
+        const ext = selectedFile.name.split('.').pop();
+        const path = `post-media/${currentUser.id}/${Date.now()}_${selectedFile.name}`;
+        const { error: uploadErr } = await supabase.storage
+          .from('registration-uploads')
+          .upload(path, selectedFile, { contentType: selectedFile.type });
+        if (uploadErr) throw uploadErr;
+        const { data: urlData } = supabase.storage.from('registration-uploads').getPublicUrl(path);
+        media_url = urlData?.publicUrl;
+      }
+
+      const res = await createPost({
+        content: postContent,
+        post_type: postType,
+        media_url: media_url,
+        tags: [partner?.industry, 'Hiring', 'Announcement'].filter(Boolean)
+      });
+
+      if (res.success) {
+        setPostContent('');
+        setPostType('general');
+        setSelectedFile(null);
+        setFilePreview(null);
+      } else {
+        alert(res.error || 'Failed to post');
+      }
+    } catch (err) {
+      console.error('Posting error:', err);
+      alert('Failed to post: ' + err.message);
+    } finally {
+      setIsPosting(false);
+    }
+  };
+
+  // Unified Feed logic: Mix Jobs and Posts, sort by date
+  const unifiedFeed = [
+    ...posts.map(p => ({ ...p, feedType: 'post' })),
+    ...jobPostings.map(j => ({ ...j, feedType: 'job' }))
+  ].sort((a, b) => new Date(b.created_at || b.datePosted) - new Date(a.created_at || a.datePosted));
 
   const stats = [
     { label: 'Active Postings', value: myJobs.filter(j => j.status === 'Open').length, icon: <Briefcase size={20} />, color: '#0ea5e9' },
@@ -337,6 +404,90 @@ const PartnerHome = ({ setActivePage }) => {
           ))}
         </div>
 
+        {/* Create Post Card */}
+        <div className="ln-card" style={{ padding: '12px 16px', marginBottom: 16 }}>
+          <div style={{ display: 'flex', gap: 12 }}>
+            <div className="ln-nav-avatar pn-nav-avatar" style={{ flexShrink: 0 }}>
+              {initials}
+            </div>
+            <div style={{ flex: 1 }}>
+              <textarea
+                className="ln-search-input"
+                placeholder="Share a hiring update or company announcement..."
+                style={{
+                  width: '100%', minHeight: postContent ? 80 : 45, padding: '12px 16px',
+                  borderRadius: 24, border: '1px solid rgba(0,0,0,0.15)',
+                  resize: 'none', transition: 'all 0.2s', fontSize: 14,
+                  background: '#f9fafb'
+                }}
+                value={postContent}
+                onChange={e => setPostContent(e.target.value)}
+              />
+              {(postContent || selectedFile) && (
+                <div style={{ marginTop: 12 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                      <select
+                        className="ln-filter-select"
+                        style={{ margin: 0, padding: '4px 8px', height: 32, fontSize: 12 }}
+                        value={postType}
+                        onChange={e => setPostType(e.target.value)}
+                      >
+                        <option value="general">General Update</option>
+                        <option value="announcement">Announcement</option>
+                        <option value="hiring_update">Hiring Update</option>
+                      </select>
+                      <input
+                        type="file"
+                        hidden
+                        ref={fileInputRef}
+                        onChange={handleFileChange}
+                        accept="image/*,.pdf,.doc,.docx"
+                      />
+                      <Camera
+                        size={20}
+                        color="#65676b"
+                        cursor="pointer"
+                        onClick={() => fileInputRef.current.click()}
+                      />
+                    </div>
+                    <button
+                      className="ln-btn-sm ln-btn-primary"
+                      style={{ borderRadius: 16, padding: '6px 16px' }}
+                      onClick={handleCreatePost}
+                      disabled={isPosting || (!postContent.trim() && !selectedFile)}
+                    >
+                      {isPosting ? 'Posting...' : 'Post'}
+                    </button>
+                  </div>
+
+                  {filePreview && (
+                    <div style={{ position: 'relative', marginTop: 12, borderRadius: 8, overflow: 'hidden', border: '1px solid #e2e8f0' }}>
+                      <img src={filePreview} alt="Preview" style={{ width: '100%', maxHeight: 200, objectFit: 'cover', display: 'block' }} />
+                      <button
+                        style={{ position: 'absolute', top: 4, right: 4, background: 'rgba(0,0,0,0.5)', color: '#fff', border: 'none', borderRadius: '50%', width: 20, height: 20, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                        onClick={() => { setSelectedFile(null); setFilePreview(null); }}
+                      >
+                        <X size={12} />
+                      </button>
+                    </div>
+                  )}
+
+                  {selectedFile && !filePreview && (
+                    <div style={{ marginTop: 12, padding: '8px 12px', background: '#f8fafc', borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'space-between', border: '1px solid #e2e8f0' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <FileText size={16} color="#65676b" />
+                        <span style={{ fontSize: 12, fontWeight: 500 }}>{selectedFile.name}</span>
+                      </div>
+                      <X size={14} color="#65676b" cursor="pointer" onClick={() => setSelectedFile(null)} />
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+
         {/* Activity / Welcome Feed Card */}
         <div className="ln-card ln-feed-card">
           <div className="ln-feed-card-header">
@@ -373,82 +524,116 @@ const PartnerHome = ({ setActivePage }) => {
           </div>
         </div>
 
-        {/* Recent Applicants as Feed */}
-        <div className="ln-card">
-          <div className="ln-section-header">
-            <h3>Recent Applicants</h3>
-            <button className="ln-link-btn" onClick={() => { if (verified) setActivePage('applicants'); }}>
-              View all <ChevronRight size={14} />
-            </button>
+        {/* Unified Community Feed */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+          <div className="ln-section-header" style={{ marginBottom: 0 }}>
+            <h3 style={{ fontSize: 14, textTransform: 'uppercase', letterSpacing: '0.5px', color: 'rgba(0,0,0,0.6)' }}>Community Activity</h3>
           </div>
-          <div className="ln-opportunities-list">
-            {myApplicants.slice(0, 5).map(a => (
-              <div key={a.id} className="ln-opportunity-item">
-                <div className="ln-opportunity-icon" style={{ background: '#ede9fe', color: '#7c3aed', borderRadius: '50%' }}>
-                  {a.trainee?.name?.charAt(0)?.toUpperCase() || 'T'}
-                </div>
-                <div className="ln-opportunity-info">
-                  <div className="ln-opportunity-title">{a.trainee?.name || '—'}</div>
-                  <div className="ln-opportunity-company">Applied for: {a.job?.title || '—'}</div>
-                  <div className="ln-opportunity-details">
-                    <span><Clock size={12} /> {a.appliedAt}</span>
-                    <span className="ln-opp-type-badge">{a.job?.opportunityType}</span>
-                  </div>
-                  <div className="ln-match-row" style={{ marginTop: 8 }}>
-                    <div className="ln-match-bar" style={{ flex: 1 }}>
-                      <div
-                        className={`ln-match-fill ${a.matchRate >= 70 ? 'high' : a.matchRate >= 40 ? 'mid' : 'low'}`}
-                        style={{ width: `${a.matchRate}%` }}
-                      />
+          {unifiedFeed.map(item => {
+            if (item.feedType === 'job') {
+              const myJob = item.partnerId === currentUser?.id;
+              return (
+                <div key={`job-${item.id}`} className="ln-card ln-feed-card" style={{ marginBottom: 0 }}>
+                  <div className="ln-feed-card-header">
+                    <div className="ln-feed-avatar" style={{ background: '#f0f7ff', color: '#0a66c2' }}>
+                      <Building2 size={20} />
                     </div>
-                    <span className="ln-match-pct">{a.matchRate}% match</span>
+                    <div>
+                      <div className="ln-feed-author">
+                        {item.companyName} {myJob && <span className="ln-badge ln-badge-blue" style={{ fontSize: 10, marginLeft: 4 }}>Your Post</span>}
+                      </div>
+                      <div className="ln-feed-meta">{item.industry} &bull; {item.location} &bull; {new Date(item.datePosted).toLocaleDateString()}</div>
+                    </div>
+                  </div>
+                  <div className="ln-feed-content">
+                    <h4 style={{ fontSize: 15, fontWeight: 700, marginBottom: 4 }}>{item.title}</h4>
+                    <p style={{ fontSize: 13, color: 'rgba(0,0,0,0.6)', marginBottom: 8 }}>{item.description.substring(0, 150)}...</p>
+                    <div style={{ display: 'flex', gap: 8 }}>
+                      <span className="ln-opp-type-badge">{item.opportunityType}</span>
+                      <span className="ln-opp-type-badge" style={{ background: '#f8fafc', color: '#64748b' }}>{item.employmentType}</span>
+                    </div>
+                  </div>
+                  <div className="ln-feed-actions" style={{ borderTop: '1px solid #f3f3f3', padding: '8px 12px' }}>
+                    <button className="ln-feed-action-btn" onClick={() => setActivePage(myJob ? 'applicants' : 'dashboard')}>
+                      {myJob ? <><Users size={14} /> View Applicants</> : <><Eye size={14} /> View Opportunity</>}
+                    </button>
+                    <button className="ln-feed-action-btn"><Share2 size={14} /> Share</button>
                   </div>
                 </div>
-                <div className="ln-opportunity-actions">
-                  <span className={`ln-badge ${a.status === 'Pending' ? 'ln-badge-yellow' : a.status === 'Accepted' ? 'ln-badge-green' : 'ln-badge-red'}`}>
-                    {a.status}
-                  </span>
-                </div>
-              </div>
-            ))}
-            {myApplicants.length === 0 && (
-              <div className="ln-empty-widget" style={{ padding: 40 }}>
-                <Users size={36} style={{ opacity: 0.3, marginBottom: 8 }} />
-                <p>No applicants yet. Post opportunities to start receiving applications!</p>
-              </div>
-            )}
-          </div>
-        </div>
+              );
+            } else {
+              const author = item.author_type === 'student'
+                ? trainees.find(t => t.id === item.author_id)
+                : (partners.find(p => p.id === item.author_id) || (item.author_id === currentUser?.id ? currentUser : null));
 
-        {/* My Posted Opportunities */}
-        {myJobs.length > 0 && (
-          <div className="ln-card">
-            <div className="ln-section-header">
-              <h3>Your Posted Opportunities</h3>
-              <span className="ln-badge ln-badge-blue">{myJobs.length} total</span>
-            </div>
-            <div className="ln-opportunities-list">
-              {myJobs.slice(0, 4).map(job => (
-                <div key={job.id} className="ln-opportunity-item">
-                  <div className="ln-opportunity-icon">
-                    <Briefcase size={20} />
-                  </div>
-                  <div className="ln-opportunity-info">
-                    <div className="ln-opportunity-title">{job.title}</div>
-                    <div className="ln-opportunity-details">
-                      <span><MapPin size={12} /> {job.location}</span>
-                      <span><Clock size={12} /> {job.employmentType}</span>
-                      <span className="ln-opp-type-badge">{job.opportunityType}</span>
+              const authorInitial = author?.name?.charAt(0) || author?.companyName?.charAt(0) || '?';
+              const isMe = item.author_id === currentUser?.id;
+
+              return (
+                <div key={`post-${item.id}`} className="ln-card ln-feed-card" style={{ marginBottom: 0 }}>
+                  <div className="ln-feed-card-header">
+                    <div className="ln-feed-avatar">
+                      {author?.photo || author?.company_logo_url ? (
+                        <img src={author.photo || author.company_logo_url} alt="" style={{ width: '100%', height: '100%', borderRadius: '50%', objectFit: 'cover' }} />
+                      ) : (authorInitial)}
+                    </div>
+                    <div>
+                      <div className="ln-feed-author" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                        {author?.name || author?.companyName || 'Unknown User'}
+                        {isMe && <span className="ln-badge ln-badge-gray" style={{ fontSize: 10 }}>You</span>}
+                        {item.post_type !== 'general' && (
+                          <span className="ln-badge ln-badge-blue" style={{ fontSize: 10 }}>
+                            {item.post_type.replace('_', ' ')}
+                          </span>
+                        )}
+                      </div>
+                      <div className="ln-feed-meta">
+                        {item.author_type === 'student' ? 'TESDA Trainee' : 'Industry Partner'} &bull; {new Date(item.created_at).toLocaleDateString()}
+                      </div>
                     </div>
                   </div>
-                  <div className="ln-opportunity-actions">
-                    <span className={`ln-badge ${job.status === 'Open' ? 'ln-badge-green' : 'ln-badge-gray'}`}>{job.status}</span>
+                  <div className="ln-feed-content">
+                    <p style={{ whiteSpace: 'pre-wrap', fontSize: 14 }}>{item.content}</p>
+                    {item.media_url && (
+                      <div style={{ marginTop: 12 }}>
+                        {item.media_url.match(/\.(jpg|jpeg|png|gif|webp)$/i) ? (
+                          <img src={item.media_url} alt="Post media" style={{ width: '100%', borderRadius: 8, border: '1px solid #f3f3f3' }} />
+                        ) : (
+                          <a
+                            href={item.media_url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            style={{
+                              display: 'flex', alignItems: 'center', gap: 10, padding: '12px 16px',
+                              background: '#f8fafc', borderRadius: 8, border: '1px solid #e2e8f0',
+                              textDecoration: 'none', color: '#0a66c2', fontWeight: 600, fontSize: 13
+                            }}
+                          >
+                            <FileText size={20} />
+                            View Attached Document
+                          </a>
+                        )}
+                      </div>
+                    )}
+                    <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 12 }}>
+                      {item.tags?.map(tag => (
+                        <span key={tag} style={{ color: '#0a66c2', fontSize: 12, fontWeight: 500 }}>#{tag.replace(/\s+/g, '')}</span>
+                      ))}
+                    </div>
+                  </div>
+                  <div className="ln-feed-actions" style={{ borderTop: '1px solid #f3f3f3', padding: '4px 12px' }}>
+                    <button className="ln-feed-action-btn"><ThumbsUp size={16} /> Like</button>
+                    <button className="ln-feed-action-btn"><MessageSquare size={16} /> Comment</button>
+                    <button className="ln-feed-action-btn"><Share2 size={16} /> Share</button>
                   </div>
                 </div>
-              ))}
-            </div>
-          </div>
-        )}
+              );
+            }
+          })}
+          {unifiedFeed.length === 0 && (
+            <div className="ln-empty-state"><TrendingUp size={48} /><h3>No community activity</h3><p>Post an update to start the conversation.</p></div>
+          )}
+        </div>
       </div>
 
       {/* Right Column - Widgets */}
@@ -897,7 +1082,7 @@ const CompanyProfile = () => {
               {[
                 { label: 'Contact Person', key: 'contactPerson' },
                 { label: 'Email', key: 'email' },
-                { label: 'Phone', key: 'phone' },
+
                 { label: 'Address', key: 'address' },
                 { label: 'Company Size', key: 'companySize' },
                 { label: 'Website', key: 'website' },
@@ -939,23 +1124,36 @@ const CompanyProfile = () => {
 
 // ─── MAIN EXPORT ──────────────────────────────────────────────────
 export default function PartnerDashboard() {
-  const [activePage, setActivePage] = useState('dashboard');
+  const { currentUser } = useApp();
+  const navigate = useNavigate();
+  const location = useLocation();
 
-  const renderPage = () => {
-    switch (activePage) {
-      case 'dashboard': return <PartnerHome setActivePage={setActivePage} />;
-      case 'post-job': return <PostJob setActivePage={setActivePage} opportunityType="Job" />;
-      case 'post-ojt': return <PostJob setActivePage={setActivePage} opportunityType="OJT" />;
-      case 'applicants': return <ViewApplicants setActivePage={setActivePage} />;
-      case 'profile': return <CompanyProfile />;
-      case 'verification': return <VerificationPage />;
-      default: return <PartnerHome setActivePage={setActivePage} />;
+  // Deduce active page from URL for visual consistency in child components
+  const path = location.pathname.split('/').pop();
+  const activePage = (path === 'partner' || !path) ? 'dashboard' : path;
+
+  // Mock setActivePage to use navigate for smooth integration with existing buttons
+  const setActivePage = (page) => {
+    if (page === 'dashboard') {
+      navigate('/partner');
+    } else {
+      navigate(`/partner/${page}`);
     }
   };
 
+  if (!currentUser) return null;
+
   return (
     <PartnerLayout activePage={activePage} setActivePage={setActivePage}>
-      {renderPage()}
+      <Routes>
+        <Route path="/" element={<PartnerHome setActivePage={setActivePage} />} />
+        <Route path="/post-job" element={<PostJob setActivePage={setActivePage} opportunityType="Job" />} />
+        <Route path="/post-ojt" element={<PostJob setActivePage={setActivePage} opportunityType="OJT" />} />
+        <Route path="/applicants" element={<ViewApplicants setActivePage={setActivePage} />} />
+        <Route path="/profile" element={<CompanyProfile />} />
+        <Route path="/verification" element={<VerificationPage />} />
+        <Route path="*" element={<Navigate to="/partner" replace />} />
+      </Routes>
     </PartnerLayout>
   );
 }
