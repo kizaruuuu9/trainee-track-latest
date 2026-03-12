@@ -516,6 +516,7 @@ export default function Step2PersonalInfo({ data, onChange, onValidChange }) {
                             }}
                             onBlur={() => handleBlur('email')}
                             placeholder="your.email@gmail.com"
+                            maxLength={100}
                             disabled={data.emailVerified}
                             style={{ flex: 1 }}
                         />
@@ -622,6 +623,7 @@ export default function Step2PersonalInfo({ data, onChange, onValidChange }) {
                                 onChange={(e) => onChange({ password: e.target.value })}
                                 onBlur={() => handleBlur('password')}
                                 placeholder="Create a strong password"
+                                maxLength={128}
                                 style={{ paddingRight: 40 }}
                             />
                             <button
@@ -645,6 +647,7 @@ export default function Step2PersonalInfo({ data, onChange, onValidChange }) {
                                 onChange={(e) => onChange({ confirmPassword: e.target.value })}
                                 onBlur={() => handleBlur('confirmPassword')}
                                 placeholder="Confirm your password"
+                                maxLength={128}
                                 style={{ paddingRight: 40 }}
                             />
                             <button

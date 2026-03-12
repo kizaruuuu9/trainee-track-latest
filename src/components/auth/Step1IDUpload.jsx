@@ -591,6 +591,7 @@ export default function Step1IDUpload({ data, onChange, onValidChange }) {
                                 value={data.fullName}
                                 onChange={(e) => onChange({ fullName: e.target.value })}
                                 onBlur={() => handleBlur('fullName')}
+                                maxLength={100}
                                 placeholder="e.g. Juan Dela Cruz"
                             />
                             {touched.fullName && errors.fullName && <div className="form-error">{errors.fullName}</div>}
@@ -606,6 +607,7 @@ export default function Step1IDUpload({ data, onChange, onValidChange }) {
                                     readOnly
                                     tabIndex={-1}
                                     style={{ backgroundColor: '#f1f5f9', cursor: 'not-allowed', color: '#475569' }}
+                                    maxLength={30}
                                     title="This field is auto-filled from your School ID and cannot be edited"
                                     placeholder="e.g. 2024-00123"
                                 />
@@ -690,6 +692,7 @@ export default function Step1IDUpload({ data, onChange, onValidChange }) {
                                 value={data.address}
                                 onChange={(e) => onChange({ address: e.target.value })}
                                 onBlur={() => handleBlur('address')}
+                                maxLength={200}
                                 placeholder="e.g. Caloocan City, Metro Manila"
                             />
                             {touched.address && errors.address && <div className="form-error">{errors.address}</div>}

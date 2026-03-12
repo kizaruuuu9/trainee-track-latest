@@ -3,28 +3,17 @@ import cors from 'cors';
 import nodemailer from 'nodemailer';
 import bcrypt from 'bcryptjs';
 import { createClient } from '@supabase/supabase-js';
-import fs from 'fs';
-import path from 'path';
-import { fileURLToPath } from 'url';
 
-import dotenv from 'dotenv';
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-const envPath = path.join(__dirname, '..', '.env.local');
-
-console.log('Looking for .env.local at:', envPath);
-console.log('File exists?', fs.existsSync(envPath));
-
-dotenv.config({ path: envPath });
-
-// Also load .env for Supabase vars
-dotenv.config({ path: path.join(__dirname, '..', '.env') });
-
-console.log('Loaded credentials:');
-console.log('GMAIL_USER:', process.env.GMAIL_USER);
-console.log('GMAIL_PASS:', process.env.GMAIL_PASS ? '[HIDDEN]' : 'NOT SET');
-console.log('SUPABASE_URL:', process.env.SUPABASE_URL ? '[SET]' : 'NOT SET');
-console.log('SUPABASE_SERVICE_ROLE_KEY:', process.env.SUPABASE_SERVICE_ROLE_KEY ? '[HIDDEN]' : 'NOT SET');
+// Load .env files only in local development (not on Vercel)
+if (!process.env.VERCEL) {
+    const { default: dotenv } = await import('dotenv');
+    const { fileURLToPath } = await import('url');
+    const { default: path } = await import('path');
+    const __filename = fileURLToPath(import.meta.url);
+    const __dirname = path.dirname(__filename);
+    dotenv.config({ path: path.join(__dirname, '..', '.env.local') });
+    dotenv.config({ path: path.join(__dirname, '..', '.env') });
+}
 
 // Initialize Supabase admin client (service role — bypasses RLS)
 const supabaseAdmin = createClient(
@@ -34,7 +23,7 @@ const supabaseAdmin = createClient(
 
 const app = express();
 app.use(cors());
-app.use(express.json({ limit: '50mb' }));
+app.use(express.json({ limit: '5mb' }));
 
 const PORT = 3001;
 
@@ -531,11 +520,13 @@ app.delete('/api/documents/:docId', rateLimit, async (req, res) => {
         }
 
         // Extract storage path from URL
-        const urlParts = doc.file_url.split('/registration-uploads/');
-        if (urlParts[1]) {
-            await supabaseAdmin.storage
-                .from('registration-uploads')
-                .remove([decodeURIComponent(urlParts[1])]);
+        if (doc.file_url) {
+            const urlParts = doc.file_url.split('/registration-uploads/');
+            if (urlParts[1]) {
+                await supabaseAdmin.storage
+                    .from('registration-uploads')
+                    .remove([decodeURIComponent(urlParts[1])]);
+            }
         }
 
         // Delete from database
@@ -554,6 +545,167 @@ app.delete('/api/documents/:docId', rateLimit, async (req, res) => {
     } catch (err) {
         console.error('Document delete error:', err);
         res.status(500).json({ error: 'Failed to delete document.' });
+    }
+});
+
+// ─── PARTNER VERIFICATION DOCUMENT UPLOAD ────────────────────────
+app.post('/api/partner-verification/upload', rateLimit, async (req, res) => {
+    const { partnerId, documentType, label, fileName, fileType, fileData } = req.body;
+
+    if (!partnerId || !documentType || !label || !fileName || !fileType || !fileData) {
+        return res.status(400).json({ error: 'All fields are required.' });
+    }
+
+    const allowedTypes = ['application/pdf', 'image/jpeg', 'image/png', 'image/jpg'];
+    if (!allowedTypes.includes(fileType)) {
+        return res.status(400).json({ error: 'Only PDF, JPG, and PNG files are allowed.' });
+    }
+
+    try {
+        const buffer = Buffer.from(fileData, 'base64');
+        if (buffer.length > 3 * 1024 * 1024) {
+            return res.status(400).json({ error: 'File size must be under 3MB.' });
+        }
+
+        const timestamp = Date.now();
+        const safeName = fileName.replace(/[^a-zA-Z0-9._-]/g, '_');
+        const storagePath = `${partnerId}/${timestamp}_${safeName}`;
+
+        const { error: uploadErr } = await supabaseAdmin.storage
+            .from('partner-verifications')
+            .upload(storagePath, buffer, { contentType: fileType });
+
+        if (uploadErr) {
+            console.error('Partner verification upload error:', uploadErr);
+            return res.status(500).json({ error: 'Failed to upload file.' });
+        }
+
+        const fileUrl = storagePath;
+
+        const { data, error } = await supabaseAdmin
+            .from('partner_verifications')
+            .insert({
+                partner_id: partnerId,
+                document_type: documentType,
+                label,
+                file_url: fileUrl,
+                file_name: fileName,
+                file_type: fileType,
+            })
+            .select();
+
+        if (error) {
+            console.error('Partner verification DB error:', error);
+            return res.status(400).json({ error: error.message });
+        }
+
+        console.log(`✅ Partner verification doc uploaded for: ${partnerId}`);
+        res.json({ success: true, document: data?.[0] });
+    } catch (err) {
+        console.error('Partner verification upload error:', err);
+        res.status(500).json({ error: 'Failed to upload verification document.' });
+    }
+});
+
+// ─── PARTNER VERIFICATION DOCUMENT LIST ──────────────────────────
+app.get('/api/partner-verification/:partnerId', async (req, res) => {
+    const { partnerId } = req.params;
+    try {
+        const { data, error } = await supabaseAdmin
+            .from('partner_verifications')
+            .select('*')
+            .eq('partner_id', partnerId)
+            .order('uploaded_at', { ascending: false });
+
+        if (error) {
+            console.error('Partner verification list error:', error);
+            return res.status(400).json({ error: error.message });
+        }
+
+        const docs = data || [];
+        const docsWithUrls = await Promise.all(docs.map(async (doc) => {
+            if (doc.file_url) {
+                const { data: signedData, error: signErr } = await supabaseAdmin.storage
+                    .from('partner-verifications')
+                    .createSignedUrl(doc.file_url, 3600);
+                if (!signErr && signedData?.signedUrl) {
+                    return { ...doc, file_url: signedData.signedUrl };
+                }
+            }
+            return doc;
+        }));
+
+        res.json({ success: true, documents: docsWithUrls });
+    } catch (err) {
+        console.error('Partner verification list error:', err);
+        res.status(500).json({ error: 'Failed to fetch verification documents.' });
+    }
+});
+
+// ─── PARTNER VERIFICATION DOCUMENT DELETE ────────────────────────
+app.delete('/api/partner-verification/:docId', rateLimit, async (req, res) => {
+    const { docId } = req.params;
+    try {
+        const { data: doc, error: fetchErr } = await supabaseAdmin
+            .from('partner_verifications')
+            .select('*')
+            .eq('id', docId)
+            .single();
+
+        if (fetchErr || !doc) {
+            return res.status(404).json({ error: 'Document not found.' });
+        }
+
+        if (doc.file_url) {
+            await supabaseAdmin.storage
+                .from('partner-verifications')
+                .remove([doc.file_url]);
+        }
+
+        const { error } = await supabaseAdmin
+            .from('partner_verifications')
+            .delete()
+            .eq('id', docId);
+
+        if (error) {
+            console.error('Partner verification delete error:', error);
+            return res.status(400).json({ error: error.message });
+        }
+
+        console.log(`✅ Partner verification doc deleted: ${docId}`);
+        res.json({ success: true });
+    } catch (err) {
+        console.error('Partner verification delete error:', err);
+        res.status(500).json({ error: 'Failed to delete verification document.' });
+    }
+});
+
+// ─── PARTNER VERIFICATION STATUS UPDATE ──────────────────────────
+app.put('/api/partner-verification/status/:partnerId', rateLimit, async (req, res) => {
+    const { partnerId } = req.params;
+    const { status } = req.body;
+
+    const validStatuses = ['pending', 'under_review', 'verified', 'rejected'];
+    if (!validStatuses.includes(status)) {
+        return res.status(400).json({ error: 'Invalid status.' });
+    }
+
+    try {
+        const { error } = await supabaseAdmin
+            .from('industry_partners')
+            .update({ verification_status: status, updated_at: new Date().toISOString() })
+            .eq('id', partnerId);
+
+        if (error) {
+            console.error('Partner status update error:', error);
+            return res.status(400).json({ error: error.message });
+        }
+
+        console.log(`✅ Partner ${partnerId} status updated to: ${status}`);
+        res.json({ success: true });
+    } catch (err) {
+        console.error('Partner status update error:', err);
+        res.status(500).json({ error: 'Failed to update verification status.' });
     }
 });
 

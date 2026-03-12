@@ -12,6 +12,24 @@ import { Routes, Route, useNavigate, useLocation, Navigate } from 'react-router-
    LINKEDIN-STYLE TRAINEE DASHBOARD
    ═══════════════════════════════════════════════════════════════ */
 
+// ─── TIME AGO HELPER ──────────────────────────────────────────────
+const timeAgo = (dateStr) => {
+    const now = new Date();
+    const date = new Date(dateStr);
+    const seconds = Math.floor((now - date) / 1000);
+    if (seconds < 60) return 'Just now';
+    const minutes = Math.floor(seconds / 60);
+    if (minutes < 60) return `${minutes}m ago`;
+    const hours = Math.floor(minutes / 60);
+    if (hours < 24) return `${hours}h ago`;
+    const days = Math.floor(hours / 24);
+    if (days < 30) return `${days}d ago`;
+    const months = Math.floor(days / 30);
+    if (months < 12) return `${months}mo ago`;
+    const years = Math.floor(months / 12);
+    return `${years}y ago`;
+};
+
 // ─── TOP NAVIGATION BAR (LinkedIn-style) ─────────────────────────
 const LinkedInTopNav = ({ activePage, setActivePage }) => {
     const { currentUser, userRole, logout } = useApp();
@@ -19,13 +37,12 @@ const LinkedInTopNav = ({ activePage, setActivePage }) => {
     const [showNotif, setShowNotif] = useState(false);
     const [searchQuery, setSearchQuery] = useState('');
     const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-    const initials = currentUser?.name?.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase() || 'T';
+    const initials = (currentUser?.name || '').split(' ').filter(Boolean).map(n => n[0]).join('').slice(0, 2).toUpperCase() || 'T';
 
     const navItems = [
         { id: 'dashboard', label: 'Home', icon: <Home size={20} /> },
         { id: 'profile', label: 'Profile', icon: <User size={20} /> },
         { id: 'recommendations', label: 'Opportunities', icon: <Briefcase size={20} /> },
-        { id: 'posting', label: 'Post', icon: <Plus size={20} /> },
         { id: 'applications', label: 'Applications', icon: <FileText size={20} /> },
     ];
 
@@ -169,7 +186,7 @@ const LinkedInLayout = ({ children, activePage, setActivePage }) => (
 
 // ─── LEFT PROFILE CARD (LinkedIn-style) ──────────────────────────
 const ProfileSideCard = ({ trainee, setActivePage }) => {
-    const initials = trainee?.name?.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase() || 'T';
+    const initials = (trainee?.name || '').split(' ').filter(Boolean).map(n => n[0]).join('').slice(0, 2).toUpperCase() || 'T';
     return (
         <div className="ln-card ln-profile-card">
             <div className="ln-profile-banner" style={trainee?.bannerUrl ? {
@@ -282,10 +299,17 @@ const ProgressBar = ({ value, showLabel = true }) => {
 
 // ─── PAGE 1: DASHBOARD HOME (LinkedIn Feed-style) ───────────────
 const TraineeDashboardHome = ({ setActivePage }) => {
-    const { currentUser, trainees, jobPostings, applications, getTraineeRecommendedJobs, applyToJob, posts, createPost } = useApp();
+    const { currentUser, trainees, jobPostings, applications, getTraineeRecommendedJobs, applyToJob, posts, createPost, updatePost, deletePost, partners } = useApp();
     const trainee = currentUser || trainees[0];
     const myApps = applications.filter(a => a.traineeId === trainee?.id);
     const recJobs = getTraineeRecommendedJobs(trainee?.id);
+
+    // Edit/Delete post state
+    const [editingPostId, setEditingPostId] = useState(null);
+    const [editContent, setEditContent] = useState('');
+    const [postMenuId, setPostMenuId] = useState(null);
+    const [confirmDeleteId, setConfirmDeleteId] = useState(null);
+    const [confirmSaveId, setConfirmSaveId] = useState(null);
 
     // Modal state
     const [showPostModal, setShowPostModal] = useState(false);
@@ -315,7 +339,7 @@ const TraineeDashboardHome = ({ setActivePage }) => {
         try {
             if (selectedFile) {
                 const ext = selectedFile.name.split('.').pop();
-                const path = `post - media / ${trainee.id}/${Date.now()}_${selectedFile.name}`;
+                const path = `post-media/${trainee.id}/${Date.now()}_${selectedFile.name}`;
                 const { error: uploadErr } = await supabase.storage
                     .from('registration-uploads')
                     .upload(path, selectedFile, { contentType: selectedFile.type });
@@ -357,6 +381,34 @@ const TraineeDashboardHome = ({ setActivePage }) => {
     const handleApply = async (jobId) => {
         const result = await applyToJob(trainee?.id, jobId);
         if (!result.success) alert(result.error);
+    };
+
+    const handleEditPost = (post) => {
+        setEditingPostId(post.id);
+        setEditContent(post.content);
+        setPostMenuId(null);
+    };
+
+    const handleSaveEdit = async (postId) => {
+        if (!editContent.trim()) return;
+        const res = await updatePost(postId, { content: editContent });
+        if (res.success) {
+            setEditingPostId(null);
+            setEditContent('');
+            setConfirmSaveId(null);
+        } else {
+            alert(res.error || 'Failed to update post');
+            setConfirmSaveId(null);
+        }
+    };
+
+    const handleDeletePost = async (postId) => {
+        const res = await deletePost(postId);
+        if (res.success) {
+            setConfirmDeleteId(null);
+        } else {
+            alert(res.error || 'Failed to delete post');
+        }
     };
 
     const stats = [
@@ -436,7 +488,7 @@ const TraineeDashboardHome = ({ setActivePage }) => {
                             <div style={{ padding: '16px 16px' }}>
                                 <div style={{ display: 'flex', gap: 12, marginBottom: 16 }}>
                                     <div className="ln-feed-avatar" style={{ flexShrink: 0, width: 40, height: 40 }}>
-                                        {trainee?.photo ? <img src={trainee.photo} alt="" style={{ width: '100%', height: '100%', borderRadius: '50%' }} /> : (trainee?.name?.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase() || 'T')}
+                                        {trainee?.photo ? <img src={trainee.photo} alt="" style={{ width: '100%', height: '100%', borderRadius: '50%' }} /> : ((trainee?.name || '').split(' ').filter(Boolean).map(n => n[0]).join('').slice(0, 2).toUpperCase() || 'T')}
                                     </div>
                                     <div>
                                         <div style={{ fontWeight: 600, fontSize: 15 }}>{trainee?.name}</div>
@@ -531,46 +583,6 @@ const TraineeDashboardHome = ({ setActivePage }) => {
                     </div>
                 )}
 
-                {/* Activity / Welcome card */}
-                <div className="ln-card ln-feed-card">
-                    <div className="ln-feed-card-header">
-                        <div className="ln-feed-avatar">
-                            {trainee?.name?.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase() || 'T'}
-                        </div>
-                        <div>
-                            <div className="ln-feed-author">{trainee?.name}</div>
-                            <div className="ln-feed-meta">TESDA Trainee &bull; {trainee?.certifications?.length} certifications</div>
-                        </div>
-                    </div>
-                    <div className="ln-feed-content">
-                        <h3 style={{ fontSize: 16, fontWeight: 700, marginBottom: 8, color: 'rgba(0,0,0,0.9)' }}>
-                            Welcome back! Here's your career snapshot
-                        </h3>
-                        <p style={{ fontSize: 14, color: 'rgba(0,0,0,0.6)', lineHeight: 1.6, marginBottom: 12 }}>
-                            You have <strong>{recJobs.length}</strong> recommended opportunities based on your TESDA certifications.
-                            {myApps.filter(a => a.status === 'Pending').length > 0 && (
-                                <> You also have <strong>{myApps.filter(a => a.status === 'Pending').length}</strong> pending application(s).</>
-                            )}
-                        </p>
-                        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                            {trainee?.certifications?.map(c => (
-                                <span key={c} className="ln-cert-tag"><Award size={12} /> {c}</span>
-                            ))}
-                        </div>
-                    </div>
-                    <div className="ln-feed-actions">
-                        <button className="ln-feed-action-btn" onClick={() => setActivePage('recommendations')}>
-                            <Briefcase size={16} /> Browse Opportunities
-                        </button>
-                        <button className="ln-feed-action-btn" onClick={() => setActivePage('profile')}>
-                            <User size={16} /> My Profile
-                        </button>
-                        <button className="ln-feed-action-btn" onClick={() => setActivePage('applications')}>
-                            <FileText size={16} /> My Applications
-                        </button>
-                    </div>
-                </div>
-
                 {/* Unified Feed */}
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
                     {unifiedFeed.map(item => {
@@ -608,35 +620,118 @@ const TraineeDashboardHome = ({ setActivePage }) => {
                                 </div>
                             );
                         } else {
-                            const author = item.author_type === 'student'
-                                ? trainees.find(t => t.id === item.author_id)
-                                : partners.find(p => p.id === item.author_id);
-                            const authorInitial = author?.name?.charAt(0) || author?.companyName?.charAt(0) || '?';
+                            const isOwnPost = item.author_id === currentUser?.id;
+                            const author = isOwnPost
+                                ? currentUser
+                                : item.author_type === 'student'
+                                    ? trainees.find(t => t.id === item.author_id)
+                                    : partners.find(p => p.id === item.author_id);
+                            const authorName = author?.name || author?.companyName || 'Unknown User';
+                            const authorPhoto = author?.photo || author?.company_logo_url;
+                            const authorInitial = authorName.charAt(0) || '?';
 
                             return (
                                 <div key={`post-${item.id}`} className="ln-card ln-feed-card" style={{ marginBottom: 0 }}>
-                                    <div className="ln-feed-card-header">
-                                        <div className="ln-feed-avatar">
-                                            {author?.photo || author?.company_logo_url ? (
-                                                <img src={author.photo || author.company_logo_url} alt="" style={{ width: '100%', height: '100%', borderRadius: '50%', objectFit: 'cover' }} />
-                                            ) : authorInitial}
+                                    <div className="ln-feed-card-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                                        <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+                                            <div className="ln-feed-avatar">
+                                                {authorPhoto ? (
+                                                    <img src={authorPhoto} alt="" style={{ width: '100%', height: '100%', borderRadius: '50%', objectFit: 'cover' }} />
+                                                ) : authorInitial}
+                                            </div>
+                                            <div>
+                                                <div className="ln-feed-author" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                                                    {authorName}
+                                                    {item.post_type !== 'general' && (
+                                                        <span className="ln-badge ln-badge-blue" style={{ fontSize: 10, padding: '2px 8px' }}>
+                                                            {item.post_type.replace('_', ' ')}
+                                                        </span>
+                                                    )}
+                                                </div>
+                                                <div className="ln-feed-meta">
+                                                    {item.author_type === 'student' ? (author?.program || 'Trainee') : (author?.companyName || 'Industry Partner')} &bull; {timeAgo(item.created_at)}
+                                                    {item.updated_at && item.updated_at !== item.created_at && ' (edited)'}
+                                                </div>
+                                            </div>
                                         </div>
-                                        <div>
-                                            <div className="ln-feed-author" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                                                {author?.name || author?.companyName || 'Unknown User'}
-                                                {item.post_type !== 'general' && (
-                                                    <span className="ln-badge ln-badge-blue" style={{ fontSize: 10, padding: '2px 8px' }}>
-                                                        {item.post_type.replace('_', ' ')}
-                                                    </span>
+                                        {isOwnPost && (
+                                            <div style={{ position: 'relative' }}>
+                                                <button
+                                                    onClick={() => setPostMenuId(postMenuId === item.id ? null : item.id)}
+                                                    style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 4, borderRadius: '50%', color: '#65676b' }}
+                                                    title="More options"
+                                                >
+                                                    <span style={{ fontSize: 20, fontWeight: 700, letterSpacing: 2, lineHeight: 1 }}>···</span>
+                                                </button>
+                                                {postMenuId === item.id && (
+                                                    <div style={{
+                                                        position: 'absolute', right: 0, top: 32, background: '#fff',
+                                                        borderRadius: 8, boxShadow: '0 2px 12px rgba(0,0,0,0.15)',
+                                                        border: '1px solid #e4e6eb', zIndex: 10, minWidth: 150, overflow: 'hidden'
+                                                    }}>
+                                                        <button
+                                                            onClick={() => handleEditPost(item)}
+                                                            style={{
+                                                                display: 'flex', alignItems: 'center', gap: 10, width: '100%',
+                                                                padding: '10px 16px', border: 'none', background: 'none',
+                                                                cursor: 'pointer', fontSize: 14, color: '#1c1e21'
+                                                            }}
+                                                            onMouseEnter={e => e.target.style.background = '#f2f3f5'}
+                                                            onMouseLeave={e => e.target.style.background = 'none'}
+                                                        >
+                                                            <Edit size={16} /> Edit post
+                                                        </button>
+                                                        <button
+                                                            onClick={() => { setConfirmDeleteId(item.id); setPostMenuId(null); }}
+                                                            style={{
+                                                                display: 'flex', alignItems: 'center', gap: 10, width: '100%',
+                                                                padding: '10px 16px', border: 'none', background: 'none',
+                                                                cursor: 'pointer', fontSize: 14, color: '#e74c3c'
+                                                            }}
+                                                            onMouseEnter={e => e.target.style.background = '#f2f3f5'}
+                                                            onMouseLeave={e => e.target.style.background = 'none'}
+                                                        >
+                                                            <Trash2 size={16} /> Delete post
+                                                        </button>
+                                                    </div>
                                                 )}
                                             </div>
-                                            <div className="ln-feed-meta">
-                                                {item.author_type === 'student' ? 'TESDA Trainee' : 'Industry Partner'} &bull; {new Date(item.created_at).toLocaleDateString()}
-                                            </div>
-                                        </div>
+                                        )}
                                     </div>
                                     <div className="ln-feed-content">
-                                        <p style={{ whiteSpace: 'pre-wrap', fontSize: 14 }}>{item.content}</p>
+                                        {editingPostId === item.id ? (
+                                            <div>
+                                                <textarea
+                                                    value={editContent}
+                                                    onChange={e => setEditContent(e.target.value)}
+                                                    style={{
+                                                        width: '100%', minHeight: 100, padding: 12, fontSize: 14,
+                                                        border: '1px solid #0a66c2', borderRadius: 8, resize: 'none',
+                                                        outline: 'none', fontFamily: 'inherit'
+                                                    }}
+                                                    maxLength={2000}
+                                                />
+                                                <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 8 }}>
+                                                    <button
+                                                        onClick={() => { setEditingPostId(null); setEditContent(''); }}
+                                                        className="ln-btn-sm"
+                                                        style={{ padding: '6px 16px', borderRadius: 20, fontSize: 13 }}
+                                                    >
+                                                        Cancel
+                                                    </button>
+                                                    <button
+                                                        onClick={() => setConfirmSaveId(item.id)}
+                                                        className="ln-btn-sm ln-btn-primary"
+                                                        style={{ padding: '6px 16px', borderRadius: 20, fontSize: 13, fontWeight: 600 }}
+                                                        disabled={!editContent.trim()}
+                                                    >
+                                                        Save
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        ) : (
+                                            <p style={{ whiteSpace: 'pre-wrap', fontSize: 14 }}>{item.content}</p>
+                                        )}
                                         {item.media_url && (
                                             <div style={{ marginTop: 12 }}>
                                                 {item.media_url.match(/\.(jpg|jpeg|png|gif|webp)$/i) ? (
@@ -684,6 +779,74 @@ const TraineeDashboardHome = ({ setActivePage }) => {
                 <SuggestedOpportunities recJobs={recJobs} handleApply={handleApply} setActivePage={setActivePage} />
                 <QuickLinksWidget setActivePage={setActivePage} />
             </div>
+
+            {/* Delete Confirmation Dialog */}
+            {confirmDeleteId && (
+                <div style={{
+                    position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+                    background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(2px)',
+                    zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center'
+                }}>
+                    <div className="ln-card" style={{ padding: 24, maxWidth: 400, width: '90%', borderRadius: 12, textAlign: 'center' }}>
+                        <Trash2 size={36} style={{ color: '#e74c3c', marginBottom: 12 }} />
+                        <h3 style={{ fontSize: 18, fontWeight: 700, marginBottom: 8 }}>Delete Post?</h3>
+                        <p style={{ fontSize: 14, color: 'rgba(0,0,0,0.6)', marginBottom: 20 }}>
+                            This action cannot be undone. Are you sure you want to delete this post?
+                        </p>
+                        <div style={{ display: 'flex', gap: 10, justifyContent: 'center' }}>
+                            <button
+                                onClick={() => setConfirmDeleteId(null)}
+                                className="ln-btn-sm"
+                                style={{ padding: '8px 24px', borderRadius: 20, fontSize: 14 }}
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                onClick={() => handleDeletePost(confirmDeleteId)}
+                                style={{
+                                    padding: '8px 24px', borderRadius: 20, fontSize: 14, fontWeight: 600,
+                                    background: '#e74c3c', color: '#fff', border: 'none', cursor: 'pointer'
+                                }}
+                            >
+                                Delete
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Save Edit Confirmation Dialog */}
+            {confirmSaveId && (
+                <div style={{
+                    position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+                    background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(2px)',
+                    zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center'
+                }}>
+                    <div className="ln-card" style={{ padding: 24, maxWidth: 400, width: '90%', borderRadius: 12, textAlign: 'center' }}>
+                        <Edit size={36} style={{ color: '#0a66c2', marginBottom: 12 }} />
+                        <h3 style={{ fontSize: 18, fontWeight: 700, marginBottom: 8 }}>Save Changes?</h3>
+                        <p style={{ fontSize: 14, color: 'rgba(0,0,0,0.6)', marginBottom: 20 }}>
+                            Are you sure you want to save your changes to this post?
+                        </p>
+                        <div style={{ display: 'flex', gap: 10, justifyContent: 'center' }}>
+                            <button
+                                onClick={() => setConfirmSaveId(null)}
+                                className="ln-btn-sm"
+                                style={{ padding: '8px 24px', borderRadius: 20, fontSize: 14 }}
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                onClick={() => handleSaveEdit(confirmSaveId)}
+                                className="ln-btn-sm ln-btn-primary"
+                                style={{ padding: '8px 24px', borderRadius: 20, fontSize: 14, fontWeight: 600 }}
+                            >
+                                Save
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };
@@ -707,7 +870,7 @@ const TraineeProfileContent = () => {
     const [editing, setEditing] = useState(false);
     const [saving, setSaving] = useState(false);
     const [form, setForm] = useState({ ...trainee });
-    const initials = trainee?.name?.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase() || 'T';
+    const initials = (trainee?.name || '').split(' ').filter(Boolean).map(n => n[0]).join('').slice(0, 2).toUpperCase() || 'T';
 
     // Skills state
     const [newSkill, setNewSkill] = useState('');
@@ -738,7 +901,7 @@ const TraineeProfileContent = () => {
     // Employment state
     const [editingEmployment, setEditingEmployment] = useState(false);
     const [empForm, setEmpForm] = useState({
-        employmentStatus: trainee?.employmentStatus || 'Unemployed',
+        employmentStatus: (trainee?.employmentStatus === 'Unemployed' ? 'Not Employed' : trainee?.employmentStatus) || 'Not Employed',
         employer: trainee?.employer || '',
         jobTitle: trainee?.jobTitle || '',
         dateHired: trainee?.dateHired || '',
@@ -751,13 +914,17 @@ const TraineeProfileContent = () => {
     const [uploadingBanner, setUploadingBanner] = useState(false);
 
     // Documents state
-
     const [documents, setDocuments] = useState([]);
     const [docLabel, setDocLabel] = useState('');
     const [docFile, setDocFile] = useState(null);
     const [uploading, setUploading] = useState(false);
     const [showUploadForm, setShowUploadForm] = useState(false);
     const fileInputRef = useRef(null);
+
+    // Confirm dialog state
+    const [confirmDialog, setConfirmDialog] = useState({ open: false, message: '', onConfirm: null });
+    const showConfirm = (message, onConfirm) => setConfirmDialog({ open: true, message, onConfirm });
+    const closeConfirm = () => setConfirmDialog({ open: false, message: '', onConfirm: null });
     const resumeInputRef = useRef(null);
     const [resume, setResume] = useState(null);
     const [uploadingResume, setUploadingResume] = useState(false);
@@ -816,32 +983,34 @@ const TraineeProfileContent = () => {
 
     // ─── Dynamic Arrays Handlers ────────────────────────────
     const updateCert = (idx, field, val) => { const arr = [...certs]; arr[idx][field] = val; setCerts(arr); };
-    const addCertObj = () => setCerts([...certs, { name: '', org: '', issue: '', exp: '', credId: '', url: '', noExp: false }]);
-    const removeCertIdx = (idx) => { if (!confirm('Remove this certification?')) return; setCerts(certs.filter((_, i) => i !== idx)); };
+    const addCertObj = () => setCerts(prev => [...prev, { name: '', org: '', issue: '', exp: '', credId: '', url: '', noExp: false }]);
+    const removeCertIdx = (idx) => { setCerts(prev => prev.filter((_, i) => i !== idx)); };
     const saveCerts = async () => { setSavingCerts(true); await updateTrainee(trainee.id, { certifications: certs }); setSavingCerts(false); };
 
     const updateEduc = (idx, field, val) => { const arr = [...educHistory]; arr[idx][field] = val; setEducHistory(arr); };
-    const addEducObj = () => setEducHistory([...educHistory, { school: '', degree: '', from: '', to: '' }]);
-    const removeEducIdx = (idx) => { if (!confirm('Remove this education?')) return; setEducHistory(educHistory.filter((_, i) => i !== idx)); };
+    const addEducObj = () => setEducHistory(prev => [...prev, { school: '', degree: '', from: '', to: '' }]);
+    const removeEducIdx = (idx) => { setEducHistory(prev => prev.filter((_, i) => i !== idx)); };
     const saveEduc = async () => { setSavingEduc(true); await updateTrainee(trainee.id, { educHistory }); setSavingEduc(false); };
 
     const updateWork = (idx, field, val) => { const arr = [...workExperience]; arr[idx][field] = val; setWorkExperience(arr); };
-    const addWorkObj = () => setWorkExperience([...workExperience, { company: '', position: '', from: '', to: '' }]);
-    const removeWorkIdx = (idx) => { if (!confirm('Remove this work experience?')) return; setWorkExperience(workExperience.filter((_, i) => i !== idx)); };
+    const addWorkObj = () => setWorkExperience(prev => [...prev, { company: '', position: '', from: '', to: '' }]);
+    const removeWorkIdx = (idx) => { setWorkExperience(prev => prev.filter((_, i) => i !== idx)); };
     const saveWork = async () => { setSavingWork(true); await updateTrainee(trainee.id, { workExperience }); setSavingWork(false); };
 
     // Fetch documents on mount
     useEffect(() => {
         if (trainee?.id) {
             fetch(`/api/documents/${trainee.id}`)
-                .then(r => r.json())
+                .then(r => {
+                    if (!r.ok) throw new Error(`Server returned ${r.status}`);
+                    return r.json();
+                })
                 .then(data => {
                     if (data.success) {
                         const resumeDoc = data.documents.find(d => d.category === 'document' && d.label === 'Resume');
                         if (resumeDoc) {
                             setResume(resumeDoc);
                         } else if (data.registrationResumeUrl) {
-                            // Fallback: resume from students table
                             setResume({ file_url: data.registrationResumeUrl, file_name: 'Resume', label: 'Resume', category: 'document' });
                         }
                         setDocuments(data.documents.filter(d => d.label !== 'Resume'));
@@ -852,21 +1021,61 @@ const TraineeProfileContent = () => {
     }, [trainee?.id]);
 
     const save = async () => {
-        // Validate age — must be at least 15 years old
+        // --- VALIDATION ---
+        const errors = [];
+
+        // 1. Basic Info
+        if (!form.name?.trim()) errors.push('Full Name is required.');
+        if (!form.email?.trim()) errors.push('Contact Email is required.');
+
+        // 2. Birthday validation
         if (form.birthday) {
             const bd = new Date(form.birthday);
             const today = new Date();
             let age = today.getFullYear() - bd.getFullYear();
             const m = today.getMonth() - bd.getMonth();
             if (m < 0 || (m === 0 && today.getDate() < bd.getDate())) age--;
-            if (age < 15) {
-                alert('You must be at least 15 years old.');
-                return;
-            }
+            if (age < 15) errors.push('You must be at least 15 years old.');
         }
+
+        // 3. Employment Info
+        if (empForm.employmentStatus === 'Employed') {
+            if (!empForm.employer?.trim()) errors.push('Employer/Company is required when Employed.');
+            if (!empForm.jobTitle?.trim()) errors.push('Job Title is required when Employed.');
+            if (!empForm.dateHired) errors.push('Date Hired is required when Employed.');
+        }
+
+        // 4. Educational History
+        educHistory.forEach((edu, i) => {
+            if (!String(edu.school || '').trim() || !String(edu.degree || '').trim() || !String(edu.from || '').trim() || !String(edu.to || '').trim()) {
+                errors.push(`Please fill all fields for Education #${i + 1}.`);
+            }
+        });
+
+        // 5. Work Experience
+        workExperience.forEach((work, i) => {
+            if (!String(work.company || '').trim() || !String(work.position || '').trim() || !String(work.from || '').trim() || !String(work.to || '').trim()) {
+                errors.push(`Please fill all fields for Work Experience #${i + 1}.`);
+            }
+        });
+
+        // 6. Certifications
+        certs.forEach((cert, i) => {
+            if (!String(cert.name || '').trim() || !String(cert.org || '').trim() || !String(cert.issue || '').trim()) {
+                errors.push(`Please fill Name, Org, and Issue Date for Certification #${i + 1}.`);
+            }
+            if (!cert.noExp && !cert.exp) {
+                errors.push(`Expiration Date is required for Certification #${i + 1} (unless "Does not expire" is checked).`);
+            }
+        });
+
+        if (errors.length > 0) {
+            alert("Please fix the following issues before saving:\n\n• " + errors.join('\n• '));
+            return;
+        }
+
         setSaving(true);
         try {
-            // Save everything at once
             await updateTrainee(trainee.id, {
                 ...form,
                 trainingStatus: trainingForm.trainingStatus,
@@ -875,7 +1084,9 @@ const TraineeProfileContent = () => {
                 educHistory,
                 workExperience,
                 certifications: certs,
+                interests: interestsList,
             });
+            console.log('Saved in supabase');
             setEditing(false);
         } catch (err) {
             console.error('Save error:', err);
@@ -893,35 +1104,31 @@ const TraineeProfileContent = () => {
         setEditingEmployment(false);
     };
 
-    const addSkill = async () => {
+    const addSkill = () => {
         if (!newSkill.trim()) return;
         const currentSkills = form.skills || [];
         if (currentSkills.includes(newSkill.trim())) { setNewSkill(''); return; }
         const updatedSkills = [...currentSkills, newSkill.trim()];
         setForm({ ...form, skills: updatedSkills });
-        await updateTrainee(trainee.id, { skills: updatedSkills });
         setNewSkill('');
     };
 
-    const removeSkill = async (skill) => {
+    const removeSkill = (skill) => {
         const updatedSkills = (form.skills || []).filter(s => s !== skill);
         setForm({ ...form, skills: updatedSkills });
-        await updateTrainee(trainee.id, { skills: updatedSkills });
     };
 
-    const addInterest = async () => {
+    const addInterest = () => {
         if (!newInterest.trim()) return;
         if (interestsList.includes(newInterest.trim())) { setNewInterest(''); return; }
         const updated = [...interestsList, newInterest.trim()];
         setInterestsList(updated);
-        await updateTrainee(trainee.id, { interests: updated });
         setNewInterest('');
     };
 
-    const removeInterest = async (interest) => {
+    const removeInterest = (interest) => {
         const updated = interestsList.filter(i => i !== interest);
         setInterestsList(updated);
-        await updateTrainee(trainee.id, { interests: updated });
     };
 
     const handleDocUpload = async () => {
@@ -963,20 +1170,26 @@ const TraineeProfileContent = () => {
     };
 
     const deleteDoc = async (docId) => {
-        if (!confirm('Delete this document?')) return;
+
         try {
             const res = await fetch(`/api/documents/${docId}`, { method: 'DELETE' });
             const result = await res.json();
             if (result.success) {
                 setDocuments(prev => prev.filter(d => d.id !== docId));
+                alert('Document successfully deleted.');
+            } else {
+                alert(`Delete failed: ${result.error}`);
             }
         } catch (err) {
             console.error('Delete error:', err);
+            alert('Failed to connect to the server to delete document.');
         }
     };
 
     const statusColors = {
-        Employed: '#057642', Unemployed: '#cc1016', 'Self-Employed': '#0a66c2', Underemployed: '#b24020'
+        'Employed': '#057642',
+        'Not Employed': '#cc1016',
+        'Seeking Employment': '#0a66c2'
     };
 
     const handleResumeUpload = async (file) => {
@@ -1017,7 +1230,7 @@ const TraineeProfileContent = () => {
     };
 
     return (
-        <div className="ln-profile-page" style={{ position: 'relative' }}>
+        <form className="ln-profile-page" style={{ position: 'relative' }} onSubmit={(e) => { e.preventDefault(); if (editing) save(); }}>
             {/* Saving overlay */}
             {saving && (
                 <div style={{
@@ -1038,6 +1251,40 @@ const TraineeProfileContent = () => {
             <input ref={bannerInputRef} type="file" accept="image/*" style={{ display: 'none' }}
                 onChange={e => { handleBannerUpload(e.target.files[0]); e.target.value = ''; }} />
 
+            {/* Confirm Dialog */}
+            {confirmDialog.open && (
+                <div style={{
+                    position: 'fixed', inset: 0, zIndex: 9999,
+                    background: 'rgba(0,0,0,0.45)', backdropFilter: 'blur(3px)',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                }} onClick={closeConfirm}>
+                    <div style={{
+                        background: 'white', borderRadius: 14, padding: '28px 32px', minWidth: 340, maxWidth: 420,
+                        boxShadow: '0 20px 60px rgba(0,0,0,0.25)', textAlign: 'center',
+                    }} onClick={e => e.stopPropagation()}>
+                        <div style={{ marginBottom: 20 }}>
+                            <div style={{
+                                width: 48, height: 48, borderRadius: '50%', background: '#fef2f2',
+                                display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 14px',
+                            }}>
+                                <Trash2 size={22} color="#cc1016" />
+                            </div>
+                            <p style={{ fontSize: 15, color: '#1e293b', fontWeight: 500, margin: 0, lineHeight: 1.5 }}>{confirmDialog.message}</p>
+                        </div>
+                        <div style={{ display: 'flex', gap: 10, justifyContent: 'center' }}>
+                            <button type="button" onClick={closeConfirm} style={{
+                                padding: '9px 24px', borderRadius: 8, border: '1px solid #d1d5db',
+                                background: 'white', color: '#475569', fontSize: 14, fontWeight: 600, cursor: 'pointer',
+                            }}>Cancel</button>
+                            <button type="button" onClick={() => { confirmDialog.onConfirm(); closeConfirm(); }} style={{
+                                padding: '9px 24px', borderRadius: 8, border: 'none',
+                                background: '#cc1016', color: 'white', fontSize: 14, fontWeight: 600, cursor: 'pointer',
+                            }}>Confirm</button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
             {/* Profile Header Card */}
             <div className="ln-card ln-profile-header-card">
                 <div className="ln-profile-header-banner" style={trainee?.bannerUrl ? {
@@ -1045,7 +1292,7 @@ const TraineeProfileContent = () => {
                     backgroundSize: 'cover',
                     backgroundPosition: 'center',
                 } : {}}>
-                    <button className="ln-banner-change-btn" onClick={() => bannerInputRef.current?.click()} disabled={uploadingBanner}
+                    <button type="button" className="ln-banner-change-btn" onClick={() => bannerInputRef.current?.click()} disabled={uploadingBanner}
                         style={{
                             position: 'absolute', top: 12, right: 12,
                             background: 'rgba(0,0,0,0.6)', border: 'none', borderRadius: 8,
@@ -1093,9 +1340,29 @@ const TraineeProfileContent = () => {
                                 <p className="ln-profile-header-loc"><MapPin size={14} /> {trainee?.address || 'Philippines'} &bull; Class of {trainee?.graduationYear}</p>
                                 <p className="ln-profile-header-contact">{trainee?.email}</p>
                             </div>
-                            <button className={`ln-btn ${editing ? 'ln-btn-success' : 'ln-btn-primary'}`} onClick={editing ? save : () => setEditing(true)} disabled={saving}>
-                                {saving ? <><Loader size={15} style={{ animation: 'ocr-spin 0.8s linear infinite' }} /> Saving...</> : editing ? <><CheckCircle size={15} /> Save Changes</> : <><Edit size={15} /> Edit Profile</>}
-                            </button>
+                            {!editing ? (
+                                <button type="button" className="ln-btn ln-btn-primary" onClick={() => setEditing(true)} disabled={saving}>
+                                    <Edit size={15} /> Edit Profile
+                                </button>
+                            ) : (
+                                <div style={{ display: 'flex', gap: 8 }}>
+                                    <button type="button" className="ln-btn" style={{ background: '#e2e8f0', color: '#475569' }} onClick={() => {
+                                        setForm({ ...trainee });
+                                        setTrainingForm({ trainingStatus: trainee?.trainingStatus || 'Student', graduationYear: trainee?.graduationYear || '' });
+                                        setEmpForm({ employmentStatus: (trainee?.employmentStatus === 'Unemployed' ? 'Not Employed' : trainee?.employmentStatus) || 'Not Employed', employer: trainee?.employer || '', jobTitle: trainee?.jobTitle || '', dateHired: trainee?.dateHired || '' });
+                                        setEducHistory(trainee?.educHistory || []);
+                                        setWorkExperience(trainee?.workExperience || []);
+                                        setCerts(trainee?.certifications?.map(c => typeof c === 'string' ? { name: c, org: '', issue: '', exp: '', credId: '', url: '' } : c) || []);
+                                        setInterestsList(trainee?.interests || []);
+                                        setEditing(false);
+                                    }} disabled={saving}>
+                                        <X size={15} /> Cancel
+                                    </button>
+                                    <button type="submit" className="ln-btn ln-btn-success" disabled={saving}>
+                                        {saving ? <><Loader size={15} style={{ animation: 'ocr-spin 0.8s linear infinite' }} /> Saving...</> : <><CheckCircle size={15} /> Save Changes</>}
+                                    </button>
+                                </div>
+                            )}
                         </div>
                         {/* Resume section — bottom right */}
                         <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 12 }}>
@@ -1119,13 +1386,14 @@ const TraineeProfileContent = () => {
                                     </div>
                                     <a href={resume.file_url} target="_blank" rel="noreferrer" className="ln-btn-sm ln-btn-outline" style={{ flexShrink: 0 }}><Eye size={12} /></a>
                                     {editing && (
-                                        <button className="ln-btn-sm ln-btn-outline" onClick={() => resumeInputRef.current?.click()} style={{ flexShrink: 0 }} disabled={uploadingResume}>
+                                        <button type="button" className="ln-btn-sm ln-btn-outline" onClick={() => resumeInputRef.current?.click()} style={{ flexShrink: 0 }} disabled={uploadingResume}>
                                             <Upload size={12} /> {uploadingResume ? '...' : 'Update'}
                                         </button>
                                     )}
                                 </div>
                             ) : editing ? (
                                 <button
+                                    type="button"
                                     className="ln-btn-sm ln-btn-outline"
                                     onClick={() => resumeInputRef.current?.click()}
                                     disabled={uploadingResume}
@@ -1148,21 +1416,23 @@ const TraineeProfileContent = () => {
                         <div className="ln-section-header"><h3>Personal Information</h3></div>
                         <div className="ln-info-grid">
                             {[
-                                { label: 'Full Name', key: 'name', type: 'text' },
-                                { label: 'Email', key: 'email', type: 'email' },
-                                { label: 'Address', key: 'address', type: 'text' },
+                                { label: 'Full Name', key: 'name', type: 'text', required: true, maxLength: 100 },
+                                { label: 'Contact Email', key: 'email', type: 'email', required: true },
+                                { label: 'Address', key: 'address', type: 'text', maxLength: 150 },
                                 { label: 'Birthday', key: 'birthday', type: 'date' },
                                 { label: 'Gender', key: 'gender', type: 'select', options: ['Male', 'Female', 'Other'] },
                             ].map(f => (
                                 <div key={f.key} className="ln-info-item">
-                                    <label className="ln-info-label">{f.label}</label>
+                                    <label className="ln-info-label">
+                                        {f.label}{f.required && editing && <span style={{ color: '#cc1016', marginLeft: 4 }}>*</span>}
+                                    </label>
                                     {editing ? (
                                         f.type === 'select' ? (
                                             <select className="form-select" value={form[f.key] || ''} onChange={e => setForm({ ...form, [f.key]: e.target.value })}>
                                                 {f.options.map(o => <option key={o}>{o}</option>)}
                                             </select>
                                         ) : (
-                                            <input type={f.type} className="form-input" value={form[f.key] || ''} onChange={e => setForm({ ...form, [f.key]: e.target.value })} />
+                                            <input type={f.type} className="form-input" maxLength={f.maxLength} value={form[f.key] || ''} onChange={e => setForm({ ...form, [f.key]: e.target.value })} />
                                         )
                                     ) : (
                                         <div className="ln-info-value">{trainee?.[f.key] || '—'}</div>
@@ -1216,7 +1486,7 @@ const TraineeProfileContent = () => {
                                 <label className="ln-info-label">Status</label>
                                 {editing ? (
                                     <select className="form-select" value={empForm.employmentStatus} onChange={e => setEmpForm({ ...empForm, employmentStatus: e.target.value })}>
-                                        {['Employed', 'Unemployed', 'Self-Employed', 'Underemployed'].map(s => <option key={s}>{s}</option>)}
+                                        {['Employed', 'Not Employed', 'Seeking Employment'].map(s => <option key={s}>{s}</option>)}
                                     </select>
                                 ) : (
                                     <span className={`ln-badge ${statusColors[trainee?.employmentStatus] === '#057642' ? 'ln-badge-green' : statusColors[trainee?.employmentStatus] === '#cc1016' ? 'ln-badge-red' : 'ln-badge-blue'}`} style={{ fontSize: 13 }}>
@@ -1224,19 +1494,19 @@ const TraineeProfileContent = () => {
                                     </span>
                                 )}
                             </div>
-                            {(editing ? empForm.employmentStatus !== 'Unemployed' : trainee?.employmentStatus !== 'Unemployed') && (
+                            {(editing ? empForm.employmentStatus === 'Employed' : trainee?.employmentStatus === 'Employed') && (
                                 <>
                                     <div className="ln-info-item">
-                                        <label className="ln-info-label">Employer / Company</label>
-                                        {editing ? <input type="text" className="form-input" value={empForm.employer} onChange={e => setEmpForm({ ...empForm, employer: e.target.value })} placeholder="Company name" /> : <div className="ln-info-value">{trainee?.employer || '—'}</div>}
+                                        <label className="ln-info-label">Employer / Company{editing && <span style={{ color: '#cc1016', marginLeft: 4 }}>*</span>}</label>
+                                        {editing ? <input type="text" required className="form-input" value={empForm.employer} onChange={e => setEmpForm({ ...empForm, employer: e.target.value })} placeholder="Company name" /> : <div className="ln-info-value">{trainee?.employer || '—'}</div>}
                                     </div>
                                     <div className="ln-info-item">
-                                        <label className="ln-info-label">Job Title</label>
-                                        {editing ? <input type="text" className="form-input" value={empForm.jobTitle} onChange={e => setEmpForm({ ...empForm, jobTitle: e.target.value })} placeholder="Your position" /> : <div className="ln-info-value">{trainee?.jobTitle || '—'}</div>}
+                                        <label className="ln-info-label">Job Title{editing && <span style={{ color: '#cc1016', marginLeft: 4 }}>*</span>}</label>
+                                        {editing ? <input type="text" required className="form-input" value={empForm.jobTitle} onChange={e => setEmpForm({ ...empForm, jobTitle: e.target.value })} placeholder="Your position" /> : <div className="ln-info-value">{trainee?.jobTitle || '—'}</div>}
                                     </div>
                                     <div className="ln-info-item">
-                                        <label className="ln-info-label">Date Hired</label>
-                                        {editing ? <input type="date" className="form-input" value={empForm.dateHired} onChange={e => setEmpForm({ ...empForm, dateHired: e.target.value })} /> : <div className="ln-info-value">{trainee?.dateHired || '—'}</div>}
+                                        <label className="ln-info-label">Date Hired{editing && <span style={{ color: '#cc1016', marginLeft: 4 }}>*</span>}</label>
+                                        {editing ? <input type="date" required className="form-input" value={empForm.dateHired} onChange={e => setEmpForm({ ...empForm, dateHired: e.target.value })} /> : <div className="ln-info-value">{trainee?.dateHired || '—'}</div>}
                                     </div>
                                 </>
                             )}
@@ -1249,30 +1519,34 @@ const TraineeProfileContent = () => {
                             <h3>Educational History</h3>
                             <div style={{ display: 'flex', gap: 8 }}>
                                 {editing && (
-                                    <button className="ln-btn-sm ln-btn-primary" onClick={addEducObj}>
+                                    <button type="button" className="ln-btn-sm ln-btn-primary" onClick={addEducObj}>
                                         <Plus size={12} /> Add
                                     </button>
                                 )}
                             </div>
                         </div>
                         {educHistory.map((edu, i) => (
-                            <div key={i} style={{ padding: '16px', borderBottom: i < educHistory.length - 1 ? '1px solid #f3f2ef' : 'none', marginBottom: i < educHistory.length - 1 ? 12 : 0, background: '#f8fafc', borderRadius: 8, border: '1px solid #e2e8f0', margin: '0 16px 16px' }}>
+                            <div key={i} style={{ padding: '16px', background: '#f8fafc', borderRadius: 8, border: '1px solid #e2e8f0', margin: '0 16px 16px' }}>
                                 <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 16 }}>
                                     <h4 style={{ margin: 0, fontSize: 13, color: '#475569' }}>Education #{i + 1}</h4>
-                                    {editing && <button className="ln-link-btn" style={{ color: '#cc1016', fontSize: 12, padding: 0 }} onClick={() => removeEducIdx(i)}><Trash2 size={13} /> Remove</button>}
+                                    {editing && <button type="button" className="ln-link-btn" style={{ color: '#cc1016', fontSize: 12, padding: 0 }} onClick={(e) => { e.preventDefault(); showConfirm('Are you sure you want to remove this educational history?', () => removeEducIdx(i)); }}><Trash2 size={13} /> Remove</button>}
                                 </div>
                                 <div className="ln-info-grid" style={{ gap: 12 }}>
                                     <div className="ln-info-item" style={{ gridColumn: '1 / -1' }}>
-                                        <input type="text" className="form-input" placeholder="School / University" value={edu.school || ''} onChange={e => updateEduc(i, 'school', e.target.value)} />
+                                        <label className="ln-info-label">School / University<span style={{ color: '#cc1016', marginLeft: 4 }}>*</span></label>
+                                        <input type="text" required className="form-input" placeholder="School / University" maxLength={100} value={edu.school || ''} onChange={e => updateEduc(i, 'school', e.target.value)} />
                                     </div>
                                     <div className="ln-info-item" style={{ gridColumn: '1 / -1' }}>
-                                        <input type="text" className="form-input" placeholder="Degree / Program (e.g. BS Computer Science)" value={edu.degree || ''} onChange={e => updateEduc(i, 'degree', e.target.value)} />
+                                        <label className="ln-info-label">Degree / Program<span style={{ color: '#cc1016', marginLeft: 4 }}>*</span></label>
+                                        <input type="text" required className="form-input" placeholder="Degree / Program (e.g. BS Computer Science)" maxLength={100} value={edu.degree || ''} onChange={e => updateEduc(i, 'degree', e.target.value)} />
                                     </div>
                                     <div className="ln-info-item">
-                                        <input type="text" className="form-input" placeholder="Year From" value={edu.from || ''} onChange={e => updateEduc(i, 'from', e.target.value)} />
+                                        <label className="ln-info-label">Year From<span style={{ color: '#cc1016', marginLeft: 4 }}>*</span></label>
+                                        <input type="number" min="1950" max="2099" required className="form-input" placeholder="e.g. 2020" value={edu.from || ''} onChange={e => updateEduc(i, 'from', e.target.value)} />
                                     </div>
                                     <div className="ln-info-item">
-                                        <input type="text" className="form-input" placeholder="Year To (or expected)" value={edu.to || ''} onChange={e => updateEduc(i, 'to', e.target.value)} />
+                                        <label className="ln-info-label">Year To (or expected)<span style={{ color: '#cc1016', marginLeft: 4 }}>*</span></label>
+                                        <input type="number" min="1950" max="2099" required className="form-input" placeholder="e.g. 2025" value={edu.to || ''} onChange={e => updateEduc(i, 'to', e.target.value)} />
                                     </div>
                                 </div>
                             </div>
@@ -1285,32 +1559,34 @@ const TraineeProfileContent = () => {
                             <h3>Work Experience</h3>
                             <div style={{ display: 'flex', gap: 8 }}>
                                 {editing && (
-                                    <button className="ln-btn-sm ln-btn-primary" onClick={addWorkObj}>
+                                    <button type="button" className="ln-btn-sm ln-btn-primary" onClick={addWorkObj}>
                                         <Plus size={12} /> Add
                                     </button>
                                 )}
                             </div>
                         </div>
                         {workExperience.map((work, i) => (
-                            <div key={i} style={{ padding: '16px', borderBottom: i < workExperience.length - 1 ? '1px solid #f3f2ef' : 'none', marginBottom: i < workExperience.length - 1 ? 12 : 0, background: '#f8fafc', borderRadius: 8, border: '1px solid #e2e8f0', margin: '0 16px 16px' }}>
+                            <div key={i} style={{ padding: '16px', background: '#f8fafc', borderRadius: 8, border: '1px solid #e2e8f0', margin: '0 16px 16px' }}>
                                 <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 16 }}>
                                     <h4 style={{ margin: 0, fontSize: 13, color: '#475569' }}>Experience #{i + 1}</h4>
-                                    {editing && <button className="ln-link-btn" style={{ color: '#cc1016', fontSize: 12, padding: 0 }} onClick={() => removeWorkIdx(i)}><Trash2 size={13} /> Remove</button>}
+                                    {editing && <button type="button" className="ln-link-btn" style={{ color: '#cc1016', fontSize: 12, padding: 0 }} onClick={(e) => { e.preventDefault(); showConfirm('Are you sure you want to remove this work experience?', () => removeWorkIdx(i)); }}><Trash2 size={13} /> Remove</button>}
                                 </div>
                                 <div className="ln-info-grid" style={{ gap: 12 }}>
                                     <div className="ln-info-item" style={{ gridColumn: '1 / -1' }}>
-                                        <input type="text" className="form-input" placeholder="Company / Organization" value={work.company || ''} onChange={e => updateWork(i, 'company', e.target.value)} />
+                                        <label className="ln-info-label">Company / Organization<span style={{ color: '#cc1016', marginLeft: 4 }}>*</span></label>
+                                        <input type="text" required className="form-input" placeholder="Company / Organization" maxLength={100} value={work.company || ''} onChange={e => updateWork(i, 'company', e.target.value)} />
                                     </div>
                                     <div className="ln-info-item" style={{ gridColumn: '1 / -1' }}>
-                                        <input type="text" className="form-input" placeholder="Position / Role" value={work.position || ''} onChange={e => updateWork(i, 'position', e.target.value)} />
+                                        <label className="ln-info-label">Position / Role<span style={{ color: '#cc1016', marginLeft: 4 }}>*</span></label>
+                                        <input type="text" required className="form-input" placeholder="Position / Role" maxLength={50} value={work.position || ''} onChange={e => updateWork(i, 'position', e.target.value)} />
                                     </div>
                                     <div className="ln-info-item">
-                                        <input type="date" className="form-input" title="Start Date" value={work.from || ''} onChange={e => updateWork(i, 'from', e.target.value)} />
-                                        <span style={{ fontSize: 11, color: '#64748b', marginTop: 4, display: 'block' }}>Start Date</span>
+                                        <label className="ln-info-label">Start Date<span style={{ color: '#cc1016', marginLeft: 4 }}>*</span></label>
+                                        <input type="date" required className="form-input" title="Start Date" value={work.from || ''} onChange={e => updateWork(i, 'from', e.target.value)} />
                                     </div>
                                     <div className="ln-info-item">
-                                        <input type="date" className="form-input" title="End Date" value={work.to || ''} onChange={e => updateWork(i, 'to', e.target.value)} />
-                                        <span style={{ fontSize: 11, color: '#64748b', marginTop: 4, display: 'block' }}>End Date</span>
+                                        <label className="ln-info-label">End Date<span style={{ color: '#cc1016', marginLeft: 4 }}>*</span></label>
+                                        <input type="date" required className="form-input" title="End Date" value={work.to || ''} onChange={e => updateWork(i, 'to', e.target.value)} />
                                     </div>
                                 </div>
                             </div>
@@ -1323,34 +1599,34 @@ const TraineeProfileContent = () => {
                             <h3>Licenses & Certifications</h3>
                             <div style={{ display: 'flex', gap: 8 }}>
                                 {editing && (
-                                    <button className="ln-btn-sm ln-btn-primary" onClick={addCertObj}>
+                                    <button type="button" className="ln-btn-sm ln-btn-primary" onClick={addCertObj}>
                                         <Plus size={12} /> Add
                                     </button>
                                 )}
                             </div>
                         </div>
                         {certs.map((cert, i) => (
-                            <div key={i} style={{ padding: '16px', borderBottom: i < certs.length - 1 ? '1px solid #f3f2ef' : 'none', marginBottom: i < certs.length - 1 ? 12 : 0, background: '#f8fafc', borderRadius: 8, border: '1px solid #e2e8f0', margin: '0 16px 16px' }}>
+                            <div key={i} style={{ padding: '16px', background: '#f8fafc', borderRadius: 8, border: '1px solid #e2e8f0', margin: '0 16px 16px' }}>
                                 <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 16 }}>
                                     <h4 style={{ margin: 0, fontSize: 13, color: '#475569' }}>License/Cert #{i + 1}</h4>
-                                    {editing && <button className="ln-link-btn" style={{ color: '#cc1016', fontSize: 12, padding: 0 }} onClick={() => removeCertIdx(i)}><Trash2 size={13} /> Remove</button>}
+                                    {editing && <button type="button" className="ln-link-btn" style={{ color: '#cc1016', fontSize: 12, padding: 0 }} onClick={(e) => { e.preventDefault(); showConfirm('Are you sure you want to remove this certification?', () => removeCertIdx(i)); }}><Trash2 size={13} /> Remove</button>}
                                 </div>
                                 <div className="ln-info-grid" style={{ gap: 12 }}>
                                     <div className="ln-info-item" style={{ gridColumn: '1 / -1' }}>
-                                        <label className="ln-info-label" style={{ marginBottom: 4 }}>Certification / License Name</label>
-                                        <input type="text" className="form-input" placeholder="e.g. AWS Certified Solutions Architect" value={cert.name || ''} onChange={e => updateCert(i, 'name', e.target.value)} />
+                                        <label className="ln-info-label" style={{ marginBottom: 4 }}>Certification / License Name<span style={{ color: '#cc1016', marginLeft: 4 }}>*</span></label>
+                                        <input type="text" required className="form-input" placeholder="e.g. AWS Certified Solutions Architect" maxLength={100} value={cert.name || ''} onChange={e => updateCert(i, 'name', e.target.value)} />
                                     </div>
                                     <div className="ln-info-item" style={{ gridColumn: '1 / -1' }}>
-                                        <label className="ln-info-label" style={{ marginBottom: 4 }}>Issuing Organization</label>
-                                        <input type="text" className="form-input" placeholder="e.g. Amazon Web Services, Google, PRC" value={cert.org || ''} onChange={e => updateCert(i, 'org', e.target.value)} />
+                                        <label className="ln-info-label" style={{ marginBottom: 4 }}>Issuing Organization<span style={{ color: '#cc1016', marginLeft: 4 }}>*</span></label>
+                                        <input type="text" required className="form-input" placeholder="e.g. Amazon Web Services, Google, PRC" maxLength={80} value={cert.org || ''} onChange={e => updateCert(i, 'org', e.target.value)} />
                                     </div>
                                     <div className="ln-info-item">
-                                        <label className="ln-info-label" style={{ marginBottom: 4 }}>Issue Date</label>
-                                        <input type="date" className="form-input" value={cert.issue || ''} onChange={e => updateCert(i, 'issue', e.target.value)} />
+                                        <label className="ln-info-label" style={{ marginBottom: 4 }}>Issue Date<span style={{ color: '#cc1016', marginLeft: 4 }}>*</span></label>
+                                        <input type="date" required className="form-input" value={cert.issue || ''} onChange={e => updateCert(i, 'issue', e.target.value)} />
                                     </div>
                                     <div className="ln-info-item">
-                                        <label className="ln-info-label" style={{ marginBottom: 4 }}>Expiration Date</label>
-                                        <input type="date" className="form-input" disabled={cert.noExp} value={cert.exp || ''} onChange={e => updateCert(i, 'exp', e.target.value)} />
+                                        <label className="ln-info-label" style={{ marginBottom: 4 }}>Expiration Date{!cert.noExp && <span style={{ color: '#cc1016', marginLeft: 4 }}>*</span>}</label>
+                                        <input type="date" required={!cert.noExp} className="form-input" disabled={cert.noExp} value={cert.exp || ''} onChange={e => updateCert(i, 'exp', e.target.value)} />
                                         <label style={{ fontSize: 12, display: 'flex', alignItems: 'center', gap: 6, marginTop: 6, cursor: 'pointer', color: '#64748b' }}>
                                             <input type="checkbox" checked={cert.noExp || false} onChange={e => updateCert(i, 'noExp', e.target.checked)} /> Does not expire
                                         </label>
@@ -1367,7 +1643,7 @@ const TraineeProfileContent = () => {
                             </div>
                         ))}
                     </div>
-                </div>
+                </div> {/* Closing for ln-profile-main */}
 
                 <div className="ln-profile-sidebar">
                     {/* Skills Section (editable) */}
@@ -1381,7 +1657,7 @@ const TraineeProfileContent = () => {
                                     borderRadius: 20, fontSize: 13, fontWeight: 600
                                 }}>
                                     {typeof skill === 'string' ? skill : JSON.stringify(skill)}
-                                    {editing && <button onClick={() => removeSkill(skill)} style={{
+                                    {editing && <button type="button" onClick={() => removeSkill(skill)} style={{
                                         background: 'none', border: 'none', cursor: 'pointer',
                                         padding: 0, display: 'flex', color: '#64748b'
                                     }}><X size={14} /></button>}
@@ -1393,10 +1669,11 @@ const TraineeProfileContent = () => {
                                 <input
                                     type="text" className="form-input" placeholder="Add a skill..."
                                     value={newSkill} onChange={e => setNewSkill(e.target.value)}
-                                    onKeyDown={e => { if (e.key === 'Enter') addSkill(); }}
+                                    maxLength={30}
+                                    onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addSkill(); } }}
                                     style={{ flex: 1, fontSize: 13 }}
                                 />
-                                <button className="ln-btn-sm ln-btn-primary" onClick={addSkill} disabled={!newSkill.trim()}>
+                                <button type="button" className="ln-btn-sm ln-btn-primary" onClick={addSkill} disabled={!newSkill.trim()}>
                                     <Plus size={14} />
                                 </button>
                             </div>
@@ -1414,13 +1691,13 @@ const TraineeProfileContent = () => {
                                 const sizes = [14, 17, 20, 15, 18];
                                 const colors = ['#0a66c2', '#7c3aed', '#057642', '#b24020', '#1e3a5f'];
                                 return (
-                                    <span key={i} className="ln-interest-word" onClick={() => removeInterest(interest)} style={{
+                                    <span key={i} className="ln-interest-word" onClick={() => { if (editing) removeInterest(interest); }} style={{
                                         display: 'inline-flex', alignItems: 'center',
                                         fontSize: sizes[i % sizes.length],
                                         fontWeight: 600 + (i % 3) * 100,
                                         color: colors[i % colors.length],
                                         padding: '4px 10px',
-                                        cursor: 'pointer',
+                                        cursor: editing ? 'pointer' : 'default',
                                     }}>
                                         {interest}
                                     </span>
@@ -1432,10 +1709,11 @@ const TraineeProfileContent = () => {
                                 <input
                                     type="text" className="form-input" placeholder="Add an interest..."
                                     value={newInterest} onChange={e => setNewInterest(e.target.value)}
-                                    onKeyDown={e => { if (e.key === 'Enter') addInterest(); }}
+                                    maxLength={30}
+                                    onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addInterest(); } }}
                                     style={{ flex: 1, fontSize: 13 }}
                                 />
-                                <button className="ln-btn-sm ln-btn-primary" onClick={addInterest} disabled={!newInterest.trim()}>
+                                <button type="button" className="ln-btn-sm ln-btn-primary" onClick={addInterest} disabled={!newInterest.trim()}>
                                     <Plus size={14} />
                                 </button>
                             </div>
@@ -1447,7 +1725,7 @@ const TraineeProfileContent = () => {
                         <div className="ln-section-header">
                             <h3>Documents</h3>
                             {editing && (
-                                <button className="ln-btn-sm ln-btn-primary" onClick={() => setShowUploadForm(!showUploadForm)}>
+                                <button type="button" className="ln-btn-sm ln-btn-primary" onClick={() => setShowUploadForm(!showUploadForm)}>
                                     {showUploadForm ? <><X size={12} /> Cancel</> : <><Plus size={12} /> Add</>}
                                 </button>
                             )}
@@ -1456,20 +1734,20 @@ const TraineeProfileContent = () => {
                         {editing && showUploadForm && (
                             <div style={{ marginBottom: 16, padding: 16, background: '#f8fafc', borderRadius: 10, border: '1px solid #e2e8f0' }}>
                                 <div style={{ marginBottom: 10 }}>
-                                    <label className="ln-info-label" style={{ marginBottom: 4, display: 'block' }}>Document Label</label>
-                                    <input type="text" className="form-input" placeholder="e.g. Resume, Diploma, TOR..." value={docLabel} onChange={e => setDocLabel(e.target.value)} style={{ fontSize: 13 }} />
+                                    <label className="ln-info-label" style={{ marginBottom: 4, display: 'block' }}>Document Label <span style={{ color: '#cc1016' }}>*</span></label>
+                                    <input type="text" required className="form-input" placeholder="e.g. Resume, Diploma, TOR..." maxLength={40} value={docLabel} onChange={e => setDocLabel(e.target.value)} style={{ fontSize: 13 }} />
                                 </div>
                                 <div style={{ marginBottom: 10 }}>
-                                    <label className="ln-info-label" style={{ marginBottom: 4, display: 'block' }}>File (PDF, DOC, DOCX only)</label>
+                                    <label className="ln-info-label" style={{ marginBottom: 4, display: 'block' }}>File (PDF, DOC, DOCX only) <span style={{ color: '#cc1016' }}>*</span></label>
                                     <input
                                         ref={fileInputRef}
                                         type="file"
-                                        accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                                        required accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
                                         onChange={e => setDocFile(e.target.files[0] || null)}
                                         style={{ fontSize: 13 }}
                                     />
                                 </div>
-                                <button className="ln-btn-sm ln-btn-success" onClick={handleDocUpload} disabled={uploading || !docFile || !docLabel.trim()} style={{ width: '100%' }}>
+                                <button type="button" className="ln-btn-sm ln-btn-success" onClick={handleDocUpload} disabled={uploading || !docFile || !docLabel.trim()} style={{ width: '100%' }}>
                                     {uploading ? 'Uploading...' : <><Upload size={12} /> Upload Document</>}
                                 </button>
                             </div>
@@ -1486,7 +1764,7 @@ const TraineeProfileContent = () => {
                                 </div>
                                 <div style={{ display: 'flex', gap: 6 }}>
                                     <a href={doc.file_url} target="_blank" rel="noreferrer" className="ln-btn-sm ln-btn-outline"><Eye size={12} /> View</a>
-                                    {editing && <button className="ln-btn-sm ln-btn-outline" onClick={() => deleteDoc(doc.id)} style={{ color: '#cc1016' }}><Trash2 size={12} /></button>}
+                                    {editing && <button type="button" className="ln-btn-sm ln-btn-outline" onClick={(e) => { e.preventDefault(); showConfirm('Are you sure you want to delete this document?', () => deleteDoc(doc.id)); }} style={{ color: '#cc1016' }}><Trash2 size={12} /></button>}
                                 </div>
                             </div>
                         )) : !showUploadForm && (
@@ -1498,7 +1776,7 @@ const TraineeProfileContent = () => {
                     </div>
                 </div>
             </div>
-        </div>
+        </form>
     );
 };
 
@@ -1757,219 +2035,6 @@ const MyApplications = () => {
     );
 };
 
-// ─── PAGE 5: POSTING (Create & Manage Posts) ─────────────────────
-const TraineePosting = () => {
-    const { currentUser, posts, createPost } = useApp();
-    const [postContent, setPostContent] = useState('');
-    const [isPosting, setIsPosting] = useState(false);
-    const [postType, setPostType] = useState('general');
-    const [selectedFile, setSelectedFile] = useState(null);
-    const [filePreview, setFilePreview] = useState(null);
-    const fileInputRef = useRef(null);
-
-    const handleFileChange = (e) => {
-        const file = e.target.files[0];
-        if (!file) return;
-        setSelectedFile(file);
-        if (file.type.startsWith('image/')) {
-            setFilePreview(URL.createObjectURL(file));
-        } else {
-            setFilePreview(null);
-        }
-    };
-
-    const handleCreatePost = async () => {
-        if (!postContent.trim() && !selectedFile) return;
-        setIsPosting(true);
-        let media_url = null;
-
-        try {
-            if (selectedFile) {
-                const ext = selectedFile.name.split('.').pop();
-                const path = `post-media/${currentUser.id}/${Date.now()}_${selectedFile.name}`;
-                const { error: uploadErr } = await supabase.storage
-                    .from('registration-uploads')
-                    .upload(path, selectedFile, { contentType: selectedFile.type });
-                if (uploadErr) throw uploadErr;
-                const { data: urlData } = supabase.storage.from('registration-uploads').getPublicUrl(path);
-                media_url = urlData?.publicUrl;
-            }
-
-            const res = await createPost({
-                content: postContent,
-                post_type: postType,
-                media_url: media_url,
-                tags: [currentUser?.program, 'Achievement', 'Shared'].filter(Boolean)
-            });
-
-            if (res.success) {
-                setPostContent('');
-                setPostType('general');
-                setSelectedFile(null);
-                setFilePreview(null);
-            } else {
-                alert(res.error || 'Failed to post. Check consoles.');
-            }
-        } catch (err) {
-            console.error('Posting error:', err);
-            alert('Failed to post: ' + err.message);
-        } finally {
-            setIsPosting(false);
-        }
-    };
-
-
-    const myPosts = posts.filter(p => p.author_id === currentUser?.id);
-
-    return (
-        <div style={{ maxWidth: 640, margin: '0 auto', width: '100%' }}>
-            {/* Create Widget */}
-            <div className="ln-card" style={{ padding: '16px 20px', marginBottom: 20 }}>
-                <h3 style={{ fontSize: 16, fontWeight: 700, marginBottom: 16 }}>Create a Community Post</h3>
-                <div style={{ display: 'flex', gap: 12 }}>
-                    <div className="ln-nav-avatar" style={{ flexShrink: 0, width: 40, height: 40 }}>
-                        {currentUser?.photo ? <img src={currentUser.photo} alt="" style={{ width: '100%', height: '100%', borderRadius: '50%' }} /> : (currentUser?.name?.charAt(0) || 'T')}
-                    </div>
-                    <div style={{ flex: 1 }}>
-                        <textarea
-                            className="ln-search-input"
-                            placeholder="What's on your mind? Share an achievement or update..."
-                            style={{
-                                width: '100%', minHeight: 120, padding: '16px',
-                                borderRadius: 12, border: '1px solid rgba(0,0,0,0.15)',
-                                resize: 'none', transition: 'all 0.2s', fontSize: 15,
-                                background: '#f9fafb', marginBottom: 16
-                            }}
-                            value={postContent}
-                            onChange={e => setPostContent(e.target.value)}
-                        />
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                            <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
-                                <label style={{ fontSize: 12, fontWeight: 600, color: 'rgba(0,0,0,0.6)' }}>POST TYPE:</label>
-                                <select
-                                    className="ln-filter-select"
-                                    style={{ margin: 0, padding: '4px 8px', height: 36, fontSize: 13 }}
-                                    value={postType}
-                                    onChange={e => setPostType(e.target.value)}
-                                >
-                                    <option value="general">General Update</option>
-                                    <option value="achievement">Achievement</option>
-                                    <option value="certification">Certification</option>
-                                    <option value="project">Project Share</option>
-                                    <option value="looking_for_work">Looking for Work</option>
-                                </select>
-                            </div>
-                            <div style={{ display: 'flex', gap: 8 }}>
-                                <input
-                                    type="file"
-                                    hidden
-                                    ref={fileInputRef}
-                                    onChange={handleFileChange}
-                                    accept="image/*,.pdf,.doc,.docx"
-                                />
-                                <button className="ln-btn-sm" style={{ padding: 8 }} title="Attach Media" onClick={() => fileInputRef.current.click()}>
-                                    <Camera size={20} color="#65676b" />
-                                </button>
-                                <button
-                                    className="ln-btn-sm ln-btn-primary"
-                                    style={{ borderRadius: 24, padding: '8px 24px', fontWeight: 600 }}
-                                    onClick={handleCreatePost}
-                                    disabled={isPosting || (!postContent.trim() && !selectedFile)}
-                                >
-                                    {isPosting ? <Loader size={18} className="ln-spin" /> : 'Post Now'}
-                                </button>
-                            </div>
-                        </div>
-
-                        {filePreview && (
-                            <div style={{ position: 'relative', marginTop: 16, borderRadius: 8, overflow: 'hidden', border: '1px solid #e2e8f0' }}>
-                                <img src={filePreview} alt="Preview" style={{ width: '100%', maxHeight: 300, objectFit: 'cover', display: 'block' }} />
-                                <button
-                                    style={{ position: 'absolute', top: 8, right: 8, background: 'rgba(0,0,0,0.5)', color: '#fff', border: 'none', borderRadius: '50%', width: 24, height: 24, cursor: 'pointer' }}
-                                    onClick={() => { setSelectedFile(null); setFilePreview(null); }}
-                                >
-                                    <X size={14} />
-                                </button>
-                            </div>
-                        )}
-
-                        {selectedFile && !filePreview && (
-                            <div style={{ marginTop: 16, padding: '10px 12px', background: '#f8fafc', borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'space-between', border: '1px solid #e2e8f0' }}>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                                    <FileText size={18} color="#65676b" />
-                                    <span style={{ fontSize: 13, fontWeight: 500 }}>{selectedFile.name}</span>
-                                </div>
-                                <X size={16} color="#65676b" cursor="pointer" onClick={() => setSelectedFile(null)} />
-                            </div>
-                        )}
-                    </div>
-                </div>
-            </div>
-
-            {/* My Posts History */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-                <div className="ln-section-header">
-                    <h3 style={{ fontSize: 14, textTransform: 'uppercase', letterSpacing: '0.5px' }}>Your Recent Activity</h3>
-                    <span className="ln-badge ln-badge-gray">{myPosts.length} posts</span>
-                </div>
-                {myPosts.map(post => (
-                    <div key={post.id} className="ln-card ln-feed-card" style={{ marginBottom: 0 }}>
-                        <div className="ln-feed-card-header">
-                            <div className="ln-feed-avatar">
-                                {currentUser?.photo ? <img src={currentUser.photo} alt="" style={{ width: '100%', height: '100%', borderRadius: '50%' }} /> : (currentUser?.name?.charAt(0) || 'T')}
-                            </div>
-                            <div>
-                                <div className="ln-feed-author" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                                    {currentUser?.name}
-                                    <span className="ln-badge ln-badge-gray" style={{ fontSize: 10 }}>Author</span>
-                                    {post.post_type !== 'general' && <span className="ln-badge ln-badge-blue" style={{ fontSize: 10 }}>{post.post_type.replace('_', ' ')}</span>}
-                                </div>
-                                <div className="ln-feed-meta">TESDA Trainee &bull; {new Date(post.created_at).toLocaleDateString()}</div>
-                            </div>
-                        </div>
-                        <div className="ln-feed-content">
-                            <p style={{ whiteSpace: 'pre-wrap', fontSize: 14 }}>{post.content}</p>
-                            {post.media_url && (
-                                <div style={{ marginTop: 12 }}>
-                                    {post.media_url.match(/\.(jpg|jpeg|png|gif|webp)$/i) ? (
-                                        <img src={post.media_url} alt="Post media" style={{ width: '100%', borderRadius: 8, border: '1px solid #f3f3f3' }} />
-                                    ) : (
-                                        <a
-                                            href={post.media_url}
-                                            target="_blank"
-                                            rel="noopener noreferrer"
-                                            style={{
-                                                display: 'flex', alignItems: 'center', gap: 10, padding: '12px 16px',
-                                                background: '#f8fafc', borderRadius: 8, border: '1px solid #e2e8f0',
-                                                textDecoration: 'none', color: '#0a66c2', fontWeight: 600, fontSize: 13
-                                            }}
-                                        >
-                                            <FileText size={20} />
-                                            View Attached Document
-                                        </a>
-                                    )}
-                                </div>
-                            )}
-                            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 12 }}>
-                                {post.tags?.map(tag => (
-                                    <span key={tag} style={{ color: '#0a66c2', fontSize: 12, fontWeight: 500 }}>#{tag.replace(/\s+/g, '')}</span>
-                                ))}
-                            </div>
-                        </div>
-                    </div>
-                ))}
-                {myPosts.length === 0 && (
-                    <div className="ln-empty-state" style={{ padding: 60 }}>
-                        <Plus size={48} style={{ opacity: 0.2, marginBottom: 16 }} />
-                        <h3 style={{ color: 'rgba(0,0,0,0.6)' }}>No posts yet</h3>
-                        <p style={{ color: 'rgba(0,0,0,0.4)' }}>Share your first achievement to start building your professional feed!</p>
-                    </div>
-                )}
-            </div>
-        </div>
-    );
-};
-
 // ─── MAIN TRAINEE DASHBOARD ─────────────────────────────────────
 export default function TraineeDashboard() {
     const { currentUser } = useApp();
@@ -1997,7 +2062,6 @@ export default function TraineeDashboard() {
                 <Route path="/" element={<TraineeDashboardHome setActivePage={setActivePage} />} />
                 <Route path="/profile" element={<TraineeProfile />} />
                 <Route path="/recommendations" element={<Opportunities />} />
-                <Route path="/posting" element={<TraineePosting />} />
                 <Route path="/applications" element={<MyApplications />} />
                 <Route path="*" element={<Navigate to="/trainee" replace />} />
             </Routes>

@@ -29,3 +29,7 @@ dist-ssr
 
 # Backup files
 *.bak
+
+# Debug/temp files
+*_check.txt
+vite_log.txt

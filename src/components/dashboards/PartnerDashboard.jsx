@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { useApp } from '../../context/AppContext';
 import {
   LayoutDashboard, Briefcase, FileText, Users, Building2, LogOut,
@@ -6,8 +6,9 @@ import {
   MapPin, Send, Award, ChevronRight, Trash2, Menu, Lock,
   Upload, AlertTriangle, Clock, ShieldCheck, FileCheck,
   Bell, Home, Settings, TrendingUp, Bookmark, Target, Star,
-  Camera, ThumbsUp, MessageSquare, Share2
+  Camera, ThumbsUp, MessageSquare, Share2, Edit, Loader, ExternalLink
 } from 'lucide-react';
+import { supabase } from '../../lib/supabase';
 import { Routes, Route, useNavigate, useLocation, Navigate } from 'react-router-dom';
 
 /* ═══════════════════════════════════════════════════════════════════
@@ -16,6 +17,23 @@ import { Routes, Route, useNavigate, useLocation, Navigate } from 'react-router-
 
 // ─── HELPERS ──────────────────────────────────────────────────────
 const isVerified = (user) => user?.verificationStatus === 'Verified';
+
+const timeAgo = (dateStr) => {
+    const now = new Date();
+    const date = new Date(dateStr);
+    const seconds = Math.floor((now - date) / 1000);
+    if (seconds < 60) return 'Just now';
+    const minutes = Math.floor(seconds / 60);
+    if (minutes < 60) return `${minutes}m ago`;
+    const hours = Math.floor(minutes / 60);
+    if (hours < 24) return `${hours}h ago`;
+    const days = Math.floor(hours / 24);
+    if (days < 30) return `${days}d ago`;
+    const months = Math.floor(days / 30);
+    if (months < 12) return `${months}mo ago`;
+    const years = Math.floor(months / 12);
+    return `${years}y ago`;
+};
 
 // ─── STATUS BADGE HELPER ──────────────────────────────────────────
 const StatusBadge = ({ status }) => {
@@ -51,9 +69,8 @@ const PartnerTopNav = ({ activePage, setActivePage }) => {
   const navItems = [
     { id: 'dashboard', label: 'Home', icon: <Home size={20} /> },
     { id: 'profile', label: 'Company', icon: <Building2 size={20} /> },
-    { id: 'verification', label: 'Verification', icon: <ShieldCheck size={20} /> },
-    { id: 'post-job', label: 'Post Job', icon: <Plus size={20} />, locked: !verified },
-    { id: 'post-ojt', label: 'Post OJT', icon: <Briefcase size={20} />, locked: !verified },
+    ...(!verified ? [{ id: 'verification', label: 'Verification', icon: <ShieldCheck size={20} /> }] : []),
+    { id: 'post-job', label: 'Post Opportunities', icon: <Plus size={20} />, locked: !verified },
     { id: 'applicants', label: 'Applicants', icon: <Users size={20} />, locked: !verified },
   ];
 
@@ -143,10 +160,12 @@ const PartnerTopNav = ({ activePage, setActivePage }) => {
                 <button className="ln-dropdown-profile-btn" onClick={() => { setActivePage('profile'); setShowProfileMenu(false); }}>
                   View Company Profile
                 </button>
-                <div className="ln-dropdown-divider" />
-                <div className="ln-dropdown-item" onClick={() => { setActivePage('verification'); setShowProfileMenu(false); }}>
-                  <ShieldCheck size={16} /> Verification
-                </div>
+                {!verified && (<>
+                  <div className="ln-dropdown-divider" />
+                  <div className="ln-dropdown-item" onClick={() => { setActivePage('verification'); setShowProfileMenu(false); }}>
+                    <ShieldCheck size={16} /> Verification
+                  </div>
+                </>)}
                 <div className="ln-dropdown-divider" />
                 <div className="ln-dropdown-item ln-dropdown-danger" onClick={logout}>
                   <LogOut size={16} /> Sign Out
@@ -208,7 +227,10 @@ const CompanySideCard = ({ partner, setActivePage }) => {
         <div className="ln-profile-avatar-wrap">
           <div className="ln-profile-avatar-lg pn-avatar-lg">{initials}</div>
         </div>
-        <h2 className="ln-profile-name">{partner?.companyName}</h2>
+        <h2 className="ln-profile-name" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
+          {partner?.companyName}
+          {isVerified(partner) && <CheckCircle size={16} color="#0a66c2" title="Verified" style={{ flexShrink: 0 }} />}
+        </h2>
         <p className="ln-profile-headline">{partner?.industry} &bull; Industry Partner</p>
         <p className="ln-profile-location"><MapPin size={13} /> {partner?.address || 'Philippines'}</p>
 
@@ -241,10 +263,9 @@ const QuickActionsWidget = ({ setActivePage, verified }) => (
   <div className="ln-card ln-widget">
     <div className="ln-widget-header"><span>Quick Actions</span></div>
     {[
-      { label: 'Post a Job', icon: <Plus size={16} />, page: 'post-job', locked: !verified },
-      { label: 'Post OJT Opportunity', icon: <Briefcase size={16} />, page: 'post-ojt', locked: !verified },
+      { label: 'Post Opportunities', icon: <Plus size={16} />, page: 'post-job', locked: !verified },
       { label: 'View Applicants', icon: <Users size={16} />, page: 'applicants', locked: !verified },
-      { label: 'Verification', icon: <ShieldCheck size={16} />, page: 'verification', locked: false },
+      ...(!verified ? [{ label: 'Verification', icon: <ShieldCheck size={16} />, page: 'verification', locked: false }] : []),
     ].map(link => (
       <button
         key={link.page}
@@ -380,7 +401,7 @@ const PartnerHome = ({ setActivePage }) => {
                 <AlertTriangle size={20} color="#d97706" style={{ marginTop: 2, flexShrink: 0 }} />
                 <div>
                   <div style={{ fontWeight: 600, fontSize: 14, color: '#92400e', marginBottom: 2 }}>Account Pending Verification</div>
-                  <div style={{ fontSize: 13, color: '#a16207' }}>Upload your Business Permit to unlock job & OJT posting features.</div>
+                  <div style={{ fontSize: 13, color: '#a16207' }}>Upload verification documents to unlock job & OJT posting features.</div>
                 </div>
               </div>
               <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexShrink: 0 }}>
@@ -414,6 +435,7 @@ const PartnerHome = ({ setActivePage }) => {
               <textarea
                 className="ln-search-input"
                 placeholder="Share a hiring update or company announcement..."
+                maxLength={500}
                 style={{
                   width: '100%', minHeight: postContent ? 80 : 45, padding: '12px 16px',
                   borderRadius: 24, border: '1px solid rgba(0,0,0,0.15)',
@@ -512,7 +534,7 @@ const PartnerHome = ({ setActivePage }) => {
           <div className="ln-feed-actions">
             {verified && (
               <button className="ln-feed-action-btn" onClick={() => setActivePage('post-job')}>
-                <Plus size={16} /> Post Job
+                <Plus size={16} /> Post Opportunities
               </button>
             )}
             <button className="ln-feed-action-btn" onClick={() => setActivePage('applicants')}>
@@ -542,7 +564,7 @@ const PartnerHome = ({ setActivePage }) => {
                       <div className="ln-feed-author">
                         {item.companyName} {myJob && <span className="ln-badge ln-badge-blue" style={{ fontSize: 10, marginLeft: 4 }}>Your Post</span>}
                       </div>
-                      <div className="ln-feed-meta">{item.industry} &bull; {item.location} &bull; {new Date(item.datePosted).toLocaleDateString()}</div>
+                      <div className="ln-feed-meta">{item.industry} &bull; {item.location} &bull; {timeAgo(item.datePosted)}</div>
                     </div>
                   </div>
                   <div className="ln-feed-content">
@@ -588,7 +610,7 @@ const PartnerHome = ({ setActivePage }) => {
                         )}
                       </div>
                       <div className="ln-feed-meta">
-                        {item.author_type === 'student' ? 'TESDA Trainee' : 'Industry Partner'} &bull; {new Date(item.created_at).toLocaleDateString()}
+                        {item.author_type === 'student' ? 'TESDA Trainee' : 'Industry Partner'} &bull; {timeAgo(item.created_at)}
                       </div>
                     </div>
                   </div>
@@ -648,40 +670,138 @@ const PartnerHome = ({ setActivePage }) => {
 // ─── PAGE: VERIFICATION ───────────────────────────────────────────
 const VerificationPage = () => {
   const { currentUser, submitPartnerDocuments } = useApp();
-  const status = currentUser?.verificationStatus || 'Pending Verification';
-  const hasBusinessPermit = currentUser?.documents?.businessPermit === 'uploaded';
-  const [selectedFile, setSelectedFile] = useState(hasBusinessPermit);
-  const [submitted, setSubmitted] = useState(false);
+  const status = currentUser?.verificationStatus || 'Pending';
+  const [documents, setDocuments] = useState([]);
+  const [uploading, setUploading] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [docLabel, setDocLabel] = useState('');
+  const fileInputRef = useRef(null);
+  const [confirmDeleteId, setConfirmDeleteId] = useState(null);
 
-  const handleSubmit = () => {
-    if (!selectedFile) return;
-    submitPartnerDocuments(currentUser.id, { businessPermit: 'uploaded' });
-    setSubmitted(true);
+  const fetchDocs = async () => {
+    try {
+      const res = await fetch(`/api/partner-verification/${currentUser.id}`);
+      if (res.ok) {
+        const data = await res.json();
+        setDocuments(data.documents || []);
+      }
+    } catch (err) {
+      console.error('Failed to fetch verification docs:', err);
+    } finally {
+      setLoading(false);
+    }
   };
+
+  useEffect(() => { if (currentUser?.id) fetchDocs(); }, [currentUser?.id]);
+
+  const handleFileUpload = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const allowedTypes = ['application/pdf', 'image/jpeg', 'image/png', 'image/jpg'];
+    if (!allowedTypes.includes(file.type)) {
+      alert('Only PDF, JPG, and PNG files are allowed.');
+      return;
+    }
+    if (file.size > 3 * 1024 * 1024) {
+      alert('File size must be under 3MB.');
+      return;
+    }
+
+    setUploading(true);
+    try {
+      const reader = new FileReader();
+      reader.onload = async () => {
+        const base64 = reader.result.split(',')[1];
+        const res = await fetch('/api/partner-verification/upload', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            partnerId: currentUser.id,
+            documentType: 'custom',
+            label: docLabel.trim(),
+            fileName: file.name,
+            fileType: file.type,
+            fileData: base64,
+          }),
+        });
+        if (res.ok) {
+          await fetchDocs();
+          setDocLabel('');
+        } else {
+          const err = await res.json();
+          alert(err.error || 'Upload failed.');
+        }
+        setUploading(false);
+      };
+      reader.readAsDataURL(file);
+    } catch (err) {
+      console.error('Upload error:', err);
+      alert('Failed to upload document.');
+      setUploading(false);
+    }
+    if (fileInputRef.current) fileInputRef.current.value = '';
+  };
+
+  const handleDelete = async (docId) => {
+    try {
+      const res = await fetch(`/api/partner-verification/${docId}`, { method: 'DELETE' });
+      if (res.ok) {
+        setDocuments(prev => prev.filter(d => d.id !== docId));
+      }
+    } catch (err) {
+      console.error('Delete error:', err);
+    }
+    setConfirmDeleteId(null);
+  };
+
+  const handleSubmitForReview = () => {
+    if (documents.length === 0) {
+      alert('Please upload at least one document before submitting.');
+      return;
+    }
+    submitPartnerDocuments(currentUser.id);
+  };
+
+  const hasUploaded = documents.length > 0;
+  const isSubmitted = status === 'Under Review' || status === 'Verified';
 
   return (
     <div className="ln-page-content">
       <div className="ln-page-header">
         <div>
           <h1 className="ln-page-title">Account Verification</h1>
-          <p className="ln-page-subtitle">Upload required documents to verify your account</p>
+          <p className="ln-page-subtitle">Upload required company documents to verify your account</p>
         </div>
         <StatusBadge status={status} />
       </div>
 
       {/* Status Card */}
       <div className="ln-card" style={{ marginBottom: 16 }}>
-        <div className="ln-section-header">
-          <h3>Verification Status</h3>
-        </div>
+        <div className="ln-section-header"><h3>Verification Status</h3></div>
         <div style={{ padding: '0 16px 16px' }}>
           <p style={{ fontSize: 14, color: 'rgba(0,0,0,0.6)', lineHeight: 1.6 }}>
             {status === 'Verified'
               ? 'Your account is fully verified. You can post jobs and OJT opportunities.'
               : status === 'Under Review'
                 ? 'Your documents are being reviewed by our administrators. Please wait for approval.'
-                : 'Upload your Business Permit below to begin the verification process.'}
+                : status === 'Rejected'
+                  ? 'Your verification was rejected. You may re-upload documents and submit again.'
+                  : 'Upload your company verification documents below to begin the verification process.'}
           </p>
+        </div>
+      </div>
+
+      {/* Privacy Notice */}
+      <div className="ln-card" style={{ marginBottom: 16, borderLeft: '4px solid #0ea5e9' }}>
+        <div style={{ padding: 16, display: 'flex', alignItems: 'flex-start', gap: 12 }}>
+          <ShieldCheck size={20} color="#0ea5e9" style={{ marginTop: 2, flexShrink: 0 }} />
+          <div>
+            <div style={{ fontWeight: 600, fontSize: 14, color: '#0c4a6e', marginBottom: 4 }}>Document Privacy</div>
+            <p style={{ fontSize: 13, color: '#475569', lineHeight: 1.6, margin: 0 }}>
+              Your uploaded documents will only be visible to the <strong>school principal/administrator</strong> and the <strong>system administrator</strong> of this platform. No other users, trainees, or partners will have access to your verification documents.
+            </p>
+          </div>
         </div>
       </div>
 
@@ -691,9 +811,8 @@ const VerificationPage = () => {
         <div style={{ padding: '0 16px 16px', display: 'flex', flexDirection: 'column', gap: 10 }}>
           {[
             { step: 1, label: 'Register your company account', done: true },
-            { step: 2, label: 'Upload Business Permit', done: hasBusinessPermit || status === 'Under Review' || status === 'Verified' },
-            { step: 3, label: 'Admin reviews your documents', done: status === 'Verified' },
-            { step: 4, label: 'Account verified — start posting!', done: status === 'Verified' },
+            { step: 2, label: 'Upload your verification documents', done: hasUploaded || isSubmitted },
+            { step: 3, label: 'Submit for admin review', done: isSubmitted },
           ].map(s => (
             <div key={s.step} style={{
               display: 'flex', alignItems: 'center', gap: 12, padding: '12px 16px',
@@ -717,47 +836,141 @@ const VerificationPage = () => {
 
       {/* Upload Section */}
       {status !== 'Verified' && (
-        <div className="ln-card">
-          <div className="ln-section-header"><h3>Upload Business Permit</h3></div>
+        <div className="ln-card" style={{ marginBottom: 16 }}>
+          <div className="ln-section-header"><h3>Upload Verification Documents</h3></div>
           <div style={{ padding: '0 16px 16px' }}>
-            {(status === 'Under Review' || submitted) ? (
-              <div style={{ textAlign: 'center', padding: '24px 0' }}>
-                <FileCheck size={48} color="#0ea5e9" style={{ margin: '0 auto 12px' }} />
-                <h4 style={{ fontSize: 16, fontWeight: 700, color: 'rgba(0,0,0,0.9)', marginBottom: 6 }}>Documents Submitted</h4>
-                <p style={{ fontSize: 13, color: 'rgba(0,0,0,0.55)' }}>Your Business Permit has been submitted and is under review by the administrators.</p>
+            {/* Uploaded Documents List */}
+            {loading ? (
+              <div style={{ textAlign: 'center', padding: '20px 0', color: '#94a3b8' }}>
+                <Loader size={24} className="spin" style={{ margin: '0 auto 8px' }} /> Loading documents...
               </div>
-            ) : (
+            ) : documents.length > 0 && (
+              <div style={{ marginBottom: 16 }}>
+                {documents.map(doc => (
+                  <div key={doc.id} style={{
+                    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                    padding: '10px 14px', background: '#f0fdf4', borderRadius: 10,
+                    border: '1px solid #bbf7d0', marginBottom: 8
+                  }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
+                      <FileCheck size={18} color="#16a34a" style={{ flexShrink: 0 }} />
+                      <div style={{ minWidth: 0 }}>
+                        <div style={{ fontSize: 13, fontWeight: 600, color: '#166534', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          {doc.label}
+                        </div>
+                        <div style={{ fontSize: 11, color: '#64748b' }}>
+                          {doc.file_name} • {timeAgo(doc.uploaded_at)}
+                        </div>
+                      </div>
+                    </div>
+                    <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
+                      <a href={doc.file_url} target="_blank" rel="noopener noreferrer"
+                        style={{ padding: '4px 8px', fontSize: 12, color: '#0369a1', border: '1px solid #bae6fd', background: '#f0f9ff', borderRadius: 6, textDecoration: 'none', cursor: 'pointer' }}>
+                        <Eye size={12} /> View
+                      </a>
+                      {status !== 'Under Review' && (
+                        <button onClick={() => setConfirmDeleteId(doc.id)}
+                          style={{ padding: '4px 8px', fontSize: 12, color: '#dc2626', border: '1px solid #fecaca', background: '#fef2f2', borderRadius: 6, cursor: 'pointer' }}>
+                          <Trash2 size={12} /> Remove
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* Upload New Document */}
+            {status !== 'Under Review' && (
               <>
-                <div style={{
-                  border: '2px dashed #cbd5e1', borderRadius: 12, padding: '28px 20px',
-                  textAlign: 'center', marginBottom: 16,
-                  background: selectedFile ? '#f0fdf4' : '#f8fafc',
-                  borderColor: selectedFile ? '#86efac' : '#cbd5e1',
-                  cursor: 'pointer', transition: 'all 0.2s'
-                }} onClick={() => setSelectedFile(!selectedFile)}>
-                  <Upload size={32} color={selectedFile ? '#16a34a' : '#94a3b8'} style={{ margin: '0 auto 10px' }} />
-                  {selectedFile ? (
-                    <>
-                      <div style={{ fontWeight: 600, fontSize: 14, color: '#166534' }}>Business_Permit.pdf</div>
-                      <div style={{ fontSize: 12, color: '#16a34a', marginTop: 4 }}>File selected • Click to remove</div>
-                    </>
-                  ) : (
-                    <>
-                      <div style={{ fontWeight: 600, fontSize: 14, color: '#475569' }}>Click to select your Business Permit</div>
-                      <div style={{ fontSize: 12, color: '#94a3b8', marginTop: 4 }}>PDF, JPG, or PNG • Max 10MB</div>
-                    </>
-                  )}
+                <div style={{ display: 'flex', gap: 10, marginBottom: 12, flexWrap: 'wrap' }}>
+                  <input
+                    type="text"
+                    placeholder="Document label (e.g. Business Permit, SEC Registration)"
+                    value={docLabel} onChange={e => setDocLabel(e.target.value)}
+                    maxLength={100}
+                    style={{ flex: 1, minWidth: 180, padding: '8px 12px', borderRadius: 8, border: '1px solid #e2e8f0', fontSize: 13, background: '#f8fafc' }}
+                  />
+                  <button
+                    className="ln-btn"
+                    style={{ padding: '8px 16px', fontSize: 13, background: '#f0f9ff', border: '1px solid #bae6fd', color: '#0369a1' }}
+                    onClick={() => {
+                      if (!docLabel.trim()) { alert('Please enter a document label first.'); return; }
+                      fileInputRef.current?.click();
+                    }}
+                    disabled={uploading}
+                  >
+                    {uploading ? <><Loader size={14} className="spin" /> Uploading...</> : <><Upload size={14} /> Choose File</>}
+                  </button>
                 </div>
-                <button
-                  className="ln-btn ln-btn-primary"
-                  style={{ width: '100%', padding: '10px 20px', fontSize: 14 }}
-                  disabled={!selectedFile}
-                  onClick={handleSubmit}
-                >
-                  <Send size={16} /> Submit for Verification
-                </button>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept=".pdf,.jpg,.jpeg,.png"
+                  style={{ display: 'none' }}
+                  onChange={handleFileUpload}
+                />
+                <p style={{ fontSize: 12, color: '#94a3b8', marginBottom: 16 }}>Accepted: PDF, JPG, PNG • Max 3MB per file</p>
               </>
             )}
+
+            {/* Submit / Edit Button */}
+            {status === 'Under Review' ? (
+              <div style={{ textAlign: 'center', padding: '8px 0' }}>
+                <FileCheck size={36} color="#0ea5e9" style={{ margin: '0 auto 8px' }} />
+                <p style={{ fontSize: 13, color: 'rgba(0,0,0,0.55)', marginBottom: 12 }}>Your documents are under review by the administrators.</p>
+              </div>
+            ) : (
+              <button
+                className="ln-btn ln-btn-primary"
+                style={{ width: '100%', padding: '10px 20px', fontSize: 14 }}
+                disabled={documents.length === 0}
+                onClick={handleSubmitForReview}
+              >
+                <Send size={16} /> Submit for Verification
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Benefits of Verified Account */}
+      <div className="ln-card" style={{ marginBottom: 16 }}>
+        <div className="ln-section-header"><h3>Benefits of a Verified Account</h3></div>
+        <div style={{ padding: '0 16px 16px', display: 'flex', flexDirection: 'column', gap: 10 }}>
+          {[
+            { icon: <Briefcase size={18} color="#0ea5e9" />, title: 'Post Opportunities', desc: 'Publish job listings and OJT postings visible to all qualified trainees.' },
+            { icon: <CheckCircle size={18} color="#16a34a" />, title: 'Verified Badge', desc: 'A verified badge appears next to your company name, building trust with trainees.' },
+            { icon: <Users size={18} color="#8b5cf6" />, title: 'Access Trainee Applications', desc: 'View and manage applications from trainees who apply to your postings.' },
+            { icon: <ShieldCheck size={18} color="#f59e0b" />, title: 'Trusted Partner Status', desc: 'Your company is recognized as a trusted industry partner by the institution.' },
+            { icon: <TrendingUp size={18} color="#ec4899" />, title: 'Priority Visibility', desc: 'Verified partners appear more prominently to trainees browsing opportunities.' },
+          ].map((b, i) => (
+            <div key={i} style={{
+              display: 'flex', alignItems: 'flex-start', gap: 12, padding: '12px 16px',
+              background: status === 'Verified' ? '#f0fdf4' : '#f8fafc',
+              borderRadius: 10, border: `1px solid ${status === 'Verified' ? '#bbf7d0' : '#e8e8e8'}`
+            }}>
+              <div style={{ marginTop: 2, flexShrink: 0 }}>{b.icon}</div>
+              <div>
+                <div style={{ fontSize: 14, fontWeight: 600, color: '#1e293b', marginBottom: 2 }}>{b.title}</div>
+                <div style={{ fontSize: 13, color: '#64748b', lineHeight: 1.5 }}>{b.desc}</div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Confirm Delete Modal */}
+      {confirmDeleteId && (
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999 }}
+          onClick={() => setConfirmDeleteId(null)}>
+          <div style={{ background: 'white', borderRadius: 12, padding: 24, maxWidth: 400, width: '90%' }} onClick={e => e.stopPropagation()}>
+            <h3 style={{ fontSize: 16, fontWeight: 700, marginBottom: 8 }}>Remove Document?</h3>
+            <p style={{ fontSize: 13, color: '#64748b', marginBottom: 20 }}>This document will be permanently deleted. You can upload a new one afterwards.</p>
+            <div style={{ display: 'flex', gap: 10 }}>
+              <button className="ln-btn" style={{ flex: 1, padding: '8px 16px' }} onClick={() => setConfirmDeleteId(null)}>Cancel</button>
+              <button className="ln-btn" style={{ flex: 1, padding: '8px 16px', background: '#fef2f2', color: '#dc2626', border: '1px solid #fecaca' }} onClick={() => handleDelete(confirmDeleteId)}>Delete</button>
+            </div>
           </div>
         </div>
       )}
@@ -765,7 +978,7 @@ const VerificationPage = () => {
   );
 };
 
-// ─── PAGE: POST JOB ───────────────────────────────────────────────
+// ─── PAGE: POST OPPORTUNITIES ─────────────────────────────────────
 const PostJob = ({ setActivePage, opportunityType = 'Job' }) => {
   const { addJobPosting, NC_COMPETENCIES, currentUser } = useApp();
   const ncKeys = Object.keys(NC_COMPETENCIES);
@@ -796,7 +1009,7 @@ const PostJob = ({ setActivePage, opportunityType = 'Job' }) => {
       <div className="ln-page-content">
         <div className="ln-page-header">
           <div>
-            <h1 className="ln-page-title">Post {opportunityType === 'OJT' ? 'OJT Opportunity' : 'Job'}</h1>
+            <h1 className="ln-page-title">Post Opportunities</h1>
             <p className="ln-page-subtitle">Create a new posting</p>
           </div>
         </div>
@@ -817,8 +1030,8 @@ const PostJob = ({ setActivePage, opportunityType = 'Job' }) => {
     <div className="ln-page-content">
       <div className="ln-page-header">
         <div>
-          <h1 className="ln-page-title">Post {opportunityType === 'OJT' ? 'OJT Opportunity' : 'New Job'}</h1>
-          <p className="ln-page-subtitle">Create a new {opportunityType === 'OJT' ? 'OJT' : 'job'} posting</p>
+          <h1 className="ln-page-title">Post Opportunities</h1>
+          <p className="ln-page-subtitle">Create a new opportunity posting</p>
         </div>
       </div>
       <form onSubmit={handleSubmit}>
@@ -827,7 +1040,7 @@ const PostJob = ({ setActivePage, opportunityType = 'Job' }) => {
             <h3 style={{ fontSize: 16, fontWeight: 600, color: 'rgba(0,0,0,0.9)', marginBottom: 16 }}>Opportunity Details</h3>
             <div className="form-group">
               <label className="ln-info-label">Title *</label>
-              <input className="form-input" value={form.title} onChange={e => setForm({ ...form, title: e.target.value })} placeholder={opportunityType === 'OJT' ? 'e.g. Web Dev OJT Trainee' : 'e.g. Junior IT Technician'} required />
+              <input className="form-input" value={form.title} onChange={e => setForm({ ...form, title: e.target.value })} placeholder={opportunityType === 'OJT' ? 'e.g. Web Dev OJT Trainee' : 'e.g. Junior IT Technician'} maxLength={100} required />
             </div>
             <div className="form-group">
               <label className="ln-info-label">Opportunity Type *</label>
@@ -843,7 +1056,7 @@ const PostJob = ({ setActivePage, opportunityType = 'Job' }) => {
             </div>
             <div className="form-group">
               <label className="ln-info-label">Description</label>
-              <textarea className="form-input" rows={4} value={form.description} onChange={e => setForm({ ...form, description: e.target.value })} placeholder="Describe the opportunity..." />
+              <textarea className="form-input" rows={4} maxLength={1000} value={form.description} onChange={e => setForm({ ...form, description: e.target.value })} placeholder="Describe the opportunity..." />
             </div>
             <div className="form-group">
               <label className="ln-info-label">Employment Type</label>
@@ -854,11 +1067,11 @@ const PostJob = ({ setActivePage, opportunityType = 'Job' }) => {
             <div className="ln-info-grid" style={{ gridTemplateColumns: '1fr 1fr', gap: 12 }}>
               <div className="form-group">
                 <label className="ln-info-label">Location *</label>
-                <input className="form-input" value={form.location} onChange={e => setForm({ ...form, location: e.target.value })} placeholder="City" required />
+                <input className="form-input" value={form.location} onChange={e => setForm({ ...form, location: e.target.value })} placeholder="City" maxLength={100} required />
               </div>
               <div className="form-group">
                 <label className="ln-info-label">Salary Range</label>
-                <input className="form-input" value={form.salaryRange} onChange={e => setForm({ ...form, salaryRange: e.target.value })} placeholder="₱15,000 – ₱20,000/month" />
+                <input className="form-input" value={form.salaryRange} onChange={e => setForm({ ...form, salaryRange: e.target.value })} placeholder="₱15,000 – ₱20,000/month" maxLength={50} />
               </div>
             </div>
             <div className="form-group">
@@ -1047,9 +1260,142 @@ const ViewApplicants = ({ setActivePage }) => {
 
 // ─── PAGE: COMPANY PROFILE ────────────────────────────────────────
 const CompanyProfile = () => {
-  const { currentUser, partners } = useApp();
-  const partner = partners.find(p => p.id === currentUser?.id);
-  if (!partner) return null;
+  const { currentUser, partners, updatePartner, jobPostings } = useApp();
+  const navigate = useNavigate();
+  const partner = partners.find(p => p.id === currentUser?.id) || currentUser;
+
+  const [editing, setEditing] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [form, setForm] = useState({
+    companyName: '',
+    contactPerson: '',
+    email: '',
+    address: '',
+    website: '',
+    industry: '',
+    achievements: [],
+    benefits: []
+  });
+
+  const [newAchievement, setNewAchievement] = useState('');
+  const [newBenefit, setNewBenefit] = useState('');
+
+  // Confirm dialog state
+  const [confirmDialog, setConfirmDialog] = useState({ open: false, message: '', onConfirm: null });
+  const showConfirm = (message, onConfirm) => setConfirmDialog({ open: true, message, onConfirm });
+  const closeConfirm = () => setConfirmDialog({ open: false, message: '', onConfirm: null });
+
+  // Documents state
+  const [documents, setDocuments] = useState([]);
+  const [docLabel, setDocLabel] = useState('');
+  const [docFile, setDocFile] = useState(null);
+  const [uploading, setUploading] = useState(false);
+  const [showUploadForm, setShowUploadForm] = useState(false);
+  const fileInputRef = useRef(null);
+
+  // Email validation
+  const isEmailValid = (email) => !email || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+
+  // Sync form when partner data arrives or when editing starts
+  useEffect(() => {
+    if (partner) {
+      setForm({
+        companyName: partner.companyName || '',
+        contactPerson: partner.contactPerson || '',
+        email: partner.email || '',
+        address: partner.address || '',
+        website: partner.website || '',
+        industry: partner.industry || '',
+        achievements: partner.achievements || [],
+        benefits: partner.benefits || []
+      });
+    }
+  }, [partner]);
+
+  // Fetch documents on mount
+  useEffect(() => {
+    if (partner?.id) {
+      fetch(`/api/documents/${partner.id}`)
+        .then(r => { if (!r.ok) throw new Error(`Server returned ${r.status}`); return r.json(); })
+        .then(data => { if (data.success) setDocuments(data.documents || []); })
+        .catch(err => console.error('Fetch partner docs error:', err));
+    }
+  }, [partner?.id]);
+
+  const handleDocUpload = async () => {
+    if (!docFile || !docLabel.trim()) return;
+    setUploading(true);
+    try {
+      const reader = new FileReader();
+      reader.onload = async () => {
+        const base64 = reader.result.split(',')[1];
+        const res = await fetch('/api/documents/upload', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            traineeId: partner.id,
+            label: docLabel.trim(),
+            fileName: docFile.name,
+            fileType: docFile.type,
+            fileData: base64,
+          }),
+        });
+        const result = await res.json();
+        if (result.success) {
+          setDocuments(prev => [result.document, ...prev]);
+          setDocLabel('');
+          setDocFile(null);
+          setShowUploadForm(false);
+          if (fileInputRef.current) fileInputRef.current.value = '';
+        } else {
+          alert(result.error || 'Upload failed.');
+        }
+        setUploading(false);
+      };
+      reader.readAsDataURL(docFile);
+    } catch (err) {
+      console.error('Upload error:', err);
+      alert('Failed to upload document.');
+      setUploading(false);
+    }
+  };
+
+  const deleteDoc = async (docId) => {
+    try {
+      const res = await fetch(`/api/documents/${docId}`, { method: 'DELETE' });
+      const result = await res.json();
+      if (result.success) {
+        setDocuments(prev => prev.filter(d => d.id !== docId));
+      } else {
+        alert(`Delete failed: ${result.error}`);
+      }
+    } catch (err) {
+      console.error('Delete error:', err);
+      alert('Failed to delete document.');
+    }
+  };
+
+  if (!partner) {
+    return (
+      <div className="ln-container" style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100%' }}>
+        <Loader size={40} style={{ animation: 'ocr-spin 1s linear infinite', opacity: 0.3 }} />
+      </div>
+    );
+  }
+
+  const activeJobs = jobPostings.filter(j => j.partnerId === partner.id && j.status === 'Open');
+
+  const save = async () => {
+    if (form.email && !isEmailValid(form.email)) {
+      alert('Please enter a valid email address.');
+      return;
+    }
+    setSaving(true);
+    await updatePartner(partner.id, form);
+    setSaving(false);
+    setEditing(false);
+  };
+
   const initials = partner.companyName?.charAt(0)?.toUpperCase() || 'P';
 
   return (
@@ -1061,13 +1407,37 @@ const CompanyProfile = () => {
           <div className="ln-profile-header-avatar pn-header-avatar">{initials}</div>
           <div className="ln-profile-header-info">
             <div className="ln-profile-header-top">
-              <div>
-                <h1 className="ln-profile-header-name">{partner.companyName}</h1>
+              <div style={{ flex: 1 }}>
+                <h1 className="ln-profile-header-name" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  {partner.companyName}
+                  {isVerified(partner) && <CheckCircle size={20} color="#0a66c2" title="Verified" style={{ flexShrink: 0 }} />}
+                </h1>
                 <p className="ln-profile-header-headline">{partner.industry} &bull; Industry Partner</p>
                 <p className="ln-profile-header-loc"><MapPin size={14} /> {partner.address || 'Philippines'}</p>
                 <p className="ln-profile-header-contact">{partner.email}</p>
               </div>
-              <StatusBadge status={partner.verificationStatus} />
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 12 }}>
+                <StatusBadge status={partner.verificationStatus} />
+                <button
+                  className={`ln-btn ${editing ? 'ln-btn-success' : 'ln-btn-primary'}`}
+                  onClick={editing ? save : () => {
+                    setForm({
+                      companyName: partner?.companyName || '',
+                      contactPerson: partner?.contactPerson || '',
+                      email: partner?.email || '',
+                      address: partner?.address || '',
+                      website: partner?.website || '',
+                      industry: partner?.industry || '',
+                      achievements: partner?.achievements || [],
+                      benefits: partner?.benefits || []
+                    });
+                    setEditing(true);
+                  }}
+                  disabled={saving || (editing && form.email && !isEmailValid(form.email))}
+                >
+                  {saving ? <><Loader size={15} style={{ animation: 'ocr-spin 0.8s linear infinite' }} /> Saving...</> : editing ? <><CheckCircle size={15} /> Save Changes</> : <><Edit size={15} /> Edit Profile</>}
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -1075,49 +1445,279 @@ const CompanyProfile = () => {
 
       <div className="ln-profile-two-col">
         <div className="ln-profile-main">
+          {/* Verification Status Indicator */}
+          {!isVerified(partner) && (
+            <div className="ln-card" style={{ borderLeft: '4px solid #d97706', marginBottom: 16 }}>
+              <div style={{ padding: 16, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
+                <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
+                  <AlertTriangle size={20} color="#d97706" style={{ marginTop: 2, flexShrink: 0 }} />
+                  <div>
+                    <div style={{ fontWeight: 600, fontSize: 14, color: '#92400e', marginBottom: 2 }}>
+                      {partner.verificationStatus === 'Under Review' ? 'Verification In Progress' : 'Account Not Verified'}
+                    </div>
+                    <div style={{ fontSize: 13, color: '#a16207' }}>
+                      {partner.verificationStatus === 'Under Review'
+                        ? 'Your documents are being reviewed. You will be notified once verified.'
+                        : 'Verify your account to unlock job & OJT posting features and get a verified badge.'}
+                    </div>
+                  </div>
+                </div>
+                <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexShrink: 0 }}>
+                  <StatusBadge status={partner.verificationStatus} />
+                  <button className="ln-btn ln-btn-primary" style={{ fontSize: 13 }} onClick={() => navigate('/partner/verification')}>
+                    <ShieldCheck size={14} /> Go to Verification
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* Company Information */}
           <div className="ln-card">
-            <div className="ln-section-header"><h3>Company Information</h3></div>
+            <div className="ln-section-header">
+              <h3>Company Information</h3>
+              {editing && <button className="ln-btn-sm ln-btn-outline" onClick={() => setEditing(false)} disabled={saving}>Cancel</button>}
+            </div>
             <div className="ln-info-grid">
-              {[
-                { label: 'Contact Person', key: 'contactPerson' },
-                { label: 'Email', key: 'email' },
-
-                { label: 'Address', key: 'address' },
-                { label: 'Company Size', key: 'companySize' },
-                { label: 'Website', key: 'website' },
-              ].map(f => (
-                <div key={f.key} className="ln-info-item">
-                  <label className="ln-info-label">{f.label}</label>
-                  <div className="ln-info-value">{partner[f.key] || '—'}</div>
-                </div>
-              ))}
+              <div className="ln-info-item">
+                <label className="ln-info-label">Company Name</label>
+                {editing ? <input className="form-input" value={form.companyName} maxLength={100} onChange={e => setForm({ ...form, companyName: e.target.value })} /> : <div className="ln-info-value">{partner.companyName || '—'}</div>}
+              </div>
+              <div className="ln-info-item">
+                <label className="ln-info-label">Contact Person</label>
+                {editing ? <input className="form-input" value={form.contactPerson} maxLength={100} onChange={e => setForm({ ...form, contactPerson: e.target.value })} /> : <div className="ln-info-value">{partner.contactPerson || '—'}</div>}
+              </div>
+              <div className="ln-info-item">
+                <label className="ln-info-label">Contact Email</label>
+                {editing ? <input type="email" className="form-input" value={form.email} maxLength={100} onChange={e => setForm({ ...form, email: e.target.value })} style={form.email && !isEmailValid(form.email) ? { borderColor: '#cc1016' } : {}} /> : <div className="ln-info-value">{partner.email || '—'}</div>}
+              </div>
+              {editing && form.email && !isEmailValid(form.email) && (
+                <div style={{ gridColumn: '1 / -1', fontSize: 12, color: '#cc1016', marginTop: -8 }}>Please enter a valid email address</div>
+              )}
+              <div className="ln-info-item">
+                <label className="ln-info-label">Address</label>
+                {editing ? <input className="form-input" value={form.address} maxLength={200} onChange={e => setForm({ ...form, address: e.target.value })} /> : <div className="ln-info-value">{partner.address || '—'}</div>}
+              </div>
+              <div className="ln-info-item">
+                <label className="ln-info-label">Industry</label>
+                {editing ? <input className="form-input" value={form.industry} maxLength={80} onChange={e => setForm({ ...form, industry: e.target.value })} /> : <div className="ln-info-value">{partner.industry || '—'}</div>}
+              </div>
+              <div className="ln-info-item">
+                <label className="ln-info-label">Website</label>
+                {editing ? <input className="form-input" value={form.website} maxLength={200} onChange={e => setForm({ ...form, website: e.target.value })} placeholder="e.g. https://example.com" /> : <div className="ln-info-value">
+                  {partner.website ? <a href={partner.website.startsWith('http') ? partner.website : `https://${partner.website}`} target="_blank" rel="noreferrer" style={{ color: '#0a66c2', display: 'flex', alignItems: 'center', gap: 4 }}>{partner.website} <ExternalLink size={12} /></a> : '—'}
+                </div>}
+              </div>
             </div>
           </div>
         </div>
 
-        <div className="ln-profile-sidebar">
-          {/* Documents */}
-          <div className="ln-card">
-            <div className="ln-section-header"><h3>Documents</h3></div>
-            {[
-              { key: 'businessPermit', label: 'Business Permit' },
-              { key: 'secRegistration', label: 'SEC Registration' },
-            ].map(doc => (
-              <div key={doc.key} className="ln-doc-item">
-                <div className="ln-doc-info">
-                  <FileText size={16} color="rgba(0,0,0,0.5)" />
-                  <span>{doc.label}</span>
-                </div>
-                {partner.documents?.[doc.key]
-                  ? <span className="ln-badge ln-badge-green" style={{ fontSize: 11 }}><CheckCircle size={11} /> Uploaded</span>
-                  : <span className="ln-badge ln-badge-red" style={{ fontSize: 11 }}>Missing</span>
-                }
+        {/* Active Openings (Automatic) */}
+        <div className="ln-card" style={{ marginTop: 20 }}>
+          <div className="ln-section-header">
+            <h3>Active Openings</h3>
+            <span className="ln-badge ln-badge-blue">{activeJobs.length} Positions</span>
+          </div>
+          <div style={{ padding: '0 16px 16px' }}>
+            {activeJobs.length > 0 ? (
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 12 }}>
+                {activeJobs.map(job => (
+                  <div key={job.id} style={{ padding: 12, border: '1px solid #e2e8f0', borderRadius: 8, background: '#f8fafc' }}>
+                    <div style={{ fontWeight: 700, fontSize: 14, color: '#1e293b', marginBottom: 4 }}>{job.title}</div>
+                    <div style={{ display: 'flex', gap: 6, marginBottom: 8 }}>
+                      <span style={{ fontSize: 10, padding: '2px 6px', background: job.opportunityType === 'Job' ? '#dcfce7' : '#fef9c3', color: job.opportunityType === 'Job' ? '#166534' : '#854d0e', borderRadius: 4, fontWeight: 600 }}>{job.opportunityType}</span>
+                      <span style={{ fontSize: 10, padding: '2px 6px', background: '#f1f5f9', color: '#475569', borderRadius: 4 }}>{job.employmentType}</span>
+                    </div>
+                    <div style={{ fontSize: 12, color: '#64748b', display: 'flex', alignItems: 'center', gap: 4 }}>
+                      <MapPin size={12} /> {job.location || 'Philippines'}
+                    </div>
+                  </div>
+                ))}
               </div>
-            ))}
+            ) : (
+              <div style={{ textAlign: 'center', padding: '24px 0', color: '#64748b' }}>
+                <div style={{ marginBottom: 8 }}><Briefcase size={32} style={{ opacity: 0.2 }} /></div>
+                <p style={{ fontSize: 14 }}>No active openings at this time.</p>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Company Achievements */}
+        <div className="ln-card" style={{ marginTop: 20 }}>
+          <div className="ln-section-header">
+            <h3>Company Achievements & Awards</h3>
+            {editing && (
+              <div style={{ display: 'flex', gap: 8 }}>
+                <input
+                  className="form-input"
+                  placeholder="Add award/achievement..."
+                  style={{ margin: 0, height: 32, fontSize: 12 }}
+                  maxLength={100}
+                  value={newAchievement}
+                  onChange={e => setNewAchievement(e.target.value)}
+                  onKeyDown={e => {
+                    if (e.key === 'Enter' && newAchievement.trim()) {
+                      setForm({ ...form, achievements: [...form.achievements, newAchievement.trim()] });
+                      setNewAchievement('');
+                    }
+                  }}
+                />
+                <button className="ln-btn-sm ln-btn-primary" onClick={() => {
+                  if (newAchievement.trim()) {
+                    setForm({ ...form, achievements: [...form.achievements, newAchievement.trim()] });
+                    setNewAchievement('');
+                  }
+                }}>Add</button>
+              </div>
+            )}
+          </div>
+          <div style={{ padding: '0 16px 16px' }}>
+            {(editing ? form.achievements : partner.achievements)?.length > 0 ? (
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                {(editing ? form.achievements : partner.achievements).map((ach, idx) => (
+                  <div key={idx} style={{ padding: '6px 14px', background: '#fffbeb', border: '1px solid #fef3c7', color: '#92400e', borderRadius: 20, fontSize: 13, display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <Award size={14} /> {ach}
+                    {editing && <X size={12} style={{ cursor: 'pointer' }} onClick={() => showConfirm('Are you sure you want to remove this achievement?', () => setForm({ ...form, achievements: form.achievements.filter((_, i) => i !== idx) }))} />}
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p style={{ fontSize: 14, color: '#94a3b8', textAlign: 'center', padding: 12 }}>No achievements listed yet.</p>
+            )}
+          </div>
+        </div>
+
+        {/* Company Benefits */}
+        <div className="ln-card" style={{ marginTop: 20 }}>
+          <div className="ln-section-header">
+            <h3>Company Benefits & Perks</h3>
+            {editing && (
+              <div style={{ display: 'flex', gap: 8 }}>
+                <input
+                  className="form-input"
+                  placeholder="Add benefit/perk..."
+                  style={{ margin: 0, height: 32, fontSize: 12 }}
+                  maxLength={100}
+                  value={newBenefit}
+                  onChange={e => setNewBenefit(e.target.value)}
+                  onKeyDown={e => {
+                    if (e.key === 'Enter' && newBenefit.trim()) {
+                      setForm({ ...form, benefits: [...form.benefits, newBenefit.trim()] });
+                      setNewBenefit('');
+                    }
+                  }}
+                />
+                <button className="ln-btn-sm ln-btn-primary" onClick={() => {
+                  if (newBenefit.trim()) {
+                    setForm({ ...form, benefits: [...form.benefits, newBenefit.trim()] });
+                    setNewBenefit('');
+                  }
+                }}>Add</button>
+              </div>
+            )}
+          </div>
+          <div style={{ padding: '0 16px 16px' }}>
+            {(editing ? form.benefits : partner.benefits)?.length > 0 ? (
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: 10 }}>
+                {(editing ? form.benefits : partner.benefits).map((benefit, idx) => (
+                  <div key={idx} style={{ padding: '10px 12px', background: '#f0fdf4', border: '1px solid #dcfce7', color: '#166534', borderRadius: 8, fontSize: 13, display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <CheckCircle size={14} /> {benefit}
+                    {editing && <X size={12} style={{ cursor: 'pointer', marginLeft: 'auto' }} onClick={() => showConfirm('Are you sure you want to remove this benefit?', () => setForm({ ...form, benefits: form.benefits.filter((_, i) => i !== idx) }))} />}
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p style={{ fontSize: 14, color: '#94a3b8', textAlign: 'center', padding: 12 }}>No benefits listed yet.</p>
+            )}
           </div>
         </div>
       </div>
+
+      <div className="ln-profile-sidebar">
+        {/* Documents */}
+        <div className="ln-card">
+          <div className="ln-section-header">
+            <h3>Documents</h3>
+            {editing && (
+              <button className="ln-btn-sm ln-btn-primary" onClick={() => setShowUploadForm(!showUploadForm)}>
+                {showUploadForm ? <><X size={12} /> Cancel</> : <><Plus size={12} /> Add</>}
+              </button>
+            )}
+          </div>
+
+          {editing && showUploadForm && (
+            <div style={{ marginBottom: 16, padding: 16, background: '#f8fafc', borderRadius: 10, border: '1px solid #e2e8f0' }}>
+              <div style={{ marginBottom: 10 }}>
+                <label className="ln-info-label" style={{ marginBottom: 4, display: 'block' }}>Document Label <span style={{ color: '#cc1016' }}>*</span></label>
+                <input type="text" className="form-input" placeholder="e.g. Business Permit, SEC Registration..." maxLength={40} value={docLabel} onChange={e => setDocLabel(e.target.value)} style={{ fontSize: 13 }} />
+              </div>
+              <div style={{ marginBottom: 10 }}>
+                <label className="ln-info-label" style={{ marginBottom: 4, display: 'block' }}>File (PDF, DOC, DOCX only) <span style={{ color: '#cc1016' }}>*</span></label>
+                <input ref={fileInputRef} type="file" accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document" onChange={e => setDocFile(e.target.files[0] || null)} style={{ fontSize: 13 }} />
+              </div>
+              <button className="ln-btn-sm ln-btn-success" onClick={handleDocUpload} disabled={uploading || !docFile || !docLabel.trim()} style={{ width: '100%' }}>
+                {uploading ? 'Uploading...' : <><Upload size={12} /> Upload Document</>}
+              </button>
+            </div>
+          )}
+
+          {documents.length > 0 ? documents.map(doc => (
+            <div key={doc.id} className="ln-doc-item">
+              <div className="ln-doc-info">
+                <FileText size={16} color="rgba(0,0,0,0.5)" />
+                <div>
+                  <span style={{ fontWeight: 600, fontSize: 13 }}>{doc.label}</span>
+                  <div style={{ fontSize: 11, color: 'rgba(0,0,0,0.4)' }}>{doc.file_name}</div>
+                </div>
+              </div>
+              <div style={{ display: 'flex', gap: 6 }}>
+                <a href={doc.file_url} target="_blank" rel="noreferrer" className="ln-btn-sm ln-btn-outline"><Eye size={12} /> View</a>
+                {editing && <button className="ln-btn-sm ln-btn-outline" onClick={() => showConfirm('Are you sure you want to delete this document?', () => deleteDoc(doc.id))} style={{ color: '#cc1016' }}><Trash2 size={12} /></button>}
+              </div>
+            </div>
+          )) : !showUploadForm && (
+            <div className="ln-empty-widget" style={{ padding: 20 }}>
+              <FileText size={28} style={{ opacity: 0.3 }} />
+              <p>No documents uploaded yet</p>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Confirm Dialog */}
+      {confirmDialog.open && (
+        <div style={{
+          position: 'fixed', inset: 0, zIndex: 9999,
+          background: 'rgba(0,0,0,0.45)', backdropFilter: 'blur(3px)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+        }} onClick={closeConfirm}>
+          <div style={{
+            background: 'white', borderRadius: 14, padding: '28px 32px', minWidth: 340, maxWidth: 420,
+            boxShadow: '0 20px 60px rgba(0,0,0,0.25)', textAlign: 'center',
+          }} onClick={e => e.stopPropagation()}>
+            <div style={{ marginBottom: 20 }}>
+              <div style={{
+                width: 48, height: 48, borderRadius: '50%', background: '#fef2f2',
+                display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 14px',
+              }}>
+                <Trash2 size={22} color="#cc1016" />
+              </div>
+              <p style={{ fontSize: 15, color: '#1e293b', fontWeight: 500, margin: 0, lineHeight: 1.5 }}>{confirmDialog.message}</p>
+            </div>
+            <div style={{ display: 'flex', gap: 10, justifyContent: 'center' }}>
+              <button onClick={closeConfirm} style={{
+                padding: '9px 24px', borderRadius: 8, border: '1px solid #d1d5db',
+                background: 'white', color: '#475569', fontSize: 14, fontWeight: 600, cursor: 'pointer',
+              }}>Cancel</button>
+              <button onClick={() => { confirmDialog.onConfirm(); closeConfirm(); }} style={{
+                padding: '9px 24px', borderRadius: 8, border: 'none',
+                background: '#cc1016', color: 'white', fontSize: 14, fontWeight: 600, cursor: 'pointer',
+              }}>Confirm</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
@@ -1147,8 +1747,7 @@ export default function PartnerDashboard() {
     <PartnerLayout activePage={activePage} setActivePage={setActivePage}>
       <Routes>
         <Route path="/" element={<PartnerHome setActivePage={setActivePage} />} />
-        <Route path="/post-job" element={<PostJob setActivePage={setActivePage} opportunityType="Job" />} />
-        <Route path="/post-ojt" element={<PostJob setActivePage={setActivePage} opportunityType="OJT" />} />
+        <Route path="/post-job" element={<PostJob setActivePage={setActivePage} />} />
         <Route path="/applicants" element={<ViewApplicants setActivePage={setActivePage} />} />
         <Route path="/profile" element={<CompanyProfile />} />
         <Route path="/verification" element={<VerificationPage />} />

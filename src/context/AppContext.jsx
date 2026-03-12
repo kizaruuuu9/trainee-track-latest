@@ -313,6 +313,40 @@ export const AppProvider = ({ children }) => {
     }
   };
 
+  const updatePost = async (postId, updates) => {
+    try {
+      const { data, error } = await supabase
+        .from('posts')
+        .update({ ...updates, updated_at: new Date().toISOString() })
+        .eq('id', postId)
+        .eq('author_id', currentUser.id)
+        .select()
+        .single();
+      if (error) throw error;
+      setPosts(prev => prev.map(p => p.id === postId ? data : p));
+      return { success: true, data };
+    } catch (err) {
+      console.error('Error updating post:', err);
+      return { success: false, error: err.message };
+    }
+  };
+
+  const deletePost = async (postId) => {
+    try {
+      const { error } = await supabase
+        .from('posts')
+        .delete()
+        .eq('id', postId)
+        .eq('author_id', currentUser.id);
+      if (error) throw error;
+      setPosts(prev => prev.filter(p => p.id !== postId));
+      return { success: true };
+    } catch (err) {
+      console.error('Error deleting post:', err);
+      return { success: false, error: err.message };
+    }
+  };
+
   // ─── ADMIN ACCOUNT ────────────────────────────────────────────────────────
   const [adminAccount] = useState({
     id: 1,
@@ -664,43 +698,153 @@ export const AppProvider = ({ children }) => {
   };
 
   // ─── PARTNER FUNCTIONS ───────────────────────────────────────────────────
-  const approvePartner = (partnerId) => {
+  const approvePartner = async (partnerId) => {
     const partner = partners.find(p => p.id === partnerId);
+    try {
+      const res = await fetch(`/api/partner-verification/status/${partnerId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: 'verified' })
+      });
+      if (!res.ok) throw new Error('Failed to update status');
+    } catch (err) {
+      console.error('Approve partner error:', err);
+    }
     setPartners(partners.map(p =>
       p.id === partnerId ? { ...p, verificationStatus: 'Verified' } : p
     ));
     logActivity('Status Change', 'Partners', `Verified partner: ${partner?.companyName}`, partner?.verificationStatus, 'Verified');
   };
 
-  const rejectPartner = (partnerId) => {
+  const rejectPartner = async (partnerId) => {
     const partner = partners.find(p => p.id === partnerId);
+    try {
+      const res = await fetch(`/api/partner-verification/status/${partnerId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: 'rejected' })
+      });
+      if (!res.ok) throw new Error('Failed to update status');
+    } catch (err) {
+      console.error('Reject partner error:', err);
+    }
     setPartners(partners.map(p =>
       p.id === partnerId ? { ...p, verificationStatus: 'Rejected' } : p
     ));
     logActivity('Status Change', 'Partners', `Rejected partner: ${partner?.companyName}`, partner?.verificationStatus, 'Rejected');
   };
 
-  const registerPartner = (partnerData) => {
-    const newPartner = {
-      ...partnerData,
-      id: partners.length + 1,
-      verificationStatus: 'Pending Verification',
-      accountStatus: 'Active',
-      documents: partnerData.documents || {},
-      createdAt: new Date().toISOString(),
-    };
-    setPartners([...partners, newPartner]);
-    logActivity('Create', 'Partners', `New partner registered: ${newPartner.companyName}`, null, newPartner.companyName);
-    return newPartner;
+  const registerPartner = async (partnerData) => {
+    try {
+      // 1. Supabase Auth Sign Up
+      const { data: authData, error: authError } = await supabase.auth.signUp({
+        email: partnerData.email,
+        password: partnerData.password,
+        options: {
+          data: { user_type: 'industry_partner' }
+        }
+      });
+
+      if (authError) {
+        // This natively catches if the email is already in use
+        return { success: false, error: authError.message };
+      }
+
+      const userId = authData.user?.id;
+      if (!userId) {
+        return { success: false, error: 'Failed to create user account. Please try again.' };
+      }
+
+      // 2. Override default profile trigger to ensure they are an industry partner
+      await supabase.from('profiles').upsert({ id: userId, user_type: 'industry_partner' });
+
+      // 3. Insert into industry_partners table
+      const { error: insertError } = await supabase.from('industry_partners').upsert({
+        id: userId,
+        company_name: partnerData.companyName,
+        contact_person: partnerData.contactPerson,
+        business_type: partnerData.industry,
+        verification_status: 'pending'
+      });
+
+      if (insertError) {
+        console.error('Partner insert error:', insertError);
+        return { success: false, error: 'Account created, but failed to save company details.' };
+      }
+
+      logActivity('Create', 'Partners', `New partner registered: ${partnerData.companyName}`, null, partnerData.companyName);
+      return { success: true };
+    } catch (err) {
+      console.error('Registration error:', err);
+      return { success: false, error: 'An unexpected server error occurred.' };
+    }
   };
 
-  const submitPartnerDocuments = (partnerId, documents) => {
-    const partner = partners.find(p => p.id === partnerId);
-    setPartners(partners.map(p =>
-      p.id === partnerId ? { ...p, documents: { ...p.documents, ...documents }, verificationStatus: 'Under Review' } : p
+  const updatePartner = async (partnerId, updates) => {
+    // For Supabase-registered users (UUID string IDs), persist to database
+    const isSupabaseUser = typeof partnerId === 'string' && partnerId.includes('-');
+    if (isSupabaseUser) {
+      try {
+        // Map dashboard field names to industry_partners table column names
+        const dbUpdates = {};
+        if (updates.companyName !== undefined) dbUpdates.company_name = updates.companyName;
+        if (updates.contactPerson !== undefined) dbUpdates.contact_person = updates.contactPerson;
+        if (updates.industry !== undefined) dbUpdates.business_type = updates.industry;
+        if (updates.address !== undefined) {
+          dbUpdates.city = updates.address; // Mapping general address to city field for now
+        }
+        if (updates.companySize !== undefined) dbUpdates.company_size = updates.companySize;
+        if (updates.website !== undefined) dbUpdates.website = updates.website;
+        if (updates.email !== undefined) dbUpdates.contact_email = updates.email;
+        if (updates.achievements !== undefined) dbUpdates.achievements = updates.achievements;
+        if (updates.benefits !== undefined) dbUpdates.benefits = updates.benefits;
+
+        if (Object.keys(dbUpdates).length > 0) {
+          const { error } = await supabase
+            .from('industry_partners')
+            .update(dbUpdates)
+            .eq('id', partnerId);
+
+          if (error) {
+            console.error('Failed to update partner in Supabase:', error);
+            alert('Failed to save to database: ' + error.message);
+            return;
+          }
+        }
+      } catch (err) {
+        console.error('Supabase update error:', err);
+        alert('An error occurred while saving.');
+        return;
+      }
+    }
+
+    // Update local state for immediate UI reflection
+    setPartners(prev => prev.map(p =>
+      p.id === partnerId ? { ...p, ...updates } : p
     ));
     if (currentUser?.id === partnerId) {
-      setCurrentUser(prev => ({ ...prev, documents: { ...prev.documents, ...documents }, verificationStatus: 'Under Review' }));
+      setCurrentUser(prev => ({ ...prev, ...updates }));
+    }
+    logActivity('Edit', 'Partners', `Updated company profile`, null, null);
+  };
+
+  const submitPartnerDocuments = async (partnerId) => {
+    const partner = partners.find(p => p.id === partnerId);
+    try {
+      const res = await fetch(`/api/partner-verification/status/${partnerId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: 'under_review' })
+      });
+      if (!res.ok) throw new Error('Failed to update status');
+    } catch (err) {
+      console.error('Submit partner documents error:', err);
+    }
+    setPartners(partners.map(p =>
+      p.id === partnerId ? { ...p, verificationStatus: 'Under Review' } : p
+    ));
+    if (currentUser?.id === partnerId) {
+      setCurrentUser(prev => ({ ...prev, verificationStatus: 'Under Review' }));
     }
     logActivity('Status Change', 'Partners', `${partner?.companyName} submitted documents for verification`, partner?.verificationStatus, 'Under Review');
   };
@@ -756,6 +900,7 @@ export const AppProvider = ({ children }) => {
         if (updates.certifications !== undefined) dbUpdates.certifications = updates.certifications;
         if (updates.educHistory !== undefined) dbUpdates.educ_history = updates.educHistory;
         if (updates.workExperience !== undefined) dbUpdates.work_experience = updates.workExperience;
+        if (updates.email !== undefined) dbUpdates.contact_email = updates.email;
 
         if (Object.keys(dbUpdates).length > 0) {
           // If admin role, use server-side API to bypass RLS
@@ -826,40 +971,6 @@ export const AppProvider = ({ children }) => {
   // ─── AUTH FUNCTIONS ──────────────────────────────────────────────────────
   const login = async (email, password) => {
 
-    // Quick Demo Login Bypass for Admin
-    if (email === 'admin' && password === 'admin123') {
-      const adminUser = {
-        id: 'de305d54-75b4-431b-adb2-eb6b9e546014',
-        name: 'Administrator (Demo)',
-        email: 'admin@pstdi.edu.ph',
-        username: 'admin',
-      };
-      setUserRole('admin');
-      setCurrentUser(adminUser);
-      localStorage.setItem('userRole', 'admin');
-      localStorage.setItem('currentUser', JSON.stringify(adminUser));
-      return { success: true, role: 'admin' };
-    }
-
-    // Quick Demo Login Bypass for Partner
-    if (email === 'techsolutions' && password === 'partner123') {
-      const partnerUser = {
-        id: 'de305d54-75b4-431b-adb2-eb6b9e546015',
-        email: 'contact@techsolutions.com',
-        companyName: 'TechSolutions Inc.',
-        contactPerson: 'James Wilson',
-        industry: 'Software Development',
-        verificationStatus: 'Approved',
-        photo: null,
-        accountStatus: 'Active'
-      };
-      setUserRole('partner');
-      setCurrentUser(partnerUser);
-      localStorage.setItem('userRole', 'partner');
-      localStorage.setItem('currentUser', JSON.stringify(partnerUser));
-      return { success: true, role: 'partner' };
-    }
-
     try {
       const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
         email: email.trim(),
@@ -903,9 +1014,11 @@ export const AppProvider = ({ children }) => {
           companyName: partnerRec.company_name,
           contactPerson: partnerRec.contact_person,
           industry: partnerRec.business_type || 'General',
-          verificationStatus: partnerRec.verification_status === 'verified' ? 'Approved' : partnerRec.verification_status === 'rejected' ? 'Rejected' : 'Pending',
+          verificationStatus: partnerRec.verification_status === 'verified' ? 'Verified' : partnerRec.verification_status === 'rejected' ? 'Rejected' : partnerRec.verification_status === 'under_review' ? 'Under Review' : 'Pending',
           photo: partnerRec.company_logo_url || null,
-          accountStatus: 'Active'
+          accountStatus: 'Active',
+          achievements: partnerRec.achievements || [],
+          benefits: partnerRec.benefits || []
         };
 
         if (partnerUser.verificationStatus === 'Rejected') {
@@ -1068,12 +1181,20 @@ export const AppProvider = ({ children }) => {
       try {
         const { data: pts } = await supabase
           .from('industry_partners')
-          .select('id, company_name, company_logo_url');
+          .select('*');
         if (pts) {
           setPartners(pts.map(p => ({
             id: p.id,
             companyName: p.company_name,
-            company_logo_url: p.company_logo_url
+            contactPerson: p.contact_person,
+            industry: p.business_type || 'General',
+            email: p.contact_email || '',
+            address: p.city || '',
+            website: p.website || '',
+            company_logo_url: p.company_logo_url,
+            verificationStatus: p.verification_status === 'verified' ? 'Verified' : p.verification_status === 'rejected' ? 'Rejected' : p.verification_status === 'under_review' ? 'Under Review' : 'Pending',
+            achievements: p.achievements || [],
+            benefits: p.benefits || [],
           })));
         }
       } catch (err) { console.warn(err); }
@@ -1098,6 +1219,9 @@ export const AppProvider = ({ children }) => {
                 certifications: student.certifications || [],
                 program: student.programs?.name || 'None',
                 employmentStatus: student.employment_status === 'employed' ? 'Employed' : student.employment_status === 'seeking_employment' ? 'Seeking Employment' : 'Not Employed',
+                employer: student.employment_work || null,
+                jobTitle: student.employment_work || null,
+                dateHired: student.employment_start || null,
               };
             });
             console.log("Admin Data fetched mapped trainees:", tMap);
@@ -1111,7 +1235,9 @@ export const AppProvider = ({ children }) => {
               contactPerson: p.contact_person,
               industry: p.business_type || 'General',
               email: p.contact_email || '',
-              verificationStatus: p.verification_status === 'verified' ? 'Approved' : p.verification_status === 'rejected' ? 'Rejected' : 'Pending',
+              verificationStatus: p.verification_status === 'verified' ? 'Verified' : p.verification_status === 'rejected' ? 'Rejected' : p.verification_status === 'under_review' ? 'Under Review' : 'Pending',
+              achievements: p.achievements || [],
+              benefits: p.benefits || [],
             }));
             console.log("Admin Data fetched mapped partners:", pMap);
             setPartners(pMap);
@@ -1211,6 +1337,7 @@ export const AppProvider = ({ children }) => {
       trainees,
       addTrainee,
       updateTrainee,
+      updatePartner,
       deleteTrainee,
       // Partners
       partners,
@@ -1250,6 +1377,8 @@ export const AppProvider = ({ children }) => {
       posts,
       fetchPosts,
       createPost,
+      updatePost,
+      deletePost,
     }}>
       {children}
     </AppContext.Provider>

@@ -1,4 +1,4 @@
-﻿import React, { useState } from 'react'; 
+﻿import React, { useState } from 'react';
 import { useApp } from '../../context/AppContext';
 import {
     LayoutDashboard, Users, Building2, Briefcase, TrendingUp, BarChart2,
@@ -122,7 +122,7 @@ const AdminHome = ({ setActivePage }) => {
     const statCards = [
         { label: 'Total Trainees', value: trainees.length, icon: <Users size={22} color="#7c3aed" />, bg: '#ede9fe', sub: `${stats.employed} employed` },
         { label: 'Employment Rate', value: `${stats.employmentRate}%`, icon: <TrendingUp size={22} color="#16a34a" />, bg: '#dcfce7', sub: `${stats.unemployed} still unemployed` },
-        { label: 'Active Partners', value: partners.filter(p => p.verificationStatus === 'Approved').length, icon: <Building2 size={22} color="#0ea5e9" />, bg: '#e0f2fe', sub: `${partners.filter(p => p.verificationStatus === 'Pending').length} pending approval` },
+        { label: 'Active Partners', value: partners.filter(p => p.verificationStatus === 'Verified').length, icon: <Building2 size={22} color="#0ea5e9" />, bg: '#e0f2fe', sub: `${partners.filter(p => p.verificationStatus === 'Pending').length} pending approval` },
         { label: 'Active Opportunities', value: jobPostings.filter(j => j.status === 'Open').length, icon: <Briefcase size={22} color="#d97706" />, bg: '#fef3c7', sub: `${jobPostings.length} total postings` },
     ];
     const employmentChartData = [
@@ -131,11 +131,11 @@ const AdminHome = ({ setActivePage }) => {
         { name: '🟥 Not Employed', value: stats.not_employed || 0, color: '#ef4444' },
     ];
     // Build cert data dynamically from all programs that trainees hold
-    const allCerts = [...new Set(trainees.flatMap(t => t.certifications || []))];
+    const allCerts = [...new Set(trainees.flatMap(t => (t.certifications || []).map(c => typeof c === 'object' ? c.name : c)).filter(Boolean))];
     const certData = allCerts.map(cert => ({
         name: cert.length > 25 ? cert.replace(/\(.*?\)/g, '').trim().substring(0, 25) + '…' : cert,
         fullName: cert,
-        trainees: trainees.filter(t => t.certifications.includes(cert)).length,
+        trainees: trainees.filter(t => (t.certifications || []).some(c => (typeof c === 'object' ? c.name : c) === cert)).length,
     })).filter(c => c.trainees > 0);
     return (
         <div>
@@ -247,7 +247,7 @@ const ManageTrainees = () => {
                             <div style={{ width: 64, height: 64, borderRadius: '50%', background: 'linear-gradient(135deg, #ede9fe, #dbeafe)', margin: '0 auto 10px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 22, fontWeight: 800, color: '#7c3aed' }}>{viewT.name?.charAt(0)}</div>
                             <div style={{ fontWeight: 800, fontSize: 18 }}>{viewT.name}</div>
                             <div style={{ fontSize: 13, color: '#64748b' }}>{viewT.email}</div>
-                            <div style={{ marginTop: 8, display: 'flex', gap: 6, justifyContent: 'center', flexWrap: 'wrap' }}>{viewT.certifications?.map(c => <span key={c} className="badge badge-blue"><Award size={10} />{c}</span>)}</div>
+                            <div style={{ marginTop: 8, display: 'flex', gap: 6, justifyContent: 'center', flexWrap: 'wrap' }}>{viewT.certifications?.map((c, i) => <span key={i} className="badge badge-blue"><Award size={10} />{typeof c === 'object' ? c.name : c}</span>)}</div>
                         </div>
                         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 14 }}>
                             {[['Address', viewT.address], ['Birthday', viewT.birthday], ['Status', viewT.trainingStatus], ['Year', viewT.graduationYear], ['Employment', viewT.employmentStatus], ['Employer', viewT.employer || 'â€”']].map(([k, v]) => (
@@ -302,28 +302,50 @@ const ManagePartners = () => {
     const [search, setSearch] = useState('');
     const [filterStatus, setFilterStatus] = useState('All');
     const [viewPartner, setViewPartner] = useState(null);
+    const [partnerDocs, setPartnerDocs] = useState([]);
+    const [loadingDocs, setLoadingDocs] = useState(false);
+
     const filtered = partners.filter(p => {
         const q = search.toLowerCase();
         return (p.companyName.toLowerCase().includes(q) || p.contactPerson.toLowerCase().includes(q)) && (filterStatus === 'All' || p.verificationStatus === filterStatus);
     });
     const statusBadge = (s) => {
-        const map = { Approved: 'badge-approved', Pending: 'badge-pending', Rejected: 'badge-rejected' };
+        const map = { Verified: 'badge-approved', Pending: 'badge-pending', Rejected: 'badge-rejected', 'Under Review': 'badge-pending' };
         return <span className={`badge ${map[s] || 'badge-gray'}`}>{s}</span>;
     };
+
+    const openPartnerView = async (partner) => {
+        setViewPartner(partner);
+        setLoadingDocs(true);
+        setPartnerDocs([]);
+        try {
+            const res = await fetch(`/api/partner-verification/${partner.id}`);
+            if (res.ok) {
+                const data = await res.json();
+                setPartnerDocs(data.documents || []);
+            }
+        } catch (err) {
+            console.error('Failed to fetch partner docs:', err);
+        }
+        setLoadingDocs(false);
+    };
+
+    const canActOn = (status) => status === 'Pending' || status === 'Under Review';
+
     return (
         <div>
             <div className="page-header">
                 <div><div className="page-title">Industry Partners</div><div className="page-subtitle">Manage and verify industry partner accounts</div></div>
                 <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                    {['All', 'Pending', 'Approved', 'Rejected'].map(s => (
+                    {['All', 'Pending', 'Under Review', 'Verified', 'Rejected'].map(s => (
                         <button key={s} className={`btn btn-${filterStatus === s ? 'primary' : 'outline'} btn-sm`} onClick={() => setFilterStatus(s)}>
                             {s} ({s === 'All' ? partners.length : partners.filter(p => p.verificationStatus === s).length})
                         </button>
                     ))}
                 </div>
             </div>
-            {partners.filter(p => p.verificationStatus === 'Pending').length > 0 && (
-                <div className="alert alert-warning" style={{ marginBottom: 16 }}><AlertCircle size={16} /><strong>{partners.filter(p => p.verificationStatus === 'Pending').length} partner(s)</strong> are pending verification.</div>
+            {partners.filter(p => p.verificationStatus === 'Under Review' || p.verificationStatus === 'Pending').length > 0 && (
+                <div className="alert alert-warning" style={{ marginBottom: 16 }}><AlertCircle size={16} /><strong>{partners.filter(p => p.verificationStatus === 'Under Review' || p.verificationStatus === 'Pending').length} partner(s)</strong> are awaiting verification.</div>
             )}
             <div className="card">
                 <div style={{ marginBottom: 14 }}><div className="search-bar" style={{ maxWidth: 320 }}><Search size={14} color="#94a3b8" /><input placeholder="Search company or contact..." value={search} onChange={e => setSearch(e.target.value)} /></div></div>
@@ -339,8 +361,8 @@ const ManagePartners = () => {
                                     <td style={{ fontSize: 13, color: '#64748b' }}>{p.email}</td>
                                     <td>{statusBadge(p.verificationStatus)}</td>
                                     <td><div style={{ display: 'flex', gap: 6 }}>
-                                        <button className="btn btn-outline btn-sm" onClick={() => setViewPartner(p)}><Eye size={12} /> View</button>
-                                        {p.verificationStatus === 'Pending' && <><button className="btn btn-success btn-sm" onClick={() => approvePartner(p.id)}><CheckCircle size={12} /> Approve</button><button className="btn btn-danger btn-sm" onClick={() => rejectPartner(p.id)}><XCircle size={12} /> Reject</button></>}
+                                        <button className="btn btn-outline btn-sm" onClick={() => openPartnerView(p)}><Eye size={12} /> View</button>
+                                        {canActOn(p.verificationStatus) && <><button className="btn btn-success btn-sm" onClick={() => approvePartner(p.id)}><CheckCircle size={12} /> Approve</button><button className="btn btn-danger btn-sm" onClick={() => rejectPartner(p.id)}><XCircle size={12} /> Reject</button></>}
                                         {p.verificationStatus === 'Rejected' && <button className="btn btn-success btn-sm" onClick={() => approvePartner(p.id)}><CheckCircle size={12} /> Approve</button>}
                                     </div></td>
                                 </tr>
@@ -352,7 +374,7 @@ const ManagePartners = () => {
             </div>
             {viewPartner && (
                 <div className="modal-overlay" onClick={() => setViewPartner(null)}>
-                    <div className="modal" style={{ maxWidth: 500 }} onClick={e => e.stopPropagation()}>
+                    <div className="modal" style={{ maxWidth: 540 }} onClick={e => e.stopPropagation()}>
                         <div className="modal-header"><h3 className="modal-title">Partner Details</h3><button className="btn btn-outline btn-icon" onClick={() => setViewPartner(null)}><X size={16} /></button></div>
                         <div style={{ textAlign: 'center', marginBottom: 20 }}>
                             <div style={{ width: 60, height: 60, borderRadius: 14, background: 'linear-gradient(135deg, #e0f2fe, #ede9fe)', margin: '0 auto 10px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20, fontWeight: 800, color: '#0ea5e9' }}>{viewPartner.companyName?.charAt(0)}</div>
@@ -362,21 +384,37 @@ const ManagePartners = () => {
                         </div>
                         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 16 }}>
                             {[['Contact', viewPartner.contactPerson], ['Email', viewPartner.email], ['Address', viewPartner.address], ['Size', viewPartner.companySize], ['Website', viewPartner.website]].map(([k, v]) => (
-                                <div key={k} style={{ padding: '8px 12px', background: '#f8fafc', borderRadius: 8 }}><div style={{ fontSize: 10, color: '#94a3b8', textTransform: 'uppercase', fontWeight: 600 }}>{k}</div><div style={{ fontSize: 13, fontWeight: 500, color: '#475569' }}>{v || 'â€”'}</div></div>
+                                <div key={k} style={{ padding: '8px 12px', background: '#f8fafc', borderRadius: 8 }}><div style={{ fontSize: 10, color: '#94a3b8', textTransform: 'uppercase', fontWeight: 600 }}>{k}</div><div style={{ fontSize: 13, fontWeight: 500, color: '#475569' }}>{v || '–'}</div></div>
                             ))}
                         </div>
                         <div style={{ marginBottom: 14 }}>
-                            <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 8 }}>Documents</div>
-                            {[['businessPermit', 'Business Permit'], ['secRegistration', 'SEC Registration']].map(([key, label]) => (
-                                <div key={key} style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', borderBottom: '1px solid #f1f5f9', fontSize: 13.5 }}>
-                                    <span>{label}</span>
-                                    {viewPartner.documents?.[key] ? <span className="badge badge-accepted"><CheckCircle size={11} /> Uploaded</span> : <span className="badge badge-missing">Missing</span>}
-                                </div>
-                            ))}
+                            <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 8 }}>Verification Documents</div>
+                            {loadingDocs ? (
+                                <div style={{ textAlign: 'center', padding: '16px 0', color: '#94a3b8', fontSize: 13 }}>Loading documents...</div>
+                            ) : partnerDocs.length > 0 ? (
+                                partnerDocs.map(doc => (
+                                    <div key={doc.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 0', borderBottom: '1px solid #f1f5f9' }}>
+                                        <div>
+                                            <div style={{ fontSize: 13, fontWeight: 600, color: '#1e293b' }}>{doc.label}</div>
+                                            <div style={{ fontSize: 11, color: '#94a3b8' }}>{doc.file_name} • {new Date(doc.uploaded_at).toLocaleDateString()}</div>
+                                        </div>
+                                        <a href={doc.file_url} target="_blank" rel="noopener noreferrer" className="btn btn-outline btn-sm" style={{ textDecoration: 'none' }}>
+                                            <Eye size={12} /> View
+                                        </a>
+                                    </div>
+                                ))
+                            ) : (
+                                <div style={{ padding: '12px 0', fontSize: 13, color: '#94a3b8', textAlign: 'center' }}>No documents uploaded yet.</div>
+                            )}
                         </div>
-                        {viewPartner.verificationStatus === 'Pending' && (
+                        {canActOn(viewPartner.verificationStatus) && (
                             <div style={{ display: 'flex', gap: 10 }}>
                                 <button className="btn btn-danger" style={{ flex: 1 }} onClick={() => { rejectPartner(viewPartner.id); setViewPartner(null); }}><XCircle size={15} /> Reject</button>
+                                <button className="btn btn-success" style={{ flex: 1 }} onClick={() => { approvePartner(viewPartner.id); setViewPartner(null); }}><CheckCircle size={15} /> Approve</button>
+                            </div>
+                        )}
+                        {viewPartner.verificationStatus === 'Rejected' && (
+                            <div style={{ display: 'flex', gap: 10 }}>
                                 <button className="btn btn-success" style={{ flex: 1 }} onClick={() => { approvePartner(viewPartner.id); setViewPartner(null); }}><CheckCircle size={15} /> Approve</button>
                             </div>
                         )}
@@ -485,7 +523,7 @@ const EmploymentTracking = () => {
                             {filtered.map(t => (
                                 <tr key={t.id}>
                                     <td style={{ fontWeight: 600 }}>{t.name}</td>
-                                    <td><div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>{t.certifications?.slice(0, 2).map(c => <span key={c} className="badge badge-blue" style={{ fontSize: 10 }}>{c}</span>)}</div></td>
+                                    <td><div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>{t.certifications?.slice(0, 2).map((c, i) => <span key={i} className="badge badge-blue" style={{ fontSize: 10 }}>{typeof c === 'object' ? c.name : c}</span>)}</div></td>
                                     <td><span className={`badge badge-${(t.employmentStatus || 'unemployed').toLowerCase().replace(' ', '-').replace('-', '-')}`}>{t.employmentStatus}</span></td>
                                     <td style={{ color: '#64748b', fontSize: 13 }}>{t.employer || 'â€”'}</td>
                                     <td style={{ color: '#64748b', fontSize: 13 }}>{t.jobTitle || 'â€”'}</td>
@@ -524,7 +562,7 @@ const Analytics = () => {
                     { label: 'Total Trainees', value: trainees.length, icon: <Users size={22} color="#7c3aed" />, bg: '#ede9fe' },
                     { label: 'Employment Rate', value: `${stats.employmentRate}%`, icon: <TrendingUp size={22} color="#16a34a" />, bg: '#dcfce7' },
                     { label: 'Open Opportunities', value: jobPostings.filter(j => j.status === 'Open').length, icon: <Briefcase size={22} color="#d97706" />, bg: '#fef3c7' },
-                    { label: 'Active Partners', value: partners.filter(p => p.verificationStatus === 'Approved').length, icon: <Building2 size={22} color="#0ea5e9" />, bg: '#e0f2fe' },
+                    { label: 'Active Partners', value: partners.filter(p => p.verificationStatus === 'Verified').length, icon: <Building2 size={22} color="#0ea5e9" />, bg: '#e0f2fe' },
                 ].map((s, i) => (
                     <div key={i} className="stat-card"><div className="stat-icon" style={{ background: s.bg }}>{s.icon}</div><div className="stat-info"><div className="stat-label">{s.label}</div><div className="stat-value">{s.value}</div></div></div>
                 ))}

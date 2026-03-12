@@ -1,12 +1,15 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
 import {
-  Eye, EyeOff, AlertCircle, ChevronRight, BookOpen, Users, Briefcase, BarChart2, X, CheckCircle
+  Eye, EyeOff, AlertCircle, ChevronRight, BookOpen, Users, Briefcase, BarChart2, X, CheckCircle, XCircle, Loader
 } from 'lucide-react';
 
-const DEMO_ACCOUNTS = [
-  { role: 'admin', username: 'admin', password: 'admin123', label: 'Administrator', color: '#7c3aed' },
-  { role: 'partner', username: 'techsolutions', password: 'partner123', label: 'Industry Partner', color: '#0ea5e9' },
+const PASSWORD_RULES = [
+  { id: 'length', label: 'At least 8 characters', test: (pw) => pw.length >= 8 },
+  { id: 'upper', label: 'Uppercase letter', test: (pw) => /[A-Z]/.test(pw) },
+  { id: 'lower', label: 'Lowercase letter', test: (pw) => /[a-z]/.test(pw) },
+  { id: 'number', label: 'Number', test: (pw) => /\d/.test(pw) },
+  { id: 'special', label: 'Special character (!@#$...)', test: (pw) => /[!@#$%^&*()_+\-=[\]{};':"\\|,.<>/?]/.test(pw) },
 ];
 
 export default function LoginScreen({ onShowRegistration }) {
@@ -23,9 +26,60 @@ export default function LoginScreen({ onShowRegistration }) {
   const [showRegister, setShowRegister] = useState(false);
   const [regForm, setRegForm] = useState({
     companyName: '', contactPerson: '', email: '', address: '',
-    industry: '', companySize: '', website: '', username: '', password: ''
+    industry: '', website: '', password: '', confirmPassword: ''
   });
+  const [showRegPassword, setShowRegPassword] = useState(false);
+  const [showRegConfirm, setShowRegConfirm] = useState(false);
   const [regSuccess, setRegSuccess] = useState(false);
+  const [regError, setRegError] = useState('');
+  const [regLoading, setRegLoading] = useState(false);
+
+  // Email check
+  const [emailChecking, setEmailChecking] = useState(false);
+  const [emailAvailable, setEmailAvailable] = useState(null); // true = available, false = exists
+  const [emailCheckError, setEmailCheckError] = useState('');
+
+  const checkEmail = async (email) => {
+    if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      setEmailAvailable(null);
+      return;
+    }
+    setEmailChecking(true);
+    setEmailCheckError('');
+    try {
+      const API_BASE = window.location.hostname === 'localhost' ? 'http://localhost:3001' : '';
+      const res = await fetch(`${API_BASE}/api/check-duplicate`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ field: 'email', value: email })
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setEmailAvailable(!data.exists);
+      } else {
+        setEmailCheckError(data.error || 'Failed to check email');
+      }
+    } catch (err) {
+      setEmailCheckError('Unable to connect to server');
+    } finally {
+      setEmailChecking(false);
+    }
+  };
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (showRegister && regForm.email) {
+        checkEmail(regForm.email);
+      }
+    }, 800);
+    return () => clearTimeout(timer);
+  }, [regForm.email, showRegister]);
+
+  // Password strength
+  const passedRules = PASSWORD_RULES.filter(r => r.test(regForm.password || ''));
+  const strengthPct = Math.round((passedRules.length / PASSWORD_RULES.length) * 100);
+  const strengthColor = strengthPct <= 40 ? '#ef4444' : strengthPct <= 70 ? '#f59e0b' : '#10b981';
+
 
   const handleLogin = async (e) => {
     e.preventDefault();
@@ -44,22 +98,6 @@ export default function LoginScreen({ onShowRegistration }) {
       setError('Unable to connect to server. Please try again.');
     }
     setLoading(false);
-  };
-
-  const handleQuickLogin = async (account) => {
-    setLoading(true);
-    setError('');
-    try {
-      await new Promise(r => setTimeout(r, 400));
-      const result = await login(account.username, account.password);
-      if (!result.success) {
-        setError(result.error || 'Quick login failed.');
-      }
-    } catch (err) {
-      setError('An unexpected error occurred during quick login.');
-    } finally {
-      setLoading(false);
-    }
   };
 
   const handleForgot = (e) => {
@@ -142,32 +180,6 @@ export default function LoginScreen({ onShowRegistration }) {
             }}>TT</div>
             <h2 style={{ fontSize: 20, fontWeight: 800, color: '#0f172a' }}>Welcome Back</h2>
             <p style={{ fontSize: 13, color: '#94a3b8', marginTop: 4 }}>Sign in to your TraineeTrack account</p>
-          </div>
-
-          {/* Quick login chips */}
-          <div style={{ marginBottom: 20 }}>
-            <p style={{ fontSize: 11, fontWeight: 600, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 8, textAlign: 'center' }}>Quick Demo Login</p>
-            <div style={{ display: 'flex', gap: 6 }}>
-              {DEMO_ACCOUNTS.map(a => (
-                <button key={a.role} onClick={() => handleQuickLogin(a)}
-                  style={{
-                    flex: 1, padding: '7px 4px', borderRadius: 8, border: `1.5px solid ${a.color}20`,
-                    background: `${a.color}08`, cursor: 'pointer', fontSize: 11.5,
-                    fontWeight: 600, color: a.color, transition: 'all 0.15s', fontFamily: 'inherit'
-                  }}
-                  onMouseEnter={e => { e.target.style.background = `${a.color}18`; }}
-                  onMouseLeave={e => { e.target.style.background = `${a.color}08`; }}
-                >
-                  {a.label}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 20 }}>
-            <div style={{ flex: 1, height: 1, background: '#e2e8f0' }} />
-            <span style={{ fontSize: 12, color: '#94a3b8', fontWeight: 500 }}>or sign in manually</span>
-            <div style={{ flex: 1, height: 1, background: '#e2e8f0' }} />
           </div>
 
           {error && (
@@ -299,25 +311,58 @@ export default function LoginScreen({ onShowRegistration }) {
                 <CheckCircle size={56} color="#16a34a" style={{ margin: '0 auto 16px' }} />
                 <h4 style={{ fontSize: 18, fontWeight: 700, marginBottom: 8 }}>Registration Submitted</h4>
                 <p style={{ fontSize: 14, color: '#64748b', marginBottom: 24, maxWidth: 400, margin: '0 auto 24px' }}>
-                  Thank you for registering! You can now log in and upload your Business Permit on your dashboard to begin the verification process.
+                  Thank you for registering! You can now log in and upload your verification documents on your dashboard to begin the verification process.
                 </p>
                 <button className="btn btn-primary" onClick={() => {
                   setShowRegister(false);
                   setRegSuccess(false);
+                  setRegError('');
+                  setRegLoading(false);
                   setRegForm({
                     companyName: '', contactPerson: '', email: '', address: '',
-                    industry: '', companySize: '', website: '', username: '', password: ''
+                    industry: '', website: '', password: '', confirmPassword: ''
                   });
+                  setEmailAvailable(null);
                 }}>
                   Return to Login
                 </button>
               </div>
             ) : (
-              <form onSubmit={(e) => {
+              <form onSubmit={async (e) => {
                 e.preventDefault();
-                registerPartner(regForm);
-                setRegSuccess(true);
+                if (strengthPct !== 100) {
+                  setRegError('Password does not meet all requirements.');
+                  return;
+                }
+                if (regForm.password !== regForm.confirmPassword) {
+                  setRegError('Passwords do not match.');
+                  return;
+                }
+                if (emailAvailable === false) {
+                  setRegError('Email is already registered. Please use another.');
+                  return;
+                }
+                setRegLoading(true);
+                setRegError('');
+                try {
+                  const res = await registerPartner(regForm);
+                  if (res.success) {
+                    setRegSuccess(true);
+                  } else {
+                    setRegError(res.error || 'Registration failed.');
+                  }
+                } catch (err) {
+                  setRegError('An unexpected error occurred.');
+                } finally {
+                  setRegLoading(false);
+                }
               }}>
+                {regError && (
+                  <div className="alert alert-error" style={{ marginBottom: 16 }}>
+                    <AlertCircle size={15} style={{ flexShrink: 0, marginTop: 1 }} />
+                    {regError}
+                  </div>
+                )}
                 <div style={{ marginBottom: 20 }}>
                   <div style={{ fontWeight: 600, fontSize: 14, marginBottom: 12, color: '#1e3a5f', borderBottom: '1px solid #e2e8f0', paddingBottom: 6 }}>Company Details</div>
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
@@ -331,29 +376,23 @@ export default function LoginScreen({ onShowRegistration }) {
                     </div>
                     <div className="form-group" style={{ marginBottom: 0 }}>
                       <label className="form-label" style={{ fontSize: 12, marginBottom: 4 }}>Email Address *</label>
-                      <input type="email" className="form-input" required value={regForm.email} onChange={e => setRegForm({ ...regForm, email: e.target.value })} style={{ padding: '8px 12px' }} />
+                      <input type="email" className="form-input" required value={regForm.email} onChange={e => setRegForm({ ...regForm, email: e.target.value })} style={{ padding: '8px 12px', borderColor: emailAvailable === false ? '#ef4444' : emailAvailable === true ? '#22c55e' : '' }} />
+                      <div style={{ minHeight: 18, marginTop: 4, fontSize: 11 }}>
+                        {emailChecking && <span style={{ color: '#64748b', display: 'flex', alignItems: 'center', gap: 4 }}><Loader size={12} style={{ animation: 'spin 1s linear infinite' }} /> Checking email...</span>}
+                        {!emailChecking && emailAvailable === false && <span style={{ color: '#ef4444', display: 'flex', alignItems: 'center', gap: 4 }}><XCircle size={12} /> Email is already registered</span>}
+                        {!emailChecking && emailAvailable === true && <span style={{ color: '#22c55e', display: 'flex', alignItems: 'center', gap: 4 }}><CheckCircle size={12} /> Email is available</span>}
+                        {emailCheckError && <span style={{ color: '#f59e0b' }}>{emailCheckError}</span>}
+                      </div>
                     </div>
                     <div className="form-group" style={{ marginBottom: 0 }}>
-
                     </div>
                     <div className="form-group" style={{ gridColumn: 'span 2', marginBottom: 0 }}>
                       <label className="form-label" style={{ fontSize: 12, marginBottom: 4 }}>Company Address *</label>
-                      <input className="form-input" required value={regForm.address} onChange={e => setRegForm({ ...regForm, address: e.target.value })} style={{ padding: '8px 12px' }} />
+                      <input className="form-input" required value={regForm.address} onChange={e => setRegForm({ ...regForm, address: e.target.value })} maxLength={200} style={{ padding: '8px 12px' }} />
                     </div>
                     <div className="form-group" style={{ marginBottom: 0 }}>
                       <label className="form-label" style={{ fontSize: 12, marginBottom: 4 }}>Industry *</label>
                       <input className="form-input" required value={regForm.industry} onChange={e => setRegForm({ ...regForm, industry: e.target.value })} placeholder="e.g. Information Technology" style={{ padding: '8px 12px' }} />
-                    </div>
-                    <div className="form-group" style={{ marginBottom: 0 }}>
-                      <label className="form-label" style={{ fontSize: 12, marginBottom: 4 }}>Company Size</label>
-                      <select className="form-select" value={regForm.companySize} onChange={e => setRegForm({ ...regForm, companySize: e.target.value })} style={{ padding: '8px 12px' }}>
-                        <option value="">Select Size</option>
-                        <option>1-10</option>
-                        <option>11-50</option>
-                        <option>51-200</option>
-                        <option>201-500</option>
-                        <option>500+</option>
-                      </select>
                     </div>
                   </div>
                 </div>
@@ -362,19 +401,68 @@ export default function LoginScreen({ onShowRegistration }) {
                   <div style={{ fontWeight: 600, fontSize: 14, marginBottom: 12, color: '#1e3a5f', borderBottom: '1px solid #e2e8f0', paddingBottom: 6 }}>Account Credentials</div>
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                     <div className="form-group" style={{ marginBottom: 0 }}>
-                      <label className="form-label" style={{ fontSize: 12, marginBottom: 4 }}>Username *</label>
-                      <input className="form-input" required value={regForm.username} onChange={e => setRegForm({ ...regForm, username: e.target.value })} style={{ padding: '8px 12px' }} />
+                      <label className="form-label" style={{ fontSize: 12, marginBottom: 4 }}>Password *</label>
+                      <div style={{ position: 'relative' }}>
+                        <input type={showRegPassword ? 'text' : 'password'} className="form-input" required value={regForm.password} onChange={e => setRegForm({ ...regForm, password: e.target.value })} style={{ padding: '8px 12px', paddingRight: 36 }} />
+                        <button type="button" onClick={() => setShowRegPassword(!showRegPassword)} style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: '#94a3b8', padding: 2 }}>
+                          {showRegPassword ? <EyeOff size={15} /> : <Eye size={15} />}
+                        </button>
+                      </div>
                     </div>
                     <div className="form-group" style={{ marginBottom: 0 }}>
-                      <label className="form-label" style={{ fontSize: 12, marginBottom: 4 }}>Password *</label>
-                      <input type="password" className="form-input" required value={regForm.password} onChange={e => setRegForm({ ...regForm, password: e.target.value })} style={{ padding: '8px 12px' }} />
+                      <label className="form-label" style={{ fontSize: 12, marginBottom: 4 }}>Confirm Password *</label>
+                      <div style={{ position: 'relative' }}>
+                        <input type={showRegConfirm ? 'text' : 'password'} className={`form-input ${(regForm.password && regForm.confirmPassword && regForm.password !== regForm.confirmPassword) ? 'error' : ''}`} required value={regForm.confirmPassword} onChange={e => setRegForm({ ...regForm, confirmPassword: e.target.value })} style={{ padding: '8px 12px', paddingRight: 36 }} />
+                        <button type="button" onClick={() => setShowRegConfirm(!showRegConfirm)} style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: '#94a3b8', padding: 2 }}>
+                          {showRegConfirm ? <EyeOff size={15} /> : <Eye size={15} />}
+                        </button>
+                      </div>
+                      {(regForm.password && regForm.confirmPassword && regForm.password !== regForm.confirmPassword) && (
+                        <div style={{ color: '#ef4444', fontSize: 11, marginTop: 4 }}>Passwords do not match</div>
+                      )}
                     </div>
                   </div>
+                  {(regForm.password || '').length > 0 && (
+                    <div className="step2-pw-strength" style={{ marginTop: 14, gridColumn: 'span 2' }}>
+                      <div className="progress-bar-wrap" style={{ height: 6, marginBottom: 10, background: '#e2e8f0', borderRadius: 3, overflow: 'hidden' }}>
+                        <div className="progress-bar-fill" style={{ width: `${strengthPct}%`, background: strengthColor, transition: 'all 0.3s ease', height: '100%' }} />
+                      </div>
+                      <div className="step2-pw-rules" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
+                        {PASSWORD_RULES.map(rule => {
+                          const passed = rule.test(regForm.password || '');
+                          return (
+                            <div key={rule.id} className={`step2-pw-rule ${passed ? 'passed' : 'failed'}`} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11.5, color: passed ? '#10b981' : '#64748b' }}>
+                              {passed ? <CheckCircle size={13} /> : <XCircle size={13} />}
+                              <span>{rule.label}</span>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
                 </div>
 
                 <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', paddingTop: 16, borderTop: '1px solid #e2e8f0' }}>
-                  <button type="button" className="btn btn-outline" onClick={() => setShowRegister(false)}>Cancel</button>
-                  <button type="submit" className="btn btn-primary">Submit Registration</button>
+                  <button type="button" className="btn btn-outline" disabled={regLoading} onClick={() => setShowRegister(false)}>Cancel</button>
+                  <button
+                    type="submit"
+                    className="btn btn-primary"
+                    disabled={
+                      regLoading ||
+                      emailChecking ||
+                      emailAvailable !== true ||
+                      strengthPct !== 100 ||
+                      regForm.password !== regForm.confirmPassword ||
+                      !regForm.password ||
+                      !regForm.email ||
+                      !regForm.companyName ||
+                      !regForm.contactPerson ||
+                      !regForm.address ||
+                      !regForm.industry
+                    }
+                  >
+                    {regLoading ? 'Registering...' : 'Submit Registration'}
+                  </button>
                 </div>
               </form>
             )}
