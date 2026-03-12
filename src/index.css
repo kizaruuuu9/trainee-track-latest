@@ -970,7 +970,7 @@ body {
 .login-card {
   background: white;
   border-radius: 20px;
-  padding: 40px;
+  padding: 32px;
   width: 100%;
   max-width: 420px;
   box-shadow: 0 25px 50px rgba(0, 0, 0, 0.3);
@@ -1294,6 +1294,45 @@ body {
   color: #92400e;
 }
 
+.verification-banner {
+  background: linear-gradient(90deg, #fffbeb, #fff);
+  border: 1px solid #fde68a;
+  border-left: 4px solid #d97706;
+  padding: 14px 20px;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 24px;
+  animation: slideDown 0.4s ease-out;
+}
+
+@keyframes slideDown {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (max-width: 768px) {
+  .verification-banner {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 12px;
+  }
+
+  .verification-banner .btn {
+    width: 100%;
+  }
+}
+
+
 .badge-rejected {
   background: #fee2e2;
   color: #991b1b;
@@ -1334,18 +1373,146 @@ body {
   gap: 16px;
 }
 
-/* ─── LOGIN RESPONSIVE ────────────────────────────────────────────── */
-@media (max-width: 900px) {
-  .login-page>div {
+/* ─── LOGIN & REGISTRATION RESPONSIVE ────────────────────────────── */
+
+/* Mobile Phones (up to 767px) */
+@media (max-width: 767px) {
+  .login-grid {
     grid-template-columns: 1fr !important;
     max-width: 440px !important;
-    padding: 0 20px;
+    padding: 20px;
+    margin: 0 auto;
+    gap: 0 !important;
   }
 
-  .login-page>div>div:first-child {
-    display: none;
+  .login-page .branding-section {
+    display: none !important;
+  }
+
+  .login-card {
+    padding: 24px !important;
+    border-radius: 16px !important;
   }
 }
+
+/* Tablet Portrait (768px to 1024px, and vertical) */
+@media (min-width: 768px) and (max-width: 1024px) and (orientation: portrait) {
+  .login-grid {
+    grid-template-columns: 1fr !important;
+    max-width: 500px !important;
+    padding: 24px;
+    margin: 0 auto;
+    gap: 0 !important;
+  }
+
+  .login-page .branding-section {
+    display: none !important;
+  }
+}
+
+/* Tablet Landscape and Desktop (1025px and up, or horizontal tablet) */
+@media (min-width: 768px) and (orientation: landscape),
+(min-width: 1025px) {
+  .login-grid {
+    grid-template-columns: 1fr 420px !important;
+    max-width: 1100px !important;
+    padding: 0 40px;
+    gap: 60px !important;
+  }
+
+  .login-page .branding-section {
+    display: block !important;
+  }
+}
+
+
+/* ─── ROLE SELECTION ────────────────────────────────────────────── */
+.role-selection-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  margin-top: 24px;
+}
+
+@media (max-width: 600px) {
+  .role-selection-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.role-card {
+  background: white;
+  border: 2px solid #e2e8f0;
+  border-radius: 16px;
+  padding: 24px 18px;
+  text-align: center;
+  cursor: pointer;
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  position: relative;
+  overflow: hidden;
+}
+
+.role-card:hover {
+  border-color: #3b82f6;
+  transform: translateY(-4px);
+  box-shadow: 0 12px 24px rgba(37, 99, 235, 0.1);
+}
+
+.role-card.selected {
+  border-color: #2563eb;
+  background: #eff6ff;
+  box-shadow: 0 12px 24px rgba(37, 99, 235, 0.15);
+}
+
+.role-icon-wrap {
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  background: #eff6ff;
+  color: #3b82f6;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.3s ease;
+}
+
+.role-card:hover .role-icon-wrap {
+  background: #2563eb;
+  color: white;
+  transform: scale(1.1);
+}
+
+.role-title {
+  font-size: 18px;
+  font-weight: 800;
+  color: #0f172a;
+}
+
+.role-desc {
+  font-size: 13px;
+  color: #64748b;
+  line-height: 1.5;
+}
+
+.selection-check {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  color: #2563eb;
+  opacity: 0;
+  transform: scale(0.5);
+  transition: all 0.2s ease;
+}
+
+.role-card.selected .selection-check {
+  opacity: 1;
+  transform: scale(1);
+}
+
 
 /* ─── RESPONSIVE: TABLET ──────────────────────────────────────────── */
 @media (max-width: 1024px) {
@@ -1553,9 +1720,9 @@ body {
 .reg-container {
   background: white;
   border-radius: 20px;
-  padding: 36px 40px;
+  padding: 36px 36px;
   width: 100%;
-  max-width: 620px;
+  max-width: 540px;
   box-shadow: 0 25px 50px rgba(0, 0, 0, 0.3);
   position: relative;
   z-index: 1;

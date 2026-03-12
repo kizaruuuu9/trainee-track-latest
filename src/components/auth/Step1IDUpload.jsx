@@ -2,7 +2,7 @@ import React, { useState, useRef, useCallback, useEffect } from 'react';
 import {
     Upload, X, CheckCircle, AlertTriangle, Image, Loader, Eye
 } from 'lucide-react';
-import Tesseract from 'tesseract.js';
+import * as Tesseract from 'tesseract.js';
 import { supabase } from '../../lib/supabase';
 
 const ACCEPTED_TYPES = ['image/png', 'image/jpeg', 'image/jpg'];

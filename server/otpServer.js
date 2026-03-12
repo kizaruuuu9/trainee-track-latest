@@ -391,9 +391,80 @@ app.post('/api/register', rateLimit, async (req, res) => {
     }
 });
 
+// ─── REGISTER PARTNER ENDPOINT ──────────────────────────────────────
+app.post('/api/register-partner', rateLimit, async (req, res) => {
+    const { email, password, companyName, contactPerson, phone, address } = req.body;
 
+    if (!email || !password || !companyName || !contactPerson) {
+        return res.status(400).json({ error: 'Missing required fields.' });
+    }
 
+    if (!process.env.SUPABASE_SERVICE_ROLE_KEY) {
+        return res.status(500).json({ error: 'Server misconfiguration: SUPABASE_SERVICE_ROLE_KEY not set' });
+    }
 
+    let userId = null;
+
+    try {
+        // Create auth user
+        const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
+            email,
+            password,
+            email_confirm: true,
+        });
+
+        if (authError) {
+            if (authError.message?.includes('already been registered') || authError.status === 422) {
+                return res.status(409).json({ error: 'This email is already registered.' });
+            }
+            throw new Error(authError.message);
+        }
+
+        userId = authData.user.id;
+
+        // Upsert profile
+        const { error: profileError } = await supabaseAdmin
+            .from('profiles')
+            .upsert({ id: userId, user_type: 'industry_partner' });
+
+        if (profileError) throw new Error(`Profile creation failed: ${profileError.message}`);
+
+        // Insert into industry_partners
+        const { error: partnerError } = await supabaseAdmin
+            .from('industry_partners')
+            .upsert({
+                id: userId,
+                company_name: companyName,
+                contact_person: contactPerson,
+                contact_number: phone || null,
+                city: address || null,
+                verification_status: 'pending',
+                contact_email: email,
+            });
+
+        if (partnerError) throw new Error(`Partner record creation failed: ${partnerError.message}`);
+
+        console.log(`✅ Partner Registration successful: ${email} (${userId})`);
+        res.json({ success: true, userId });
+
+    } catch (err) {
+        console.error('Partner Registration error:', err);
+
+        // Cleanup on failure
+        if (userId) {
+            try {
+                await supabaseAdmin.from('industry_partners').delete().eq('id', userId);
+                await supabaseAdmin.from('profiles').delete().eq('id', userId);
+                await supabaseAdmin.auth.admin.deleteUser(userId);
+                console.log('Cleaned up failed partner registration for:', userId);
+            } catch (cleanupErr) {
+                console.error('Cleanup error:', cleanupErr);
+            }
+        }
+
+        res.status(500).json({ error: err.message || 'Failed to register. Please try again.' });
+    }
+});
 
 // ─── DOCUMENT UPLOAD ENDPOINT ────────────────────────────────────
 app.post('/api/documents/upload', rateLimit, async (req, res) => {

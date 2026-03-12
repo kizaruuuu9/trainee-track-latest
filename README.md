@@ -30,10 +30,4 @@ npm install
 npm run dev
 ```
 
-If you want, I can:
-- Update copy and labels across the app to reflect the new school name
-- Add a dynamic logo/date and header text
-- Scaffold dedicated pages for Graduate tracing, Employment Tracking, and Job Referrals
-- Implement a simple match-score function and display recommended jobs
-
 © {new Date().getFullYear()} Philippine School for Technology Development and Innovation Inc.

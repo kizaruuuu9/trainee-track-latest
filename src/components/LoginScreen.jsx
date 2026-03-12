@@ -122,12 +122,12 @@ export default function LoginScreen({ onShowRegistration }) {
         borderRadius: '50%'
       }} />
 
-      <div style={{ width: '100%', maxWidth: 960, display: 'grid', gridTemplateColumns: '1fr 420px', gap: 48, alignItems: 'center', position: 'relative', zIndex: 1 }}>
+      <div className="login-grid" style={{ width: '100%', maxWidth: 920, display: 'grid', gridTemplateColumns: '1fr 380px', gap: 48, alignItems: 'center', position: 'relative', zIndex: 1 }}>
 
         {/* Left side branding */}
-        <div style={{ color: 'white', padding: '0 20px' }}>
+        <div className="branding-section" style={{ color: 'white', padding: '0 20px' }}>
           {/* Logo */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 32 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 24 }}>
             <div style={{
               width: 60, height: 60,
               background: 'linear-gradient(135deg, #3b82f6 0%, #0ea5e9 100%)',
@@ -141,19 +141,19 @@ export default function LoginScreen({ onShowRegistration }) {
             </div>
           </div>
 
-          <h1 style={{ fontSize: 38, fontWeight: 800, lineHeight: 1.15, marginBottom: 16, letterSpacing: '-0.02em' }}>
+          <h1 style={{ fontSize: 34, fontWeight: 800, lineHeight: 1.15, marginBottom: 12, letterSpacing: '-0.02em' }}>
             Connecting<br />
             <span style={{ background: 'linear-gradient(90deg, #60a5fa, #38bdf8)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
               Trainees
             </span>{' '}to<br />Opportunity
           </h1>
 
-          <p style={{ fontSize: 15, color: 'rgba(255,255,255,0.55)', lineHeight: 1.7, marginBottom: 36, maxWidth: 400 }}>
+          <p style={{ fontSize: 14, color: 'rgba(255,255,255,0.55)', lineHeight: 1.6, marginBottom: 24, maxWidth: 400 }}>
             A web-based analytics and competency-based matching platform for {appMetadata.orgName}
           </p>
 
           {/* Feature highlights */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
             {[
               { icon: <BarChart2 size={16} />, text: 'Employment analytics & tracking' },
               { icon: <Briefcase size={16} />, text: 'Competency-based opportunity matching' },
@@ -170,16 +170,16 @@ export default function LoginScreen({ onShowRegistration }) {
 
         {/* Login Card */}
         <div className="login-card">
-          <div style={{ textAlign: 'center', marginBottom: 28 }}>
+          <div style={{ textAlign: 'center', marginBottom: 16 }}>
             <div style={{
-              width: 50, height: 50,
+              width: 44, height: 44,
               background: 'linear-gradient(135deg, #1e3a5f 0%, #2563eb 100%)',
               borderRadius: 14, display: 'flex', alignItems: 'center', justifyContent: 'center',
-              margin: '0 auto 14px', fontSize: 18, fontWeight: 800, color: 'white',
+              margin: '0 auto 10px', fontSize: 16, fontWeight: 800, color: 'white',
               boxShadow: '0 6px 16px rgba(37,99,235,0.35)'
             }}>TT</div>
-            <h2 style={{ fontSize: 20, fontWeight: 800, color: '#0f172a' }}>Welcome Back</h2>
-            <p style={{ fontSize: 13, color: '#94a3b8', marginTop: 4 }}>Sign in to your TraineeTrack account</p>
+            <h2 style={{ fontSize: 18, fontWeight: 800, color: '#0f172a' }}>Welcome Back</h2>
+            <p style={{ fontSize: 13, color: '#94a3b8', marginTop: 3 }}>Sign in to your TraineeTrack account</p>
           </div>
 
           {error && (
@@ -244,14 +244,17 @@ export default function LoginScreen({ onShowRegistration }) {
             </button>
           </form>
 
-          <p style={{ textAlign: 'center', fontSize: 11.5, color: '#94a3b8', marginTop: 24 }}>
-            New industry partner?{' '}
-            <button type="button" onClick={() => setShowRegister(true)} style={{ color: '#2563eb', fontWeight: 600, background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'inherit', padding: 0 }}>Register your company</button>
-          </p>
-          <p style={{ textAlign: 'center', fontSize: 11.5, color: '#94a3b8', marginTop: 8 }}>
-            New trainee?{' '}
-            <button type="button" onClick={() => onShowRegistration && onShowRegistration()} style={{ color: '#2563eb', fontWeight: 600, background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'inherit', padding: 0 }}>Register here</button>
-          </p>
+          <div style={{ marginTop: 18, textAlign: 'center', borderTop: '1px solid #f1f5f9', paddingTop: 18 }}>
+            <p style={{ fontSize: 13, color: '#64748b', marginBottom: 12 }}>Don't have an account?</p>
+            <button
+              type="button"
+              className="btn btn-outline"
+              style={{ width: '100%', height: 40, borderRadius: 10, fontSize: 13.5, fontWeight: 700 }}
+              onClick={() => onShowRegistration && onShowRegistration()}
+            >
+              Create an Account
+            </button>
+          </div>
         </div>
       </div>
 
@@ -288,181 +291,6 @@ export default function LoginScreen({ onShowRegistration }) {
                 <div style={{ display: 'flex', gap: 10 }}>
                   <button type="button" className="btn btn-outline" style={{ flex: 1 }} onClick={() => setShowForgot(false)}>Cancel</button>
                   <button type="submit" className="btn btn-primary" style={{ flex: 1 }}>Send Reset Link</button>
-                </div>
-              </form>
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* Partner Registration Modal */}
-      {showRegister && (
-        <div className="modal-overlay" onClick={() => { if (!regSuccess) setShowRegister(false); }}>
-          <div className="modal" style={{ maxWidth: 600, maxHeight: '90vh', overflowY: 'auto' }} onClick={e => e.stopPropagation()}>
-            <div className="modal-header">
-              <h3 className="modal-title">Partner Registration</h3>
-              <button className="btn btn-outline btn-icon" onClick={() => setShowRegister(false)}>
-                <X size={16} />
-              </button>
-            </div>
-
-            {regSuccess ? (
-              <div style={{ textAlign: 'center', padding: '30px 0' }}>
-                <CheckCircle size={56} color="#16a34a" style={{ margin: '0 auto 16px' }} />
-                <h4 style={{ fontSize: 18, fontWeight: 700, marginBottom: 8 }}>Registration Submitted</h4>
-                <p style={{ fontSize: 14, color: '#64748b', marginBottom: 24, maxWidth: 400, margin: '0 auto 24px' }}>
-                  Thank you for registering! You can now log in and upload your verification documents on your dashboard to begin the verification process.
-                </p>
-                <button className="btn btn-primary" onClick={() => {
-                  setShowRegister(false);
-                  setRegSuccess(false);
-                  setRegError('');
-                  setRegLoading(false);
-                  setRegForm({
-                    companyName: '', contactPerson: '', email: '', address: '',
-                    industry: '', website: '', password: '', confirmPassword: ''
-                  });
-                  setEmailAvailable(null);
-                }}>
-                  Return to Login
-                </button>
-              </div>
-            ) : (
-              <form onSubmit={async (e) => {
-                e.preventDefault();
-                if (strengthPct !== 100) {
-                  setRegError('Password does not meet all requirements.');
-                  return;
-                }
-                if (regForm.password !== regForm.confirmPassword) {
-                  setRegError('Passwords do not match.');
-                  return;
-                }
-                if (emailAvailable === false) {
-                  setRegError('Email is already registered. Please use another.');
-                  return;
-                }
-                setRegLoading(true);
-                setRegError('');
-                try {
-                  const res = await registerPartner(regForm);
-                  if (res.success) {
-                    setRegSuccess(true);
-                  } else {
-                    setRegError(res.error || 'Registration failed.');
-                  }
-                } catch (err) {
-                  setRegError('An unexpected error occurred.');
-                } finally {
-                  setRegLoading(false);
-                }
-              }}>
-                {regError && (
-                  <div className="alert alert-error" style={{ marginBottom: 16 }}>
-                    <AlertCircle size={15} style={{ flexShrink: 0, marginTop: 1 }} />
-                    {regError}
-                  </div>
-                )}
-                <div style={{ marginBottom: 20 }}>
-                  <div style={{ fontWeight: 600, fontSize: 14, marginBottom: 12, color: '#1e3a5f', borderBottom: '1px solid #e2e8f0', paddingBottom: 6 }}>Company Details</div>
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-                    <div className="form-group" style={{ marginBottom: 0 }}>
-                      <label className="form-label" style={{ fontSize: 12, marginBottom: 4 }}>Company Name *</label>
-                      <input className="form-input" required value={regForm.companyName} onChange={e => setRegForm({ ...regForm, companyName: e.target.value })} style={{ padding: '8px 12px' }} />
-                    </div>
-                    <div className="form-group" style={{ marginBottom: 0 }}>
-                      <label className="form-label" style={{ fontSize: 12, marginBottom: 4 }}>Contact Person *</label>
-                      <input className="form-input" required value={regForm.contactPerson} onChange={e => setRegForm({ ...regForm, contactPerson: e.target.value })} style={{ padding: '8px 12px' }} />
-                    </div>
-                    <div className="form-group" style={{ marginBottom: 0 }}>
-                      <label className="form-label" style={{ fontSize: 12, marginBottom: 4 }}>Email Address *</label>
-                      <input type="email" className="form-input" required value={regForm.email} onChange={e => setRegForm({ ...regForm, email: e.target.value })} style={{ padding: '8px 12px', borderColor: emailAvailable === false ? '#ef4444' : emailAvailable === true ? '#22c55e' : '' }} />
-                      <div style={{ minHeight: 18, marginTop: 4, fontSize: 11 }}>
-                        {emailChecking && <span style={{ color: '#64748b', display: 'flex', alignItems: 'center', gap: 4 }}><Loader size={12} style={{ animation: 'spin 1s linear infinite' }} /> Checking email...</span>}
-                        {!emailChecking && emailAvailable === false && <span style={{ color: '#ef4444', display: 'flex', alignItems: 'center', gap: 4 }}><XCircle size={12} /> Email is already registered</span>}
-                        {!emailChecking && emailAvailable === true && <span style={{ color: '#22c55e', display: 'flex', alignItems: 'center', gap: 4 }}><CheckCircle size={12} /> Email is available</span>}
-                        {emailCheckError && <span style={{ color: '#f59e0b' }}>{emailCheckError}</span>}
-                      </div>
-                    </div>
-                    <div className="form-group" style={{ marginBottom: 0 }}>
-                    </div>
-                    <div className="form-group" style={{ gridColumn: 'span 2', marginBottom: 0 }}>
-                      <label className="form-label" style={{ fontSize: 12, marginBottom: 4 }}>Company Address *</label>
-                      <input className="form-input" required value={regForm.address} onChange={e => setRegForm({ ...regForm, address: e.target.value })} maxLength={200} style={{ padding: '8px 12px' }} />
-                    </div>
-                    <div className="form-group" style={{ marginBottom: 0 }}>
-                      <label className="form-label" style={{ fontSize: 12, marginBottom: 4 }}>Industry *</label>
-                      <input className="form-input" required value={regForm.industry} onChange={e => setRegForm({ ...regForm, industry: e.target.value })} placeholder="e.g. Information Technology" style={{ padding: '8px 12px' }} />
-                    </div>
-                  </div>
-                </div>
-
-                <div style={{ marginBottom: 20 }}>
-                  <div style={{ fontWeight: 600, fontSize: 14, marginBottom: 12, color: '#1e3a5f', borderBottom: '1px solid #e2e8f0', paddingBottom: 6 }}>Account Credentials</div>
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-                    <div className="form-group" style={{ marginBottom: 0 }}>
-                      <label className="form-label" style={{ fontSize: 12, marginBottom: 4 }}>Password *</label>
-                      <div style={{ position: 'relative' }}>
-                        <input type={showRegPassword ? 'text' : 'password'} className="form-input" required value={regForm.password} onChange={e => setRegForm({ ...regForm, password: e.target.value })} style={{ padding: '8px 12px', paddingRight: 36 }} />
-                        <button type="button" onClick={() => setShowRegPassword(!showRegPassword)} style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: '#94a3b8', padding: 2 }}>
-                          {showRegPassword ? <EyeOff size={15} /> : <Eye size={15} />}
-                        </button>
-                      </div>
-                    </div>
-                    <div className="form-group" style={{ marginBottom: 0 }}>
-                      <label className="form-label" style={{ fontSize: 12, marginBottom: 4 }}>Confirm Password *</label>
-                      <div style={{ position: 'relative' }}>
-                        <input type={showRegConfirm ? 'text' : 'password'} className={`form-input ${(regForm.password && regForm.confirmPassword && regForm.password !== regForm.confirmPassword) ? 'error' : ''}`} required value={regForm.confirmPassword} onChange={e => setRegForm({ ...regForm, confirmPassword: e.target.value })} style={{ padding: '8px 12px', paddingRight: 36 }} />
-                        <button type="button" onClick={() => setShowRegConfirm(!showRegConfirm)} style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: '#94a3b8', padding: 2 }}>
-                          {showRegConfirm ? <EyeOff size={15} /> : <Eye size={15} />}
-                        </button>
-                      </div>
-                      {(regForm.password && regForm.confirmPassword && regForm.password !== regForm.confirmPassword) && (
-                        <div style={{ color: '#ef4444', fontSize: 11, marginTop: 4 }}>Passwords do not match</div>
-                      )}
-                    </div>
-                  </div>
-                  {(regForm.password || '').length > 0 && (
-                    <div className="step2-pw-strength" style={{ marginTop: 14, gridColumn: 'span 2' }}>
-                      <div className="progress-bar-wrap" style={{ height: 6, marginBottom: 10, background: '#e2e8f0', borderRadius: 3, overflow: 'hidden' }}>
-                        <div className="progress-bar-fill" style={{ width: `${strengthPct}%`, background: strengthColor, transition: 'all 0.3s ease', height: '100%' }} />
-                      </div>
-                      <div className="step2-pw-rules" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
-                        {PASSWORD_RULES.map(rule => {
-                          const passed = rule.test(regForm.password || '');
-                          return (
-                            <div key={rule.id} className={`step2-pw-rule ${passed ? 'passed' : 'failed'}`} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11.5, color: passed ? '#10b981' : '#64748b' }}>
-                              {passed ? <CheckCircle size={13} /> : <XCircle size={13} />}
-                              <span>{rule.label}</span>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  )}
-                </div>
-
-                <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', paddingTop: 16, borderTop: '1px solid #e2e8f0' }}>
-                  <button type="button" className="btn btn-outline" disabled={regLoading} onClick={() => setShowRegister(false)}>Cancel</button>
-                  <button
-                    type="submit"
-                    className="btn btn-primary"
-                    disabled={
-                      regLoading ||
-                      emailChecking ||
-                      emailAvailable !== true ||
-                      strengthPct !== 100 ||
-                      regForm.password !== regForm.confirmPassword ||
-                      !regForm.password ||
-                      !regForm.email ||
-                      !regForm.companyName ||
-                      !regForm.contactPerson ||
-                      !regForm.address ||
-                      !regForm.industry
-                    }
-                  >
-                    {regLoading ? 'Registering...' : 'Submit Registration'}
-                  </button>
                 </div>
               </form>
             )}

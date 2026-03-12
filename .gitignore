@@ -32,4 +32,5 @@ dist-ssr
 
 # Debug/temp files
 *_check.txt
+*_diff.txt
 vite_log.txt

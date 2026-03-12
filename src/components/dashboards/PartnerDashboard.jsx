@@ -19,20 +19,20 @@ import { Routes, Route, useNavigate, useLocation, Navigate } from 'react-router-
 const isVerified = (user) => user?.verificationStatus === 'Verified';
 
 const timeAgo = (dateStr) => {
-    const now = new Date();
-    const date = new Date(dateStr);
-    const seconds = Math.floor((now - date) / 1000);
-    if (seconds < 60) return 'Just now';
-    const minutes = Math.floor(seconds / 60);
-    if (minutes < 60) return `${minutes}m ago`;
-    const hours = Math.floor(minutes / 60);
-    if (hours < 24) return `${hours}h ago`;
-    const days = Math.floor(hours / 24);
-    if (days < 30) return `${days}d ago`;
-    const months = Math.floor(days / 30);
-    if (months < 12) return `${months}mo ago`;
-    const years = Math.floor(months / 12);
-    return `${years}y ago`;
+  const now = new Date();
+  const date = new Date(dateStr);
+  const seconds = Math.floor((now - date) / 1000);
+  if (seconds < 60) return 'Just now';
+  const minutes = Math.floor(seconds / 60);
+  if (minutes < 60) return `${minutes}m ago`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours}h ago`;
+  const days = Math.floor(hours / 24);
+  if (days < 30) return `${days}d ago`;
+  const months = Math.floor(days / 30);
+  if (months < 12) return `${months}mo ago`;
+  const years = Math.floor(months / 12);
+  return `${years}y ago`;
 };
 
 // ─── STATUS BADGE HELPER ──────────────────────────────────────────
@@ -395,24 +395,25 @@ const PartnerHome = ({ setActivePage }) => {
       <div className="ln-col-center">
         {/* Verification Banner */}
         {!verified && (
-          <div className="ln-card" style={{ borderLeft: '4px solid #d97706', marginBottom: 8 }}>
-            <div style={{ padding: 16, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
-              <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
-                <AlertTriangle size={20} color="#d97706" style={{ marginTop: 2, flexShrink: 0 }} />
-                <div>
-                  <div style={{ fontWeight: 600, fontSize: 14, color: '#92400e', marginBottom: 2 }}>Account Pending Verification</div>
-                  <div style={{ fontSize: 13, color: '#a16207' }}>Upload verification documents to unlock job & OJT posting features.</div>
-                </div>
+          <div className="verification-banner">
+            <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+              <div style={{
+                width: 44, height: 44, borderRadius: 12, background: '#fef3c7',
+                display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#d97706', flexShrink: 0
+              }}>
+                <ShieldCheck size={24} />
               </div>
-              <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexShrink: 0 }}>
-                <StatusBadge status={currentUser?.verificationStatus} />
-                <button className="ln-btn ln-btn-primary" style={{ fontSize: 13 }} onClick={() => setActivePage('verification')}>
-                  <Upload size={14} /> Verify Now
-                </button>
+              <div>
+                <div style={{ fontWeight: 800, fontSize: 15, color: '#92400e' }}>Verify your company</div>
+                <div style={{ fontSize: 13, color: '#a16207', marginTop: 2 }}>Unlock job posting and all opportunity features by verifying your business.</div>
               </div>
             </div>
+            <button className="btn btn-primary" style={{ padding: '8px 20px', fontSize: 13, borderRadius: 10 }} onClick={() => setActivePage('verification')}>
+              Verify Now
+            </button>
           </div>
         )}
+
 
         {/* Stats Row */}
         <div className="ln-card ln-stats-row">
@@ -839,100 +840,103 @@ const VerificationPage = () => {
         <div className="ln-card" style={{ marginBottom: 16 }}>
           <div className="ln-section-header"><h3>Upload Verification Documents</h3></div>
           <div style={{ padding: '0 16px 16px' }}>
-            {/* Uploaded Documents List */}
-            {loading ? (
-              <div style={{ textAlign: 'center', padding: '20px 0', color: '#94a3b8' }}>
-                <Loader size={24} className="spin" style={{ margin: '0 auto 8px' }} /> Loading documents...
-              </div>
-            ) : documents.length > 0 && (
-              <div style={{ marginBottom: 16 }}>
-                {documents.map(doc => (
-                  <div key={doc.id} style={{
-                    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                    padding: '10px 14px', background: '#f0fdf4', borderRadius: 10,
-                    border: '1px solid #bbf7d0', marginBottom: 8
-                  }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
-                      <FileCheck size={18} color="#16a34a" style={{ flexShrink: 0 }} />
-                      <div style={{ minWidth: 0 }}>
-                        <div style={{ fontSize: 13, fontWeight: 600, color: '#166534', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                          {doc.label}
+            <div className="reg-upload-grid" style={{ gridTemplateColumns: '1fr 1fr', gap: 20, marginBottom: 24 }}>
+              {[
+                { label: 'Business Permit', key: 'business_permit' },
+                { label: 'SEC Registration', key: 'sec_registration' }
+              ].map(docType => {
+                const uploaded = documents.find(d => d.label === docType.label);
+                return (
+                  <div key={docType.key} className="upload-zone-wrapper">
+                    <label className="form-label">{docType.label} *</label>
+                    {uploaded ? (
+                      <div className="upload-preview" style={{ height: 140 }}>
+                        <div className="upload-preview-img-wrap" style={{ height: 100 }}>
+                          {uploaded.file_type.includes('image') ? (
+                            <img src={uploaded.file_url} alt={docType.label} />
+                          ) : (
+                            <div style={{ height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: '#f8fafc', gap: 8 }}>
+                              <FileText size={32} color="#0ea5e9" />
+                              <span style={{ fontSize: 11, color: '#64748b' }}>PDF Document</span>
+                            </div>
+                          )}
+                          <a href={uploaded.file_url} target="_blank" rel="noopener noreferrer" className="upload-preview-eye">
+                            <Eye size={16} />
+                          </a>
                         </div>
-                        <div style={{ fontSize: 11, color: '#64748b' }}>
-                          {doc.file_name} • {timeAgo(doc.uploaded_at)}
+                        <div className="upload-preview-info">
+                          <span className="upload-preview-name">{uploaded.file_name}</span>
+                          <button className="upload-preview-remove" onClick={() => handleDelete(uploaded.id)}>
+                            <Trash2 size={12} /> Remove
+                          </button>
                         </div>
                       </div>
+                    ) : (
+                      <div className="upload-zone" style={{ padding: '32px 16px' }} onClick={() => {
+                        setDocLabel(docType.label);
+                        fileInputRef.current.click();
+                      }}>
+                        <div className="upload-zone-icon">
+                          {uploading && docLabel === docType.label ? <Loader size={24} className="spin" /> : <Upload size={24} />}
+                        </div>
+                        <div className="upload-zone-text">Click to upload</div>
+                        <div className="upload-zone-hint">PDF, JPG or PNG</div>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".pdf,.jpg,.jpeg,.png"
+              style={{ display: 'none' }}
+              onChange={handleFileUpload}
+            />
+
+            {/* Custom Documents List (if any) */}
+            {documents.filter(d => !['Business Permit', 'SEC Registration'].includes(d.label)).length > 0 && (
+              <div style={{ marginTop: 24, borderTop: '1px solid #f1f5f9', paddingTop: 16 }}>
+                <h4 style={{ fontSize: 13, fontWeight: 700, color: '#475569', marginBottom: 12 }}>Additional Documents</h4>
+                {documents.filter(d => !['Business Permit', 'SEC Registration'].includes(d.label)).map(doc => (
+                  <div key={doc.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 14px', background: '#f8fafc', borderRadius: 10, border: '1px solid #e2e8f0', marginBottom: 8 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                      <FileCheck size={18} color="#16a34a" />
+                      <span style={{ fontSize: 13, fontWeight: 600 }}>{doc.label}</span>
                     </div>
-                    <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
-                      <a href={doc.file_url} target="_blank" rel="noopener noreferrer"
-                        style={{ padding: '4px 8px', fontSize: 12, color: '#0369a1', border: '1px solid #bae6fd', background: '#f0f9ff', borderRadius: 6, textDecoration: 'none', cursor: 'pointer' }}>
-                        <Eye size={12} /> View
-                      </a>
-                      {status !== 'Under Review' && (
-                        <button onClick={() => setConfirmDeleteId(doc.id)}
-                          style={{ padding: '4px 8px', fontSize: 12, color: '#dc2626', border: '1px solid #fecaca', background: '#fef2f2', borderRadius: 6, cursor: 'pointer' }}>
-                          <Trash2 size={12} /> Remove
-                        </button>
-                      )}
-                    </div>
+                    <button onClick={() => handleDelete(doc.id)} style={{ padding: 6, color: '#dc2626', background: 'none', border: 'none', cursor: 'pointer' }}>
+                      <Trash2 size={16} />
+                    </button>
                   </div>
                 ))}
               </div>
             )}
 
-            {/* Upload New Document */}
-            {status !== 'Under Review' && (
-              <>
-                <div style={{ display: 'flex', gap: 10, marginBottom: 12, flexWrap: 'wrap' }}>
-                  <input
-                    type="text"
-                    placeholder="Document label (e.g. Business Permit, SEC Registration)"
-                    value={docLabel} onChange={e => setDocLabel(e.target.value)}
-                    maxLength={100}
-                    style={{ flex: 1, minWidth: 180, padding: '8px 12px', borderRadius: 8, border: '1px solid #e2e8f0', fontSize: 13, background: '#f8fafc' }}
-                  />
-                  <button
-                    className="ln-btn"
-                    style={{ padding: '8px 16px', fontSize: 13, background: '#f0f9ff', border: '1px solid #bae6fd', color: '#0369a1' }}
-                    onClick={() => {
-                      if (!docLabel.trim()) { alert('Please enter a document label first.'); return; }
-                      fileInputRef.current?.click();
-                    }}
-                    disabled={uploading}
-                  >
-                    {uploading ? <><Loader size={14} className="spin" /> Uploading...</> : <><Upload size={14} /> Choose File</>}
-                  </button>
-                </div>
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  accept=".pdf,.jpg,.jpeg,.png"
-                  style={{ display: 'none' }}
-                  onChange={handleFileUpload}
-                />
-                <p style={{ fontSize: 12, color: '#94a3b8', marginBottom: 16 }}>Accepted: PDF, JPG, PNG • Max 3MB per file</p>
-              </>
-            )}
-
             {/* Submit / Edit Button */}
-            {status === 'Under Review' ? (
-              <div style={{ textAlign: 'center', padding: '8px 0' }}>
-                <FileCheck size={36} color="#0ea5e9" style={{ margin: '0 auto 8px' }} />
-                <p style={{ fontSize: 13, color: 'rgba(0,0,0,0.55)', marginBottom: 12 }}>Your documents are under review by the administrators.</p>
-              </div>
-            ) : (
-              <button
-                className="ln-btn ln-btn-primary"
-                style={{ width: '100%', padding: '10px 20px', fontSize: 14 }}
-                disabled={documents.length === 0}
-                onClick={handleSubmitForReview}
-              >
-                <Send size={16} /> Submit for Verification
-              </button>
-            )}
+            <div style={{ marginTop: 24 }}>
+              {status === 'Under Review' ? (
+                <div style={{ textAlign: 'center', padding: '20px', background: '#f0f9ff', borderRadius: 12, border: '1px solid #bae6fd' }}>
+                  <Clock size={32} color="#0ea5e9" style={{ margin: '0 auto 12px' }} />
+                  <p style={{ fontSize: 14, fontWeight: 600, color: '#0c4a6e', marginBottom: 4 }}>Documents Under Review</p>
+                  <p style={{ fontSize: 13, color: '#0369a1' }}>We are validating your company details. Check back later.</p>
+                </div>
+              ) : (
+                <button
+                  className="btn btn-primary btn-lg"
+                  style={{ width: '100%' }}
+                  disabled={documents.length < 2 || uploading}
+                  onClick={handleSubmitForReview}
+                >
+                  <Send size={18} /> Submit Documents for Review
+                </button>
+              )}
+            </div>
           </div>
         </div>
       )}
+
 
       {/* Benefits of Verified Account */}
       <div className="ln-card" style={{ marginBottom: 16 }}>
