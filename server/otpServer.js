@@ -107,6 +107,33 @@ app.post('/api/send-otp', rateLimit, async (req, res) => {
         return res.status(409).json({ error: 'This email is already registered. Please use a different email or log in.' });
     }
 
+    // Per-email resend cooldown (60s) to prevent OTP spam
+    const { data: previousOtp, error: previousOtpErr } = await supabaseAdmin
+        .from('otp_codes')
+        .select('expires_at')
+        .eq('email', email)
+        .maybeSingle();
+
+    if (previousOtpErr) {
+        console.error('OTP cooldown check error:', previousOtpErr);
+        return res.status(500).json({ error: 'Failed to process OTP request. Please try again.' });
+    }
+
+    if (previousOtp?.expires_at) {
+        const expiryTime = new Date(previousOtp.expires_at).getTime();
+        const approxSentAt = expiryTime - OTP_EXPIRY_MIN * 60 * 1000;
+        const elapsedMs = Date.now() - approxSentAt;
+        const cooldownMs = 60 * 1000;
+
+        if (Number.isFinite(expiryTime) && elapsedMs < cooldownMs) {
+            const retryAfter = Math.max(1, Math.ceil((cooldownMs - elapsedMs) / 1000));
+            return res.status(429).json({
+                error: `Please wait ${retryAfter}s before requesting another OTP.`,
+                retryAfter,
+            });
+        }
+    }
+
     // Generate 6-digit OTP
     const otp = Math.floor(100000 + Math.random() * 900000).toString();
     const expiresAt = new Date(Date.now() + OTP_EXPIRY_MIN * 60 * 1000).toISOString();
@@ -725,7 +752,7 @@ app.post('/api/register', rateLimit, async (req, res) => {
 
 // ─── REGISTER PARTNER ENDPOINT ──────────────────────────────────────
 app.post('/api/register-partner', rateLimit, async (req, res) => {
-    const { email, password, companyName, contactPerson, phone, address } = req.body;
+    const { email, password, companyName, contactPerson, address } = req.body;
 
     if (!email || !password || !companyName || !contactPerson) {
         return res.status(400).json({ error: 'Missing required fields.' });
@@ -768,7 +795,7 @@ app.post('/api/register-partner', rateLimit, async (req, res) => {
                 id: userId,
                 company_name: companyName,
                 contact_person: contactPerson,
-                contact_number: phone || null,
+                contact_number: null,
                 city: address || null,
                 verification_status: 'pending',
                 contact_email: email,

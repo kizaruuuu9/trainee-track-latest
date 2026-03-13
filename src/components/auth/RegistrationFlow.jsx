@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { ArrowLeft, ArrowRight, CheckCircle, Loader, Users, Building2, ShieldCheck, Mail, Phone, MapPin, Building, Lock } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { ArrowLeft, ArrowRight, CheckCircle, Loader, Users, Building2, ShieldCheck, Mail, MapPin, Building, Lock, Send } from 'lucide-react';
 import Step1IDUpload from './Step1IDUpload';
 import Step2PersonalInfo from './Step2PersonalInfo';
 
@@ -26,7 +26,6 @@ export default function RegistrationFlow({ onBackToLogin }) {
     companyName: '',
     contactPerson: '',
     email: '',
-    phone: '',
     address: '',
     password: '',
     confirmPassword: '',
@@ -35,9 +34,11 @@ export default function RegistrationFlow({ onBackToLogin }) {
   // OTP State for Partner
   const [otpSent, setOtpSent] = useState(false);
   const [otpCode, setOtpCode] = useState('');
+  const [otpLoading, setOtpLoading] = useState(false);
   const [isVerifyingOtp, setIsVerifyingOtp] = useState(false);
   const [otpError, setOtpError] = useState('');
   const [otpVerified, setOtpVerified] = useState(false);
+  const [otpCooldown, setOtpCooldown] = useState(0);
 
   const [step1Valid, setStep1Valid] = useState(false);
   const [step2Valid, setStep2Valid] = useState(false);
@@ -45,13 +46,21 @@ export default function RegistrationFlow({ onBackToLogin }) {
   const [saveError, setSaveError] = useState('');
   const [submitted, setSubmitted] = useState(false);
 
+  // ─── OTP Cooldown Timer ──────────────────────────────────────
+  useEffect(() => {
+    if (otpCooldown <= 0) return;
+    const timer = setTimeout(() => setOtpCooldown(prev => prev - 1), 1000);
+    return () => clearTimeout(timer);
+  }, [otpCooldown]);
+
   // ─── Trainee Step Handlers ─────────────────────────────────────
   const updateTrainee1 = (data) => setTraineeData(prev => ({ ...prev, step1: { ...prev.step1, ...data } }));
   const updateTrainee2 = (data) => setTraineeData(prev => ({ ...prev, step2: { ...prev.step2, ...data } }));
 
   // ─── Partner OTP Logic ─────────────────────────────────────────
   const handleSendOTP = async () => {
-    if (!partnerData.email) return;
+    if (!partnerData.email || otpCooldown > 0) return;
+    setOtpLoading(true);
     setOtpSent(false);
     setOtpError('');
     try {
@@ -62,10 +71,19 @@ export default function RegistrationFlow({ onBackToLogin }) {
         body: JSON.stringify({ email: partnerData.email })
       });
       const result = await res.json();
-      if (!res.ok) throw new Error(result.error || 'Failed to send OTP');
+      if (!res.ok) {
+        if (res.status === 429) {
+          const retry = Number(result?.retryAfter || 60);
+          if (Number.isFinite(retry) && retry > 0) setOtpCooldown(retry);
+        }
+        throw new Error(result.error || 'Failed to send OTP');
+      }
       setOtpSent(true);
+      setOtpCooldown(60);
     } catch (err) {
       setOtpError(err.message === 'Failed to fetch' ? 'Unable to connect to server.' : err.message);
+    } finally {
+      setOtpLoading(false);
     }
   };
 
@@ -94,7 +112,7 @@ export default function RegistrationFlow({ onBackToLogin }) {
   };
 
   const isPartnerValid = partnerData.companyName && partnerData.contactPerson &&
-    partnerData.email && partnerData.phone && partnerData.address &&
+    partnerData.email && partnerData.address &&
     partnerData.password && partnerData.password === partnerData.confirmPassword &&
     partnerData.password.length >= 8 && otpVerified;
 
@@ -185,13 +203,6 @@ export default function RegistrationFlow({ onBackToLogin }) {
               <Users size={16} style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: '#94a3b8' }} />
             </div>
           </div>
-          <div className="form-group">
-            <label className="form-label">Phone Number</label>
-            <div style={{ position: 'relative' }}>
-              <input className="form-input" style={{ paddingLeft: 38 }} placeholder="09XX XXX XXXX" value={partnerData.phone} onChange={e => setPartnerData({ ...partnerData, phone: e.target.value })} />
-              <Phone size={16} style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: '#94a3b8' }} />
-            </div>
-          </div>
           <div className="form-group reg-full-width">
             <label className="form-label">Company Address</label>
             <div style={{ position: 'relative' }}>
@@ -206,7 +217,24 @@ export default function RegistrationFlow({ onBackToLogin }) {
             <label className="form-label">Email Address</label>
             <div style={{ display: 'flex', gap: 10 }}>
               <div style={{ position: 'relative', flex: 1 }}>
-                <input type="email" className="form-input" style={{ paddingLeft: 38 }} placeholder="company@email.com" value={partnerData.email} onChange={e => setPartnerData({ ...partnerData, email: e.target.value })} disabled={otpVerified} />
+                <input
+                  type="email"
+                  className="form-input"
+                  style={{ paddingLeft: 38 }}
+                  placeholder="company@email.com"
+                  value={partnerData.email}
+                  onChange={e => {
+                    const nextEmail = e.target.value;
+                    setPartnerData({ ...partnerData, email: nextEmail });
+                    setOtpError('');
+                    setOtpCooldown(0);
+                    if (!otpVerified) {
+                      setOtpSent(false);
+                      setOtpCode('');
+                    }
+                  }}
+                  disabled={otpVerified}
+                />
                 <Mail size={16} style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: '#94a3b8' }} />
               </div>
               <button
@@ -214,28 +242,62 @@ export default function RegistrationFlow({ onBackToLogin }) {
                 className={`btn ${otpVerified ? 'btn-success' : 'btn-primary'}`}
                 style={{ height: 42, width: 120 }}
                 onClick={handleSendOTP}
-                disabled={!partnerData.email || otpVerified || otpSent}
+                disabled={!partnerData.email || otpVerified || otpLoading || otpCooldown > 0}
               >
-                {otpVerified ? <><ShieldCheck size={16} /> Verified</> : 'Verify Email'}
+                {otpVerified ? (
+                  <><ShieldCheck size={16} /> Verified</>
+                ) : otpLoading ? (
+                  <><Loader size={14} style={{ animation: 'ocr-spin 0.8s linear infinite' }} /> Sending...</>
+                ) : otpCooldown > 0 ? (
+                  `Resend (${otpCooldown}s)`
+                ) : (
+                  <><Send size={14} /> Send OTP</>
+                )}
               </button>
             </div>
+            {otpError && !otpSent && (
+              <p style={{ color: '#ef4444', fontSize: 12, marginTop: 8, fontWeight: 500 }}>{otpError}</p>
+            )}
             {otpSent && !otpVerified && (
-              <div style={{ marginTop: 12, padding: 16, background: '#f8fafc', borderRadius: 10, border: '1px solid #e2e8f0' }}>
-                <p style={{ fontSize: 12, color: '#64748b', marginBottom: 10 }}>Enter the 6-digit code sent to your email.</p>
-                <div style={{ display: 'flex', gap: 10 }}>
+              <div style={{ marginTop: 14 }}>
+                <div style={{
+                  padding: '12px 16px',
+                  background: 'linear-gradient(135deg, #eff6ff, #dbeafe)',
+                  border: '1px solid #93c5fd',
+                  borderRadius: 10,
+                  marginBottom: 12,
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 10,
+                  animation: 'fadeSlideIn 0.3s ease',
+                }}>
+                  <Mail size={18} style={{ color: '#2563eb', flexShrink: 0 }} />
+                  <div style={{ fontSize: 13, color: '#1e40af' }}>
+                    A 6-digit OTP has been sent to <strong>{partnerData.email}</strong>
+                  </div>
+                </div>
+                <label className="form-label">Enter 6-digit OTP</label>
+                <div className="step2-email-row">
                   <input
-                    className="form-input"
-                    placeholder="Enter Code"
-                    style={{ textAlign: 'center', letterSpacing: 4, fontWeight: 700 }}
+                    className="form-input step2-otp-input"
+                    placeholder="000000"
+                    style={{ flex: 1, letterSpacing: '0.3em', fontWeight: 700, fontSize: 18, textAlign: 'center' }}
                     maxLength={6}
+                    inputMode="numeric"
+                    pattern="[0-9]*"
                     value={otpCode}
-                    onChange={e => setOtpCode(e.target.value)}
+                    onChange={e => setOtpCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
                   />
-                  <button className="btn btn-primary" style={{ width: 100 }} onClick={handleVerifyOTP} disabled={isVerifyingOtp || otpCode.length < 6}>
-                    {isVerifyingOtp ? <Loader size={16} className="spin" /> : 'Confirm'}
+                  <button
+                    className="btn btn-primary btn-sm"
+                    style={{ minWidth: 110 }}
+                    onClick={handleVerifyOTP}
+                    disabled={isVerifyingOtp || otpCode.length < 6}
+                  >
+                    {isVerifyingOtp ? 'Verifying...' : 'Verify'}
                   </button>
                 </div>
-                {otpError && <p style={{ color: '#ef4444', fontSize: 11, marginTop: 6, fontWeight: 500 }}>{otpError}</p>}
+                {otpError && <div className="form-error" style={{ marginTop: 6 }}>{otpError}</div>}
               </div>
             )}
           </div>
