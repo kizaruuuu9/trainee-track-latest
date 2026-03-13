@@ -795,7 +795,6 @@ app.post('/api/register-partner', rateLimit, async (req, res) => {
                 id: userId,
                 company_name: companyName,
                 contact_person: contactPerson,
-                contact_number: null,
                 city: address || null,
                 verification_status: 'pending',
                 contact_email: email,
