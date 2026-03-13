@@ -6,7 +6,7 @@ import {
   MapPin, Send, Award, ChevronRight, Trash2, Menu, Lock,
   Upload, AlertTriangle, Clock, ShieldCheck, FileCheck,
   Bell, Home, Settings, TrendingUp, Bookmark, Target, Star,
-  Camera, ThumbsUp, MessageSquare, Share2, Edit, Loader, ExternalLink
+  Camera, MessageSquare, Heart, Edit, Loader, ExternalLink
 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { Routes, Route, useNavigate, useLocation, Navigate } from 'react-router-dom';
@@ -17,22 +17,52 @@ import { Routes, Route, useNavigate, useLocation, Navigate } from 'react-router-
 
 // ─── HELPERS ──────────────────────────────────────────────────────
 const isVerified = (user) => user?.verificationStatus === 'Verified';
+const getLivePartner = (currentUser, partners = []) => {
+  const livePartner = partners.find(p => p.id === currentUser?.id);
+  return livePartner ? { ...currentUser, ...livePartner } : currentUser;
+};
 
 const timeAgo = (dateStr) => {
-  const now = new Date();
-  const date = new Date(dateStr);
-  const seconds = Math.floor((now - date) / 1000);
-  if (seconds < 60) return 'Just now';
-  const minutes = Math.floor(seconds / 60);
-  if (minutes < 60) return `${minutes}m ago`;
-  const hours = Math.floor(minutes / 60);
-  if (hours < 24) return `${hours}h ago`;
-  const days = Math.floor(hours / 24);
-  if (days < 30) return `${days}d ago`;
-  const months = Math.floor(days / 30);
-  if (months < 12) return `${months}mo ago`;
-  const years = Math.floor(months / 12);
-  return `${years}y ago`;
+    const raw = String(dateStr || '').trim();
+    if (!raw) return 'Just now';
+
+    const hasTimeInfo = raw.includes('T') || /\d{1,2}:\d{2}/.test(raw);
+    const now = new Date();
+    const date = new Date(raw);
+    if (!Number.isFinite(date.getTime())) return 'Just now';
+
+    if (!hasTimeInfo) {
+      const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+      const postDay = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+      const dayDiff = Math.floor((today - postDay) / (24 * 60 * 60 * 1000));
+      if (dayDiff <= 0) return 'Today';
+      if (dayDiff === 1) return '1d ago';
+      if (dayDiff < 30) return `${dayDiff}d ago`;
+      const months = Math.floor(dayDiff / 30);
+      if (months < 12) return `${months}mo ago`;
+      const years = Math.floor(months / 12);
+      return `${years}y ago`;
+    }
+
+    const seconds = Math.floor((now - date) / 1000);
+    if (seconds < 60) return 'Just now';
+    const minutes = Math.floor(seconds / 60);
+    if (minutes < 60) return `${minutes}m ago`;
+    const hours = Math.floor(minutes / 60);
+    if (hours < 24) return `${hours}h ago`;
+    const days = Math.floor(hours / 24);
+    if (days < 30) return `${days}d ago`;
+    const months = Math.floor(days / 30);
+    if (months < 12) return `${months}mo ago`;
+    const years = Math.floor(months / 12);
+    return `${years}y ago`;
+};
+
+const isImageAttachment = (attachmentUrl, attachmentType) => {
+  const mime = String(attachmentType || '').toLowerCase();
+  if (mime.startsWith('image/')) return true;
+  const cleanUrl = String(attachmentUrl || '').split('?')[0].toLowerCase();
+  return /\.(png|jpe?g|gif|webp|bmp|svg)$/.test(cleanUrl);
 };
 
 // ─── STATUS BADGE HELPER ──────────────────────────────────────────
@@ -58,20 +88,21 @@ const StatusBadge = ({ status }) => {
 
 // ─── TOP NAVIGATION BAR (LinkedIn-style for Partners) ─────────────
 const PartnerTopNav = ({ activePage, setActivePage }) => {
-  const { currentUser, logout } = useApp();
+  const { currentUser, partners, logout } = useApp();
   const [showProfileMenu, setShowProfileMenu] = useState(false);
   const [showNotif, setShowNotif] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const verified = isVerified(currentUser);
-  const initials = currentUser?.companyName?.charAt(0)?.toUpperCase() || 'P';
+  const livePartner = getLivePartner(currentUser, partners);
+  const verified = isVerified(livePartner);
+  const initials = livePartner?.companyName?.charAt(0)?.toUpperCase() || 'P';
 
   const navItems = [
     { id: 'dashboard', label: 'Home', icon: <Home size={20} /> },
     { id: 'profile', label: 'Company', icon: <Building2 size={20} /> },
     ...(!verified ? [{ id: 'verification', label: 'Verification', icon: <ShieldCheck size={20} /> }] : []),
     { id: 'post-job', label: 'Post Opportunities', icon: <Plus size={20} />, locked: !verified },
-    { id: 'applicants', label: 'Applicants', icon: <Users size={20} />, locked: !verified },
+    { id: 'applicants', label: 'Recruit', icon: <Users size={20} />, locked: !verified },
   ];
 
   return (
@@ -153,7 +184,7 @@ const PartnerTopNav = ({ activePage, setActivePage }) => {
                 <div className="ln-dropdown-profile">
                   <div className="ln-dropdown-profile-avatar pn-dropdown-avatar">{initials}</div>
                   <div>
-                    <div className="ln-dropdown-profile-name">{currentUser?.companyName || 'Partner'}</div>
+                    <div className="ln-dropdown-profile-name">{livePartner?.companyName || 'Partner'}</div>
                     <div className="ln-dropdown-profile-role">Industry Partner</div>
                   </div>
                 </div>
@@ -264,7 +295,7 @@ const QuickActionsWidget = ({ setActivePage, verified }) => (
     <div className="ln-widget-header"><span>Quick Actions</span></div>
     {[
       { label: 'Post Opportunities', icon: <Plus size={16} />, page: 'post-job', locked: !verified },
-      { label: 'View Applicants', icon: <Users size={16} />, page: 'applicants', locked: !verified },
+      { label: 'Recruit', icon: <Users size={16} />, page: 'applicants', locked: !verified },
       ...(!verified ? [{ label: 'Verification', icon: <ShieldCheck size={16} />, page: 'verification', locked: false }] : []),
     ].map(link => (
       <button
@@ -305,12 +336,12 @@ const RecruitmentStatsWidget = ({ myJobs, myApplicants }) => (
 
 // ─── PAGE 1: PARTNER DASHBOARD HOME ──────────────────────────────
 const PartnerHome = ({ setActivePage }) => {
-  const { currentUser, partners, jobPostings, getPartnerApplicants, posts, createPost, trainees } = useApp();
-  const partner = partners.find(p => p.id === currentUser?.id) || currentUser;
-  const verified = isVerified(currentUser);
-  const myJobs = jobPostings.filter(j => j.partnerId === currentUser?.id);
-  const myApplicants = getPartnerApplicants(currentUser?.id);
-  const initials = currentUser?.companyName?.charAt(0)?.toUpperCase() || 'P';
+  const { currentUser, partners, jobPostings, getPartnerApplicants, posts, createPost, trainees, addPostComment, getPostComments, addJobPostingComment, getJobPostingComments, updateJobPostingComment, deleteJobPostingComment, sendContactRequest } = useApp();
+  const partner = getLivePartner(currentUser, partners);
+  const verified = isVerified(partner);
+  const myJobs = jobPostings.filter(j => j.partnerId === partner?.id);
+  const myApplicants = getPartnerApplicants(partner?.id);
+  const initials = partner?.companyName?.charAt(0)?.toUpperCase() || 'P';
 
   // Create Post state
   const [postContent, setPostContent] = useState('');
@@ -318,7 +349,103 @@ const PartnerHome = ({ setActivePage }) => {
   const [postType, setPostType] = useState('general');
   const [selectedFile, setSelectedFile] = useState(null);
   const [filePreview, setFilePreview] = useState(null);
+  const [commentModalPost, setCommentModalPost] = useState(null);
+  const [commentInput, setCommentInput] = useState('');
+  const [commentSubmitting, setCommentSubmitting] = useState(false);
+  const [contactTarget, setContactTarget] = useState(null);
+  const [contactMessage, setContactMessage] = useState('');
+  const [contactAttachment, setContactAttachment] = useState(null);
+  const [contactSubmitting, setContactSubmitting] = useState(false);
+  const [jobMediaModal, setJobMediaModal] = useState(null);
+  const [jobMediaCommentInput, setJobMediaCommentInput] = useState('');
+  const [editingJobMediaCommentId, setEditingJobMediaCommentId] = useState(null);
+  const [jobMediaEditInput, setJobMediaEditInput] = useState('');
+  const [jobMediaCommentSaving, setJobMediaCommentSaving] = useState(false);
+  const [jobMediaCommentMenuId, setJobMediaCommentMenuId] = useState(null);
   const fileInputRef = useRef(null);
+  const contactFileInputRef = useRef(null);
+  const jobMediaCommentInputRef = useRef(null);
+
+  const openJobMediaModal = (job, focusComment = false) => {
+    setJobMediaModal(job);
+    setJobMediaCommentInput('');
+    setEditingJobMediaCommentId(null);
+    setJobMediaEditInput('');
+    setJobMediaCommentMenuId(null);
+    if (focusComment) {
+      setTimeout(() => jobMediaCommentInputRef.current?.focus(), 0);
+    }
+  };
+
+  const closeJobMediaModal = () => {
+    setJobMediaModal(null);
+    setJobMediaCommentInput('');
+    setEditingJobMediaCommentId(null);
+    setJobMediaEditInput('');
+    setJobMediaCommentMenuId(null);
+  };
+
+  const submitJobMediaComment = async () => {
+    if (!jobMediaModal) return;
+    const trimmed = jobMediaCommentInput.trim();
+    if (!trimmed) return;
+
+    const result = await addJobPostingComment(jobMediaModal.id, trimmed);
+    if (!result.success) {
+      alert(result.error || 'Failed to add comment.');
+      return;
+    }
+
+    setJobMediaCommentInput('');
+  };
+
+  const startEditingJobMediaComment = (comment) => {
+    if (!comment || comment.author_id !== currentUser?.id) return;
+    setEditingJobMediaCommentId(comment.id);
+    setJobMediaEditInput(comment.content || '');
+  };
+
+  const cancelEditingJobMediaComment = () => {
+    setEditingJobMediaCommentId(null);
+    setJobMediaEditInput('');
+  };
+
+  const saveEditedJobMediaComment = async () => {
+    if (!editingJobMediaCommentId) return;
+    const trimmed = jobMediaEditInput.trim();
+    if (!trimmed) {
+      alert('Comment cannot be empty.');
+      return;
+    }
+
+    setJobMediaCommentSaving(true);
+    const result = await updateJobPostingComment(editingJobMediaCommentId, trimmed);
+    setJobMediaCommentSaving(false);
+    if (!result.success) {
+      alert(result.error || 'Failed to update comment.');
+      return;
+    }
+
+    setEditingJobMediaCommentId(null);
+    setJobMediaEditInput('');
+  };
+
+  const handleDeleteJobMediaComment = async (commentId) => {
+    if (!commentId) return;
+    const confirmed = window.confirm('Delete this comment?');
+    if (!confirmed) return;
+
+    const result = await deleteJobPostingComment(commentId);
+    if (!result.success) {
+      alert(result.error || 'Failed to delete comment.');
+      return;
+    }
+
+    if (editingJobMediaCommentId === commentId) {
+      setEditingJobMediaCommentId(null);
+      setJobMediaEditInput('');
+    }
+  };
 
   const handleFileChange = (e) => {
     const file = e.target.files[0];
@@ -371,11 +498,105 @@ const PartnerHome = ({ setActivePage }) => {
     }
   };
 
+  const handleCommentOnPost = (post) => {
+    setCommentModalPost(post);
+    setCommentInput('');
+  };
+
+  const openContactModal = (target) => {
+    if (!target || target.recipientId === currentUser?.id) return;
+    setContactTarget(target);
+    setContactMessage('');
+    setContactAttachment(null);
+    if (contactFileInputRef.current) contactFileInputRef.current.value = '';
+  };
+
+  const closeContactModal = () => {
+    setContactTarget(null);
+    setContactMessage('');
+    setContactAttachment(null);
+    if (contactFileInputRef.current) contactFileInputRef.current.value = '';
+  };
+
+  const handleContactAttachmentChange = (event) => {
+    const file = event.target.files?.[0] || null;
+    setContactAttachment(file);
+  };
+
+  const handleSubmitContact = async () => {
+    if (!contactTarget) return;
+
+    const trimmed = contactMessage.trim();
+    if (!trimmed) {
+      alert('Message is required.');
+      return;
+    }
+
+    setContactSubmitting(true);
+
+    let attachmentUrl = null;
+    let attachmentName = null;
+
+    try {
+      if (contactAttachment) {
+        const path = `contact-files/${currentUser.id}/${Date.now()}_${contactAttachment.name}`;
+        const { error: uploadError } = await supabase.storage
+          .from('registration-uploads')
+          .upload(path, contactAttachment, { contentType: contactAttachment.type, upsert: true });
+
+        if (uploadError) throw uploadError;
+
+        const { data: urlData } = supabase.storage.from('registration-uploads').getPublicUrl(path);
+        attachmentUrl = urlData?.publicUrl || null;
+        attachmentName = contactAttachment.name;
+      }
+
+      const result = await sendContactRequest({
+        recipientId: contactTarget.recipientId,
+        recipientType: contactTarget.recipientType,
+        postId: contactTarget.postId || null,
+        jobPostingId: contactTarget.jobPostingId || null,
+        message: trimmed,
+        attachmentName,
+        attachmentUrl,
+        attachmentKind: 'document',
+      });
+
+      if (!result.success) {
+        alert(result.error || 'Failed to send contact request.');
+        return;
+      }
+
+      closeContactModal();
+      alert('Contact request sent.');
+    } catch (err) {
+      console.error('Contact submit error:', err);
+      alert(err.message || 'Failed to send contact request.');
+    } finally {
+      setContactSubmitting(false);
+    }
+  };
+
+  const handleSubmitComment = async () => {
+    if (!commentModalPost) return;
+    const trimmed = commentInput.trim();
+    if (!trimmed) return;
+
+    setCommentSubmitting(true);
+    const res = await addPostComment(commentModalPost.id, trimmed);
+    setCommentSubmitting(false);
+    if (!res.success) {
+      alert(res.error || 'Failed to add comment.');
+      return;
+    }
+    setCommentInput('');
+  };
+
   // Unified Feed logic: Mix Jobs and Posts, sort by date
   const unifiedFeed = [
     ...posts.map(p => ({ ...p, feedType: 'post' })),
     ...jobPostings.map(j => ({ ...j, feedType: 'job' }))
-  ].sort((a, b) => new Date(b.created_at || b.datePosted) - new Date(a.created_at || a.datePosted));
+  ].sort((a, b) => new Date(b.created_at || b.createdAt || b.datePosted) - new Date(a.created_at || a.createdAt || a.datePosted));
 
   const stats = [
     { label: 'Active Postings', value: myJobs.filter(j => j.status === 'Open').length, icon: <Briefcase size={20} />, color: '#0ea5e9' },
@@ -383,6 +604,19 @@ const PartnerHome = ({ setActivePage }) => {
     { label: 'Accepted', value: myApplicants.filter(a => a.status === 'Accepted').length, icon: <CheckCircle size={20} />, color: '#16a34a' },
     { label: 'Avg Match', value: myApplicants.length > 0 ? `${Math.round(myApplicants.reduce((s, a) => s + a.matchRate, 0) / myApplicants.length)}%` : '0%', icon: <Target size={20} />, color: '#d97706' },
   ];
+
+  const modalComments = commentModalPost ? getPostComments(commentModalPost.id) : [];
+  const modalAuthor = commentModalPost
+    ? (commentModalPost.author_id === currentUser?.id
+        ? currentUser
+        : commentModalPost.author_type === 'student'
+          ? trainees.find(t => t.id === commentModalPost.author_id)
+          : partners.find(p => p.id === commentModalPost.author_id))
+    : null;
+  const modalAuthorName = modalAuthor?.name || modalAuthor?.companyName || 'Community User';
+  const canContactModalAuthor = Boolean(commentModalPost && commentModalPost.author_id !== currentUser?.id);
+  const contactRecipientName = contactTarget?.recipientName || 'Recipient';
+  const jobMediaComments = jobMediaModal ? getJobPostingComments(jobMediaModal.id) : [];
 
   return (
     <div className="ln-three-col">
@@ -511,42 +745,6 @@ const PartnerHome = ({ setActivePage }) => {
           </div>
         </div>
 
-        {/* Activity / Welcome Feed Card */}
-        <div className="ln-card ln-feed-card">
-          <div className="ln-feed-card-header">
-            <div className="ln-feed-avatar pn-feed-avatar">{initials}</div>
-            <div>
-              <div className="ln-feed-author">{currentUser?.companyName}</div>
-              <div className="ln-feed-meta">{currentUser?.industry} &bull; Industry Partner</div>
-            </div>
-          </div>
-          <div className="ln-feed-content">
-            <h3 style={{ fontSize: 16, fontWeight: 700, marginBottom: 8, color: 'rgba(0,0,0,0.9)' }}>
-              Welcome back! Here's your recruitment overview
-            </h3>
-            <p style={{ fontSize: 14, color: 'rgba(0,0,0,0.6)', lineHeight: 1.6, marginBottom: 12 }}>
-              You have <strong>{myJobs.filter(j => j.status === 'Open').length}</strong> active postings
-              and <strong>{myApplicants.filter(a => a.status === 'Pending').length}</strong> pending applications to review.
-              {verified
-                ? ' Your account is verified — you can post new opportunities anytime.'
-                : ' Complete verification to start posting opportunities.'}
-            </p>
-          </div>
-          <div className="ln-feed-actions">
-            {verified && (
-              <button className="ln-feed-action-btn" onClick={() => setActivePage('post-job')}>
-                <Plus size={16} /> Post Opportunities
-              </button>
-            )}
-            <button className="ln-feed-action-btn" onClick={() => setActivePage('applicants')}>
-              <Users size={16} /> View Applicants
-            </button>
-            <button className="ln-feed-action-btn" onClick={() => setActivePage('profile')}>
-              <Building2 size={16} /> Company Profile
-            </button>
-          </div>
-        </div>
-
         {/* Unified Community Feed */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
           <div className="ln-section-header" style={{ marginBottom: 0 }}>
@@ -555,6 +753,7 @@ const PartnerHome = ({ setActivePage }) => {
           {unifiedFeed.map(item => {
             if (item.feedType === 'job') {
               const myJob = item.partnerId === currentUser?.id;
+              const jobComments = getJobPostingComments(item.id);
               return (
                 <div key={`job-${item.id}`} className="ln-card ln-feed-card" style={{ marginBottom: 0 }}>
                   <div className="ln-feed-card-header">
@@ -565,22 +764,59 @@ const PartnerHome = ({ setActivePage }) => {
                       <div className="ln-feed-author">
                         {item.companyName} {myJob && <span className="ln-badge ln-badge-blue" style={{ fontSize: 10, marginLeft: 4 }}>Your Post</span>}
                       </div>
-                      <div className="ln-feed-meta">{item.industry} &bull; {item.location} &bull; {timeAgo(item.datePosted)}</div>
+                      <div className="ln-feed-meta">{item.industry} &bull; {item.location} &bull; {timeAgo(item.created_at || item.createdAt || item.datePosted)}</div>
                     </div>
                   </div>
                   <div className="ln-feed-content">
                     <h4 style={{ fontSize: 15, fontWeight: 700, marginBottom: 4 }}>{item.title}</h4>
                     <p style={{ fontSize: 13, color: 'rgba(0,0,0,0.6)', marginBottom: 8 }}>{item.description.substring(0, 150)}...</p>
+                    {item.attachmentUrl && isImageAttachment(item.attachmentUrl, item.attachmentType) && (
+                      <button type="button" onClick={() => openJobMediaModal(item)} style={{ display: 'block', marginBottom: 10, padding: 0, border: 'none', background: 'transparent', width: '100%', cursor: 'pointer' }}>
+                        <img
+                          src={item.attachmentUrl}
+                          alt={item.attachmentName || 'Opportunity attachment'}
+                          style={{ width: '100%', maxHeight: 260, objectFit: 'cover', borderRadius: 10, border: '1px solid #e2e8f0' }}
+                        />
+                      </button>
+                    )}
+                    {item.attachmentUrl && !isImageAttachment(item.attachmentUrl, item.attachmentType) && (
+                      <a href={item.attachmentUrl} target="_blank" rel="noreferrer" style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12, color: '#2563eb', marginBottom: 8, textDecoration: 'none' }}>
+                        <FileText size={13} /> {item.attachmentName || decodeURIComponent(String(item.attachmentUrl).split('/').pop()?.split('?')[0] || 'Attachment')}
+                      </a>
+                    )}
                     <div style={{ display: 'flex', gap: 8 }}>
                       <span className="ln-opp-type-badge">{item.opportunityType}</span>
-                      <span className="ln-opp-type-badge" style={{ background: '#f8fafc', color: '#64748b' }}>{item.employmentType}</span>
+                      {item.opportunityType !== 'OJT' && item.employmentType && (
+                        <span className="ln-opp-type-badge" style={{ background: '#f8fafc', color: '#64748b' }}>{item.employmentType}</span>
+                      )}
                     </div>
+                    {jobComments.length > 0 && (
+                      <div style={{ marginTop: 10, fontSize: 12, color: '#64748b', display: 'flex', gap: 14 }}>
+                        {jobComments.length > 0 && <span>{jobComments.length} comment{jobComments.length === 1 ? '' : 's'}</span>}
+                      </div>
+                    )}
                   </div>
                   <div className="ln-feed-actions" style={{ borderTop: '1px solid #f3f3f3', padding: '8px 12px' }}>
                     <button className="ln-feed-action-btn" onClick={() => setActivePage(myJob ? 'applicants' : 'dashboard')}>
                       {myJob ? <><Users size={14} /> View Applicants</> : <><Eye size={14} /> View Opportunity</>}
                     </button>
-                    <button className="ln-feed-action-btn"><Share2 size={14} /> Share</button>
+                    <button className="ln-feed-action-btn" onClick={() => openJobMediaModal(item, true)}>
+                      <MessageSquare size={14} /> Comment ({jobComments.length})
+                    </button>
+                    <button
+                      className="ln-feed-action-btn"
+                      onClick={() => !myJob && openContactModal({
+                        recipientId: item.partnerId,
+                        recipientType: 'industry_partner',
+                        recipientName: item.companyName,
+                        jobPostingId: item.id,
+                        sourceLabel: item.title,
+                      })}
+                      disabled={myJob}
+                      style={myJob ? { opacity: 0.55, cursor: 'not-allowed' } : undefined}
+                    >
+                      <MessageSquare size={14} /> {myJob ? 'Your Listing' : 'Contact'}
+                    </button>
                   </div>
                 </div>
               );
@@ -591,6 +827,16 @@ const PartnerHome = ({ setActivePage }) => {
 
               const authorInitial = author?.name?.charAt(0) || author?.companyName?.charAt(0) || '?';
               const isMe = item.author_id === currentUser?.id;
+              const comments = getPostComments(item.id);
+              const getCommentAuthorName = (comment) => {
+                if (comment.author_id === currentUser?.id) return partner?.companyName || currentUser.companyName || currentUser.name || 'You';
+                if (comment.author_type === 'student') {
+                  const student = trainees.find(t => t.id === comment.author_id);
+                  return student?.name || 'Trainee';
+                }
+                const company = partners.find(p => p.id === comment.author_id);
+                return company?.companyName || 'Industry Partner';
+              };
 
               return (
                 <div key={`post-${item.id}`} className="ln-card ln-feed-card" style={{ marginBottom: 0 }}>
@@ -643,11 +889,35 @@ const PartnerHome = ({ setActivePage }) => {
                         <span key={tag} style={{ color: '#0a66c2', fontSize: 12, fontWeight: 500 }}>#{tag.replace(/\s+/g, '')}</span>
                       ))}
                     </div>
+                    {comments.length > 0 && (
+                      <div style={{ marginTop: 12, paddingTop: 10, borderTop: '1px solid #f1f5f9', display: 'flex', flexDirection: 'column', gap: 8 }}>
+                        {comments.slice(-3).map(comment => (
+                          <div key={comment.id} style={{ fontSize: 12.5, color: '#475569', lineHeight: 1.4 }}>
+                            <span style={{ fontWeight: 700, color: '#1e293b' }}>{getCommentAuthorName(comment)}:</span> {comment.content}
+                          </div>
+                        ))}
+                        {comments.length > 3 && (
+                          <div style={{ fontSize: 11, color: '#94a3b8' }}>+{comments.length - 3} more comments</div>
+                        )}
+                      </div>
+                    )}
                   </div>
                   <div className="ln-feed-actions" style={{ borderTop: '1px solid #f3f3f3', padding: '4px 12px' }}>
-                    <button className="ln-feed-action-btn"><ThumbsUp size={16} /> Like</button>
-                    <button className="ln-feed-action-btn"><MessageSquare size={16} /> Comment</button>
-                    <button className="ln-feed-action-btn"><Share2 size={16} /> Share</button>
+                    <button
+                      className="ln-feed-action-btn"
+                      onClick={() => openContactModal({
+                        recipientId: item.author_id,
+                        recipientType: item.author_type,
+                        recipientName: author?.name || author?.companyName || 'Community User',
+                        postId: item.id,
+                        sourceLabel: item.content,
+                      })}
+                      disabled={isMe}
+                      style={isMe ? { opacity: 0.55, cursor: 'not-allowed' } : undefined}
+                    >
+                      <MessageSquare size={16} /> {isMe ? 'Your Post' : 'Contact'}
+                    </button>
+                    <button className="ln-feed-action-btn" onClick={() => handleCommentOnPost(item)}><MessageSquare size={16} /> Comment ({comments.length})</button>
                   </div>
                 </div>
               );
@@ -664,14 +934,366 @@ const PartnerHome = ({ setActivePage }) => {
         <QuickActionsWidget setActivePage={setActivePage} verified={verified} />
         <RecruitmentStatsWidget myJobs={myJobs} myApplicants={myApplicants} />
       </div>
+
+      {jobMediaModal && (
+        <div className="modal-overlay" style={{ background: 'rgba(0, 0, 0, 0.82)' }} onClick={closeJobMediaModal}>
+          <div
+            className="ln-modal"
+            onClick={e => e.stopPropagation()}
+            style={{ width: '96%', maxWidth: 1240, height: '90vh', maxHeight: 920, padding: 0, overflow: 'hidden', display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) 360px', borderRadius: 14, background: '#0f172a' }}
+          >
+            <div style={{ background: '#000', display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative' }}>
+              <button
+                onClick={closeJobMediaModal}
+                style={{ position: 'absolute', top: 12, left: 12, width: 34, height: 34, borderRadius: '50%', border: 'none', background: 'rgba(17,24,39,0.7)', color: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+              >
+                <X size={18} />
+              </button>
+              {jobMediaModal.attachmentUrl && isImageAttachment(jobMediaModal.attachmentUrl, jobMediaModal.attachmentType) ? (
+                <img src={jobMediaModal.attachmentUrl} alt={jobMediaModal.attachmentName || 'Opportunity media'} style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
+              ) : jobMediaModal.attachmentUrl ? (
+                <a href={jobMediaModal.attachmentUrl} target="_blank" rel="noreferrer" style={{ color: '#93c5fd', textDecoration: 'none', display: 'inline-flex', gap: 8, alignItems: 'center', background: '#111827', border: '1px solid #334155', borderRadius: 10, padding: '12px 14px' }}>
+                  <FileText size={18} />
+                  {jobMediaModal.attachmentName || 'Open attachment'}
+                </a>
+              ) : (
+                <div style={{ color: '#94a3b8', fontSize: 13 }}>No media attachment for this opportunity.</div>
+              )}
+            </div>
+
+            <div style={{ background: '#ffffff', display: 'flex', flexDirection: 'column', minHeight: 0 }}>
+              <div style={{ padding: '14px 16px', borderBottom: '1px solid #e5e7eb' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 10 }}>
+                  <div>
+                    <div style={{ fontSize: 14, fontWeight: 700, color: '#0f172a' }}>{jobMediaModal.companyName}</div>
+                    <div style={{ fontSize: 12, color: '#64748b', marginTop: 2 }}>{jobMediaModal.industry} • {jobMediaModal.location} • {timeAgo(jobMediaModal.created_at || jobMediaModal.createdAt || jobMediaModal.datePosted)}</div>
+                    <div style={{ marginTop: 8, fontSize: 16, fontWeight: 700, color: '#111827' }}>{jobMediaModal.title}</div>
+                    <div style={{ marginTop: 4, fontSize: 13, color: '#475569', whiteSpace: 'pre-wrap' }}>{jobMediaModal.description}</div>
+                  </div>
+                  <button
+                    onClick={closeJobMediaModal}
+                    style={{ width: 32, height: 32, borderRadius: '50%', border: '1px solid #d1d5db', background: '#fff', color: '#475569', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}
+                    aria-label="Close"
+                  >
+                    <X size={16} />
+                  </button>
+                </div>
+              </div>
+
+              <div style={{ padding: '10px 16px', borderBottom: '1px solid #e5e7eb', display: 'flex', justifyContent: 'space-between', fontSize: 12, color: '#64748b' }}>
+                <span>{jobMediaComments.length} comments</span>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: 6, padding: 10, borderBottom: '1px solid #e5e7eb' }}>
+                <button className="ln-feed-action-btn" onClick={() => jobMediaCommentInputRef.current?.focus()} style={{ justifyContent: 'center' }}>
+                  <MessageSquare size={15} /> Comment
+                </button>
+              </div>
+
+              <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: '12px 16px', display: 'flex', flexDirection: 'column', gap: 10 }}>
+                {jobMediaComments.length > 0 ? jobMediaComments.map(comment => {
+                  const commentAuthorName = comment.author_id === currentUser?.id
+                    ? (partner?.companyName || currentUser?.companyName || currentUser?.name || 'You')
+                    : comment.author_type === 'student'
+                        ? (trainees.find(t => t.id === comment.author_id)?.name || 'Trainee')
+                        : (partners.find(p => p.id === comment.author_id)?.companyName || 'Industry Partner');
+                  const isOwnComment = comment.author_id === currentUser?.id;
+                  const isEditing = editingJobMediaCommentId === comment.id;
+                  const isMenuOpen = jobMediaCommentMenuId === comment.id;
+
+                  return (
+                    <div key={comment.id} style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 10, padding: '8px 10px' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8 }}>
+                        <div style={{ fontSize: 12, fontWeight: 700, color: '#111827' }}>{commentAuthorName}</div>
+                        {isOwnComment && !isEditing && (
+                          <div style={{ position: 'relative' }}>
+                            <button
+                              type="button"
+                              onClick={() => setJobMediaCommentMenuId(isMenuOpen ? null : comment.id)}
+                              style={{ border: 'none', background: 'transparent', color: '#94a3b8', cursor: 'pointer', padding: '0 4px', fontSize: 18, lineHeight: 1, borderRadius: 4 }}
+                              aria-label="Comment options"
+                            >
+                              ···
+                            </button>
+                            {isMenuOpen && (
+                              <div style={{ position: 'absolute', right: 0, top: '100%', zIndex: 200, background: '#fff', border: '1px solid #e2e8f0', borderRadius: 8, boxShadow: '0 4px 14px rgba(0,0,0,0.13)', minWidth: 110, padding: '4px 0' }}>
+                                <button type="button" onClick={() => { startEditingJobMediaComment(comment); setJobMediaCommentMenuId(null); }} style={{ display: 'block', width: '100%', textAlign: 'left', border: 'none', background: 'transparent', padding: '8px 14px', fontSize: 13, fontWeight: 600, color: '#334155', cursor: 'pointer' }}>
+                                  Edit
+                                </button>
+                                <button type="button" onClick={() => { handleDeleteJobMediaComment(comment.id); setJobMediaCommentMenuId(null); }} style={{ display: 'block', width: '100%', textAlign: 'left', border: 'none', background: 'transparent', padding: '8px 14px', fontSize: 13, fontWeight: 600, color: '#b91c1c', cursor: 'pointer' }}>
+                                  Delete
+                                </button>
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                      {isEditing ? (
+                        <div style={{ marginTop: 6, display: 'flex', flexDirection: 'column', gap: 8 }}>
+                          <textarea
+                            value={jobMediaEditInput}
+                            onChange={e => setJobMediaEditInput(e.target.value)}
+                            maxLength={1000}
+                            style={{ width: '100%', minHeight: 72, border: '1px solid #cbd5e1', borderRadius: 8, padding: '8px 10px', fontSize: 13, fontFamily: 'inherit', resize: 'vertical', color: '#334155' }}
+                          />
+                          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+                            <button type="button" onClick={cancelEditingJobMediaComment} disabled={jobMediaCommentSaving} style={{ border: '1px solid #cbd5e1', background: '#fff', color: '#334155', borderRadius: 9999, padding: '5px 12px', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
+                              Cancel
+                            </button>
+                            <button type="button" onClick={saveEditedJobMediaComment} disabled={!jobMediaEditInput.trim() || jobMediaCommentSaving} style={{ border: 'none', background: '#0a66c2', color: '#fff', borderRadius: 9999, padding: '5px 12px', fontSize: 12, fontWeight: 600, cursor: !jobMediaEditInput.trim() || jobMediaCommentSaving ? 'not-allowed' : 'pointer', opacity: !jobMediaEditInput.trim() || jobMediaCommentSaving ? 0.6 : 1 }}>
+                              {jobMediaCommentSaving ? 'Saving...' : 'Save'}
+                            </button>
+                          </div>
+                        </div>
+                      ) : (
+                        <div style={{ fontSize: 13, color: '#334155', whiteSpace: 'pre-wrap' }}>{comment.content}</div>
+                      )}
+                      <div style={{ marginTop: 3, fontSize: 11, color: '#94a3b8' }}>{timeAgo(comment.created_at || comment.createdAt)}</div>
+                    </div>
+                  );
+                }) : (
+                  <div style={{ fontSize: 13, color: '#94a3b8', textAlign: 'center', marginTop: 20 }}>No comments yet.</div>
+                )}
+              </div>
+
+              <div style={{ borderTop: '1px solid #e5e7eb', padding: 10, display: 'flex', gap: 8, alignItems: 'center' }}>
+                <input
+                  ref={jobMediaCommentInputRef}
+                  value={jobMediaCommentInput}
+                  onChange={e => setJobMediaCommentInput(e.target.value)}
+                  maxLength={1000}
+                  placeholder={`Comment as ${partner?.companyName || currentUser?.companyName || currentUser?.name || 'You'}`}
+                  style={{ flex: 1, border: '1px solid #cbd5e1', borderRadius: 9999, padding: '10px 12px', fontSize: 13 }}
+                />
+                <button className="ln-btn ln-btn-primary" onClick={submitJobMediaComment} disabled={!jobMediaCommentInput.trim()}>
+                  <Send size={14} /> Send
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {contactTarget && (
+        <div className="modal-overlay" onClick={closeContactModal}>
+          <div className="ln-modal" onClick={e => e.stopPropagation()} style={{ width: '100%', maxWidth: 560, background: '#ffffff', color: '#0f172a', borderRadius: 18, padding: 0, overflow: 'hidden' }}>
+            <div style={{ padding: '18px 22px', borderBottom: '1px solid #e5e7eb', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div>
+                <div style={{ fontSize: 20, fontWeight: 800 }}>Contact {contactRecipientName}</div>
+                <div style={{ marginTop: 4, fontSize: 13, color: '#64748b' }}>
+                  Send a message and optionally attach a document.
+                </div>
+              </div>
+              <button className="ln-btn-icon" onClick={closeContactModal}><X size={18} /></button>
+            </div>
+
+            <div style={{ padding: 22, display: 'flex', flexDirection: 'column', gap: 16 }}>
+              <div style={{ padding: '12px 14px', background: '#f8fafc', borderRadius: 12, border: '1px solid #e2e8f0' }}>
+                <div style={{ fontSize: 12, fontWeight: 700, letterSpacing: 0.3, textTransform: 'uppercase', color: '#64748b', marginBottom: 6 }}>Context</div>
+                <div style={{ fontSize: 14, color: '#0f172a', whiteSpace: 'pre-wrap' }}>{contactTarget.sourceLabel || 'Community post contact'}</div>
+              </div>
+
+              <div>
+                <label style={{ display: 'block', fontSize: 13, fontWeight: 700, color: '#334155', marginBottom: 8 }}>Message</label>
+                <textarea
+                  value={contactMessage}
+                  onChange={e => setContactMessage(e.target.value)}
+                  maxLength={1000}
+                  placeholder={`Write your message to ${contactRecipientName}...`}
+                  style={{ width: '100%', minHeight: 130, borderRadius: 14, border: '1px solid #cbd5e1', padding: '14px 16px', resize: 'vertical', outline: 'none', fontFamily: 'inherit', fontSize: 14, lineHeight: 1.5, background: '#ffffff', color: '#0f172a' }}
+                />
+                <div style={{ marginTop: 6, fontSize: 12, color: '#94a3b8', textAlign: 'right' }}>{contactMessage.length}/1000</div>
+              </div>
+
+              <div>
+                <label style={{ display: 'block', fontSize: 13, fontWeight: 700, color: '#334155', marginBottom: 8 }}>Document Upload</label>
+                <input ref={contactFileInputRef} type="file" onChange={handleContactAttachmentChange} style={{ display: 'none' }} />
+                <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+                  <button type="button" className="ln-btn ln-btn-outline" onClick={() => contactFileInputRef.current?.click()}>
+                    <Upload size={14} /> Choose File
+                  </button>
+                  <span style={{ fontSize: 13, color: contactAttachment ? '#0f172a' : '#64748b' }}>
+                    {contactAttachment ? contactAttachment.name : 'No file selected.'}
+                  </span>
+                </div>
+                <div style={{ marginTop: 8, fontSize: 12, color: '#64748b' }}>Optional for partner-to-student or partner-to-partner contact.</div>
+              </div>
+            </div>
+
+            <div style={{ padding: '16px 22px', borderTop: '1px solid #e5e7eb', display: 'flex', justifyContent: 'flex-end', gap: 10, background: '#ffffff' }}>
+              <button className="ln-btn ln-btn-outline" onClick={closeContactModal} disabled={contactSubmitting}>Cancel</button>
+              <button className="ln-btn ln-btn-primary" onClick={handleSubmitContact} disabled={contactSubmitting || !contactMessage.trim()}>
+                <Send size={14} /> {contactSubmitting ? 'Sending...' : 'Send Contact'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {commentModalPost && (
+        <div className="modal-overlay" style={{ background: 'rgba(0, 0, 0, 0.78)', backdropFilter: 'blur(2px)' }} onClick={() => setCommentModalPost(null)}>
+          <div
+            className="ln-modal"
+            onClick={e => e.stopPropagation()}
+            style={{
+              width: '96%',
+              maxWidth: 740,
+              height: '92vh',
+              maxHeight: 940,
+              padding: 0,
+              overflow: 'hidden',
+              display: 'flex',
+              flexDirection: 'column',
+              background: '#1f2329',
+              border: '1px solid #343a40',
+              borderRadius: 16,
+              color: '#e4e6eb'
+            }}
+          >
+            <div style={{ height: 60, borderBottom: '1px solid #343a40', position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 36, fontWeight: 700, color: '#f1f5f9' }}>
+              {modalAuthorName}'s Post
+              <button
+                onClick={() => setCommentModalPost(null)}
+                style={{ position: 'absolute', right: 12, top: 12, width: 36, height: 36, borderRadius: '50%', border: 'none', background: '#3a3f45', color: '#e5e7eb', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            <div style={{ flex: '0 0 56%', minHeight: 320, display: 'flex', flexDirection: 'column', borderBottom: '1px solid #343a40' }}>
+              <div style={{ padding: '10px 12px', display: 'flex', alignItems: 'center', gap: 10 }}>
+                <div className="ln-feed-avatar" style={{ width: 34, height: 34 }}>
+                  {(modalAuthor?.photo || modalAuthor?.company_logo_url)
+                    ? <img src={modalAuthor.photo || modalAuthor.company_logo_url} alt="" style={{ width: '100%', height: '100%', borderRadius: '50%', objectFit: 'cover' }} />
+                    : (modalAuthorName?.charAt(0) || 'U')}
+                </div>
+                <div>
+                  <div style={{ fontWeight: 700, fontSize: 13.5, color: '#f1f5f9' }}>{modalAuthorName}</div>
+                  <div style={{ fontSize: 11.5, color: '#9ca3af' }}>{timeAgo(commentModalPost.created_at)}</div>
+                </div>
+              </div>
+
+              <div style={{ padding: '0 12px 10px', color: '#e5e7eb', fontSize: 14.5, whiteSpace: 'pre-wrap', lineHeight: 1.5 }}>
+                {commentModalPost.content}
+              </div>
+
+              <div style={{ flex: 1, minHeight: 0, background: '#111418', borderTop: '1px solid #343a40', borderBottom: '1px solid #343a40', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
+                {commentModalPost.media_url ? (
+                  commentModalPost.media_url.match(/\.(jpg|jpeg|png|gif|webp)$/i) ? (
+                    <img src={commentModalPost.media_url} alt="Post media" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
+                  ) : (
+                    <a
+                      href={commentModalPost.media_url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      style={{ minWidth: 260, minHeight: 120, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 10, color: '#dbeafe', background: '#2c3138', border: '1px solid #4b5563', borderRadius: 12, padding: '14px 18px', textDecoration: 'none', fontWeight: 600, fontSize: 13 }}
+                    >
+                      <FileText size={28} />
+                      Open attached document
+                    </a>
+                  )
+                ) : (
+                  <div style={{ width: '100%', height: '100%' }} />
+                )}
+              </div>
+
+              <div style={{ padding: '8px 12px', borderTop: '1px solid #343a40' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', color: '#b6bec9', fontSize: 12.5, marginBottom: 8 }}>
+                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}><Heart size={14} fill="#ef4444" color="#ef4444" /> {modalComments.length} comment{modalComments.length === 1 ? '' : 's'}</span>
+                  <span>{commentModalPost.media_url ? '1 attachment' : 'No attachment'}</span>
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: 6 }}>
+                  <button
+                    onClick={() => canContactModalAuthor && openContactModal({
+                      recipientId: commentModalPost.author_id,
+                      recipientType: commentModalPost.author_type,
+                      recipientName: modalAuthorName,
+                      postId: commentModalPost.id,
+                      sourceLabel: commentModalPost.content,
+                    })}
+                    disabled={!canContactModalAuthor}
+                    style={{ background: canContactModalAuthor ? '#ffffff' : '#2d333b', border: 'none', color: canContactModalAuthor ? '#111827' : '#9ca3af', fontWeight: 700, padding: '9px 10px', borderRadius: 10, display: 'inline-flex', justifyContent: 'center', alignItems: 'center', gap: 6, cursor: canContactModalAuthor ? 'pointer' : 'not-allowed' }}
+                  >
+                    <MessageSquare size={16} /> {canContactModalAuthor ? 'Contact' : 'Your Post'}
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <div style={{ flex: '1 1 44%', minHeight: 0, display: 'flex', flexDirection: 'column' }}>
+              <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: 12, display: 'flex', flexDirection: 'column', gap: 10 }}>
+                {modalComments.length > 0 ? modalComments.map(comment => {
+                  const commentAuthorName = comment.author_id === currentUser?.id
+                    ? (partner?.companyName || currentUser.companyName || currentUser.name || 'You')
+                    : comment.author_type === 'student'
+                        ? (trainees.find(t => t.id === comment.author_id)?.name || 'Trainee')
+                        : (partners.find(p => p.id === comment.author_id)?.companyName || 'Industry Partner');
+
+                  return (
+                    <div key={comment.id} style={{ display: 'flex', gap: 8, alignItems: 'flex-start' }}>
+                      <div className="ln-feed-avatar" style={{ width: 30, height: 30, flexShrink: 0 }}>{commentAuthorName?.charAt(0) || 'U'}</div>
+                      <div style={{ background: '#3a3b3c', borderRadius: 14, padding: '8px 11px', flex: 1 }}>
+                        <div style={{ fontSize: 12, fontWeight: 700, color: '#f3f4f6', marginBottom: 2 }}>{commentAuthorName}</div>
+                        <div style={{ fontSize: 13.2, color: '#d1d5db', whiteSpace: 'pre-wrap', lineHeight: 1.45 }}>{comment.content}</div>
+                      </div>
+                    </div>
+                  );
+                }) : (
+                  <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 10, color: '#9ca3af' }}>
+                    <FileText size={56} color="#94a3b8" />
+                    <div style={{ fontSize: 34, fontWeight: 700, color: '#d1d5db' }}>No comments yet</div>
+                    <div style={{ fontSize: 17 }}>Be the first to comment.</div>
+                  </div>
+                )}
+              </div>
+
+              <div style={{ borderTop: '1px solid #343a40', padding: '10px 12px', display: 'flex', flexDirection: 'column', gap: 8 }}>
+                <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8 }}>
+                  <div className="ln-feed-avatar" style={{ width: 32, height: 32, flexShrink: 0, fontSize: 13 }}>
+                    {(partner?.company_logo_url || partner?.photo)
+                      ? <img src={partner.company_logo_url || partner.photo} alt="" style={{ width: '100%', height: '100%', borderRadius: '50%', objectFit: 'cover' }} />
+                      : (partner?.companyName || currentUser?.companyName || currentUser?.name || 'P').charAt(0).toUpperCase()}
+                  </div>
+
+                  <div style={{ flex: 1, background: '#3a3b3c', borderRadius: 20, padding: '8px 12px', display: 'flex', flexDirection: 'column', gap: 6 }}>
+                    <textarea
+                      placeholder={`Comment as ${partner?.companyName || currentUser?.companyName || currentUser?.name || 'Industry Partner'}`}
+                      value={commentInput}
+                      onChange={e => setCommentInput(e.target.value)}
+                      maxLength={1000}
+                      style={{ width: '100%', minHeight: 24, maxHeight: 78, resize: 'none', border: 'none', outline: 'none', background: 'transparent', color: '#f3f4f6', fontSize: 16, lineHeight: 1.3, fontFamily: 'inherit' }}
+                    />
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <div style={{ display: 'inline-flex', alignItems: 'center', gap: 10, color: '#9ca3af' }}>
+                        <MessageSquare size={14} />
+                        <Camera size={14} />
+                        <FileText size={14} />
+                      </div>
+                      <button
+                        onClick={handleSubmitComment}
+                        disabled={commentSubmitting || !commentInput.trim()}
+                        style={{ background: 'transparent', border: 'none', color: (commentSubmitting || !commentInput.trim()) ? '#6b7280' : '#60a5fa', cursor: (commentSubmitting || !commentInput.trim()) ? 'not-allowed' : 'pointer', padding: 0, display: 'inline-flex', alignItems: 'center' }}
+                      >
+                        <Send size={18} />
+                      </button>
+                    </div>
+                  </div>
+                </div>
+                <div style={{ fontSize: 12, color: '#94a3b8', textAlign: 'left', marginLeft: 40 }}>{commentInput.length}/1000</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
 
 // ─── PAGE: VERIFICATION ───────────────────────────────────────────
 const VerificationPage = () => {
-  const { currentUser, submitPartnerDocuments } = useApp();
-  const status = currentUser?.verificationStatus || 'Pending';
+  const { currentUser, partners, submitPartnerDocuments, withdrawPartnerSubmission } = useApp();
+  const livePartner = getLivePartner(currentUser, partners);
+  const status = livePartner?.verificationStatus || 'Pending';
   const [documents, setDocuments] = useState([]);
   const [uploading, setUploading] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -681,7 +1303,7 @@ const VerificationPage = () => {
 
   const fetchDocs = async () => {
     try {
-      const res = await fetch(`/api/partner-verification/${currentUser.id}`);
+      const res = await fetch(`/api/partner-verification/${livePartner.id}`);
       if (res.ok) {
         const data = await res.json();
         setDocuments(data.documents || []);
@@ -693,7 +1315,7 @@ const VerificationPage = () => {
     }
   };
 
-  useEffect(() => { if (currentUser?.id) fetchDocs(); }, [currentUser?.id]);
+  useEffect(() => { if (livePartner?.id) fetchDocs(); }, [livePartner?.id]);
 
   const handleFileUpload = async (e) => {
     const file = e.target.files?.[0];
@@ -718,7 +1340,7 @@ const VerificationPage = () => {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            partnerId: currentUser.id,
+            partnerId: livePartner.id,
             documentType: 'custom',
             label: docLabel.trim(),
             fileName: file.name,
@@ -761,7 +1383,13 @@ const VerificationPage = () => {
       alert('Please upload at least one document before submitting.');
       return;
     }
-    submitPartnerDocuments(currentUser.id);
+    submitPartnerDocuments(livePartner.id);
+  };
+
+  const handleWithdraw = () => {
+    if (window.confirm('Are you sure you want to withdraw your submission? You can edit your documents and resubmit later.')) {
+      withdrawPartnerSubmission(livePartner.id);
+    }
   };
 
   const hasUploaded = documents.length > 0;
@@ -792,6 +1420,20 @@ const VerificationPage = () => {
           </p>
         </div>
       </div>
+
+      {status === 'Verified' && (
+        <div className="ln-card" style={{ marginBottom: 16, borderLeft: '4px solid #16a34a', background: '#f0fdf4' }}>
+          <div style={{ padding: 16, display: 'flex', alignItems: 'flex-start', gap: 12 }}>
+            <CheckCircle size={22} color="#16a34a" style={{ marginTop: 2, flexShrink: 0 }} />
+            <div>
+              <div style={{ fontWeight: 700, fontSize: 15, color: '#166534', marginBottom: 4 }}>Your company is already verified</div>
+              <p style={{ fontSize: 13, color: '#166534', lineHeight: 1.6, margin: 0 }}>
+                Your verification has been approved by the administrators. You now have access to posting opportunities and handling trainee applicants.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Privacy Notice */}
       <div className="ln-card" style={{ marginBottom: 16, borderLeft: '4px solid #0ea5e9' }}>
@@ -915,24 +1557,29 @@ const VerificationPage = () => {
             )}
 
             {/* Submit / Edit Button */}
-            <div style={{ marginTop: 24 }}>
-              {status === 'Under Review' ? (
-                <div style={{ textAlign: 'center', padding: '20px', background: '#f0f9ff', borderRadius: 12, border: '1px solid #bae6fd' }}>
-                  <Clock size={32} color="#0ea5e9" style={{ margin: '0 auto 12px' }} />
-                  <p style={{ fontSize: 14, fontWeight: 600, color: '#0c4a6e', marginBottom: 4 }}>Documents Under Review</p>
-                  <p style={{ fontSize: 13, color: '#0369a1' }}>We are validating your company details. Check back later.</p>
-                </div>
-              ) : (
+            {status === 'Under Review' ? (
+              <div style={{ textAlign: 'center', padding: '8px 0' }}>
+                <FileCheck size={36} color="#0ea5e9" style={{ margin: '0 auto 8px' }} />
+                <p style={{ fontSize: 13, color: 'rgba(0,0,0,0.55)', marginBottom: 12 }}>Your documents are under review by the administrators.</p>
                 <button
-                  className="btn btn-primary btn-lg"
-                  style={{ width: '100%' }}
-                  disabled={documents.length < 2 || uploading}
-                  onClick={handleSubmitForReview}
+                  className="ln-btn"
+                  style={{ padding: '8px 20px', fontSize: 13, color: '#dc2626', border: '1px solid #fecaca', background: '#fef2f2', borderRadius: 8, cursor: 'pointer' }}
+                  onClick={handleWithdraw}
                 >
-                  <Send size={18} /> Submit Documents for Review
+                  <XCircle size={14} /> Withdraw Submission
                 </button>
-              )}
-            </div>
+                <p style={{ fontSize: 11, color: '#94a3b8', marginTop: 8 }}>Withdraw to edit your documents, then resubmit.</p>
+              </div>
+            ) : (
+              <button
+                className="ln-btn ln-btn-primary"
+                style={{ width: '100%', padding: '10px 20px', fontSize: 14 }}
+                disabled={documents.length === 0}
+                onClick={handleSubmitForReview}
+              >
+                <Send size={16} /> Submit for Verification
+              </button>
+            )}
           </div>
         </div>
       )}
@@ -984,14 +1631,35 @@ const VerificationPage = () => {
 
 // ─── PAGE: POST OPPORTUNITIES ─────────────────────────────────────
 const PostJob = ({ setActivePage, opportunityType = 'Job' }) => {
-  const { addJobPosting, NC_COMPETENCIES, currentUser } = useApp();
-  const ncKeys = Object.keys(NC_COMPETENCIES);
+  const { addJobPosting, currentUser, partners, programs } = useApp();
+  const livePartner = getLivePartner(currentUser, partners);
+  const programOptions = Array.isArray(programs) ? programs : [];
+  const firstProgram = programOptions[0] || null;
+  const [posting, setPosting] = useState(false);
+  const [attachmentFile, setAttachmentFile] = useState(null);
   const [form, setForm] = useState({
-    title: '', opportunityType, ncLevel: ncKeys[0] || '', description: '',
-    employmentType: opportunityType === 'OJT' ? 'Internship' : 'Full-time', location: '', salaryRange: '', slots: 1,
-    requiredCompetencies: [],
+    title: '', opportunityType, programId: firstProgram?.id || '', ncLevel: firstProgram?.name || '', description: '',
+    employmentType: opportunityType === 'OJT' ? '' : 'Full-time', location: '', salaryRange: '',
+    requiredCompetencies: firstProgram?.competencies || [],
+    attachmentName: '', attachmentType: '', attachmentUrl: '',
   });
-  const availableComps = NC_COMPETENCIES[form.ncLevel] || [];
+
+  useEffect(() => {
+    if (!form.ncLevel && programOptions.length > 0) {
+      setForm(prev => ({
+        ...prev,
+        programId: programOptions[0].id,
+        ncLevel: programOptions[0].name,
+        requiredCompetencies: programOptions[0].competencies || [],
+      }));
+    }
+  }, [form.ncLevel, programOptions]);
+
+  const selectedProgram = programOptions.find(program => program.id === form.programId)
+    || programOptions.find(program => program.name === form.ncLevel)
+    || null;
+
+  const availableComps = selectedProgram?.competencies || [];
   const toggleComp = (comp) => {
     setForm(prev => ({
       ...prev,
@@ -1000,15 +1668,111 @@ const PostJob = ({ setActivePage, opportunityType = 'Job' }) => {
         : [...prev.requiredCompetencies, comp]
     }));
   };
-  const handleSubmit = (e) => {
-    e.preventDefault();
-    if (!form.title || !form.location) return alert('Title and location are required.');
-    addJobPosting(form);
-    alert('Opportunity posted successfully!');
-    setActivePage('dashboard');
+
+  const handleAttachmentChange = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const isImage = file.type.startsWith('image/');
+    const isDocument = [
+      'application/pdf',
+      'application/msword',
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    ].includes(file.type);
+
+    if (!isImage && !isDocument) {
+      alert('Only image files, PDF, DOC, and DOCX are allowed.');
+      e.target.value = '';
+      return;
+    }
+
+    const objectUrl = URL.createObjectURL(file);
+    setAttachmentFile(file);
+    setForm(prev => {
+      if (prev.attachmentUrl?.startsWith('blob:')) {
+        URL.revokeObjectURL(prev.attachmentUrl);
+      }
+      return {
+        ...prev,
+        attachmentName: file.name,
+        attachmentType: file.type || 'application/octet-stream',
+        attachmentUrl: objectUrl,
+      };
+    });
   };
 
-  if (!isVerified(currentUser)) {
+  const removeAttachment = () => {
+    setAttachmentFile(null);
+    setForm(prev => {
+      if (prev.attachmentUrl?.startsWith('blob:')) {
+        URL.revokeObjectURL(prev.attachmentUrl);
+      }
+      return { ...prev, attachmentName: '', attachmentType: '', attachmentUrl: '' };
+    });
+  };
+
+  useEffect(() => {
+    return () => {
+      if (form.attachmentUrl?.startsWith('blob:')) {
+        URL.revokeObjectURL(form.attachmentUrl);
+      }
+    };
+  }, [form.attachmentUrl]);
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (!form.title || !form.location) return alert('Title and location are required.');
+    if (!form.ncLevel) return alert('Please select a TESDA program.');
+
+    try {
+      setPosting(true);
+
+      let finalAttachmentUrl = '';
+      let finalAttachmentName = '';
+      let finalAttachmentType = '';
+
+      if (attachmentFile && currentUser?.id) {
+        const timestamp = Date.now();
+        const safeName = attachmentFile.name.replace(/[^a-zA-Z0-9._-]/g, '_');
+        const storagePath = `opportunity-attachments/${currentUser.id}/${timestamp}_${safeName}`;
+
+        const { error: uploadError } = await supabase.storage
+          .from('registration-uploads')
+          .upload(storagePath, attachmentFile, { contentType: attachmentFile.type, upsert: true });
+
+        if (uploadError) {
+          throw new Error(uploadError.message || 'Failed to upload attachment.');
+        }
+
+        const { data: urlData } = supabase.storage.from('registration-uploads').getPublicUrl(storagePath);
+        finalAttachmentUrl = urlData?.publicUrl || '';
+        finalAttachmentName = attachmentFile.name;
+        finalAttachmentType = attachmentFile.type || '';
+      }
+
+      const result = await addJobPosting({
+        ...form,
+        salaryRange: form.salaryRange?.trim() || '',
+        attachmentName: finalAttachmentName,
+        attachmentType: finalAttachmentType,
+        attachmentUrl: finalAttachmentUrl,
+      });
+
+      if (!result?.success) {
+        alert(result?.error || 'Failed to post opportunity.');
+        return;
+      }
+
+      alert('Opportunity posted successfully!');
+      setActivePage('dashboard');
+    } catch (error) {
+      alert(error?.message || 'Failed to post opportunity.');
+    } finally {
+      setPosting(false);
+    }
+  };
+
+  if (!isVerified(livePartner)) {
     return (
       <div className="ln-page-content">
         <div className="ln-page-header">
@@ -1021,7 +1785,7 @@ const PostJob = ({ setActivePage, opportunityType = 'Job' }) => {
           <AlertTriangle size={48} color="#d97706" style={{ margin: '0 auto 16px' }} />
           <h3 style={{ fontSize: 18, fontWeight: 700, color: 'rgba(0,0,0,0.9)', marginBottom: 8 }}>Account Verification Required</h3>
           <p style={{ fontSize: 14, color: 'rgba(0,0,0,0.55)', maxWidth: 500, margin: '0 auto 24px' }}>
-            Your account is currently <strong>{currentUser?.verificationStatus || 'Pending Verification'}</strong>.
+            Your account is currently <strong>{livePartner?.verificationStatus || 'Pending Verification'}</strong>.
             You must be fully verified before posting opportunities.
           </p>
           <button className="ln-btn ln-btn-primary" onClick={() => setActivePage('verification')}>Go to Verification</button>
@@ -1048,39 +1812,85 @@ const PostJob = ({ setActivePage, opportunityType = 'Job' }) => {
             </div>
             <div className="form-group">
               <label className="ln-info-label">Opportunity Type *</label>
-              <select className="form-select" value={form.opportunityType} onChange={e => setForm({ ...form, opportunityType: e.target.value })}>
+              <select
+                className="form-select"
+                value={form.opportunityType}
+                onChange={e => {
+                  const nextType = e.target.value;
+                  setForm(prev => ({
+                    ...prev,
+                    opportunityType: nextType,
+                    employmentType: nextType === 'OJT' ? '' : (prev.employmentType || 'Full-time')
+                  }));
+                }}
+              >
                 <option>Job</option><option>OJT</option><option>Apprenticeship</option>
               </select>
             </div>
             <div className="form-group">
               <label className="ln-info-label">NC Level Required *</label>
-              <select className="form-select" value={form.ncLevel} onChange={e => setForm({ ...form, ncLevel: e.target.value, requiredCompetencies: [] })}>
-                {Object.keys(NC_COMPETENCIES).map(nc => <option key={nc}>{nc}</option>)}
+              <select
+                className="form-select"
+                value={form.programId || ''}
+                onChange={e => {
+                  const selected = programOptions.find(program => String(program.id) === e.target.value);
+                  setForm({
+                    ...form,
+                    programId: selected?.id || '',
+                    ncLevel: selected?.name || '',
+                    requiredCompetencies: selected?.competencies || [],
+                  });
+                }}
+              >
+                {programOptions.length === 0 && <option value="">No programs available</option>}
+                {programOptions.map(program => (
+                  <option key={program.id} value={program.id}>{program.name}</option>
+                ))}
               </select>
             </div>
             <div className="form-group">
               <label className="ln-info-label">Description</label>
               <textarea className="form-input" rows={4} maxLength={1000} value={form.description} onChange={e => setForm({ ...form, description: e.target.value })} placeholder="Describe the opportunity..." />
             </div>
-            <div className="form-group">
-              <label className="ln-info-label">Employment Type</label>
-              <select className="form-select" value={form.employmentType} onChange={e => setForm({ ...form, employmentType: e.target.value })}>
-                <option>Full-time</option><option>Part-time</option><option>Contract</option><option>Internship</option>
-              </select>
-            </div>
+            {form.opportunityType !== 'OJT' && (
+              <div className="form-group">
+                <label className="ln-info-label">Employment Type</label>
+                <select className="form-select" value={form.employmentType} onChange={e => setForm({ ...form, employmentType: e.target.value })}>
+                  <option>Full-time</option><option>Part-time</option><option>Contract</option><option>Internship</option>
+                </select>
+              </div>
+            )}
             <div className="ln-info-grid" style={{ gridTemplateColumns: '1fr 1fr', gap: 12 }}>
               <div className="form-group">
                 <label className="ln-info-label">Location *</label>
                 <input className="form-input" value={form.location} onChange={e => setForm({ ...form, location: e.target.value })} placeholder="City" maxLength={100} required />
               </div>
               <div className="form-group">
-                <label className="ln-info-label">Salary Range</label>
+                <label className="ln-info-label">Salary Range (Optional)</label>
                 <input className="form-input" value={form.salaryRange} onChange={e => setForm({ ...form, salaryRange: e.target.value })} placeholder="₱15,000 – ₱20,000/month" maxLength={50} />
               </div>
             </div>
             <div className="form-group">
-              <label className="ln-info-label">Available Slots</label>
-              <input type="number" className="form-input" min={1} value={form.slots} onChange={e => setForm({ ...form, slots: Number(e.target.value) })} />
+              <label className="ln-info-label">Attachment (Image or Document)</label>
+              <input type="file" className="form-input" accept="image/*,.pdf,.doc,.docx" onChange={handleAttachmentChange} />
+              {form.attachmentName && (
+                <div style={{ marginTop: 8, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 8, padding: '8px 10px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 }}>
+                    <FileText size={14} color="#64748b" />
+                    <span style={{ fontSize: 12, color: '#334155', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{form.attachmentName}</span>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                    {form.attachmentUrl && (
+                      <a href={form.attachmentUrl} target="_blank" rel="noreferrer" style={{ fontSize: 12, color: '#2563eb', textDecoration: 'none' }}>
+                        Preview
+                      </a>
+                    )}
+                    <button type="button" className="ln-feed-action-btn" style={{ padding: '2px 6px', minHeight: 'auto' }} onClick={removeAttachment}>
+                      <X size={12} />
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
           <div className="ln-card" style={{ padding: 20 }}>
@@ -1095,8 +1905,8 @@ const PostJob = ({ setActivePage, opportunityType = 'Job' }) => {
               ))}
             </div>
             <div style={{ marginTop: 20 }}>
-              <button type="submit" className="ln-btn ln-btn-primary" style={{ width: '100%', padding: '10px 20px', fontSize: 14 }}>
-                <Send size={16} /> Post Opportunity
+              <button type="submit" className="ln-btn ln-btn-primary" disabled={posting} style={{ width: '100%', padding: '10px 20px', fontSize: 14, opacity: posting ? 0.75 : 1, cursor: posting ? 'not-allowed' : 'pointer' }}>
+                <Send size={16} /> {posting ? 'Posting...' : 'Post Opportunity'}
               </button>
             </div>
           </div>
@@ -1108,14 +1918,15 @@ const PostJob = ({ setActivePage, opportunityType = 'Job' }) => {
 
 // ─── PAGE: VIEW APPLICANTS ────────────────────────────────────────
 const ViewApplicants = ({ setActivePage }) => {
-  const { currentUser, getPartnerApplicants, updateApplicationStatus } = useApp();
+  const { currentUser, partners, getPartnerApplicants, updateApplicationStatus, sendRecruitMessage } = useApp();
+  const livePartner = getLivePartner(currentUser, partners);
 
-  if (!isVerified(currentUser)) {
+  if (!isVerified(livePartner)) {
     return (
       <div className="ln-page-content">
         <div className="ln-page-header">
           <div>
-            <h1 className="ln-page-title">Applicants</h1>
+            <h1 className="ln-page-title">Recruit</h1>
             <p className="ln-page-subtitle">Review trainee applications</p>
           </div>
         </div>
@@ -1123,7 +1934,7 @@ const ViewApplicants = ({ setActivePage }) => {
           <AlertTriangle size={48} color="#d97706" style={{ margin: '0 auto 16px' }} />
           <h3 style={{ fontSize: 18, fontWeight: 700, color: 'rgba(0,0,0,0.9)', marginBottom: 8 }}>Account Verification Required</h3>
           <p style={{ fontSize: 14, color: 'rgba(0,0,0,0.55)', maxWidth: 500, margin: '0 auto 24px' }}>
-            You need to verify your account before viewing applicants.
+            You need to verify your account before using Recruit.
           </p>
           <button className="ln-btn ln-btn-primary" onClick={() => setActivePage('verification')}>Go to Verification</button>
         </div>
@@ -1131,20 +1942,49 @@ const ViewApplicants = ({ setActivePage }) => {
     );
   }
 
-  const applicants = getPartnerApplicants(currentUser?.id);
+  const applicants = getPartnerApplicants(livePartner?.id);
   const [search, setSearch] = useState('');
   const [filterStatus, setFilterStatus] = useState('All');
   const [viewApp, setViewApp] = useState(null);
+  const [recruitApp, setRecruitApp] = useState(null);
+  const [recruitMessage, setRecruitMessage] = useState('');
+  const [recruitAttachment, setRecruitAttachment] = useState(null);
+  const [sendingRecruit, setSendingRecruit] = useState(false);
+  const recruitFileInputRef = useRef(null);
   const filtered = applicants.filter(a => {
     const q = search.toLowerCase();
     return (a.trainee?.name?.toLowerCase().includes(q) || a.job?.title?.toLowerCase().includes(q)) && (filterStatus === 'All' || a.status === filterStatus);
   });
 
+  const openRecruitModal = (application) => {
+    setRecruitApp(application);
+    setRecruitMessage(application.recruitMessage || '');
+    setRecruitAttachment(application.recruitDocumentName ? { name: application.recruitDocumentName } : null);
+  };
+
+  const handleSendRecruit = async () => {
+    if (!recruitApp) return;
+    setSendingRecruit(true);
+    const result = await sendRecruitMessage(recruitApp.id, {
+      recruitMessage,
+      recruitDocumentName: recruitAttachment?.name || null,
+      recruitDocumentUrl: null,
+    });
+    setSendingRecruit(false);
+
+    if (!result.success) {
+      alert(result.error || 'Failed to send recruit message.');
+      return;
+    }
+
+    setRecruitApp(null);
+  };
+
   return (
     <div className="ln-page-content">
       <div className="ln-page-header">
         <div>
-          <h1 className="ln-page-title">Applicants</h1>
+          <h1 className="ln-page-title">Recruit</h1>
           <p className="ln-page-subtitle">Review trainee applications to your opportunities</p>
         </div>
         <span className="ln-badge ln-badge-blue">{applicants.length} total</span>
@@ -1167,7 +2007,7 @@ const ViewApplicants = ({ setActivePage }) => {
 
       <div className="ln-card">
         <div className="ln-section-header" style={{ marginBottom: 16 }}>
-          <h3>Application History</h3>
+          <h3>Applications & Recruit</h3>
           <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
             <div className="ln-search-wrap" style={{ width: 220 }}>
               <Search size={16} className="ln-search-icon" />
@@ -1181,7 +2021,7 @@ const ViewApplicants = ({ setActivePage }) => {
         <div style={{ overflowX: 'auto' }}>
           <table className="ln-table">
             <thead>
-              <tr><th>Trainee</th><th>Opportunity</th><th>Type</th><th>Match</th><th>Applied</th><th>Status</th><th>Actions</th></tr>
+              <tr><th>Trainee</th><th>Opportunity</th><th>Type</th><th>Match</th><th>Applied</th><th>Student Application</th><th>Resume</th><th>Status</th><th>Actions</th></tr>
             </thead>
             <tbody>
               {filtered.map(a => (
@@ -1191,10 +2031,19 @@ const ViewApplicants = ({ setActivePage }) => {
                   <td><span className="ln-badge ln-badge-blue" style={{ fontSize: 11 }}>{a.job?.opportunityType}</span></td>
                   <td><span style={{ fontWeight: 700, color: a.matchRate >= 70 ? '#16a34a' : a.matchRate >= 40 ? '#d97706' : '#dc2626' }}>{a.matchRate}%</span></td>
                   <td style={{ fontSize: 12.5, color: 'rgba(0,0,0,0.5)' }}>{a.appliedAt}</td>
+                  <td style={{ fontSize: 12.5, color: 'rgba(0,0,0,0.6)', maxWidth: 220 }}>{a.applicationMessage || '—'}</td>
+                  <td>
+                    {a.resumeUrl ? (
+                      <a href={a.resumeUrl} target="_blank" rel="noreferrer" className="ln-btn-sm ln-btn-outline"><Eye size={12} /> View</a>
+                    ) : (
+                      <span style={{ fontSize: 12.5, color: 'rgba(0,0,0,0.45)' }}>No resume</span>
+                    )}
+                  </td>
                   <td><span className={`ln-badge ${a.status === 'Pending' ? 'ln-badge-yellow' : a.status === 'Accepted' ? 'ln-badge-green' : 'ln-badge-red'}`}>{a.status}</span></td>
                   <td>
                     <div style={{ display: 'flex', gap: 6 }}>
                       <button className="ln-btn-sm ln-btn-outline" onClick={() => setViewApp(a)}><Eye size={12} /> View</button>
+                      <button className="ln-btn-sm ln-btn-primary" style={{ background: '#0a66c2', borderColor: '#0a66c2' }} onClick={() => openRecruitModal(a)}><Send size={12} /> {a.recruitMessage ? 'Update Recruit' : 'Recruit'}</button>
                       {a.status === 'Pending' && <>
                         <button className="ln-btn-sm ln-btn-primary" style={{ background: '#16a34a', borderColor: '#16a34a' }} onClick={() => updateApplicationStatus(a.id, 'Accepted', 'Approved by partner.')}><CheckCircle size={12} /></button>
                         <button className="ln-btn-sm ln-btn-primary" style={{ background: '#dc2626', borderColor: '#dc2626' }} onClick={() => updateApplicationStatus(a.id, 'Rejected', 'Not selected.')}><XCircle size={12} /></button>
@@ -1204,7 +2053,7 @@ const ViewApplicants = ({ setActivePage }) => {
                 </tr>
               ))}
               {filtered.length === 0 && (
-                <tr><td colSpan={7} style={{ textAlign: 'center', padding: 40, color: 'rgba(0,0,0,0.4)' }}>No applicants found.</td></tr>
+                <tr><td colSpan={9} style={{ textAlign: 'center', padding: 40, color: 'rgba(0,0,0,0.4)' }}>No applicants found.</td></tr>
               )}
             </tbody>
           </table>
@@ -1240,6 +2089,25 @@ const ViewApplicants = ({ setActivePage }) => {
               ))}
             </div>
             <div style={{ marginBottom: 14 }}>
+              <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 8 }}>Student Application Message</div>
+              <div style={{ fontSize: 13, color: '#475569', lineHeight: 1.5 }}>{viewApp.applicationMessage || '—'}</div>
+            </div>
+            <div style={{ marginBottom: 14 }}>
+              <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 8 }}>Resume</div>
+              {viewApp.resumeUrl ? (
+                <a href={viewApp.resumeUrl} target="_blank" rel="noreferrer" className="ln-btn-sm ln-btn-outline"><Eye size={12} /> View Resume</a>
+              ) : (
+                <div style={{ fontSize: 13, color: 'rgba(0,0,0,0.45)' }}>No resume attached.</div>
+              )}
+            </div>
+            {viewApp.recruitMessage && (
+              <div style={{ marginBottom: 14, padding: 10, borderRadius: 8, background: '#eff6ff', border: '1px solid #bfdbfe' }}>
+                <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 6, color: '#1e40af' }}>Latest Recruit Message</div>
+                <div style={{ fontSize: 13, color: '#1e3a8a' }}>{viewApp.recruitMessage}</div>
+                {viewApp.recruitDocumentName && <div style={{ marginTop: 6, fontSize: 12, color: '#1e40af' }}>Attachment: {viewApp.recruitDocumentName}</div>}
+              </div>
+            )}
+            <div style={{ marginBottom: 14 }}>
               <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 8 }}>Certifications</div>
               <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
                 {viewApp.trainee?.certifications?.map(c => <span key={c} className="ln-cert-tag"><Award size={10} /> {c}</span>)}
@@ -1255,6 +2123,65 @@ const ViewApplicants = ({ setActivePage }) => {
                 </button>
               </div>
             )}
+            <div style={{ marginTop: 10 }}>
+              <button className="ln-btn ln-btn-primary" style={{ width: '100%', background: '#0a66c2', borderColor: '#0a66c2' }} onClick={() => openRecruitModal(viewApp)}>
+                <Send size={15} /> {viewApp.recruitMessage ? 'Update Recruit Message' : 'Send Recruit Message'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {recruitApp && (
+        <div className="modal-overlay" onClick={() => setRecruitApp(null)}>
+          <div className="ln-modal" onClick={e => e.stopPropagation()}>
+            <div className="ln-modal-header">
+              <div>
+                <h3 className="ln-modal-title">Recruit Form</h3>
+                <p style={{ fontSize: 14, color: 'rgba(0,0,0,0.6)', marginTop: 4 }}>{recruitApp.trainee?.name} • {recruitApp.job?.title}</p>
+              </div>
+              <button className="ln-btn-icon" onClick={() => setRecruitApp(null)}><X size={18} /></button>
+            </div>
+
+            <div style={{ marginBottom: 12 }}>
+              <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 6 }}>Recruit Message</div>
+              <textarea
+                className="ln-search-input"
+                placeholder="Type your message to the trainee..."
+                value={recruitMessage}
+                onChange={e => setRecruitMessage(e.target.value)}
+                maxLength={1000}
+                style={{ width: '100%', minHeight: 120, resize: 'none', borderRadius: 10, padding: 12 }}
+              />
+              <div style={{ marginTop: 4, fontSize: 12, color: '#94a3b8', textAlign: 'right' }}>{recruitMessage.length}/1000</div>
+            </div>
+
+            <div style={{ marginBottom: 14 }}>
+              <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 6 }}>Attachment (Optional)</div>
+              <input
+                type="file"
+                hidden
+                ref={recruitFileInputRef}
+                onChange={e => {
+                  const file = e.target.files?.[0] || null;
+                  setRecruitAttachment(file ? { name: file.name } : null);
+                }}
+              />
+              <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                <button type="button" className="ln-btn-sm ln-btn-outline" onClick={() => recruitFileInputRef.current?.click()}>
+                  <Upload size={12} /> Choose File
+                </button>
+                <span style={{ fontSize: 12.5, color: 'rgba(0,0,0,0.55)' }}>{recruitAttachment?.name || 'No file selected'}</span>
+              </div>
+              <div style={{ marginTop: 6, fontSize: 11.5, color: '#94a3b8' }}>Attachment name is saved with the recruit message. File upload is optional.</div>
+            </div>
+
+            <div className="ln-modal-footer">
+              <button className="ln-btn ln-btn-outline" onClick={() => setRecruitApp(null)}>Cancel</button>
+              <button className="ln-btn ln-btn-primary" disabled={sendingRecruit || !recruitMessage.trim()} onClick={handleSendRecruit}>
+                <Send size={15} /> {sendingRecruit ? 'Sending...' : 'Send Recruit Message'}
+              </button>
+            </div>
           </div>
         </div>
       )}
@@ -1530,7 +2457,9 @@ const CompanyProfile = () => {
                     <div style={{ fontWeight: 700, fontSize: 14, color: '#1e293b', marginBottom: 4 }}>{job.title}</div>
                     <div style={{ display: 'flex', gap: 6, marginBottom: 8 }}>
                       <span style={{ fontSize: 10, padding: '2px 6px', background: job.opportunityType === 'Job' ? '#dcfce7' : '#fef9c3', color: job.opportunityType === 'Job' ? '#166534' : '#854d0e', borderRadius: 4, fontWeight: 600 }}>{job.opportunityType}</span>
-                      <span style={{ fontSize: 10, padding: '2px 6px', background: '#f1f5f9', color: '#475569', borderRadius: 4 }}>{job.employmentType}</span>
+                      {job.opportunityType !== 'OJT' && job.employmentType && (
+                        <span style={{ fontSize: 10, padding: '2px 6px', background: '#f1f5f9', color: '#475569', borderRadius: 4 }}>{job.employmentType}</span>
+                      )}
                     </div>
                     <div style={{ fontSize: 12, color: '#64748b', display: 'flex', alignItems: 'center', gap: 4 }}>
                       <MapPin size={12} /> {job.location || 'Philippines'}

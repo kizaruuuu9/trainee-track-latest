@@ -1,5 +1,6 @@
-﻿import React, { useState } from 'react';
+﻿import React, { useEffect, useState } from 'react';
 import { useApp } from '../../context/AppContext';
+import { supabase } from '../../lib/supabase';
 import {
     LayoutDashboard, Users, Building2, Briefcase, TrendingUp, BarChart2,
     Settings, LogOut, Bell, ChevronDown, Search, Eye, Edit, CheckCircle,
@@ -76,7 +77,9 @@ const AdminSidebar = ({ activePage, setActivePage, mobileOpen, closeSidebar }) =
     const navItems = [
         { id: 'dashboard', label: 'Dashboard', icon: <LayoutDashboard size={17} /> },
         { id: 'trainees', label: 'Manage Trainees', icon: <Users size={17} /> },
+        { id: 'programs', label: 'TESDA Programs', icon: <Award size={17} /> },
         { id: 'partners', label: 'Industry Partners', icon: <Building2 size={17} /> },
+        { id: 'accounts', label: 'Manage Accounts', icon: <UserCheck size={17} /> },
         { id: 'jobs', label: 'Opportunities Oversight', icon: <Briefcase size={17} /> },
         { id: 'employment', label: 'Employment Tracking', icon: <TrendingUp size={17} /> },
         { id: 'activity-log', label: 'Activity Log', icon: <FileText size={17} /> },
@@ -189,13 +192,35 @@ const ManageTrainees = () => {
     const [filterStatus, setFilterStatus] = useState('All');
     const [viewT, setViewT] = useState(null);
     const [editT, setEditT] = useState(null);
-    const filtered = trainees.filter(t => {
+
+    const filtered = (trainees || []).filter(t => {
+        if (!t) return false;
         const q = search.toLowerCase();
-        return (t.name.toLowerCase().includes(q) || t.email.toLowerCase().includes(q)) && (filterStatus === 'All' || t.employmentStatus === filterStatus);
+        const name = (t?.profileName || t?.name || '').toLowerCase();
+        const email = (t?.email || '').toLowerCase();
+        const employmentStatus = t?.employmentStatus || 'Not Employed';
+        return (name.includes(q) || email.includes(q)) && (filterStatus === 'All' || employmentStatus === filterStatus);
     });
     const statusBadge = (s) => {
         const map = { Employed: 'badge-employed', 'Seeking Employment': 'badge-self-employed', 'Not Employed': 'badge-unemployed' };
         return <span className={`badge ${map[s] || 'badge-gray'}`}>{s || 'None'}</span>;
+    };
+
+    const accountBadge = (status) => {
+        const map = { Active: 'badge-green', Disabled: 'badge-red', Suspended: 'badge-yellow' };
+        return <span className={`badge ${map[status] || 'badge-gray'}`}>{status || 'Active'}</span>;
+    };
+
+    const activityBadge = (status, lastSeenAt) => {
+        const normalized = status === 'Online' ? 'Online' : 'Offline';
+        return (
+            <span
+                className={`badge ${normalized === 'Online' ? 'badge-green' : 'badge-gray'}`}
+                title={lastSeenAt ? `Last seen: ${new Date(lastSeenAt).toLocaleString()}` : 'No recent activity'}
+            >
+                {normalized}
+            </span>
+        );
     };
 
     console.log("AdminDashboard trainees array:", trainees, "filterStatus:", filterStatus, "filtered:", filtered);
@@ -214,11 +239,11 @@ const ManageTrainees = () => {
                 </div>
                 <div style={{ overflowX: 'auto' }}>
                     <table className="data-table">
-                        <thead><tr><th>Name</th><th>Email</th><th>Program</th><th>Training Status</th><th>Employment Status</th><th>Actions</th></tr></thead>
+                        <thead><tr><th>Profile Name</th><th>Auth Email</th><th>Program</th><th>Training Status</th><th>Employment Status</th><th>Activity</th><th>Account</th><th>Actions</th></tr></thead>
                         <tbody>
                             {filtered.map(t => (
                                 <tr key={t.id}>
-                                    <td style={{ fontWeight: 600 }}><div style={{ display: 'flex', alignItems: 'center', gap: 8 }}><div style={{ width: 30, height: 30, borderRadius: '50%', background: 'linear-gradient(135deg, #ede9fe, #dbeafe)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 800, color: '#7c3aed' }}>{(t.name && t.name !== 'Trainee' ? t.name : 'N').charAt(0)}</div>{t.name && t.name !== 'Trainee' ? t.name : 'None'}</div></td>
+                                    <td style={{ fontWeight: 600 }}><div style={{ display: 'flex', alignItems: 'center', gap: 8 }}><div style={{ width: 30, height: 30, borderRadius: '50%', background: 'linear-gradient(135deg, #ede9fe, #dbeafe)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 800, color: '#7c3aed' }}>{(t.profileName && t.profileName !== 'Trainee' ? t.profileName : (t.name || 'N')).charAt(0)}</div>{t.profileName || t.name || 'None'}</div></td>
                                     <td style={{ fontSize: 13, color: '#64748b' }}>{t.email && t.email !== 'Protected' ? t.email : 'None'}</td>
                                     <td><span className="badge badge-blue" style={{ fontSize: 11, fontWeight: 500 }}>{t.program}</span></td>
                                     <td style={{ textAlign: 'center' }}>
@@ -227,14 +252,16 @@ const ManageTrainees = () => {
                                         </span>
                                     </td>
                                     <td>{statusBadge(t.employmentStatus)}</td>
-                                    <td><div style={{ display: 'flex', gap: 6 }}>
+                                    <td>{activityBadge(t.activityStatus, t.lastSeenAt)}</td>
+                                    <td>{accountBadge(t.accountStatus || 'Active')}</td>
+                                    <td><div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', minWidth: 180 }}>
                                         <button className="btn btn-outline btn-sm" onClick={() => setViewT(t)}><Eye size={12} /> View</button>
                                         <button className="btn btn-outline btn-sm" onClick={() => setEditT({ ...t })}><Edit size={12} /></button>
                                         <button className="btn btn-danger btn-sm" onClick={() => { if (window.confirm('Delete trainee?')) deleteTrainee(t.id); }}><Trash2 size={12} /></button>
                                     </div></td>
                                 </tr>
                             ))}
-                            {filtered.length === 0 && <tr><td colSpan={6} style={{ textAlign: 'center', padding: 32, color: '#94a3b8' }}>No trainees found.</td></tr>}
+                            {filtered.length === 0 && <tr><td colSpan={8} style={{ textAlign: 'center', padding: 32, color: '#94a3b8' }}>No trainees found.</td></tr>}
                         </tbody>
                     </table>
                 </div>
@@ -296,6 +323,415 @@ const ManageTrainees = () => {
     );
 };
 
+// TESDA PROGRAMS: ADD / EDIT / DELETE WITH COMPETENCIES
+const ManageTesdaPrograms = () => {
+    const [programs, setPrograms] = useState([]);
+    const [search, setSearch] = useState('');
+    const [loading, setLoading] = useState(true);
+    const [saving, setSaving] = useState(false);
+    const [showModal, setShowModal] = useState(false);
+    const [editProgram, setEditProgram] = useState(null);
+    const [supportsCompetenciesColumn, setSupportsCompetenciesColumn] = useState(true);
+    const [popupMessage, setPopupMessage] = useState('');
+    const [form, setForm] = useState({
+        name: '',
+        ncLevel: '',
+        durationHours: '',
+        description: '',
+        competenciesText: '',
+    });
+
+    const openPopup = (message) => setPopupMessage(message || 'Something went wrong.');
+    const closePopup = () => setPopupMessage('');
+
+    const stripCode = (value = '') => value
+        .replace(/^\s*[A-Z]{2,}\d+\s*[—-]\s*/i, '')
+        .replace(/^\s*\d+\s*[—-]\s*/i, '')
+        .replace(/^\s*[•\-*]\s*/, '')
+        .trim();
+
+    const normalizeProgramName = (value = '') => String(value)
+        .trim()
+        .replace(/\s+/g, ' ')
+        .toLowerCase();
+
+    const normalizeNcLevel = (value = '') => String(value)
+        .trim()
+        .replace(/\s+/g, ' ')
+        .toLowerCase();
+
+    const parseCompetenciesText = (value = '') => {
+        const unique = new Set();
+        return value
+            .split('\n')
+            .map(line => stripCode(line))
+            .filter(Boolean)
+            .filter(item => {
+                const key = item.toLowerCase();
+                if (unique.has(key)) return false;
+                unique.add(key);
+                return true;
+            });
+    };
+
+    const splitDescription = (description = '') => {
+        if (!description) return { summary: '', competencies: [] };
+
+        try {
+            const parsed = JSON.parse(description);
+            if (Array.isArray(parsed?.competencies)) {
+                return {
+                    summary: parsed.summary || '',
+                    competencies: parsed.competencies.map(c => stripCode(String(c))).filter(Boolean),
+                };
+            }
+        } catch (_) {
+        }
+
+        const lines = description.split('\n');
+        const markerIndex = lines.findIndex(line => /^\s*competencies\s*:?.*$/i.test(line));
+
+        if (markerIndex >= 0) {
+            const summary = lines.slice(0, markerIndex).join('\n').trim();
+            const competencies = lines.slice(markerIndex + 1).map(line => stripCode(line)).filter(Boolean);
+            return { summary, competencies };
+        }
+
+        return { summary: description, competencies: [] };
+    };
+
+    const composeDescription = (summary, competencies) => {
+        const cleanSummary = (summary || '').trim();
+        return [
+            cleanSummary,
+            cleanSummary ? '' : null,
+            'Competencies:',
+            ...competencies.map(item => `• ${item}`),
+        ].filter(Boolean).join('\n');
+    };
+
+    const loadPrograms = async () => {
+        setLoading(true);
+        try {
+            let useFallback = false;
+
+            let { data, error } = await supabase
+                .from('programs')
+                .select('id, name, nc_level, duration_hours, description, competencies')
+                .order('name', { ascending: true });
+
+            if (error && (error.code === 'PGRST204' || String(error.message || '').toLowerCase().includes('competencies'))) {
+                useFallback = true;
+                setSupportsCompetenciesColumn(false);
+                const fallback = await supabase
+                    .from('programs')
+                    .select('id, name, nc_level, duration_hours, description')
+                    .order('name', { ascending: true });
+                data = fallback.data;
+                error = fallback.error;
+            } else {
+                setSupportsCompetenciesColumn(true);
+            }
+
+            if (error) throw error;
+
+            const mapped = (data || []).map(row => {
+                const fallbackParsed = splitDescription(row.description || '');
+                const competencies = !useFallback && Array.isArray(row.competencies)
+                    ? row.competencies.map(item => stripCode(String(item))).filter(Boolean)
+                    : fallbackParsed.competencies;
+
+                return {
+                    id: row.id,
+                    name: row.name || '',
+                    ncLevel: row.nc_level || '',
+                    durationHours: row.duration_hours || '',
+                    description: useFallback ? (fallbackParsed.summary || '') : (row.description || ''),
+                    competencies,
+                };
+            });
+
+            setPrograms(mapped);
+        } catch (err) {
+            console.error('Failed to load programs:', err);
+            openPopup('Failed to load TESDA programs.');
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    useEffect(() => {
+        loadPrograms();
+    }, []);
+
+    const openCreateModal = () => {
+        setEditProgram(null);
+        setForm({ name: '', ncLevel: '', durationHours: '', description: '', competenciesText: '' });
+        setShowModal(true);
+    };
+
+    const openEditModal = (program) => {
+        setEditProgram(program);
+        setForm({
+            name: program.name || '',
+            ncLevel: program.ncLevel || '',
+            durationHours: program.durationHours || '',
+            description: program.description || '',
+            competenciesText: (program.competencies || []).join('\n'),
+        });
+        setShowModal(true);
+    };
+
+    const closeModal = () => {
+        setShowModal(false);
+        setEditProgram(null);
+    };
+
+    const saveProgram = async () => {
+        const name = form.name.trim();
+        const normalizedName = normalizeProgramName(name);
+        const normalizedNcLevel = normalizeNcLevel(form.ncLevel);
+        const competencies = parseCompetenciesText(form.competenciesText);
+        const duration = Number(form.durationHours);
+        const durationHours = Number.isFinite(duration) && duration > 0 ? Math.round(duration) : null;
+
+        if (!name) {
+            openPopup('Program name is required.');
+            return;
+        }
+
+        if (competencies.length === 0) {
+            openPopup('Please provide at least one competency.');
+            return;
+        }
+
+        const duplicate = programs.find(program => {
+            if (editProgram?.id && program.id === editProgram.id) return false;
+
+            const sameName = normalizeProgramName(program.name) === normalizedName;
+            const sameNcLevel = normalizeNcLevel(program.ncLevel || '') === normalizedNcLevel;
+            const sameDuration = (program.durationHours || null) === durationHours;
+
+            return sameName && sameNcLevel && sameDuration;
+        });
+
+        if (duplicate) {
+            openPopup('This program already exists with the same Program Name, NC Level, and Duration. If this is a different version, change either the NC Level or Duration before saving.');
+            return;
+        }
+
+        setSaving(true);
+        try {
+            const basePayload = {
+                name,
+                nc_level: form.ncLevel.trim() || null,
+                duration_hours: durationHours,
+            };
+
+            const writeRecord = async (withCompetenciesColumn) => {
+                const payload = withCompetenciesColumn
+                    ? {
+                        ...basePayload,
+                        description: form.description.trim() || null,
+                        competencies,
+                    }
+                    : {
+                        ...basePayload,
+                        description: composeDescription(form.description, competencies),
+                    };
+
+                if (editProgram?.id) {
+                    return supabase
+                        .from('programs')
+                        .update(payload)
+                        .eq('id', editProgram.id)
+                        .select()
+                        .single();
+                }
+
+                return supabase
+                    .from('programs')
+                    .insert([payload])
+                    .select()
+                    .single();
+            };
+
+            let { error } = await writeRecord(supportsCompetenciesColumn);
+
+            if (error && supportsCompetenciesColumn && (error.code === 'PGRST204' || String(error.message || '').toLowerCase().includes('competencies'))) {
+                setSupportsCompetenciesColumn(false);
+                const retry = await writeRecord(false);
+                error = retry.error;
+            }
+
+            if (error) throw error;
+
+            closeModal();
+            await loadPrograms();
+        } catch (err) {
+            console.error('Failed to save program:', err);
+            openPopup(err.message || 'Failed to save program.');
+        } finally {
+            setSaving(false);
+        }
+    };
+
+    const deleteProgram = async (program) => {
+        if (!window.confirm(`Delete program "${program.name}"?`)) return;
+        try {
+            const { error } = await supabase.from('programs').delete().eq('id', program.id);
+            if (error) throw error;
+            await loadPrograms();
+        } catch (err) {
+            console.error('Failed to delete program:', err);
+            openPopup(err.message || 'Failed to delete program. It may still be referenced by students.');
+        }
+    };
+
+    const filteredPrograms = programs.filter(program => {
+        const q = search.toLowerCase();
+        return program.name.toLowerCase().includes(q) || (program.ncLevel || '').toLowerCase().includes(q);
+    });
+
+    return (
+        <div>
+            <div className="page-header">
+                <div>
+                    <div className="page-title">TESDA Programs</div>
+                    <div className="page-subtitle">Add, edit, and delete programs with their competencies</div>
+                </div>
+                <button className="btn btn-primary" onClick={openCreateModal}><Plus size={14} /> Add Program</button>
+            </div>
+
+            <div className="card">
+                <div style={{ marginBottom: 16 }}>
+                    <div className="search-bar" style={{ maxWidth: 420 }}>
+                        <Search size={14} color="#94a3b8" />
+                        <input placeholder="Search program or NC level..." value={search} onChange={e => setSearch(e.target.value)} />
+                    </div>
+                </div>
+
+                <div style={{ overflowX: 'auto' }}>
+                    <table className="data-table">
+                        <thead>
+                            <tr>
+                                <th>Program</th>
+                                <th>NC Level</th>
+                                <th>Duration (hrs)</th>
+                                <th>Competencies</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {loading && (
+                                <tr><td colSpan={5} style={{ textAlign: 'center', padding: 26, color: '#94a3b8' }}>Loading programs...</td></tr>
+                            )}
+                            {!loading && filteredPrograms.map(program => (
+                                <tr key={program.id}>
+                                    <td style={{ fontWeight: 700 }}>{program.name}</td>
+                                    <td><span className="badge badge-blue">{program.ncLevel || 'N/A'}</span></td>
+                                    <td>{program.durationHours || 'N/A'}</td>
+                                    <td>
+                                        <div style={{ fontSize: 12, color: '#64748b', marginBottom: 4 }}>{program.competencies.length} competency{program.competencies.length === 1 ? '' : 'ies'}</div>
+                                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                                            {program.competencies.slice(0, 2).map(item => (
+                                                <span key={item} className="badge badge-gray" style={{ maxWidth: 240, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item}</span>
+                                            ))}
+                                            {program.competencies.length > 2 && <span className="badge badge-gray">+{program.competencies.length - 2} more</span>}
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <div style={{ display: 'flex', gap: 6 }}>
+                                            <button className="btn btn-outline btn-sm" onClick={() => openEditModal(program)}><Edit size={12} /> Edit</button>
+                                            <button className="btn btn-danger btn-sm" onClick={() => deleteProgram(program)}><Trash2 size={12} /> Delete</button>
+                                        </div>
+                                    </td>
+                                </tr>
+                            ))}
+                            {!loading && filteredPrograms.length === 0 && (
+                                <tr><td colSpan={5} style={{ textAlign: 'center', padding: 30, color: '#94a3b8' }}>No TESDA programs found.</td></tr>
+                            )}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            {showModal && (
+                <div className="modal-overlay" onClick={closeModal}>
+                    <div className="modal" style={{ maxWidth: 780, width: '95%' }} onClick={e => e.stopPropagation()}>
+                        <div className="modal-header">
+                            <h3 className="modal-title">{editProgram ? 'Edit TESDA Program' : 'Add TESDA Program'}</h3>
+                            <button className="btn btn-outline btn-icon" onClick={closeModal}><X size={16} /></button>
+                        </div>
+
+                        <div className="two-col" style={{ gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 8 }}>
+                            <div className="form-group">
+                                <label className="form-label">Program Name</label>
+                                <input className="form-input" value={form.name} onChange={e => setForm(prev => ({ ...prev, name: e.target.value }))} placeholder="e.g. Bread and Pastry Production" />
+                            </div>
+                            <div className="form-group">
+                                <label className="form-label">NC Level</label>
+                                <input className="form-input" value={form.ncLevel} onChange={e => setForm(prev => ({ ...prev, ncLevel: e.target.value }))} placeholder="e.g. NC II" />
+                            </div>
+                        </div>
+
+                        <div className="two-col" style={{ gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 8 }}>
+                            <div className="form-group">
+                                <label className="form-label">Duration (Hours)</label>
+                                <input type="number" min="1" className="form-input" value={form.durationHours} onChange={e => setForm(prev => ({ ...prev, durationHours: e.target.value }))} placeholder="e.g. 137" />
+                            </div>
+                            <div className="form-group">
+                                <label className="form-label">Description (Optional)</label>
+                                <input className="form-input" value={form.description} onChange={e => setForm(prev => ({ ...prev, description: e.target.value }))} placeholder="Short program summary" />
+                            </div>
+                        </div>
+
+                        <div className="form-group" style={{ marginBottom: 14 }}>
+                            <label className="form-label">Competencies (one per line)</label>
+                            <textarea
+                                className="form-input"
+                                value={form.competenciesText}
+                                onChange={e => setForm(prev => ({ ...prev, competenciesText: e.target.value }))}
+                                rows={12}
+                                placeholder={"Participate in Workplace Communication\nWork in Team Environment\nPrepare and Produce Bakery Products"}
+                                style={{ minHeight: 260, resize: 'vertical' }}
+                            />
+                            <div style={{ fontSize: 11.5, color: '#64748b', marginTop: 6 }}>
+                                TESDA codes are optional and will be removed automatically.
+                            </div>
+                            <div style={{ fontSize: 11.5, color: '#64748b', marginTop: 4, lineHeight: 1.45 }}>
+                                To avoid duplicates: You cannot save two programs with the same Program Name, NC Level, and Duration. If one of these is different, it will be treated as a different program version.
+                            </div>
+                        </div>
+
+                        <div style={{ display: 'flex', gap: 10 }}>
+                            <button className="btn btn-outline" style={{ flex: 1 }} onClick={closeModal} disabled={saving}>Cancel</button>
+                            <button className="btn btn-primary" style={{ flex: 1 }} onClick={saveProgram} disabled={saving}>
+                                <CheckCircle size={15} /> {saving ? 'Saving...' : (editProgram ? 'Save Changes' : 'Add Program')}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {popupMessage && (
+                <div className="modal-overlay" onClick={closePopup}>
+                    <div className="modal" style={{ maxWidth: 520 }} onClick={e => e.stopPropagation()}>
+                        <div className="modal-header">
+                            <h3 className="modal-title">Notice</h3>
+                            <button className="btn btn-outline btn-icon" onClick={closePopup}><X size={16} /></button>
+                        </div>
+                        <p style={{ margin: 0, fontSize: 14, color: '#334155', lineHeight: 1.6 }}>{popupMessage}</p>
+                        <div style={{ marginTop: 16, display: 'flex', justifyContent: 'flex-end' }}>
+                            <button className="btn btn-primary" onClick={closePopup}>OK</button>
+                        </div>
+                    </div>
+                </div>
+            )}
+        </div>
+    );
+};
+
 // â”€â”€â”€ PAGE 3: MANAGE INDUSTRY PARTNERS â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 const ManagePartners = () => {
     const { partners, approvePartner, rejectPartner } = useApp();
@@ -304,14 +740,45 @@ const ManagePartners = () => {
     const [viewPartner, setViewPartner] = useState(null);
     const [partnerDocs, setPartnerDocs] = useState([]);
     const [loadingDocs, setLoadingDocs] = useState(false);
+    const [actionReasonById, setActionReasonById] = useState({});
 
-    const filtered = partners.filter(p => {
+    const reasonOptions = ['Incomplete Verification', 'Policy Violation', 'Fraudulent Information', 'Duplicate Account', 'Other'];
+    const getActionReason = (partnerId) => actionReasonById[partnerId] || reasonOptions[0];
+    const setActionReason = (partnerId, reason) => {
+        setActionReasonById(prev => ({ ...prev, [partnerId]: reason }));
+    };
+
+    // Only show partners who submitted for verification (not just registered)
+    const submittedPartners = partners.filter(p => p.verificationStatus !== 'Pending');
+
+    const filtered = submittedPartners.filter(p => {
         const q = search.toLowerCase();
-        return (p.companyName.toLowerCase().includes(q) || p.contactPerson.toLowerCase().includes(q)) && (filterStatus === 'All' || p.verificationStatus === filterStatus);
+        const profileName = (p.profileName || p.companyName || '').toLowerCase();
+        const companyName = (p.companyName || '').toLowerCase();
+        const contactPerson = (p.contactPerson || '').toLowerCase();
+        const authEmail = (p.email || '').toLowerCase();
+        return (profileName.includes(q) || companyName.includes(q) || contactPerson.includes(q) || authEmail.includes(q)) && (filterStatus === 'All' || p.verificationStatus === filterStatus);
     });
     const statusBadge = (s) => {
         const map = { Verified: 'badge-approved', Pending: 'badge-pending', Rejected: 'badge-rejected', 'Under Review': 'badge-pending' };
         return <span className={`badge ${map[s] || 'badge-gray'}`}>{s}</span>;
+    };
+
+    const accountBadge = (status) => {
+        const map = { Active: 'badge-green', Disabled: 'badge-red', Suspended: 'badge-yellow' };
+        return <span className={`badge ${map[status] || 'badge-gray'}`}>{status || 'Active'}</span>;
+    };
+
+    const activityBadge = (status, lastSeenAt) => {
+        const normalized = status === 'Online' ? 'Online' : 'Offline';
+        return (
+            <span
+                className={`badge ${normalized === 'Online' ? 'badge-green' : 'badge-gray'}`}
+                title={lastSeenAt ? `Last seen: ${new Date(lastSeenAt).toLocaleString()}` : 'No recent activity'}
+            >
+                {normalized}
+            </span>
+        );
     };
 
     const openPartnerView = async (partner) => {
@@ -330,44 +797,51 @@ const ManagePartners = () => {
         setLoadingDocs(false);
     };
 
-    const canActOn = (status) => status === 'Pending' || status === 'Under Review';
+    const canApprove = (status) => status !== 'Verified';
+    const canReject = (status) => status !== 'Rejected';
 
     return (
         <div>
             <div className="page-header">
                 <div><div className="page-title">Industry Partners</div><div className="page-subtitle">Manage and verify industry partner accounts</div></div>
                 <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                    {['All', 'Pending', 'Under Review', 'Verified', 'Rejected'].map(s => (
+                    {['All', 'Under Review', 'Verified', 'Rejected'].map(s => (
                         <button key={s} className={`btn btn-${filterStatus === s ? 'primary' : 'outline'} btn-sm`} onClick={() => setFilterStatus(s)}>
-                            {s} ({s === 'All' ? partners.length : partners.filter(p => p.verificationStatus === s).length})
+                            {s} ({s === 'All' ? submittedPartners.length : submittedPartners.filter(p => p.verificationStatus === s).length})
                         </button>
                     ))}
                 </div>
             </div>
-            {partners.filter(p => p.verificationStatus === 'Under Review' || p.verificationStatus === 'Pending').length > 0 && (
-                <div className="alert alert-warning" style={{ marginBottom: 16 }}><AlertCircle size={16} /><strong>{partners.filter(p => p.verificationStatus === 'Under Review' || p.verificationStatus === 'Pending').length} partner(s)</strong> are awaiting verification.</div>
+            {submittedPartners.filter(p => p.verificationStatus === 'Under Review').length > 0 && (
+                <div className="alert alert-warning" style={{ marginBottom: 16 }}><AlertCircle size={16} /><strong>{submittedPartners.filter(p => p.verificationStatus === 'Under Review').length} partner(s)</strong> are awaiting verification.</div>
             )}
             <div className="card">
                 <div style={{ marginBottom: 14 }}><div className="search-bar" style={{ maxWidth: 320 }}><Search size={14} color="#94a3b8" /><input placeholder="Search company or contact..." value={search} onChange={e => setSearch(e.target.value)} /></div></div>
                 <div style={{ overflowX: 'auto' }}>
                     <table className="data-table">
-                        <thead><tr><th>Company</th><th>Contact Person</th><th>Industry</th><th>Email</th><th>Status</th><th>Actions</th></tr></thead>
+                        <thead><tr><th>Company</th><th>Profile Name</th><th>Contact Person</th><th>Industry</th><th>Auth Email</th><th>Activity</th><th>Verification</th><th>Account</th><th>Actions</th></tr></thead>
                         <tbody>
                             {filtered.map(p => (
                                 <tr key={p.id}>
-                                    <td style={{ fontWeight: 600 }}><div style={{ display: 'flex', alignItems: 'center', gap: 8 }}><div style={{ width: 30, height: 30, borderRadius: 8, background: 'linear-gradient(135deg, #e0f2fe, #ede9fe)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 800, color: '#0ea5e9' }}>{p.companyName?.charAt(0)}</div>{p.companyName}</div></td>
+                                    <td style={{ fontWeight: 600 }}><div style={{ display: 'flex', alignItems: 'center', gap: 8 }}><div style={{ width: 30, height: 30, borderRadius: 8, background: 'linear-gradient(135deg, #e0f2fe, #ede9fe)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 800, color: '#0ea5e9' }}>{p.companyName?.charAt(0)}</div><span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>{p.companyName}{p.verificationStatus === 'Verified' && <CheckCircle size={14} color="#0a66c2" title="Verified" />}</span></div></td>
+                                    <td style={{ fontSize: 13, color: '#475569', fontWeight: 600 }}>{p.profileName || p.companyName || 'None'}</td>
                                     <td style={{ fontSize: 13, color: '#64748b' }}>{p.contactPerson}</td>
                                     <td><span className="badge badge-gray">{p.industry}</span></td>
                                     <td style={{ fontSize: 13, color: '#64748b' }}>{p.email}</td>
+                                    <td>{activityBadge(p.activityStatus, p.lastSeenAt)}</td>
                                     <td>{statusBadge(p.verificationStatus)}</td>
-                                    <td><div style={{ display: 'flex', gap: 6 }}>
+                                    <td>{accountBadge(p.accountStatus || 'Active')}</td>
+                                    <td><div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', minWidth: 260 }}>
                                         <button className="btn btn-outline btn-sm" onClick={() => openPartnerView(p)}><Eye size={12} /> View</button>
-                                        {canActOn(p.verificationStatus) && <><button className="btn btn-success btn-sm" onClick={() => approvePartner(p.id)}><CheckCircle size={12} /> Approve</button><button className="btn btn-danger btn-sm" onClick={() => rejectPartner(p.id)}><XCircle size={12} /> Reject</button></>}
-                                        {p.verificationStatus === 'Rejected' && <button className="btn btn-success btn-sm" onClick={() => approvePartner(p.id)}><CheckCircle size={12} /> Approve</button>}
+                                        {canApprove(p.verificationStatus) && <button className="btn btn-success btn-sm" onClick={() => approvePartner(p.id)}><CheckCircle size={12} /> Approve</button>}
+                                        {canReject(p.verificationStatus) && <button className="btn btn-danger btn-sm" onClick={() => rejectPartner(p.id, getActionReason(p.id))}><XCircle size={12} /> Reject</button>}
+                                        <select className="form-select" style={{ width: 175 }} value={getActionReason(p.id)} onChange={e => setActionReason(p.id, e.target.value)}>
+                                            {reasonOptions.map(reason => <option key={reason} value={reason}>{reason}</option>)}
+                                        </select>
                                     </div></td>
                                 </tr>
                             ))}
-                            {filtered.length === 0 && <tr><td colSpan={6} style={{ textAlign: 'center', padding: 32, color: '#94a3b8' }}>No partners found.</td></tr>}
+                            {filtered.length === 0 && <tr><td colSpan={9} style={{ textAlign: 'center', padding: 32, color: '#94a3b8' }}>No partners found.</td></tr>}
                         </tbody>
                     </table>
                 </div>
@@ -378,12 +852,12 @@ const ManagePartners = () => {
                         <div className="modal-header"><h3 className="modal-title">Partner Details</h3><button className="btn btn-outline btn-icon" onClick={() => setViewPartner(null)}><X size={16} /></button></div>
                         <div style={{ textAlign: 'center', marginBottom: 20 }}>
                             <div style={{ width: 60, height: 60, borderRadius: 14, background: 'linear-gradient(135deg, #e0f2fe, #ede9fe)', margin: '0 auto 10px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20, fontWeight: 800, color: '#0ea5e9' }}>{viewPartner.companyName?.charAt(0)}</div>
-                            <div style={{ fontWeight: 800, fontSize: 18 }}>{viewPartner.companyName}</div>
+                            <div style={{ fontWeight: 800, fontSize: 18, display: 'inline-flex', alignItems: 'center', gap: 8 }}>{viewPartner.companyName}{viewPartner.verificationStatus === 'Verified' && <CheckCircle size={16} color="#0a66c2" title="Verified" />}</div>
                             <div style={{ fontSize: 13, color: '#64748b', marginBottom: 8 }}>{viewPartner.industry}</div>
                             {statusBadge(viewPartner.verificationStatus)}
                         </div>
                         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 16 }}>
-                            {[['Contact', viewPartner.contactPerson], ['Email', viewPartner.email], ['Address', viewPartner.address], ['Size', viewPartner.companySize], ['Website', viewPartner.website]].map(([k, v]) => (
+                            {[['Profile Name', viewPartner.profileName || viewPartner.companyName], ['Contact', viewPartner.contactPerson], ['Auth Email', viewPartner.email], ['Contact Email', viewPartner.contactEmail || '—'], ['Address', viewPartner.address], ['Size', viewPartner.companySize], ['Website', viewPartner.website], ['Activity', viewPartner.activityStatus || 'Offline']].map(([k, v]) => (
                                 <div key={k} style={{ padding: '8px 12px', background: '#f8fafc', borderRadius: 8 }}><div style={{ fontSize: 10, color: '#94a3b8', textTransform: 'uppercase', fontWeight: 600 }}>{k}</div><div style={{ fontSize: 13, fontWeight: 500, color: '#475569' }}>{v || '–'}</div></div>
                             ))}
                         </div>
@@ -407,15 +881,10 @@ const ManagePartners = () => {
                                 <div style={{ padding: '12px 0', fontSize: 13, color: '#94a3b8', textAlign: 'center' }}>No documents uploaded yet.</div>
                             )}
                         </div>
-                        {canActOn(viewPartner.verificationStatus) && (
+                        {(canApprove(viewPartner.verificationStatus) || canReject(viewPartner.verificationStatus)) && (
                             <div style={{ display: 'flex', gap: 10 }}>
-                                <button className="btn btn-danger" style={{ flex: 1 }} onClick={() => { rejectPartner(viewPartner.id); setViewPartner(null); }}><XCircle size={15} /> Reject</button>
-                                <button className="btn btn-success" style={{ flex: 1 }} onClick={() => { approvePartner(viewPartner.id); setViewPartner(null); }}><CheckCircle size={15} /> Approve</button>
-                            </div>
-                        )}
-                        {viewPartner.verificationStatus === 'Rejected' && (
-                            <div style={{ display: 'flex', gap: 10 }}>
-                                <button className="btn btn-success" style={{ flex: 1 }} onClick={() => { approvePartner(viewPartner.id); setViewPartner(null); }}><CheckCircle size={15} /> Approve</button>
+                                {canReject(viewPartner.verificationStatus) && <button className="btn btn-danger" style={{ flex: 1 }} onClick={() => { rejectPartner(viewPartner.id, getActionReason(viewPartner.id)); setViewPartner(null); }}><XCircle size={15} /> Reject</button>}
+                                {canApprove(viewPartner.verificationStatus) && <button className="btn btn-success" style={{ flex: 1 }} onClick={() => { approvePartner(viewPartner.id); setViewPartner(null); }}><CheckCircle size={15} /> Approve</button>}
                             </div>
                         )}
                     </div>
@@ -619,43 +1088,124 @@ const Analytics = () => {
 
 // â”€â”€â”€ PAGE 7: ACCOUNT MANAGEMENT â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 const AccountManagement = () => {
-    const { trainees, partners, adminAccount, updateAccountStatus } = useApp();
+    const { trainees, partners, updateAccountStatus, deleteAccount } = useApp();
     const [search, setSearch] = useState('');
     const [filterRole, setFilterRole] = useState('All');
+    const [actionReasonById, setActionReasonById] = useState({});
+    const [accountPendingDelete, setAccountPendingDelete] = useState(null);
+    const [deletingAccountKey, setDeletingAccountKey] = useState('');
+    const reasonOptions = ['Policy Violation', 'Fraudulent Information', 'Duplicate Account', 'Requested Deactivation', 'Other'];
+
     const allAccounts = [
-        ...trainees.map(t => ({ ...t, type: 'trainee', displayName: t.name, displayEmail: t.email })),
-        ...partners.map(p => ({ ...p, type: 'partner', displayName: p.companyName, displayEmail: p.email })),
-        { ...adminAccount, type: 'admin', displayName: adminAccount.name, displayEmail: adminAccount.email },
+        ...trainees.map(t => ({
+            ...t,
+            type: 'trainee',
+            roleLabel: 'Student',
+            displayName: t.profileName || t.name || 'Student',
+            displayEmail: t.email && t.email !== 'Protected' ? t.email : 'None',
+            activityStatus: t.activityStatus || 'Offline',
+            lastSeenAt: t.lastSeenAt || null,
+        })),
+        ...partners.map(p => ({
+            ...p,
+            type: 'partner',
+            roleLabel: 'Partner',
+            displayName: p.profileName || p.companyName || 'Industry Partner',
+            displayEmail: p.email && p.email !== 'Protected' ? p.email : 'None',
+            activityStatus: p.activityStatus || 'Offline',
+            lastSeenAt: p.lastSeenAt || null,
+        })),
     ];
+
     const filtered = allAccounts.filter(a => {
         const q = search.toLowerCase();
         return (a.displayName.toLowerCase().includes(q) || a.displayEmail.toLowerCase().includes(q)) && (filterRole === 'All' || a.type === filterRole);
     });
-    const statusBadge = (s) => {
+
+    const accountBadge = (s) => {
         const map = { Active: 'badge-green', Disabled: 'badge-red', Suspended: 'badge-yellow' };
-        return <span className={`badge ${map[s] || 'badge-gray'}`}>{s}</span>;
+        return <span className={`badge ${map[s] || 'badge-gray'}`}>{s || 'Active'}</span>;
     };
+
     const roleBadge = (r) => {
-        const map = { trainee: 'badge-blue', partner: 'badge-purple', admin: 'badge-red' };
-        return <span className={`badge ${map[r] || 'badge-gray'}`} style={{ textTransform: 'capitalize' }}>{r}</span>;
+        const map = { trainee: 'badge-blue', partner: 'badge-purple' };
+        const label = r === 'trainee' ? 'Student' : 'Partner';
+        return <span className={`badge ${map[r] || 'badge-gray'}`}>{label}</span>;
     };
-    const toggleStatus = (account) => {
-        if (account.type === 'admin') return;
-        const newStatus = account.accountStatus === 'Active' ? 'Disabled' : 'Active';
-        updateAccountStatus(account.type, account.id, newStatus);
+
+    const activityBadge = (status, lastSeenAt) => {
+        const normalized = status === 'Online' ? 'Online' : 'Offline';
+        return (
+            <span
+                className={`badge ${normalized === 'Online' ? 'badge-green' : 'badge-gray'}`}
+                title={lastSeenAt ? `Last seen: ${new Date(lastSeenAt).toLocaleString()}` : 'No recent activity'}
+            >
+                {normalized}
+            </span>
+        );
     };
-    const suspendAccount = (account) => {
-        if (account.type === 'admin') return;
-        updateAccountStatus(account.type, account.id, 'Suspended');
+
+    const reasonKey = (account) => `${account.type}-${account.id}`;
+
+    const getActionReason = (account) => {
+        const key = reasonKey(account);
+        return actionReasonById[key] || reasonOptions[0];
     };
+
+    const setActionReason = (account, reason) => {
+        const key = reasonKey(account);
+        setActionReasonById(prev => ({ ...prev, [key]: reason }));
+    };
+
+    const applyAccountAction = (account, nextStatus) => {
+        updateAccountStatus(account.type, account.id, nextStatus, getActionReason(account));
+    };
+
+    const handleDeleteAccount = (account) => {
+        setAccountPendingDelete(account);
+    };
+
+    const confirmDeleteAccount = async () => {
+        if (!accountPendingDelete) return;
+
+        const key = reasonKey(accountPendingDelete);
+        setDeletingAccountKey(key);
+        try {
+            await deleteAccount(accountPendingDelete.type, accountPendingDelete.id);
+            setAccountPendingDelete(null);
+        } finally {
+            setDeletingAccountKey('');
+        }
+    };
+
+    const cancelDeleteAccount = () => {
+        if (!deletingAccountKey) {
+            setAccountPendingDelete(null);
+        }
+    };
+
+    const isDeleting = (account) => deletingAccountKey === reasonKey(account);
+    const pendingDeleteLabel = accountPendingDelete?.roleLabel || 'Account';
+    const pendingDeleteName = accountPendingDelete?.displayName || '';
+    const isDeleteInProgress = Boolean(deletingAccountKey);
+
+    const modalDeleteKey = accountPendingDelete ? reasonKey(accountPendingDelete) : '';
+    const isModalDeleting = isDeleteInProgress && modalDeleteKey === deletingAccountKey;
+
+    const canCloseModal = !isModalDeleting;
+
+    const onModalOverlayClick = () => {
+        if (canCloseModal) cancelDeleteAccount();
+    };
+
     return (
         <div>
-            <div className="page-header"><div><div className="page-title">Account Management</div><div className="page-subtitle">Manage user accounts, enable/disable access</div></div></div>
+            <div className="page-header"><div><div className="page-title">Manage Accounts</div><div className="page-subtitle">View and manage student and partner accounts</div></div></div>
             <div className="stats-grid" style={{ marginBottom: 20 }}>
                 {[
                     { label: 'Total Accounts', value: allAccounts.length, icon: <Users size={22} color="#7c3aed" />, bg: '#ede9fe' },
-                    { label: 'Active', value: allAccounts.filter(a => a.accountStatus === 'Active').length, icon: <CheckCircle size={22} color="#16a34a" />, bg: '#dcfce7' },
-                    { label: 'Disabled', value: allAccounts.filter(a => a.accountStatus === 'Disabled').length, icon: <XCircle size={22} color="#dc2626" />, bg: '#fee2e2' },
+                    { label: 'Online', value: allAccounts.filter(a => a.activityStatus === 'Online').length, icon: <Clock size={22} color="#16a34a" />, bg: '#dcfce7' },
+                    { label: 'Active', value: allAccounts.filter(a => (a.accountStatus || 'Active') === 'Active').length, icon: <CheckCircle size={22} color="#2563eb" />, bg: '#dbeafe' },
                     { label: 'Suspended', value: allAccounts.filter(a => a.accountStatus === 'Suspended').length, icon: <AlertCircle size={22} color="#d97706" />, bg: '#fef3c7' },
                 ].map((s, i) => (
                     <div key={i} className="stat-card"><div className="stat-icon" style={{ background: s.bg }}>{s.icon}</div><div className="stat-info"><div className="stat-label">{s.label}</div><div className="stat-value">{s.value}</div></div></div>
@@ -665,39 +1215,75 @@ const AccountManagement = () => {
                 <div style={{ display: 'flex', gap: 12, marginBottom: 14, flexWrap: 'wrap', alignItems: 'center' }}>
                     <div className="search-bar" style={{ flex: 1, minWidth: 200 }}><Search size={14} color="#94a3b8" /><input placeholder="Search name or email..." value={search} onChange={e => setSearch(e.target.value)} /></div>
                     <select className="form-select" style={{ width: 'auto', minWidth: 140 }} value={filterRole} onChange={e => setFilterRole(e.target.value)}>
-                        {['All', 'trainee', 'partner', 'admin'].map(r => <option key={r} value={r}>{r === 'All' ? 'All Roles' : r.charAt(0).toUpperCase() + r.slice(1)}</option>)}
+                        {['All', 'trainee', 'partner'].map(r => <option key={r} value={r}>{r === 'All' ? 'All Roles' : r === 'trainee' ? 'Student' : 'Partner'}</option>)}
                     </select>
                 </div>
                 <div style={{ overflowX: 'auto' }}>
                     <table className="data-table">
-                        <thead><tr><th>Name</th><th>Email</th><th>Role</th><th>Status</th><th>Actions</th></tr></thead>
+                        <thead><tr><th>Profile Name</th><th>Auth Email</th><th>Role</th><th>Activity</th><th>Account</th><th>Actions</th></tr></thead>
                         <tbody>
                             {filtered.map((a, i) => (
                                 <tr key={`${a.type}-${a.id}-${i}`}>
                                     <td style={{ fontWeight: 600 }}>{a.displayName}</td>
                                     <td style={{ fontSize: 13, color: '#64748b' }}>{a.displayEmail}</td>
                                     <td>{roleBadge(a.type)}</td>
-                                    <td>{statusBadge(a.accountStatus)}</td>
+                                    <td>{activityBadge(a.activityStatus, a.lastSeenAt)}</td>
+                                    <td>{accountBadge(a.accountStatus || 'Active')}</td>
                                     <td>
-                                        {a.type !== 'admin' ? (
-                                            <div style={{ display: 'flex', gap: 6 }}>
-                                                <button className="btn btn-outline btn-sm" onClick={() => toggleStatus(a)} title={a.accountStatus === 'Active' ? 'Disable' : 'Enable'}>
-                                                    {a.accountStatus === 'Active' ? <><CheckCircle size={14} color="#16a34a" /> Disable</> : <><XCircle size={14} color="#dc2626" /> Enable</>}
+                                        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', minWidth: 340 }}>
+                                            <select className="form-select" style={{ width: 170 }} value={getActionReason(a)} onChange={e => setActionReason(a, e.target.value)}>
+                                                {reasonOptions.map(reason => <option key={reason} value={reason}>{reason}</option>)}
+                                            </select>
+                                            {(a.accountStatus || 'Active') === 'Active' ? (
+                                                <button className="btn btn-outline btn-sm" onClick={() => applyAccountAction(a, 'Disabled')}><XCircle size={12} /> Disable</button>
+                                            ) : (
+                                                <button className="btn btn-outline btn-sm" onClick={() => applyAccountAction(a, 'Active')}><CheckCircle size={12} /> Enable</button>
+                                            )}
+                                            {(a.accountStatus || 'Active') !== 'Suspended' && (
+                                                <button className="btn btn-outline btn-sm" onClick={() => applyAccountAction(a, 'Suspended')} style={{ color: '#d97706' }}>
+                                                    <AlertCircle size={13} /> Suspend
                                                 </button>
-                                                {a.accountStatus !== 'Suspended' && (
-                                                    <button className="btn btn-outline btn-sm" onClick={() => suspendAccount(a)} style={{ color: '#d97706' }}>
-                                                        <AlertCircle size={13} /> Suspend
-                                                    </button>
-                                                )}
-                                            </div>
-                                        ) : <span style={{ fontSize: 12, color: '#94a3b8' }}>Protected</span>}
+                                            )}
+                                            <button className="btn btn-outline btn-sm" onClick={() => handleDeleteAccount(a)} style={{ color: '#dc2626' }} disabled={isDeleting(a)}>
+                                                <Trash2 size={12} /> {isDeleting(a) ? 'Deleting...' : 'Delete'}
+                                            </button>
+                                        </div>
                                     </td>
                                 </tr>
                             ))}
+                            {filtered.length === 0 && (
+                                <tr>
+                                    <td colSpan={6} style={{ textAlign: 'center', padding: 32, color: '#94a3b8' }}>
+                                        No accounts found.
+                                    </td>
+                                </tr>
+                            )}
                         </tbody>
                     </table>
                 </div>
             </div>
+            {accountPendingDelete && (
+                <div className="modal-overlay" onClick={onModalOverlayClick}>
+                    <div className="modal" style={{ maxWidth: 460 }} onClick={e => e.stopPropagation()}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+                            <h3 style={{ margin: 0, fontSize: 18, fontWeight: 700 }}>Confirm Delete</h3>
+                            <button className="btn btn-ghost btn-sm" onClick={cancelDeleteAccount} disabled={!canCloseModal}>×</button>
+                        </div>
+                        <p style={{ marginTop: 0, marginBottom: 8, color: '#334155' }}>
+                            Delete {pendingDeleteLabel} account: <strong>{pendingDeleteName}</strong>?
+                        </p>
+                        <p style={{ marginTop: 0, marginBottom: 16, color: '#64748b', fontSize: 13 }}>
+                            This will permanently remove the account and all related records.
+                        </p>
+                        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+                            <button className="btn btn-outline btn-sm" onClick={cancelDeleteAccount} disabled={!canCloseModal}>Cancel</button>
+                            <button className="btn btn-danger btn-sm" onClick={confirmDeleteAccount} disabled={isModalDeleting}>
+                                <Trash2 size={12} /> {isModalDeleting ? 'Deleting...' : 'Delete Permanently'}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };
@@ -829,11 +1415,12 @@ export default function AdminDashboard() {
     const pageMap = {
         dashboard: { title: 'Admin Dashboard', sub: 'System overview and management' },
         trainees: { title: 'Manage Trainees', sub: 'View and manage all registered trainees' },
+        programs: { title: 'TESDA Programs', sub: 'Manage TESDA programs and competencies' },
         partners: { title: 'Industry Partners', sub: 'Manage and verify partner accounts' },
         jobs: { title: 'Opportunities Oversight', sub: 'Monitor all opportunity postings' },
         employment: { title: 'Employment Tracking', sub: 'Monitor trainee employment outcomes' },
         analytics: { title: 'Analytics Reports', sub: 'Comprehensive data analysis' },
-        accounts: { title: 'Account Management', sub: 'Manage user accounts and access' },
+        accounts: { title: 'Manage Accounts', sub: 'View and manage student and partner accounts' },
         'activity-log': { title: 'System Activity Log', sub: 'Audit trail of system actions' },
         settings: { title: 'System Settings', sub: 'Platform configuration' },
     };
@@ -845,6 +1432,7 @@ export default function AdminDashboard() {
             <Routes>
                 <Route path="/" element={<AdminHome setActivePage={setActivePage} />} />
                 <Route path="/trainees" element={<ManageTrainees />} />
+                <Route path="/programs" element={<ManageTesdaPrograms />} />
                 <Route path="/partners" element={<ManagePartners />} />
                 <Route path="/jobs" element={<OpportunitiesOversight />} />
                 <Route path="/employment" element={<EmploymentTracking />} />

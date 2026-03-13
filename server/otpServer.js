@@ -27,32 +27,48 @@ app.use(express.json({ limit: '5mb' }));
 
 const PORT = 3001;
 
+const deriveActivityStatus = (isoDateString) => {
+    if (!isoDateString) return 'Offline';
+    const parsed = new Date(isoDateString).getTime();
+    if (!Number.isFinite(parsed)) return 'Offline';
+
+    const diffMs = Date.now() - parsed;
+    if (diffMs < 0) return 'Online';
+
+    return diffMs <= 15 * 60 * 1000 ? 'Online' : 'Offline';
+};
+
 // ─── Rate Limiting ──────────────────────────────────────────────
 const rateLimitStore = {};
-const RATE_LIMIT_WINDOW = 60 * 1000; // 1 minute
-const RATE_LIMIT_MAX = 5; // max requests per window per IP
+function createRateLimit({ windowMs = 60 * 1000, max = 10, keyPrefix = 'default' } = {}) {
+    return function rateLimit(req, res, next) {
+        const ip = req.ip || req.connection.remoteAddress || 'unknown';
+        const now = Date.now();
+        const endpointKey = `${req.method}:${req.path}`;
+        const key = `${keyPrefix}:${ip}:${endpointKey}`;
 
-function rateLimit(req, res, next) {
-    const ip = req.ip || req.connection.remoteAddress || 'unknown';
-    const now = Date.now();
+        if (!rateLimitStore[key]) {
+            rateLimitStore[key] = { count: 1, resetAt: now + windowMs };
+            return next();
+        }
 
-    if (!rateLimitStore[ip]) {
-        rateLimitStore[ip] = { count: 1, resetAt: now + RATE_LIMIT_WINDOW };
-        return next();
-    }
+        if (now > rateLimitStore[key].resetAt) {
+            rateLimitStore[key] = { count: 1, resetAt: now + windowMs };
+            return next();
+        }
 
-    if (now > rateLimitStore[ip].resetAt) {
-        rateLimitStore[ip] = { count: 1, resetAt: now + RATE_LIMIT_WINDOW };
-        return next();
-    }
+        rateLimitStore[key].count++;
+        if (rateLimitStore[key].count > max) {
+            const retryAfter = Math.ceil((rateLimitStore[key].resetAt - now) / 1000);
+            return res.status(429).json({ error: 'Too many requests. Please try again later.', retryAfter });
+        }
 
-    rateLimitStore[ip].count++;
-    if (rateLimitStore[ip].count > RATE_LIMIT_MAX) {
-        return res.status(429).json({ error: 'Too many requests. Please try again later.' });
-    }
-
-    next();
+        next();
+    };
 }
+
+const rateLimit = createRateLimit({ windowMs: 60 * 1000, max: 10, keyPrefix: 'general' });
+const uploadRateLimit = createRateLimit({ windowMs: 60 * 1000, max: 30, keyPrefix: 'upload' });
 
 // OTP expiry in minutes (default to 5)
 const OTP_EXPIRY_MIN = parseInt(process.env.OTP_EXPIRY_MIN || '5', 10);
@@ -145,26 +161,154 @@ app.get('/api/admin/data', rateLimit, async (req, res) => {
             .from('industry_partners')
             .select('*');
 
+        const { data: submittedRows, error: submittedErr } = await supabaseAdmin
+            .from('partner_verifications')
+            .select('partner_id');
+
+        const { data: profiles, error: profilesErr } = await supabaseAdmin
+            .from('profiles')
+            .select('id, user_type');
+
         if (stdsErr) throw stdsErr;
         if (partsErr) throw partsErr;
+        if (submittedErr) console.warn('Could not fetch partner submission rows:', submittedErr);
+        if (profilesErr) console.warn('Could not fetch profiles for role filtering:', profilesErr);
 
         const { data: authUsers, error: usersErr } = await supabaseAdmin.auth.admin.listUsers();
         if (usersErr) console.warn('Could not fetch auth users for emails:', usersErr);
 
-        const mappedStds = (stds || []).map(std => {
+        const submittedPartnerIds = [...new Set((submittedRows || []).map(row => row.partner_id))];
+
+        const profileRoleById = new Map((profiles || []).map(profile => [
+            profile.id,
+            String(profile.user_type || '').toLowerCase(),
+        ]));
+
+        const allowedStudentRoles = new Set(['student', 'trainee']);
+        const allowedPartnerRoles = new Set(['industry_partner', 'partner']);
+
+        const filteredStds = (stds || []).filter(std => allowedStudentRoles.has(profileRoleById.get(std.id)));
+        const filteredPartners = (parts || []).filter(partner => allowedPartnerRoles.has(profileRoleById.get(partner.id)));
+
+        const mappedStds = filteredStds.map(std => {
             const authRecord = authUsers?.users?.find(u => u.id === std.id);
             return {
                 ...std,
-                email: authRecord ? authRecord.email : 'None'
+                profile_name: std.full_name || 'Trainee',
+                email: authRecord?.email || 'None',
+                activity_status: deriveActivityStatus(authRecord?.last_sign_in_at),
+                last_seen_at: authRecord?.last_sign_in_at || null,
             };
         });
 
-        res.json({ students: mappedStds, partners: parts || [] });
+        const mappedPartners = filteredPartners.map(partner => {
+            const authRecord = authUsers?.users?.find(u => u.id === partner.id);
+            return {
+                ...partner,
+                profile_name: partner.company_name || partner.contact_person || 'Industry Partner',
+                email: authRecord?.email || 'None',
+                activity_status: deriveActivityStatus(authRecord?.last_sign_in_at),
+                last_seen_at: authRecord?.last_sign_in_at || null,
+            };
+        });
+
+        res.json({ students: mappedStds, partners: mappedPartners, submittedPartnerIds });
     } catch (error) {
         console.error('Admin data fetch error:', error);
         res.status(500).json({ error: 'Failed to fetch admin data.' });
     }
 });
+
+// Admin Delete Account Endpoint (Bypass RLS — deletes all associated data)
+// Helper: run a Supabase delete and throw if it fails (ignores "table not found")
+async function sbDelete(query, label) {
+    const { error } = await query;
+    if (error) {
+        if (['42P01', 'PGRST205', 'PGRST204', '42703'].includes(error.code)) {
+            console.warn(`[delete-account] Table not found (skipped): ${label}`);
+            return;
+        }
+        const msg = `[delete-account] Failed step "${label}": ${error.message} (code: ${error.code})`;
+        console.error(msg);
+        throw new Error(msg);
+    }
+    console.log(`[delete-account] OK: ${label}`);
+}
+
+// Admin Delete Account Endpoint (Bypass RLS — deletes all associated data)
+// Uses POST so request body is reliably forwarded through proxies
+const adminDeleteAccountHandler = async (req, res) => {
+    const { accountId, accountType } = req.body;
+    console.log('[delete-account] Request received:', { accountId, accountType });
+
+    if (!accountId || !accountType) {
+        return res.status(400).json({ error: 'accountId and accountType are required.' });
+    }
+    if (!['trainee', 'partner'].includes(accountType)) {
+        return res.status(400).json({ error: 'Invalid accountType.' });
+    }
+    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(accountId)) {
+        return res.status(400).json({ error: 'Invalid accountId format.' });
+    }
+
+    try {
+        // 1. Delete posts authored by this user (comments cascade via FK)
+        await sbDelete(supabaseAdmin.from('post_comments').delete().eq('author_id', accountId), 'post_comments by author');
+        await sbDelete(supabaseAdmin.from('job_posting_comments').delete().eq('author_id', accountId), 'job_posting_comments by author');
+        await sbDelete(supabaseAdmin.from('posts').delete().eq('author_id', accountId), 'posts by author');
+
+        // 2. Delete contact requests where user is sender or recipient
+        await sbDelete(supabaseAdmin.from('contact_requests').delete().eq('sender_id', accountId), 'contact_requests as sender');
+        await sbDelete(supabaseAdmin.from('contact_requests').delete().eq('recipient_id', accountId), 'contact_requests as recipient');
+
+        if (accountType === 'trainee') {
+            // 3a. Delete student-specific rows (FK children before parent)
+            await sbDelete(supabaseAdmin.from('student_competencies').delete().eq('student_id', accountId), 'student_competencies');
+            await sbDelete(supabaseAdmin.from('student_skills').delete().eq('student_id', accountId), 'student_skills');
+            await sbDelete(supabaseAdmin.from('student_interests').delete().eq('student_id', accountId), 'student_interests');
+            await sbDelete(supabaseAdmin.from('student_documents').delete().eq('student_id', accountId), 'student_documents');
+            await sbDelete(supabaseAdmin.from('job_applications').delete().eq('student_id', accountId), 'job_applications');
+            await sbDelete(supabaseAdmin.from('students').delete().eq('id', accountId), 'students');
+        } else {
+            // 3b. Delete partner-specific rows
+            const { data: partnerJobs, error: jobsErr } = await supabaseAdmin
+                .from('job_postings')
+                .select('id')
+                .eq('partner_id', accountId);
+            if (jobsErr && !['42P01', 'PGRST205', 'PGRST204', '42703'].includes(jobsErr.code)) {
+                throw new Error(`[delete-account] Failed to fetch partner jobs: ${jobsErr.message}`);
+            }
+            if (partnerJobs && partnerJobs.length > 0) {
+                const jobIds = partnerJobs.map(j => j.id);
+                await sbDelete(supabaseAdmin.from('job_applications').delete().in('job_id', jobIds), 'job_applications for partner jobs');
+                await sbDelete(supabaseAdmin.from('job_posting_comments').delete().in('job_posting_id', jobIds), 'job_posting_comments for partner jobs');
+                await sbDelete(supabaseAdmin.from('job_postings').delete().eq('partner_id', accountId), 'job_postings');
+            }
+            await sbDelete(supabaseAdmin.from('partner_verifications').delete().eq('partner_id', accountId), 'partner_verifications');
+            await sbDelete(supabaseAdmin.from('industry_partners').delete().eq('id', accountId), 'industry_partners');
+        }
+
+        // 4. Delete profile row
+        await sbDelete(supabaseAdmin.from('profiles').delete().eq('id', accountId), 'profiles');
+
+        // 5. Delete the auth user (removes login credentials)
+        const { error: authErr } = await supabaseAdmin.auth.admin.deleteUser(accountId);
+        if (authErr) {
+            console.warn('[delete-account] Could not delete auth user (may already be gone):', authErr.message);
+        } else {
+            console.log('[delete-account] Auth user deleted.');
+        }
+
+        console.log('[delete-account] Complete for:', accountId);
+        res.json({ success: true });
+    } catch (error) {
+        console.error('[delete-account] Aborted:', error.message);
+        res.status(500).json({ error: error.message });
+    }
+};
+
+app.post('/api/admin/delete-account', rateLimit, adminDeleteAccountHandler);
+app.delete('/api/admin/delete-account', rateLimit, adminDeleteAccountHandler);
 
 // Admin Update Student Endpoint (Bypass RLS)
 app.post('/api/admin/update-student', rateLimit, async (req, res) => {
@@ -182,6 +326,194 @@ app.post('/api/admin/update-student', rateLimit, async (req, res) => {
     } catch (error) {
         console.error('Admin update student error:', error);
         res.status(500).json({ error: 'Failed to update student.' });
+    }
+});
+
+const isColumnShapeError = (error) => {
+    const message = String(error?.message || '').toLowerCase();
+    return ['PGRST204', '42703'].includes(error?.code) || message.includes('column');
+};
+
+const toEmploymentDbValue = (value, opportunityType) => {
+    if (String(opportunityType || '').trim().toUpperCase() === 'OJT') return null;
+
+    const raw = String(value || '').trim().toLowerCase();
+    if (!raw) return null;
+
+    const map = {
+        'full-time': 'full_time',
+        'full time': 'full_time',
+        'full_time': 'full_time',
+        'part-time': 'part_time',
+        'part time': 'part_time',
+        'part_time': 'part_time',
+        contract: 'contract',
+        internship: 'internship',
+    };
+
+    return map[raw] || raw.replace(/\s+/g, '_').replace(/-/g, '_');
+};
+
+const toEmploymentUiValue = (value) => {
+    const raw = String(value || '').trim().toLowerCase();
+    if (!raw) return '';
+
+    if (raw === 'full_time' || raw === 'full-time' || raw === 'fulltime') return 'Full-time';
+    if (raw === 'part_time' || raw === 'part-time' || raw === 'parttime') return 'Part-time';
+    if (raw === 'contract') return 'Contract';
+    if (raw === 'internship') return 'Internship';
+
+    return String(value);
+};
+
+app.post('/api/partner/opportunities', uploadRateLimit, async (req, res) => {
+    const {
+        partnerId,
+        title,
+        opportunityType,
+        programId,
+        ncLevel,
+        description,
+        employmentType,
+        location,
+        salaryRange,
+        requiredCompetencies,
+        requiredSkills,
+        industry,
+        attachmentName,
+        attachmentType,
+        attachmentUrl,
+    } = req.body || {};
+
+    if (!partnerId || !title || !location) {
+        return res.status(400).json({ error: 'partnerId, title, and location are required.' });
+    }
+
+    try {
+        const normalizedComps = Array.isArray(requiredCompetencies)
+            ? requiredCompetencies.map(item => String(item || '').trim()).filter(Boolean)
+            : [];
+        const normalizedSkills = Array.isArray(requiredSkills)
+            ? requiredSkills.map(item => String(item || '').trim()).filter(Boolean)
+            : [];
+
+        const normalizedOpportunityType = String(opportunityType || 'Job').trim() || 'Job';
+        const normalizedEmploymentType = toEmploymentDbValue(employmentType, normalizedOpportunityType);
+
+        const commonPayload = {
+            partner_id: partnerId,
+            program_id: programId || null,
+            title: String(title || '').trim(),
+            company_name: null,
+            description: String(description || '').trim() || null,
+            requirements: normalizedComps.length > 0 ? normalizedComps : null,
+            location: String(location || '').trim(),
+            employment_type: normalizedEmploymentType,
+            source: 'partner',
+            source_url: String(attachmentUrl || '').trim() || null,
+            is_active: true,
+        };
+
+        const salaryNumbers = String(salaryRange || '')
+            .match(/\d[\d,]*/g)?.map(value => Number(value.replace(/,/g, '')))
+            .filter(value => Number.isFinite(value)) || [];
+
+        const legacyPayload = {
+            ...commonPayload,
+            salary_min: salaryNumbers[0] ?? null,
+            salary_max: salaryNumbers[1] ?? null,
+            slots: 1,
+        };
+
+        const extendedPayload = {
+            ...commonPayload,
+            opportunity_type: normalizedOpportunityType,
+            nc_level: String(ncLevel || '').trim() || null,
+            required_competencies: normalizedComps,
+            required_skills: normalizedSkills,
+            salary_range: String(salaryRange || '').trim() || null,
+            status: 'Open',
+            industry: String(industry || '').trim() || 'General',
+            attachment_name: String(attachmentName || '').trim() || null,
+            attachment_type: String(attachmentType || '').trim() || null,
+            attachment_url: String(attachmentUrl || '').trim() || null,
+        };
+
+        const attempts = [
+            extendedPayload,
+            {
+                ...extendedPayload,
+                attachment_name: undefined,
+                attachment_type: undefined,
+                attachment_url: undefined,
+            },
+            legacyPayload,
+        ];
+
+        let inserted = null;
+        let lastError = null;
+
+        for (const payload of attempts) {
+            const cleanPayload = Object.fromEntries(
+                Object.entries(payload).filter(([, value]) => value !== undefined)
+            );
+
+            const { data, error } = await supabaseAdmin
+                .from('job_postings')
+                .insert([cleanPayload])
+                .select('*, industry_partners(company_name), programs(name, competencies, description)')
+                .single();
+
+            if (!error) {
+                inserted = data;
+                break;
+            }
+
+            lastError = error;
+            if (isColumnShapeError(error)) {
+                continue;
+            }
+
+            throw error;
+        }
+
+        if (!inserted) {
+            throw lastError || new Error('Failed to insert job posting.');
+        }
+
+        const resolvedAttachmentUrl = inserted.attachment_url || inserted.source_url || String(attachmentUrl || '').trim() || null;
+        const fallbackAttachmentName = resolvedAttachmentUrl
+            ? decodeURIComponent(String(resolvedAttachmentUrl).split('/').pop()?.split('?')[0] || '')
+            : null;
+
+        const mapped = {
+            id: inserted.id,
+            partnerId: inserted.partner_id || partnerId,
+            companyName: inserted.company_name || inserted.industry_partners?.company_name || 'Company',
+            industry: inserted.industry || String(industry || '').trim() || 'General',
+            title: inserted.title,
+            opportunityType: inserted.opportunity_type || normalizedOpportunityType,
+            programId: inserted.program_id || programId || null,
+            ncLevel: inserted.nc_level || inserted.programs?.name || String(ncLevel || '').trim() || '',
+            requiredCompetencies: inserted.required_competencies || inserted.requirements || normalizedComps,
+            requiredSkills: inserted.required_skills || normalizedSkills,
+            description: inserted.description || '',
+            employmentType: toEmploymentUiValue(inserted.employment_type || normalizedEmploymentType || ''),
+            location: inserted.location || location,
+            salaryRange: inserted.salary_range || String(salaryRange || '').trim() || '',
+            slots: inserted.slots || 1,
+            status: inserted.status || 'Open',
+            datePosted: inserted.created_at?.split('T')[0] || new Date().toISOString().split('T')[0],
+            createdAt: inserted.created_at || new Date().toISOString(),
+            attachmentName: inserted.attachment_name || (fallbackAttachmentName || null),
+            attachmentType: inserted.attachment_type || String(attachmentType || '').trim() || null,
+            attachmentUrl: resolvedAttachmentUrl,
+        };
+
+        res.json({ success: true, job: mapped });
+    } catch (error) {
+        console.error('Partner opportunity create error:', error);
+        res.status(500).json({ error: error?.message || 'Failed to post opportunity.' });
     }
 });
 
@@ -467,7 +799,7 @@ app.post('/api/register-partner', rateLimit, async (req, res) => {
 });
 
 // ─── DOCUMENT UPLOAD ENDPOINT ────────────────────────────────────
-app.post('/api/documents/upload', rateLimit, async (req, res) => {
+app.post('/api/documents/upload', uploadRateLimit, async (req, res) => {
     const { traineeId, label, fileName, fileType, fileData } = req.body;
 
     if (!traineeId || !label || !fileName || !fileType || !fileData) {
@@ -620,7 +952,7 @@ app.delete('/api/documents/:docId', rateLimit, async (req, res) => {
 });
 
 // ─── PARTNER VERIFICATION DOCUMENT UPLOAD ────────────────────────
-app.post('/api/partner-verification/upload', rateLimit, async (req, res) => {
+app.post('/api/partner-verification/upload', uploadRateLimit, async (req, res) => {
     const { partnerId, documentType, label, fileName, fileType, fileData } = req.body;
 
     if (!partnerId || !documentType || !label || !fileName || !fileType || !fileData) {
@@ -756,15 +1088,20 @@ app.put('/api/partner-verification/status/:partnerId', rateLimit, async (req, re
     const { partnerId } = req.params;
     const { status } = req.body;
 
-    const validStatuses = ['pending', 'under_review', 'verified', 'rejected'];
-    if (!validStatuses.includes(status)) {
+    const validStatuses = ['pending', 'under_review', 'verified', 'rejected', null];
+    const hasStatusField = Object.prototype.hasOwnProperty.call(req.body || {}, 'status');
+    if (!hasStatusField || !validStatuses.includes(status)) {
         return res.status(400).json({ error: 'Invalid status.' });
     }
+
+    // DB constraint supports: pending | verified | rejected | null.
+    // Normalize UI status to DB-compatible value.
+    const normalizedStatus = status === 'under_review' ? 'pending' : status;
 
     try {
         const { error } = await supabaseAdmin
             .from('industry_partners')
-            .update({ verification_status: status, updated_at: new Date().toISOString() })
+            .update({ verification_status: normalizedStatus, updated_at: new Date().toISOString() })
             .eq('id', partnerId);
 
         if (error) {
@@ -772,8 +1109,8 @@ app.put('/api/partner-verification/status/:partnerId', rateLimit, async (req, re
             return res.status(400).json({ error: error.message });
         }
 
-        console.log(`✅ Partner ${partnerId} status updated to: ${status}`);
-        res.json({ success: true });
+        console.log(`✅ Partner ${partnerId} status updated to: ${normalizedStatus}`);
+        res.json({ success: true, status: normalizedStatus });
     } catch (err) {
         console.error('Partner status update error:', err);
         res.status(500).json({ error: 'Failed to update verification status.' });

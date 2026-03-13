@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useApp } from '../../context/AppContext';
 import {
     User, Briefcase, FileText, CheckCircle, Bell, ChevronDown, Search, Filter, MapPin, Clock, Building2,
-    Award, Send, CheckSquare, X, Eye, Plus, Target, Menu, Home, Settings, LogOut, ThumbsUp, MessageSquare, Share2, Bookmark,
+    Award, Send, CheckSquare, X, Eye, Plus, Target, Menu, Home, Settings, LogOut, MessageSquare, Heart, Bookmark,
     Trash2, Camera, Loader, GraduationCap, MoveRight, ExternalLink, ShieldCheck, Mail, Calendar, AlignLeft, Users, ChevronRight, Edit, Upload
 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
@@ -14,8 +14,27 @@ import { Routes, Route, useNavigate, useLocation, Navigate } from 'react-router-
 
 // ─── TIME AGO HELPER ──────────────────────────────────────────────
 const timeAgo = (dateStr) => {
+    const raw = String(dateStr || '').trim();
+    if (!raw) return 'Just now';
+
+    const hasTimeInfo = raw.includes('T') || /\d{1,2}:\d{2}/.test(raw);
     const now = new Date();
-    const date = new Date(dateStr);
+    const date = new Date(raw);
+    if (!Number.isFinite(date.getTime())) return 'Just now';
+
+    if (!hasTimeInfo) {
+        const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+        const postDay = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+        const dayDiff = Math.floor((today - postDay) / (24 * 60 * 60 * 1000));
+        if (dayDiff <= 0) return 'Today';
+        if (dayDiff === 1) return '1d ago';
+        if (dayDiff < 30) return `${dayDiff}d ago`;
+        const months = Math.floor(dayDiff / 30);
+        if (months < 12) return `${months}mo ago`;
+        const years = Math.floor(months / 12);
+        return `${years}y ago`;
+    }
+
     const seconds = Math.floor((now - date) / 1000);
     if (seconds < 60) return 'Just now';
     const minutes = Math.floor(seconds / 60);
@@ -28,6 +47,13 @@ const timeAgo = (dateStr) => {
     if (months < 12) return `${months}mo ago`;
     const years = Math.floor(months / 12);
     return `${years}y ago`;
+};
+
+const isImageAttachment = (attachmentUrl, attachmentType) => {
+    const mime = String(attachmentType || '').toLowerCase();
+    if (mime.startsWith('image/')) return true;
+    const cleanUrl = String(attachmentUrl || '').split('?')[0].toLowerCase();
+    return /\.(png|jpe?g|gif|webp|bmp|svg)$/.test(cleanUrl);
 };
 
 // ─── TOP NAVIGATION BAR (LinkedIn-style) ─────────────────────────
@@ -43,7 +69,7 @@ const LinkedInTopNav = ({ activePage, setActivePage }) => {
         { id: 'dashboard', label: 'Home', icon: <Home size={20} /> },
         { id: 'profile', label: 'Profile', icon: <User size={20} /> },
         { id: 'recommendations', label: 'Opportunities', icon: <Briefcase size={20} /> },
-        { id: 'applications', label: 'Applications', icon: <FileText size={20} /> },
+        { id: 'applications', label: 'My Applications', icon: <FileText size={20} /> },
     ];
 
     return (
@@ -157,7 +183,7 @@ const LinkedInTopNav = ({ activePage, setActivePage }) => {
                     {navItems.map(item => (
                         <button
                             key={item.id}
-                            className={`ln - mobile - nav - item ${activePage === item.id ? 'active' : ''} `}
+                            className={`ln-mobile-nav-item ${activePage === item.id ? 'active' : ''}`}
                             onClick={() => { setActivePage(item.id); setMobileMenuOpen(false); }}
                         >
                             {item.icon}
@@ -299,7 +325,7 @@ const ProgressBar = ({ value, showLabel = true }) => {
 
 // ─── PAGE 1: DASHBOARD HOME (LinkedIn Feed-style) ───────────────
 const TraineeDashboardHome = ({ setActivePage }) => {
-    const { currentUser, trainees, jobPostings, applications, getTraineeRecommendedJobs, applyToJob, posts, createPost, updatePost, deletePost, partners } = useApp();
+    const { currentUser, trainees, jobPostings, applications, getTraineeRecommendedJobs, applyToJob, posts, createPost, updatePost, deletePost, partners, addPostComment, getPostComments, addJobPostingComment, getJobPostingComments, updateJobPostingComment, deleteJobPostingComment, sendContactRequest } = useApp();
     const trainee = currentUser || trainees[0];
     const myApps = applications.filter(a => a.traineeId === trainee?.id);
     const recJobs = getTraineeRecommendedJobs(trainee?.id);
@@ -318,7 +344,103 @@ const TraineeDashboardHome = ({ setActivePage }) => {
     const [postType, setPostType] = useState('general');
     const [selectedFile, setSelectedFile] = useState(null);
     const [filePreview, setFilePreview] = useState(null);
+    const [commentModalPost, setCommentModalPost] = useState(null);
+    const [commentInput, setCommentInput] = useState('');
+    const [commentSubmitting, setCommentSubmitting] = useState(false);
+    const [contactTarget, setContactTarget] = useState(null);
+    const [contactMessage, setContactMessage] = useState('');
+    const [contactAttachment, setContactAttachment] = useState(null);
+    const [contactSubmitting, setContactSubmitting] = useState(false);
+    const [jobMediaModal, setJobMediaModal] = useState(null);
+    const [jobMediaCommentInput, setJobMediaCommentInput] = useState('');
+    const [editingJobMediaCommentId, setEditingJobMediaCommentId] = useState(null);
+    const [jobMediaEditInput, setJobMediaEditInput] = useState('');
+    const [jobMediaCommentSaving, setJobMediaCommentSaving] = useState(false);
+    const [jobMediaCommentMenuId, setJobMediaCommentMenuId] = useState(null);
     const fileInputRef = useRef(null);
+    const contactFileInputRef = useRef(null);
+    const jobMediaCommentInputRef = useRef(null);
+
+    const openJobMediaModal = (job, focusComment = false) => {
+        setJobMediaModal(job);
+        setJobMediaCommentInput('');
+        setEditingJobMediaCommentId(null);
+        setJobMediaEditInput('');
+        setJobMediaCommentMenuId(null);
+        if (focusComment) {
+            setTimeout(() => jobMediaCommentInputRef.current?.focus(), 0);
+        }
+    };
+
+    const closeJobMediaModal = () => {
+        setJobMediaModal(null);
+        setJobMediaCommentInput('');
+        setEditingJobMediaCommentId(null);
+        setJobMediaEditInput('');
+        setJobMediaCommentMenuId(null);
+    };
+
+    const submitJobMediaComment = async () => {
+        if (!jobMediaModal) return;
+        const trimmed = jobMediaCommentInput.trim();
+        if (!trimmed) return;
+
+        const result = await addJobPostingComment(jobMediaModal.id, trimmed);
+        if (!result.success) {
+            alert(result.error || 'Failed to add comment.');
+            return;
+        }
+
+        setJobMediaCommentInput('');
+    };
+
+    const startEditingJobMediaComment = (comment) => {
+        if (!comment || comment.author_id !== currentUser?.id) return;
+        setEditingJobMediaCommentId(comment.id);
+        setJobMediaEditInput(comment.content || '');
+    };
+
+    const cancelEditingJobMediaComment = () => {
+        setEditingJobMediaCommentId(null);
+        setJobMediaEditInput('');
+    };
+
+    const saveEditedJobMediaComment = async () => {
+        if (!editingJobMediaCommentId) return;
+        const trimmed = jobMediaEditInput.trim();
+        if (!trimmed) {
+            alert('Comment cannot be empty.');
+            return;
+        }
+
+        setJobMediaCommentSaving(true);
+        const result = await updateJobPostingComment(editingJobMediaCommentId, trimmed);
+        setJobMediaCommentSaving(false);
+        if (!result.success) {
+            alert(result.error || 'Failed to update comment.');
+            return;
+        }
+
+        setEditingJobMediaCommentId(null);
+        setJobMediaEditInput('');
+    };
+
+    const handleDeleteJobMediaComment = async (commentId) => {
+        if (!commentId) return;
+        const confirmed = window.confirm('Delete this comment?');
+        if (!confirmed) return;
+
+        const result = await deleteJobPostingComment(commentId);
+        if (!result.success) {
+            alert(result.error || 'Failed to delete comment.');
+            return;
+        }
+
+        if (editingJobMediaCommentId === commentId) {
+            setEditingJobMediaCommentId(null);
+            setJobMediaEditInput('');
+        }
+    };
 
     const handleFileChange = (e) => {
         const file = e.target.files[0];
@@ -376,11 +498,113 @@ const TraineeDashboardHome = ({ setActivePage }) => {
     const unifiedFeed = [
         ...posts.map(p => ({ ...p, feedType: 'post' })),
         ...recJobs.map(j => ({ ...j, feedType: 'job' }))
-    ].sort((a, b) => new Date(b.created_at || b.datePosted) - new Date(a.created_at || a.datePosted));
+    ].sort((a, b) => new Date(b.created_at || b.createdAt || b.datePosted) - new Date(a.created_at || a.createdAt || a.datePosted));
 
-    const handleApply = async (jobId) => {
-        const result = await applyToJob(trainee?.id, jobId);
-        if (!result.success) alert(result.error);
+    const handleApply = () => {
+        setActivePage('recommendations');
+    };
+
+    const openContactModal = (target) => {
+        if (!target || target.recipientId === currentUser?.id) return;
+        setContactTarget(target);
+        setContactMessage('');
+        setContactAttachment(null);
+        if (contactFileInputRef.current) contactFileInputRef.current.value = '';
+    };
+
+    const closeContactModal = () => {
+        setContactTarget(null);
+        setContactMessage('');
+        setContactAttachment(null);
+        if (contactFileInputRef.current) contactFileInputRef.current.value = '';
+    };
+
+    const handleContactAttachmentChange = (event) => {
+        const file = event.target.files?.[0] || null;
+        setContactAttachment(file);
+    };
+
+    const handleSubmitContact = async () => {
+        if (!contactTarget) return;
+
+        const trimmed = contactMessage.trim();
+        const requiresResume = contactTarget.recipientType === 'industry_partner';
+
+        if (!trimmed) {
+            alert('Message is required.');
+            return;
+        }
+
+        if (requiresResume && !contactAttachment) {
+            alert('Resume upload is required when contacting a partner.');
+            return;
+        }
+
+        setContactSubmitting(true);
+
+        let attachmentUrl = null;
+        let attachmentName = null;
+
+        try {
+            if (contactAttachment) {
+                const path = `contact-files/${trainee.id}/${Date.now()}_${contactAttachment.name}`;
+                const { error: uploadError } = await supabase.storage
+                    .from('registration-uploads')
+                    .upload(path, contactAttachment, { contentType: contactAttachment.type, upsert: true });
+
+                if (uploadError) throw uploadError;
+
+                const { data: urlData } = supabase.storage.from('registration-uploads').getPublicUrl(path);
+                attachmentUrl = urlData?.publicUrl || null;
+                attachmentName = contactAttachment.name;
+            }
+
+            const result = await sendContactRequest({
+                recipientId: contactTarget.recipientId,
+                recipientType: contactTarget.recipientType,
+                postId: contactTarget.postId || null,
+                jobPostingId: contactTarget.jobPostingId || null,
+                message: trimmed,
+                attachmentName,
+                attachmentUrl,
+                attachmentKind: requiresResume ? 'resume' : 'document',
+            });
+
+            if (!result.success) {
+                alert(result.error || 'Failed to send contact request.');
+                return;
+            }
+
+            closeContactModal();
+            alert('Contact request sent.');
+        } catch (err) {
+            console.error('Contact submit error:', err);
+            alert(err.message || 'Failed to send contact request.');
+        } finally {
+            setContactSubmitting(false);
+        }
+    };
+
+    const handleCommentOnPost = (post) => {
+        setCommentModalPost(post);
+        setCommentInput('');
+    };
+
+    const handleSubmitComment = async () => {
+        if (!commentModalPost) return;
+        const trimmed = commentInput.trim();
+        if (!trimmed) return;
+
+        setCommentSubmitting(true);
+        const result = await addPostComment(commentModalPost.id, trimmed);
+        setCommentSubmitting(false);
+
+        if (!result.success) {
+            alert(result.error || 'Failed to add comment.');
+            return;
+        }
+
+        setCommentInput('');
     };
 
     const handleEditPost = (post) => {
@@ -417,6 +641,20 @@ const TraineeDashboardHome = ({ setActivePage }) => {
         { label: 'Status', value: trainee?.employmentStatus || 'Unemployed', icon: <Briefcase size={20} />, color: '#b24020' },
         { label: 'Certifications', value: trainee?.certifications?.length || 0, icon: <Award size={20} />, color: '#7c3aed' },
     ];
+
+    const modalComments = commentModalPost ? getPostComments(commentModalPost.id) : [];
+    const modalAuthor = commentModalPost
+        ? (commentModalPost.author_id === currentUser?.id
+            ? currentUser
+            : commentModalPost.author_type === 'student'
+                ? trainees.find(t => t.id === commentModalPost.author_id)
+                : partners.find(p => p.id === commentModalPost.author_id))
+        : null;
+    const modalAuthorName = modalAuthor?.name || modalAuthor?.companyName || 'Community User';
+    const canContactModalAuthor = Boolean(commentModalPost && commentModalPost.author_id !== currentUser?.id);
+    const contactRequiresResume = contactTarget?.recipientType === 'industry_partner';
+    const contactRecipientName = contactTarget?.recipientName || 'Recipient';
+    const jobMediaComments = jobMediaModal ? getJobPostingComments(jobMediaModal.id) : [];
 
     return (
         <div className="ln-three-col">
@@ -588,6 +826,7 @@ const TraineeDashboardHome = ({ setActivePage }) => {
                     {unifiedFeed.map(item => {
                         if (item.feedType === 'job') {
                             const applied = myApps.some(a => a.jobId === item.id);
+                            const jobComments = getJobPostingComments(item.id);
                             return (
                                 <div key={`job-${item.id}`} className="ln-card ln-feed-card" style={{ marginBottom: 0 }}>
                                     <div className="ln-feed-card-header">
@@ -602,16 +841,47 @@ const TraineeDashboardHome = ({ setActivePage }) => {
                                     <div className="ln-feed-content">
                                         <h4 style={{ fontSize: 15, fontWeight: 700, marginBottom: 4 }}>{item.title}</h4>
                                         <p style={{ fontSize: 13, color: 'rgba(0,0,0,0.6)', marginBottom: 8 }}>{item.description.substring(0, 150)}...</p>
+                                        {item.attachmentUrl && isImageAttachment(item.attachmentUrl, item.attachmentType) && (
+                                            <button type="button" onClick={() => openJobMediaModal(item)} style={{ display: 'block', marginBottom: 10, padding: 0, border: 'none', background: 'transparent', width: '100%', cursor: 'pointer' }}>
+                                                <img
+                                                    src={item.attachmentUrl}
+                                                    alt={item.attachmentName || 'Opportunity attachment'}
+                                                    style={{ width: '100%', maxHeight: 260, objectFit: 'cover', borderRadius: 10, border: '1px solid #e2e8f0' }}
+                                                />
+                                            </button>
+                                        )}
+                                        {item.attachmentUrl && !isImageAttachment(item.attachmentUrl, item.attachmentType) && (
+                                            <a href={item.attachmentUrl} target="_blank" rel="noreferrer" style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12, color: '#2563eb', marginBottom: 8, textDecoration: 'none' }}>
+                                                <FileText size={13} /> {item.attachmentName || decodeURIComponent(String(item.attachmentUrl).split('/').pop()?.split('?')[0] || 'Attachment')}
+                                            </a>
+                                        )}
                                         <div className="ln-match-row">
                                             <div className="ln-match-bar" style={{ flex: 1 }}>
                                                 <div className={`ln-match-fill ${item.matchRate >= 70 ? 'high' : item.matchRate >= 40 ? 'mid' : 'low'}`} style={{ width: `${item.matchRate}%` }} />
                                             </div>
                                             <span className="ln-match-pct" style={{ fontSize: 12 }}>{item.matchRate}% match</span>
                                         </div>
+                                        {jobComments.length > 0 && (
+                                            <div style={{ marginTop: 10, fontSize: 12, color: '#64748b', display: 'flex', gap: 14 }}>
+                                                {jobComments.length > 0 && <span>{jobComments.length} comment{jobComments.length === 1 ? '' : 's'}</span>}
+                                            </div>
+                                        )}
                                     </div>
                                     <div className="ln-feed-actions" style={{ borderTop: '1px solid #f3f3f3', padding: '8px 12px' }}>
-                                        <button className="ln-feed-action-btn" onClick={() => handleApply(item.id)} disabled={applied}>
-                                            {applied ? <><CheckCircle size={14} /> Applied</> : <><Send size={14} /> Apply Now</>}
+                                        <button
+                                            className="ln-feed-action-btn"
+                                            onClick={() => openContactModal({
+                                                recipientId: item.partnerId,
+                                                recipientType: 'industry_partner',
+                                                recipientName: item.companyName,
+                                                jobPostingId: item.id,
+                                                sourceLabel: item.title,
+                                            })}
+                                        >
+                                            <MessageSquare size={14} /> {applied ? 'Contact Again' : 'Contact'}
+                                        </button>
+                                        <button className="ln-feed-action-btn" onClick={() => openJobMediaModal(item, true)}>
+                                            <MessageSquare size={14} /> Comment ({jobComments.length})
                                         </button>
                                         <button className="ln-feed-action-btn" onClick={() => setActivePage('recommendations')}>
                                             <Eye size={14} /> View Details
@@ -629,6 +899,16 @@ const TraineeDashboardHome = ({ setActivePage }) => {
                             const authorName = author?.name || author?.companyName || 'Unknown User';
                             const authorPhoto = author?.photo || author?.company_logo_url;
                             const authorInitial = authorName.charAt(0) || '?';
+                            const comments = getPostComments(item.id);
+                            const getCommentAuthorName = (comment) => {
+                                if (comment.author_id === currentUser?.id) return currentUser.name || trainee?.name || 'You';
+                                if (comment.author_type === 'student') {
+                                    const student = trainees.find(t => t.id === comment.author_id);
+                                    return student?.name || 'Trainee';
+                                }
+                                const company = partners.find(p => p.id === comment.author_id);
+                                return company?.companyName || 'Industry Partner';
+                            };
 
                             return (
                                 <div key={`post-${item.id}`} className="ln-card ln-feed-card" style={{ marginBottom: 0 }}>
@@ -758,11 +1038,35 @@ const TraineeDashboardHome = ({ setActivePage }) => {
                                                 <span key={tag} style={{ color: '#0a66c2', fontSize: 12, fontWeight: 500 }}>#{tag.replace(/\s+/g, '')}</span>
                                             ))}
                                         </div>
+                                        {comments.length > 0 && (
+                                            <div style={{ marginTop: 12, paddingTop: 10, borderTop: '1px solid #f1f5f9', display: 'flex', flexDirection: 'column', gap: 8 }}>
+                                                {comments.slice(-3).map(comment => (
+                                                    <div key={comment.id} style={{ fontSize: 12.5, color: '#475569', lineHeight: 1.4 }}>
+                                                        <span style={{ fontWeight: 700, color: '#1e293b' }}>{getCommentAuthorName(comment)}:</span> {comment.content}
+                                                    </div>
+                                                ))}
+                                                {comments.length > 3 && (
+                                                    <div style={{ fontSize: 11, color: '#94a3b8' }}>+{comments.length - 3} more comments</div>
+                                                )}
+                                            </div>
+                                        )}
                                     </div>
                                     <div className="ln-feed-actions" style={{ borderTop: '1px solid #f3f3f3', padding: '4px 12px' }}>
-                                        <button className="ln-feed-action-btn"><ThumbsUp size={16} /> Like</button>
-                                        <button className="ln-feed-action-btn"><MessageSquare size={16} /> Comment</button>
-                                        <button className="ln-feed-action-btn"><Share2 size={16} /> Share</button>
+                                        <button
+                                            className="ln-feed-action-btn"
+                                            onClick={() => openContactModal({
+                                                recipientId: item.author_id,
+                                                recipientType: item.author_type,
+                                                recipientName: authorName,
+                                                postId: item.id,
+                                                sourceLabel: item.content,
+                                            })}
+                                            disabled={isOwnPost}
+                                            style={isOwnPost ? { opacity: 0.55, cursor: 'not-allowed' } : undefined}
+                                        >
+                                            <MessageSquare size={16} /> {isOwnPost ? 'Your Post' : 'Contact'}
+                                        </button>
+                                        <button className="ln-feed-action-btn" onClick={() => handleCommentOnPost(item)}><MessageSquare size={16} /> Comment ({comments.length})</button>
                                     </div>
                                 </div>
                             );
@@ -843,6 +1147,361 @@ const TraineeDashboardHome = ({ setActivePage }) => {
                             >
                                 Save
                             </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {jobMediaModal && (
+                <div className="modal-overlay" style={{ background: 'rgba(0, 0, 0, 0.82)' }} onClick={closeJobMediaModal}>
+                    <div
+                        className="ln-modal"
+                        onClick={e => e.stopPropagation()}
+                        style={{ width: '96%', maxWidth: 1240, height: '90vh', maxHeight: 920, padding: 0, overflow: 'hidden', display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) 360px', borderRadius: 14, background: '#0f172a' }}
+                    >
+                        <div style={{ background: '#000', display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative' }}>
+                            <button
+                                onClick={closeJobMediaModal}
+                                style={{ position: 'absolute', top: 12, left: 12, width: 34, height: 34, borderRadius: '50%', border: 'none', background: 'rgba(17,24,39,0.7)', color: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                            >
+                                <X size={18} />
+                            </button>
+                            {jobMediaModal.attachmentUrl && isImageAttachment(jobMediaModal.attachmentUrl, jobMediaModal.attachmentType) ? (
+                                <img src={jobMediaModal.attachmentUrl} alt={jobMediaModal.attachmentName || 'Opportunity media'} style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
+                            ) : jobMediaModal.attachmentUrl ? (
+                                <a href={jobMediaModal.attachmentUrl} target="_blank" rel="noreferrer" style={{ color: '#93c5fd', textDecoration: 'none', display: 'inline-flex', gap: 8, alignItems: 'center', background: '#111827', border: '1px solid #334155', borderRadius: 10, padding: '12px 14px' }}>
+                                    <FileText size={18} />
+                                    {jobMediaModal.attachmentName || 'Open attachment'}
+                                </a>
+                            ) : (
+                                <div style={{ color: '#94a3b8', fontSize: 13 }}>No media attachment for this opportunity.</div>
+                            )}
+                        </div>
+
+                        <div style={{ background: '#ffffff', display: 'flex', flexDirection: 'column', minHeight: 0 }}>
+                            <div style={{ padding: '14px 16px', borderBottom: '1px solid #e5e7eb' }}>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 10 }}>
+                                    <div>
+                                        <div style={{ fontSize: 14, fontWeight: 700, color: '#0f172a' }}>{jobMediaModal.companyName}</div>
+                                        <div style={{ fontSize: 12, color: '#64748b', marginTop: 2 }}>{jobMediaModal.industry} • {jobMediaModal.location} • {timeAgo(jobMediaModal.created_at || jobMediaModal.createdAt || jobMediaModal.datePosted)}</div>
+                                        <div style={{ marginTop: 8, fontSize: 16, fontWeight: 700, color: '#111827' }}>{jobMediaModal.title}</div>
+                                        <div style={{ marginTop: 4, fontSize: 13, color: '#475569', whiteSpace: 'pre-wrap' }}>{jobMediaModal.description}</div>
+                                    </div>
+                                    <button
+                                        onClick={closeJobMediaModal}
+                                        style={{ width: 32, height: 32, borderRadius: '50%', border: '1px solid #d1d5db', background: '#fff', color: '#475569', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}
+                                        aria-label="Close"
+                                    >
+                                        <X size={16} />
+                                    </button>
+                                </div>
+                            </div>
+
+                            <div style={{ padding: '10px 16px', borderBottom: '1px solid #e5e7eb', display: 'flex', justifyContent: 'space-between', fontSize: 12, color: '#64748b' }}>
+                                <span>{jobMediaComments.length} comments</span>
+                            </div>
+
+                            <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: 6, padding: 10, borderBottom: '1px solid #e5e7eb' }}>
+                                <button className="ln-feed-action-btn" onClick={() => jobMediaCommentInputRef.current?.focus()} style={{ justifyContent: 'center' }}>
+                                    <MessageSquare size={15} /> Comment
+                                </button>
+                            </div>
+
+                            <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: '12px 16px', display: 'flex', flexDirection: 'column', gap: 10 }}>
+                                {jobMediaComments.length > 0 ? jobMediaComments.map(comment => {
+                                    const commentAuthorName = comment.author_id === currentUser?.id
+                                        ? (currentUser?.name || trainee?.name || 'You')
+                                        : comment.author_type === 'student'
+                                            ? (trainees.find(t => t.id === comment.author_id)?.name || 'Trainee')
+                                            : (partners.find(p => p.id === comment.author_id)?.companyName || 'Industry Partner');
+                                    const isOwnComment = comment.author_id === currentUser?.id;
+                                    const isEditing = editingJobMediaCommentId === comment.id;
+                                    const isMenuOpen = jobMediaCommentMenuId === comment.id;
+
+                                    return (
+                                        <div key={comment.id} style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 10, padding: '8px 10px' }}>
+                                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8 }}>
+                                                <div style={{ fontSize: 12, fontWeight: 700, color: '#111827' }}>{commentAuthorName}</div>
+                                                {isOwnComment && !isEditing && (
+                                                    <div style={{ position: 'relative' }}>
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => setJobMediaCommentMenuId(isMenuOpen ? null : comment.id)}
+                                                            style={{ border: 'none', background: 'transparent', color: '#94a3b8', cursor: 'pointer', padding: '0 4px', fontSize: 18, lineHeight: 1, borderRadius: 4 }}
+                                                            aria-label="Comment options"
+                                                        >
+                                                            ···
+                                                        </button>
+                                                        {isMenuOpen && (
+                                                            <div style={{ position: 'absolute', right: 0, top: '100%', zIndex: 200, background: '#fff', border: '1px solid #e2e8f0', borderRadius: 8, boxShadow: '0 4px 14px rgba(0,0,0,0.13)', minWidth: 110, padding: '4px 0' }}>
+                                                                <button type="button" onClick={() => { startEditingJobMediaComment(comment); setJobMediaCommentMenuId(null); }} style={{ display: 'block', width: '100%', textAlign: 'left', border: 'none', background: 'transparent', padding: '8px 14px', fontSize: 13, fontWeight: 600, color: '#334155', cursor: 'pointer' }}>
+                                                                    Edit
+                                                                </button>
+                                                                <button type="button" onClick={() => { handleDeleteJobMediaComment(comment.id); setJobMediaCommentMenuId(null); }} style={{ display: 'block', width: '100%', textAlign: 'left', border: 'none', background: 'transparent', padding: '8px 14px', fontSize: 13, fontWeight: 600, color: '#b91c1c', cursor: 'pointer' }}>
+                                                                    Delete
+                                                                </button>
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                )}
+                                            </div>
+                                            {isEditing ? (
+                                                <div style={{ marginTop: 6, display: 'flex', flexDirection: 'column', gap: 8 }}>
+                                                    <textarea
+                                                        value={jobMediaEditInput}
+                                                        onChange={e => setJobMediaEditInput(e.target.value)}
+                                                        maxLength={1000}
+                                                        style={{ width: '100%', minHeight: 72, border: '1px solid #cbd5e1', borderRadius: 8, padding: '8px 10px', fontSize: 13, fontFamily: 'inherit', resize: 'vertical', color: '#334155' }}
+                                                    />
+                                                    <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+                                                        <button type="button" onClick={cancelEditingJobMediaComment} disabled={jobMediaCommentSaving} style={{ border: '1px solid #cbd5e1', background: '#fff', color: '#334155', borderRadius: 9999, padding: '5px 12px', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
+                                                            Cancel
+                                                        </button>
+                                                        <button type="button" onClick={saveEditedJobMediaComment} disabled={!jobMediaEditInput.trim() || jobMediaCommentSaving} style={{ border: 'none', background: '#0a66c2', color: '#fff', borderRadius: 9999, padding: '5px 12px', fontSize: 12, fontWeight: 600, cursor: !jobMediaEditInput.trim() || jobMediaCommentSaving ? 'not-allowed' : 'pointer', opacity: !jobMediaEditInput.trim() || jobMediaCommentSaving ? 0.6 : 1 }}>
+                                                            {jobMediaCommentSaving ? 'Saving...' : 'Save'}
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            ) : (
+                                                <div style={{ fontSize: 13, color: '#334155', whiteSpace: 'pre-wrap' }}>{comment.content}</div>
+                                            )}
+                                            <div style={{ marginTop: 3, fontSize: 11, color: '#94a3b8' }}>{timeAgo(comment.created_at || comment.createdAt)}</div>
+                                        </div>
+                                    );
+                                }) : (
+                                    <div style={{ fontSize: 13, color: '#94a3b8', textAlign: 'center', marginTop: 20 }}>No comments yet.</div>
+                                )}
+                            </div>
+
+                            <div style={{ borderTop: '1px solid #e5e7eb', padding: 10, display: 'flex', gap: 8, alignItems: 'center' }}>
+                                <input
+                                    ref={jobMediaCommentInputRef}
+                                    value={jobMediaCommentInput}
+                                    onChange={e => setJobMediaCommentInput(e.target.value)}
+                                    maxLength={1000}
+                                    placeholder={`Comment as ${currentUser?.name || trainee?.name || 'You'}`}
+                                    style={{ flex: 1, border: '1px solid #cbd5e1', borderRadius: 9999, padding: '10px 12px', fontSize: 13 }}
+                                />
+                                <button className="ln-btn ln-btn-primary" onClick={submitJobMediaComment} disabled={!jobMediaCommentInput.trim()}>
+                                    <Send size={14} /> Send
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {contactTarget && (
+                <div className="modal-overlay" onClick={closeContactModal}>
+                    <div className="ln-modal" onClick={e => e.stopPropagation()} style={{ width: '100%', maxWidth: 560, background: '#ffffff', color: '#0f172a', borderRadius: 18, padding: 0, overflow: 'hidden' }}>
+                        <div style={{ padding: '18px 22px', borderBottom: '1px solid #e5e7eb', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <div>
+                                <div style={{ fontSize: 20, fontWeight: 800 }}>Contact {contactRecipientName}</div>
+                                <div style={{ marginTop: 4, fontSize: 13, color: '#64748b' }}>
+                                    {contactRequiresResume ? 'Send a message and attach your resume.' : 'Send a message and optionally attach a document.'}
+                                </div>
+                            </div>
+                            <button className="ln-btn-icon" onClick={closeContactModal}><X size={18} /></button>
+                        </div>
+
+                        <div style={{ padding: 22, display: 'flex', flexDirection: 'column', gap: 16 }}>
+                            <div style={{ padding: '12px 14px', background: '#f8fafc', borderRadius: 12, border: '1px solid #e2e8f0' }}>
+                                <div style={{ fontSize: 12, fontWeight: 700, letterSpacing: 0.3, textTransform: 'uppercase', color: '#64748b', marginBottom: 6 }}>Context</div>
+                                <div style={{ fontSize: 14, color: '#0f172a', whiteSpace: 'pre-wrap' }}>{contactTarget.sourceLabel || 'Community post contact'}</div>
+                            </div>
+
+                            <div>
+                                <label style={{ display: 'block', fontSize: 13, fontWeight: 700, color: '#334155', marginBottom: 8 }}>Message</label>
+                                <textarea
+                                    value={contactMessage}
+                                    onChange={e => setContactMessage(e.target.value)}
+                                    maxLength={1000}
+                                    placeholder={`Write your message to ${contactRecipientName}...`}
+                                    style={{ width: '100%', minHeight: 130, borderRadius: 14, border: '1px solid #cbd5e1', padding: '14px 16px', resize: 'vertical', outline: 'none', fontFamily: 'inherit', fontSize: 14, lineHeight: 1.5, background: '#ffffff', color: '#0f172a' }}
+                                />
+                                <div style={{ marginTop: 6, fontSize: 12, color: '#94a3b8', textAlign: 'right' }}>{contactMessage.length}/1000</div>
+                            </div>
+
+                            <div>
+                                <label style={{ display: 'block', fontSize: 13, fontWeight: 700, color: '#334155', marginBottom: 8 }}>
+                                    {contactRequiresResume ? 'Resume Upload' : 'Document Upload'}
+                                </label>
+                                <input ref={contactFileInputRef} type="file" onChange={handleContactAttachmentChange} style={{ display: 'none' }} />
+                                <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+                                    <button type="button" className="ln-btn ln-btn-outline" onClick={() => contactFileInputRef.current?.click()}>
+                                        <Upload size={14} /> {contactRequiresResume ? 'Upload Resume' : 'Choose File'}
+                                    </button>
+                                    <span style={{ fontSize: 13, color: contactAttachment ? '#0f172a' : '#64748b' }}>
+                                        {contactAttachment ? contactAttachment.name : (contactRequiresResume ? 'Resume is required.' : 'No file selected.')}
+                                    </span>
+                                </div>
+                                <div style={{ marginTop: 8, fontSize: 12, color: '#64748b' }}>
+                                    {contactRequiresResume ? 'Required for student-to-partner contact.' : 'Optional for this contact type.'}
+                                </div>
+                            </div>
+                        </div>
+
+                        <div style={{ padding: '16px 22px', borderTop: '1px solid #e5e7eb', display: 'flex', justifyContent: 'flex-end', gap: 10, background: '#ffffff' }}>
+                            <button className="ln-btn ln-btn-outline" onClick={closeContactModal} disabled={contactSubmitting}>Cancel</button>
+                            <button className="ln-btn ln-btn-primary" onClick={handleSubmitContact} disabled={contactSubmitting || !contactMessage.trim() || (contactRequiresResume && !contactAttachment)}>
+                                <Send size={14} /> {contactSubmitting ? 'Sending...' : 'Send Contact'}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {commentModalPost && (
+                <div className="modal-overlay" style={{ background: 'rgba(0, 0, 0, 0.78)', backdropFilter: 'blur(2px)' }} onClick={() => setCommentModalPost(null)}>
+                    <div
+                        className="ln-modal"
+                        onClick={e => e.stopPropagation()}
+                        style={{
+                            width: '96%',
+                            maxWidth: 740,
+                            height: '92vh',
+                            maxHeight: 940,
+                            padding: 0,
+                            overflow: 'hidden',
+                            display: 'flex',
+                            flexDirection: 'column',
+                            background: '#1f2329',
+                            border: '1px solid #343a40',
+                            borderRadius: 16,
+                            color: '#e4e6eb'
+                        }}
+                    >
+                        <div style={{ height: 60, borderBottom: '1px solid #343a40', position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 36, fontWeight: 700, color: '#f1f5f9' }}>
+                            {modalAuthorName}'s Post
+                            <button
+                                onClick={() => setCommentModalPost(null)}
+                                style={{ position: 'absolute', right: 12, top: 12, width: 36, height: 36, borderRadius: '50%', border: 'none', background: '#3a3f45', color: '#e5e7eb', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                            >
+                                <X size={20} />
+                            </button>
+                        </div>
+
+                        <div style={{ flex: '0 0 56%', minHeight: 320, display: 'flex', flexDirection: 'column', borderBottom: '1px solid #343a40' }}>
+                            <div style={{ padding: '10px 12px', display: 'flex', alignItems: 'center', gap: 10 }}>
+                                <div className="ln-feed-avatar" style={{ width: 34, height: 34 }}>
+                                    {(modalAuthor?.photo || modalAuthor?.company_logo_url)
+                                        ? <img src={modalAuthor.photo || modalAuthor.company_logo_url} alt="" style={{ width: '100%', height: '100%', borderRadius: '50%', objectFit: 'cover' }} />
+                                        : (modalAuthorName?.charAt(0) || 'U')}
+                                </div>
+                                <div>
+                                    <div style={{ fontWeight: 700, fontSize: 13.5, color: '#f1f5f9' }}>{modalAuthorName}</div>
+                                    <div style={{ fontSize: 11.5, color: '#9ca3af' }}>{timeAgo(commentModalPost.created_at)}</div>
+                                </div>
+                            </div>
+
+                            <div style={{ padding: '0 12px 10px', color: '#e5e7eb', fontSize: 14.5, whiteSpace: 'pre-wrap', lineHeight: 1.5 }}>
+                                {commentModalPost.content}
+                            </div>
+
+                            <div style={{ flex: 1, minHeight: 0, background: '#111418', borderTop: '1px solid #343a40', borderBottom: '1px solid #343a40', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
+                                {commentModalPost.media_url ? (
+                                    commentModalPost.media_url.match(/\.(jpg|jpeg|png|gif|webp)$/i) ? (
+                                        <img src={commentModalPost.media_url} alt="Post media" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
+                                    ) : (
+                                        <a
+                                            href={commentModalPost.media_url}
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            style={{ minWidth: 260, minHeight: 120, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 10, color: '#dbeafe', background: '#2c3138', border: '1px solid #4b5563', borderRadius: 12, padding: '14px 18px', textDecoration: 'none', fontWeight: 600, fontSize: 13 }}
+                                        >
+                                            <FileText size={28} />
+                                            Open attached document
+                                        </a>
+                                    )
+                                ) : (
+                                    <div style={{ width: '100%', height: '100%' }} />
+                                )}
+                            </div>
+
+                            <div style={{ padding: '8px 12px', borderTop: '1px solid #343a40' }}>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', color: '#b6bec9', fontSize: 12.5, marginBottom: 8 }}>
+                                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}><Heart size={14} fill="#ef4444" color="#ef4444" /> {modalComments.length} comment{modalComments.length === 1 ? '' : 's'}</span>
+                                    <span>{commentModalPost.media_url ? '1 attachment' : 'No attachment'}</span>
+                                </div>
+                                <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: 6 }}>
+                                    <button
+                                        onClick={() => canContactModalAuthor && openContactModal({
+                                            recipientId: commentModalPost.author_id,
+                                            recipientType: commentModalPost.author_type,
+                                            recipientName: modalAuthorName,
+                                            postId: commentModalPost.id,
+                                            sourceLabel: commentModalPost.content,
+                                        })}
+                                        disabled={!canContactModalAuthor}
+                                        style={{ background: canContactModalAuthor ? '#ffffff' : '#2d333b', border: 'none', color: canContactModalAuthor ? '#111827' : '#9ca3af', fontWeight: 700, padding: '9px 10px', borderRadius: 10, display: 'inline-flex', justifyContent: 'center', alignItems: 'center', gap: 6, cursor: canContactModalAuthor ? 'pointer' : 'not-allowed' }}
+                                    >
+                                        <MessageSquare size={16} /> {canContactModalAuthor ? 'Contact' : 'Your Post'}
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div style={{ flex: '1 1 44%', minHeight: 0, display: 'flex', flexDirection: 'column' }}>
+                            <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: 12, display: 'flex', flexDirection: 'column', gap: 10 }}>
+                                {modalComments.length > 0 ? modalComments.map(comment => {
+                                    const commentAuthorName = comment.author_id === currentUser?.id
+                                        ? (currentUser.name || trainee?.name || 'You')
+                                        : comment.author_type === 'student'
+                                            ? (trainees.find(t => t.id === comment.author_id)?.name || 'Trainee')
+                                            : (partners.find(p => p.id === comment.author_id)?.companyName || 'Industry Partner');
+
+                                    return (
+                                        <div key={comment.id} style={{ display: 'flex', gap: 8, alignItems: 'flex-start' }}>
+                                            <div className="ln-feed-avatar" style={{ width: 30, height: 30, flexShrink: 0 }}>{commentAuthorName?.charAt(0) || 'U'}</div>
+                                            <div style={{ background: '#3a3b3c', borderRadius: 14, padding: '8px 11px', flex: 1 }}>
+                                                <div style={{ fontSize: 12, fontWeight: 700, color: '#f3f4f6', marginBottom: 2 }}>{commentAuthorName}</div>
+                                                <div style={{ fontSize: 13.2, color: '#d1d5db', whiteSpace: 'pre-wrap', lineHeight: 1.45 }}>{comment.content}</div>
+                                            </div>
+                                        </div>
+                                    );
+                                }) : (
+                                    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 10, color: '#9ca3af' }}>
+                                        <FileText size={56} color="#94a3b8" />
+                                        <div style={{ fontSize: 34, fontWeight: 700, color: '#d1d5db' }}>No comments yet</div>
+                                        <div style={{ fontSize: 17 }}>Be the first to comment.</div>
+                                    </div>
+                                )}
+                            </div>
+
+                            <div style={{ borderTop: '1px solid #343a40', padding: '10px 12px', display: 'flex', flexDirection: 'column', gap: 8 }}>
+                                <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8 }}>
+                                    <div className="ln-feed-avatar" style={{ width: 32, height: 32, flexShrink: 0, fontSize: 13 }}>
+                                        {(trainee?.photo)
+                                            ? <img src={trainee.photo} alt="" style={{ width: '100%', height: '100%', borderRadius: '50%', objectFit: 'cover' }} />
+                                            : (currentUser?.name || trainee?.name || 'T').charAt(0).toUpperCase()}
+                                    </div>
+
+                                    <div style={{ flex: 1, background: '#3a3b3c', borderRadius: 20, padding: '8px 12px', display: 'flex', flexDirection: 'column', gap: 6 }}>
+                                        <textarea
+                                            placeholder={`Comment as ${currentUser?.name || trainee?.name || 'Trainee'}`}
+                                            value={commentInput}
+                                            onChange={e => setCommentInput(e.target.value)}
+                                            maxLength={1000}
+                                            style={{ width: '100%', minHeight: 24, maxHeight: 78, resize: 'none', border: 'none', outline: 'none', background: 'transparent', color: '#f3f4f6', fontSize: 16, lineHeight: 1.3, fontFamily: 'inherit' }}
+                                        />
+                                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                            <div style={{ display: 'inline-flex', alignItems: 'center', gap: 10, color: '#9ca3af' }}>
+                                                <MessageSquare size={14} />
+                                                <Camera size={14} />
+                                                <FileText size={14} />
+                                            </div>
+                                            <button
+                                                onClick={handleSubmitComment}
+                                                disabled={commentSubmitting || !commentInput.trim()}
+                                                style={{ background: 'transparent', border: 'none', color: (commentSubmitting || !commentInput.trim()) ? '#6b7280' : '#60a5fa', cursor: (commentSubmitting || !commentInput.trim()) ? 'not-allowed' : 'pointer', padding: 0, display: 'inline-flex', alignItems: 'center' }}
+                                            >
+                                                <Send size={18} />
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div style={{ fontSize: 12, color: '#94a3b8', textAlign: 'left', marginLeft: 40 }}>{commentInput.length}/1000</div>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -1799,6 +2458,11 @@ const Opportunities = () => {
     const [filterLocation, setFilterLocation] = useState('All');
     const [filterOpType, setFilterOpType] = useState('All');
     const [selectedJob, setSelectedJob] = useState(null);
+    const [applyJob, setApplyJob] = useState(null);
+    const [applicationMessage, setApplicationMessage] = useState('');
+    const [resumeInfo, setResumeInfo] = useState(null);
+    const [loadingResume, setLoadingResume] = useState(false);
+    const [submittingApplication, setSubmittingApplication] = useState(false);
 
     const industries = ['All', ...new Set(jobPostings.map(j => j.industry))];
     const types = ['All', 'Full-time', 'Part-time', 'Contract', 'Internship'];
@@ -1816,9 +2480,78 @@ const Opportunities = () => {
         );
     });
 
-    const handleApply = async (jobId) => {
-        const r = await applyToJob(trainee?.id, jobId);
-        if (!r.success) alert(r.error);
+    const loadResumeInfo = async () => {
+        if (!trainee?.id) return;
+        setLoadingResume(true);
+        setResumeInfo(null);
+
+        let resolvedResume = null;
+        const isSupabaseUser = typeof trainee.id === 'string' && trainee.id.includes('-');
+
+        if (isSupabaseUser) {
+            try {
+                const { data, error } = await supabase
+                    .from('student_documents')
+                    .select('file_url, file_name, label, uploaded_at')
+                    .eq('student_id', trainee.id)
+                    .ilike('label', '%resume%')
+                    .order('uploaded_at', { ascending: false })
+                    .limit(1);
+
+                if (error && error.code !== '42P01') {
+                    console.warn('Resume fetch error:', error);
+                }
+
+                if (!error && data?.length) {
+                    resolvedResume = {
+                        file_url: data[0].file_url,
+                        file_name: data[0].file_name || 'Resume',
+                    };
+                }
+            } catch (err) {
+                console.warn('Resume fetch exception:', err);
+            }
+        }
+
+        if (!resolvedResume && (trainee?.resumeUrl || trainee?.registrationResumeUrl)) {
+            resolvedResume = {
+                file_url: trainee.resumeUrl || trainee.registrationResumeUrl,
+                file_name: 'Resume',
+            };
+        }
+
+        setResumeInfo(resolvedResume);
+        setLoadingResume(false);
+    };
+
+    const openApplyModal = async (job) => {
+        setApplyJob(job);
+        setApplicationMessage('');
+        await loadResumeInfo();
+    };
+
+    const handleSubmitApplication = async () => {
+        if (!applyJob) return;
+        if (!resumeInfo?.file_url) {
+            alert('Resume is required before submitting your application.');
+            return;
+        }
+
+        setSubmittingApplication(true);
+        const r = await applyToJob(trainee?.id, applyJob.id, {
+            applicationMessage,
+            resumeUrl: resumeInfo.file_url,
+            resumeFileName: resumeInfo.file_name || 'Resume',
+        });
+        setSubmittingApplication(false);
+
+        if (!r.success) {
+            alert(r.error || 'Failed to submit application.');
+            return;
+        }
+
+        setApplyJob(null);
+        setApplicationMessage('');
     };
 
     return (
@@ -1892,7 +2625,7 @@ const Opportunities = () => {
                                     <button className="ln-btn-sm ln-btn-outline" onClick={() => setSelectedJob(job)}>
                                         <Eye size={13} /> Details
                                     </button>
-                                    <button className="ln-btn-sm ln-btn-primary" disabled={applied || job.status !== 'Open'} onClick={() => handleApply(job.id)}>
+                                    <button className="ln-btn-sm ln-btn-primary" disabled={applied || job.status !== 'Open'} onClick={() => openApplyModal(job)}>
                                         {applied ? <><CheckCircle size={13} /> Applied</> : <><Send size={13} /> Apply</>}
                                     </button>
                                 </div>
@@ -1928,6 +2661,25 @@ const Opportunities = () => {
                             <div style={{ fontWeight: 600, fontSize: 14, marginBottom: 6, color: 'rgba(0,0,0,0.9)' }}>Description</div>
                             <p style={{ fontSize: 14, color: 'rgba(0,0,0,0.6)', lineHeight: 1.7 }}>{selectedJob.description}</p>
                         </div>
+                        {selectedJob.attachmentUrl && (
+                            <div style={{ marginBottom: 16 }}>
+                                <div style={{ fontWeight: 600, fontSize: 14, marginBottom: 8, color: 'rgba(0,0,0,0.9)' }}>Attachment</div>
+                                {isImageAttachment(selectedJob.attachmentUrl, selectedJob.attachmentType) ? (
+                                    <a href={selectedJob.attachmentUrl} target="_blank" rel="noreferrer" style={{ display: 'block' }}>
+                                        <img
+                                            src={selectedJob.attachmentUrl}
+                                            alt={selectedJob.attachmentName || 'Opportunity attachment'}
+                                            style={{ width: '100%', maxHeight: 300, objectFit: 'cover', borderRadius: 10, border: '1px solid #e2e8f0' }}
+                                        />
+                                    </a>
+                                ) : (
+                                    <a href={selectedJob.attachmentUrl} target="_blank" rel="noreferrer" style={{ display: 'inline-flex', alignItems: 'center', gap: 7, color: '#2563eb', textDecoration: 'none', fontSize: 13 }}>
+                                        <FileText size={15} />
+                                        {selectedJob.attachmentName || decodeURIComponent(String(selectedJob.attachmentUrl).split('/').pop()?.split('?')[0] || 'Attachment')}
+                                    </a>
+                                )}
+                            </div>
+                        )}
                         <div style={{ marginBottom: 16 }}>
                             <div style={{ fontWeight: 600, fontSize: 14, marginBottom: 8, color: 'rgba(0,0,0,0.9)' }}>Required Competencies</div>
                             {selectedJob.requiredCompetencies.map((c, i) => (
@@ -1941,8 +2693,69 @@ const Opportunities = () => {
                         </div>
                         <div className="ln-modal-footer">
                             <span style={{ fontSize: 15, fontWeight: 700, color: '#057642' }}>{selectedJob.salaryRange}</span>
-                            <button className="ln-btn ln-btn-primary" onClick={async () => { await applyToJob(trainee?.id, selectedJob.id); setSelectedJob(null); }}>
-                                <Send size={15} /> Apply Now
+                            <button
+                                className="ln-btn ln-btn-primary"
+                                disabled={myApps.includes(selectedJob.id) || selectedJob.status !== 'Open'}
+                                onClick={async () => {
+                                    const jobToApply = selectedJob;
+                                    setSelectedJob(null);
+                                    await openApplyModal(jobToApply);
+                                }}
+                            >
+                                {myApps.includes(selectedJob.id) ? <><CheckCircle size={15} /> Applied</> : <><Send size={15} /> Apply</>}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {applyJob && (
+                <div className="modal-overlay" onClick={() => setApplyJob(null)}>
+                    <div className="ln-modal" onClick={e => e.stopPropagation()}>
+                        <div className="ln-modal-header">
+                            <div>
+                                <h3 className="ln-modal-title">Application Form</h3>
+                                <p style={{ fontSize: 14, color: 'rgba(0,0,0,0.6)', marginTop: 4 }}>{applyJob.title} • {applyJob.companyName}</p>
+                            </div>
+                            <button className="ln-btn-icon" onClick={() => setApplyJob(null)}><X size={18} /></button>
+                        </div>
+
+                        <div style={{ marginBottom: 12 }}>
+                            <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 6 }}>Resume (Required)</div>
+                            {loadingResume ? (
+                                <div style={{ fontSize: 13, color: '#64748b' }}>Loading resume...</div>
+                            ) : resumeInfo?.file_url ? (
+                                <div style={{ border: '1px solid #e2e8f0', borderRadius: 8, padding: 10, display: 'flex', justifyContent: 'space-between', gap: 10, alignItems: 'center' }}>
+                                    <div style={{ minWidth: 0 }}>
+                                        <div style={{ fontSize: 13, fontWeight: 600, color: '#1e293b', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{resumeInfo.file_name || 'Resume'}</div>
+                                        <div style={{ fontSize: 11.5, color: '#64748b' }}>This resume will be included in your application.</div>
+                                    </div>
+                                    <a href={resumeInfo.file_url} target="_blank" rel="noreferrer" className="ln-btn-sm ln-btn-outline"><Eye size={12} /> View</a>
+                                </div>
+                            ) : (
+                                <div style={{ border: '1px solid #fecaca', background: '#fef2f2', color: '#991b1b', borderRadius: 8, padding: 10, fontSize: 13 }}>
+                                    No resume found. Please upload your resume in Profile before applying.
+                                </div>
+                            )}
+                        </div>
+
+                        <div style={{ marginBottom: 14 }}>
+                            <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 6 }}>Application Message</div>
+                            <textarea
+                                className="ln-search-input"
+                                placeholder="Write a short message for the recruiter (optional)..."
+                                value={applicationMessage}
+                                onChange={e => setApplicationMessage(e.target.value)}
+                                maxLength={1000}
+                                style={{ width: '100%', minHeight: 110, resize: 'none', borderRadius: 10, padding: 12 }}
+                            />
+                            <div style={{ fontSize: 12, color: '#94a3b8', marginTop: 4, textAlign: 'right' }}>{applicationMessage.length}/1000</div>
+                        </div>
+
+                        <div className="ln-modal-footer">
+                            <button className="ln-btn ln-btn-outline" onClick={() => setApplyJob(null)}>Cancel</button>
+                            <button className="ln-btn ln-btn-primary" disabled={submittingApplication || !resumeInfo?.file_url} onClick={handleSubmitApplication}>
+                                <Send size={15} /> {submittingApplication ? 'Submitting...' : 'Submit Application'}
                             </button>
                         </div>
                     </div>
@@ -2005,7 +2818,7 @@ const MyApplications = () => {
                 <div style={{ overflowX: 'auto' }}>
                     <table className="ln-table">
                         <thead>
-                            <tr><th>Title</th><th>Company</th><th>Type</th><th>NC Level</th><th>Date Applied</th><th>Status</th><th>Notes</th></tr>
+                            <tr><th>Title</th><th>Company</th><th>Type</th><th>Date Applied</th><th>Status</th><th>Your Application</th><th>Recruit Update</th></tr>
                         </thead>
                         <tbody>
                             {filtered.map(a => (
@@ -2018,10 +2831,17 @@ const MyApplications = () => {
                                         </div>
                                     </td>
                                     <td><span className="ln-badge ln-badge-blue" style={{ fontSize: 11 }}>{a.job?.opportunityType || '—'}</span></td>
-                                    <td><span className="ln-badge ln-badge-purple">{a.job?.ncLevel || '—'}</span></td>
                                     <td style={{ color: 'rgba(0,0,0,0.5)', fontSize: 13 }}>{a.appliedAt}</td>
                                     <td>{statusBadge(a.status)}</td>
-                                    <td style={{ fontSize: 13, color: 'rgba(0,0,0,0.5)', maxWidth: 180 }}>{a.notes || '—'}</td>
+                                    <td style={{ fontSize: 13, color: 'rgba(0,0,0,0.65)', maxWidth: 240 }}>{a.applicationMessage || '—'}</td>
+                                    <td style={{ fontSize: 13, color: 'rgba(0,0,0,0.6)', maxWidth: 260 }}>
+                                        {a.recruitMessage ? (
+                                            <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                                                <span>{a.recruitMessage}</span>
+                                                {a.recruitDocumentName && <span style={{ fontSize: 11.5, color: '#64748b' }}>Attachment: {a.recruitDocumentName}</span>}
+                                            </div>
+                                        ) : (a.notes || '—')}
+                                    </td>
                                 </tr>
                             ))}
                             {filtered.length === 0 && (

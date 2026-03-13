@@ -1,9 +1,10 @@
 import React, { useState, useRef, useCallback, useEffect } from 'react';
 import {
-    Upload, X, CheckCircle, AlertTriangle, Image, Loader, Eye
+    Upload, X, CheckCircle, AlertTriangle, Image, Loader, Eye, ShieldCheck, ShieldAlert
 } from 'lucide-react';
 import * as Tesseract from 'tesseract.js';
 import { supabase } from '../../lib/supabase';
+import { validateIDCard } from '../../utils/idCardValidator';
 
 const ACCEPTED_TYPES = ['image/png', 'image/jpeg', 'image/jpg'];
 
@@ -198,6 +199,7 @@ export default function Step1IDUpload({ data, onChange, onValidChange }) {
     const [previewModal, setPreviewModal] = useState(null);
     const [ocrProgress, setOcrProgress] = useState(0);
     const [rawOcrText, setRawOcrText] = useState('');
+    const [visualValidation, setVisualValidation] = useState({ front: null, back: null });
     const [idDuplicateError, setIdDuplicateError] = useState('');
     const [idChecking, setIdChecking] = useState(false);
     const [idVerified, setIdVerified] = useState(false);
@@ -364,19 +366,44 @@ export default function Step1IDUpload({ data, onChange, onValidChange }) {
         reader.readAsDataURL(file);
     };
 
-    // ─── Real OCR with Tesseract.js ──────────────────────────────
+    // ─── Real OCR with Tesseract.js + Visual ID Validation ─────
     const triggerOCR = async (frontUrl, backUrl) => {
-        console.log('triggerOCR called — starting Tesseract recognition...');
+        console.log('triggerOCR called — running visual validation + Tesseract recognition...');
         onChange({ ocrStatus: 'loading' });
         setOcrProgress(0);
         setRawOcrText('');
 
         try {
+            // ── Step 1: Visual validation of both sides ──────────
+            setOcrProgress(5);
+            const [frontValidation, backValidation] = await Promise.all([
+                validateIDCard(frontUrl, 'front'),
+                backUrl ? validateIDCard(backUrl, 'back') : Promise.resolve(null),
+            ]);
+            setVisualValidation({ front: frontValidation, back: backValidation });
+
+            console.log('─── Visual ID Validation ───');
+            console.log('Front:', frontValidation?.confidence + '% confidence', frontValidation?.reasons);
+            console.log('Back:', backValidation?.confidence + '% confidence', backValidation?.reasons);
+
+            // If front image clearly isn't an ID card, reject early
+            if (frontValidation && !frontValidation.isValid) {
+                console.log('Visual validation rejected front image');
+                onChange({ ocrStatus: 'fail' });
+                return;
+            }
+
+            setOcrProgress(15);
+
+            // ── Step 2: Use preprocessed images for better OCR ───
+            const frontOcrSource = frontValidation?.preprocessedUrl || frontUrl;
+            const backOcrSource = backValidation?.preprocessedUrl || backUrl;
+
             // Recognize text from the front ID (primary info source)
-            const frontResult = await Tesseract.recognize(frontUrl, 'eng', {
+            const frontResult = await Tesseract.recognize(frontOcrSource, 'eng', {
                 logger: (m) => {
                     if (m.status === 'recognizing text') {
-                        setOcrProgress(Math.round(m.progress * 70)); // 0-70% for front
+                        setOcrProgress(15 + Math.round(m.progress * 50)); // 15-65%
                     }
                 },
             });
@@ -385,30 +412,49 @@ export default function Step1IDUpload({ data, onChange, onValidChange }) {
 
             // Also scan the back ID for additional info
             let backText = '';
-            if (backUrl) {
-                const backResult = await Tesseract.recognize(backUrl, 'eng', {
+            if (backOcrSource) {
+                const backResult = await Tesseract.recognize(backOcrSource, 'eng', {
                     logger: (m) => {
                         if (m.status === 'recognizing text') {
-                            setOcrProgress(70 + Math.round(m.progress * 30)); // 70-100% for back
+                            setOcrProgress(65 + Math.round(m.progress * 30)); // 65-95%
                         }
                     },
                 });
                 backText = backResult.data.text || '';
             }
 
-            setOcrProgress(100);
+            setOcrProgress(95);
 
             setRawOcrText(frontText + '\n---BACK---\n' + backText);
 
             // Parse front and back for school verification + field extraction
             const parsed = parseOCRText(frontText, backText, programsRef.current);
-            if (!parsed) {
+
+            // ── Step 3: Combine visual + text confidence ─────────
+            const visualScore = frontValidation?.confidence || 0;
+            const textParsed = parsed && Object.values(parsed).some(v => v.trim().length > 0);
+
+            console.log('─── Combined Verification ───');
+            console.log('Visual confidence:', visualScore + '%');
+            console.log('Text parsed:', textParsed);
+            console.log('Parsed data:', parsed);
+
+            setOcrProgress(100);
+
+            // Decision logic: visual validation + text verification together
+            if (!parsed && visualScore < 40) {
+                // Both visual and text verification failed — likely not a PSTDI ID
                 onChange({ ocrStatus: 'fail' });
                 return;
             }
-            const hasAnyData = Object.values(parsed).some(v => v.trim().length > 0);
 
-            if (hasAnyData) {
+            if (!parsed) {
+                // Text parsing failed but visual looks somewhat like an ID
+                onChange({ ocrStatus: 'fail' });
+                return;
+            }
+
+            if (textParsed) {
                 onChange({
                     ocrStatus: 'success',
                     ...parsed,
@@ -445,6 +491,7 @@ export default function Step1IDUpload({ data, onChange, onValidChange }) {
         uploadedFiles.current[side] = null;
         setRawOcrText('');
         setOcrProgress(0);
+        setVisualValidation({ front: null, back: null });
         // Reset duplicate check state so re-upload triggers a fresh check
         lastCheckedId.current = '';
         setIdDuplicateError('');
@@ -510,8 +557,8 @@ export default function Step1IDUpload({ data, onChange, onValidChange }) {
                 <div className="ocr-banner ocr-loading">
                     <div className="ocr-spinner" />
                     <div style={{ flex: 1 }}>
-                        <strong>Analyzing ID with OCR...</strong>
-                        <p>Extracting student information — {ocrProgress}% complete</p>
+                        <strong>Analyzing ID — Visual Check + OCR...</strong>
+                        <p>{ocrProgress < 15 ? 'Validating ID card appearance...' : `Extracting student information — ${ocrProgress}% complete`}</p>
                         <div className="progress-bar-wrap" style={{ marginTop: 8, height: 6 }}>
                             <div
                                 className="progress-bar-fill progress-high"
@@ -523,23 +570,43 @@ export default function Step1IDUpload({ data, onChange, onValidChange }) {
             );
         }
         if (data.ocrStatus === 'success') {
+            const vScore = visualValidation.front?.confidence || 0;
             return (
                 <div className="ocr-banner ocr-success">
                     <CheckCircle size={20} />
-                    <div>
+                    <div style={{ flex: 1 }}>
                         <strong>ID Successfully Detected</strong>
                         <p>Fields have been auto-filled from your ID. Please review and edit if needed.</p>
+                        {vScore > 0 && (
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 6, fontSize: 12, color: '#16a34a' }}>
+                                <ShieldCheck size={14} />
+                                <span>Visual match: {vScore}% — {vScore >= 60 ? 'Strong PSTDI ID match' : vScore >= 35 ? 'Possible PSTDI ID' : 'Low visual match'}</span>
+                            </div>
+                        )}
                     </div>
                 </div>
             );
         }
         if (data.ocrStatus === 'fail') {
+            const vScore = visualValidation.front?.confidence || 0;
+            const warnings = visualValidation.front?.warnings || [];
             return (
                 <div className="ocr-banner ocr-fail" style={{ flexDirection: 'column', alignItems: 'flex-start', gap: 12 }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                         <AlertTriangle size={20} />
                         <strong>No Valid School ID Detected</strong>
                     </div>
+                    {vScore > 0 && vScore < 40 && (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: '#dc2626' }}>
+                            <ShieldAlert size={14} />
+                            <span>Visual check: {vScore}% — This doesn't appear to be a PSTDI ID card</span>
+                        </div>
+                    )}
+                    {warnings.length > 0 && (
+                        <div style={{ fontSize: 12, color: '#92400e' }}>
+                            {warnings.map((w, i) => <p key={i} style={{ margin: '2px 0' }}>⚠ {w}</p>)}
+                        </div>
+                    )}
                     <div style={{ fontSize: 13, lineHeight: 1.6 }}>
                         <p style={{ margin: '0 0 8px 0' }}>We couldn't detect a valid <strong>PSTDI / TESDA School ID</strong> from the uploaded images.</p>
                         <p style={{ margin: '0 0 8px 0' }}>Please make sure:</p>

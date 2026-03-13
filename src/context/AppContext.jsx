@@ -9,119 +9,49 @@ export const useApp = () => {
   return context;
 };
 
-// All TESDA NC Competencies by qualification (16 PSTDI programs)
-const NC_COMPETENCIES = {
-  'Events Management Services NC III': [
-    'Plan and Develop Event Proposal or Bid', 'Develop an Event Concept', 'Develop Event Program',
-    'Select Event Venue and Site', 'Develop and Update Event Industry Knowledge',
-    'Provide On-Site Event Management Services', 'Manage Contractors for Indoor Events',
-    'Develop and Update Knowledge on Protocol', 'Conduct Supervised Industry Learning',
-  ],
-  'Bread and Pastry Production NC II': [
-    'Prepare and Produce Bakery Products', 'Prepare and Produce Pastry Products',
-    'Prepare and Present Gateaux, Tortes and Cakes', 'Prepare and Display Petits Fours',
-    'Present Desserts', 'Observe Workplace Hygiene Procedures', 'Provide Effective Customer Service',
-    'Conduct Supervised Industry Learning',
-  ],
-  'Barista NC II': [
-    'Prepare Espresso', 'Texture Milk', 'Prepare and Serve Coffee Beverages',
-    'Perform Basic Maintenance of Machine and Equipment',
-    'Perform Basic Cashiering and General Control Procedures',
-    'Observe Workplace Hygiene Procedures', 'Provide Effective Customer Service',
-  ],
-  'Heavy Equipment Operation (Forklift) NC II': [
-    'Prepare Construction Materials and Tools', 'Observe Procedures, Specifications and Manuals of Instruction',
-    'Interpret Technical Drawings and Plans', 'Perform Mensuration and Calculations',
-    'Maintain Tools and Equipment', 'Perform Pre- and Post-Operation Procedures for Forklift',
-    'Perform Basic Preventive Maintenance Servicing for Forklift', 'Perform Productive Operation for Forklift',
-  ],
-  'Contact Center Services NC II': [
-    'Apply Quality Standards', 'Perform Computer Operations',
-    'Communicate Effectively in English for Customer Service',
-    'Perform Customer Service Delivery Processes',
-    'Demonstrate Ability to Effectively Engage Customers',
-  ],
-  'Shielded Metal Arc Welding (SMAW) NC I': [
-    'Apply Safety Practices', 'Interpret Drawings and Sketches', 'Perform Industry Calculations',
-    'Contribute to Quality System', 'Use Hand Tools', 'Prepare Weld Materials',
-    'Setup Welding Equipment', 'Fit Up Weld Materials', 'Repair Welds',
-    'Weld Carbon Steel Plates Using SMAW',
-  ],
-  'Housekeeping NC II': [
-    'Provide Housekeeping Services to Guests', 'Clean and Prepare Rooms for Incoming Guests',
-    'Provide Valet/Butler Service', 'Laundry Linen and Guest Clothes',
-    'Clean Public Areas, Facilities and Equipment', 'Deal With/Handle Intoxicated Guests',
-    'Observe Workplace Hygiene Procedures', 'Provide Effective Customer Service',
-  ],
-  'Food and Beverage Services NC II': [
-    'Prepare the Dining Room/Restaurant Area for Service',
-    'Welcome Guests and Take Food and Beverage Orders', 'Promote Food and Beverage Products',
-    'Provide Food and Beverage Services to Guests', 'Provide Room Service',
-    'Receive and Handle Guest Concerns', 'Observe Workplace Hygiene Procedures',
-    'Provide Effective Customer Service',
-  ],
-  'Driving NC II (118 Hours)': [
-    'Apply Appropriate Sealant/Adhesive', 'Move and Position Vehicle',
-    'Perform Mensuration and Calculation', 'Read, Interpret and Apply Specifications and Manuals',
-    'Use and Apply Lubricant/Coolant', 'Perform Shop Maintenance',
-    'Carry Out Minor Vehicle Maintenance and Servicing', 'Drive Light Vehicle',
-    'Obey and Observe Traffic Rules and Regulations',
-    'Implement and Coordinate Accident-Emergency Procedures',
-  ],
-  'Computer Systems Servicing NC II': [
-    'Install and Configure Computer Systems', 'Set-Up Computer Networks',
-    'Set-Up Computer Servers', 'Maintain and Repair Computer Systems and Networks',
-  ],
-  'Hilot (Wellness Massage) NC II': [
-    'Implement and Monitor Infection Control Policies and Procedures',
-    'Respond Effectively to Difficulty/Challenging Behavior', 'Apply Basic First Aid',
-    'Maintain High Standards of Patient/Client Services',
-    'Plan the Hilot Wellness Program of Client/s', 'Provide Pre-Service to Hilot Client/s',
-    'Apply Hilot Wellness Massage Techniques', 'Provide Post Advice and Post-Services to Hilot Clients',
-  ],
-  'Driving (Passenger Bus / Straight Truck) NC III': [
-    'Apply Appropriate Sealant/Adhesive', 'Interpret/Draw Technical Drawing',
-    'Move and Position Vehicle', 'Perform Job Estimate', 'Perform Mensuration and Calculation',
-    'Read, Interpret and Apply Specifications and Manuals', 'Use and Apply Lubricant/Coolant',
-    'Perform Shop Maintenance',
-    'Perform Minor Maintenance and Servicing on Vehicles Classified under LTO Restriction Codes 3 Up to 5',
-    'Perform Pre- and Post-Operation Procedures for Vehicles Classified under LTO Restriction Codes 3 Up to 5',
-    'Obey and Observe Traffic Rules and Regulations', 'Observe Road Health and Safety Practices',
-    'Implement and Coordinate Accident-Emergency Procedures',
-    'Drive Passenger Bus', 'Drive Straight Truck',
-  ],
-  'Cookery NC II': [
-    'Clean and Maintain Kitchen Premises', 'Prepare Stocks, Sauces and Soups',
-    'Prepare Appetizers', 'Prepare Salads and Dressing', 'Prepare Sandwiches',
-    'Prepare Meat Dishes', 'Prepare Vegetable Dishes', 'Prepare Egg Dishes',
-    'Prepare Starch Dishes', 'Prepare Poultry and Game Dishes', 'Prepare Seafood Dishes',
-    'Prepare Desserts', 'Package Prepared Food',
-    'Observe Workplace Hygiene Procedures', 'Provide Effective Customer Service',
-  ],
-  'Driving NC II (137 Hours)': [
-    'Apply Appropriate Sealant/Adhesive', 'Move and Position Vehicle',
-    'Perform Mensuration and Calculation', 'Read, Interpret and Apply Specifications and Manuals',
-    'Use and Apply Lubricant/Coolant', 'Perform Shop Maintenance',
-    'Carry Out Minor Vehicle Maintenance and Servicing', 'Drive Light Vehicle',
-    'Obey and Observe Traffic Rules and Regulations',
-    'Implement and Coordinate Accident-Emergency Procedures',
-  ],
-  'Automotive Servicing NC I': [
-    'Validate Vehicle Specification', 'Move and Position Vehicle', 'Utilize Automotive Tools',
-    'Perform Mensuration and Calculation', 'Utilize Workshop Facilities and Equipment',
-    'Prepare Servicing Parts and Consumables', 'Prepare Vehicle for Servicing and Releasing',
-    'Perform Pre-Delivery Inspection', 'Perform Periodic Maintenance of Automotive Engine',
-    'Perform Periodic Maintenance of Drive Train', 'Perform Periodic Maintenance of Brake System',
-    'Perform Periodic Maintenance of Suspension System', 'Perform Periodic Maintenance of Steering System',
-  ],
-  'Automotive Servicing (Engine Repair) NC II': [
-    'Validate Vehicle Specification', 'Move and Position Vehicle', 'Utilize Automotive Tools',
-    'Perform Mensuration and Calculation', 'Utilize Workshop Facilities and Equipment',
-    'Prepare Servicing Parts and Consumables', 'Prepare Vehicle for Servicing and Releasing',
-    'Diagnose and Repair Engine Cooling and Lubrication System',
-    'Diagnose and Repair Intake and Exhaust System',
-    'Diagnose and Overhaul Engine Mechanical System',
-  ],
+const stripCompetencyCode = (value = '') => String(value)
+  .replace(/^\s*[A-Z]{2,}\d+\s*[—-]\s*/i, '')
+  .replace(/^\s*\d+\s*[—-]\s*/i, '')
+  .replace(/^\s*[•\-*]\s*/, '')
+  .trim();
+
+const extractCompetenciesFromProgramDescription = (description = '') => {
+  if (!description) return [];
+
+  let parsedJson = null;
+  try {
+    parsedJson = JSON.parse(description);
+  } catch (_) {
+    parsedJson = null;
+  }
+
+  if (Array.isArray(parsedJson?.competencies)) {
+    return parsedJson.competencies
+      .map(item => stripCompetencyCode(item))
+      .filter(Boolean);
+  }
+
+  const lines = String(description).split('\n');
+  const markerIndex = lines.findIndex(line => /^\s*competencies\s*:?.*$/i.test(line));
+  if (markerIndex < 0) return [];
+
+  return lines
+    .slice(markerIndex + 1)
+    .map(line => stripCompetencyCode(line))
+    .filter(Boolean);
+};
+
+const normalizeCompetencyList = (values = []) => {
+  const unique = new Set();
+  return (Array.isArray(values) ? values : [])
+    .map(item => stripCompetencyCode(item))
+    .filter(Boolean)
+    .filter(item => {
+      const key = item.toLowerCase();
+      if (unique.has(key)) return false;
+      unique.add(key);
+      return true;
+    });
 };
 
 export const AppProvider = ({ children }) => {
@@ -140,6 +70,9 @@ export const AppProvider = ({ children }) => {
 
   // ─── INDUSTRY PARTNERS ──────────────────────────────────────────────────────
   const [partners, setPartners] = useState([]);
+
+  // ─── TESDA PROGRAMS (DB-DRIVEN) ─────────────────────────────────────────────
+  const [programs, setPrograms] = useState([]);
 
   // ─── JOB / OPPORTUNITY POSTINGS ──────────────────────────────────────────
   const [jobPostings, setJobPostings] = useState([
@@ -246,6 +179,13 @@ export const AppProvider = ({ children }) => {
       appliedAt: '2026-02-05',
       reviewedAt: '2026-02-10',
       notes: 'Excellent candidate with complete certifications.',
+      applicationMessage: 'I am interested in this role and ready for interview.',
+      resumeUrl: null,
+      resumeFileName: null,
+      recruitMessage: null,
+      recruitDocumentName: null,
+      recruitDocumentUrl: null,
+      recruitSentAt: null,
     },
     {
       id: 2,
@@ -255,6 +195,13 @@ export const AppProvider = ({ children }) => {
       appliedAt: '2026-02-12',
       reviewedAt: null,
       notes: null,
+      applicationMessage: null,
+      resumeUrl: null,
+      resumeFileName: null,
+      recruitMessage: null,
+      recruitDocumentName: null,
+      recruitDocumentUrl: null,
+      recruitSentAt: null,
     },
     {
       id: 3,
@@ -264,11 +211,21 @@ export const AppProvider = ({ children }) => {
       appliedAt: '2026-02-06',
       reviewedAt: '2026-02-11',
       notes: 'Missing required network setup competency.',
+      applicationMessage: null,
+      resumeUrl: null,
+      resumeFileName: null,
+      recruitMessage: null,
+      recruitDocumentName: null,
+      recruitDocumentUrl: null,
+      recruitSentAt: null,
     },
   ]);
 
   // ─── COMMUNITY POSTS ──────────────────────────────────────────────────
   const [posts, setPosts] = useState([]);
+  const [postComments, setPostComments] = useState([]);
+  const [jobPostingComments, setJobPostingComments] = useState([]);
+  const [contactRequests, setContactRequests] = useState([]);
 
   const fetchPosts = async () => {
     try {
@@ -282,6 +239,234 @@ export const AppProvider = ({ children }) => {
       setPosts(data || []);
     } catch (err) {
       console.error('Error fetching posts:', err);
+    }
+  };
+
+  const fetchPostComments = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('post_comments')
+        .select('*')
+        .order('created_at', { ascending: true });
+
+      if (error) {
+        // Graceful fallback if table is not created yet
+        if (error.code === '42P01') {
+          console.warn('post_comments table not found. Create it to enable comments backend.');
+          return;
+        }
+        throw error;
+      }
+
+      setPostComments(data || []);
+    } catch (err) {
+      console.error('Error fetching post comments:', err);
+    }
+  };
+
+  const fetchJobPostingComments = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('job_posting_comments')
+        .select('*')
+        .order('created_at', { ascending: true });
+
+      if (error) {
+        if (error.code === '42P01' || error.code === 'PGRST204' || error.code === 'PGRST205') {
+          console.warn('job_posting_comments table not found. Apply the migration to enable opportunity comments persistence.');
+          return;
+        }
+        throw error;
+      }
+
+      setJobPostingComments(data || []);
+    } catch (err) {
+      console.error('Error fetching job posting comments:', err);
+    }
+  };
+
+  const addPostComment = async (postId, content) => {
+    try {
+      if (!currentUser) throw new Error('You must be logged in to comment');
+      const trimmed = content?.trim();
+      if (!trimmed) return { success: false, error: 'Comment cannot be empty.' };
+
+      const payload = {
+        post_id: postId,
+        author_id: currentUser.id,
+        author_type: userRole === 'partner' ? 'industry_partner' : 'student',
+        content: trimmed,
+        created_at: new Date().toISOString(),
+      };
+
+      const { data, error } = await supabase
+        .from('post_comments')
+        .insert([payload])
+        .select()
+        .single();
+
+      if (error) throw error;
+      setPostComments(prev => [...prev, data]);
+      return { success: true, data };
+    } catch (err) {
+      console.error('Error adding post comment:', err);
+      return { success: false, error: err.message };
+    }
+  };
+
+  const getPostComments = (postId) => {
+    return postComments.filter(comment => comment.post_id === postId);
+  };
+
+  const addJobPostingComment = async (jobPostingId, content) => {
+    try {
+      if (!currentUser) throw new Error('You must be logged in to comment');
+      const trimmed = content?.trim();
+      if (!trimmed) return { success: false, error: 'Comment cannot be empty.' };
+
+      const payload = {
+        job_posting_id: jobPostingId,
+        author_id: currentUser.id,
+        author_type: userRole === 'partner' ? 'industry_partner' : 'student',
+        content: trimmed,
+        created_at: new Date().toISOString(),
+      };
+
+      const { data, error } = await supabase
+        .from('job_posting_comments')
+        .insert([payload])
+        .select()
+        .single();
+
+      if (error) {
+        if (error.code === '42P01' || error.code === 'PGRST204' || error.code === 'PGRST205') {
+          return { success: false, error: 'Opportunity comments table is not yet available. Please apply the latest Supabase migrations.' };
+        }
+        throw error;
+      }
+
+      setJobPostingComments(prev => [...prev, data]);
+      return { success: true, data };
+    } catch (err) {
+      console.error('Error adding job posting comment:', err);
+      return { success: false, error: err.message };
+    }
+  };
+
+  const getJobPostingComments = (jobPostingId) => {
+    return jobPostingComments.filter(comment => comment.job_posting_id === jobPostingId);
+  };
+
+  const updateJobPostingComment = async (commentId, content) => {
+    try {
+      if (!currentUser) throw new Error('You must be logged in to edit comments');
+      const trimmed = content?.trim();
+      if (!trimmed) return { success: false, error: 'Comment cannot be empty.' };
+
+      const { data, error } = await supabase
+        .from('job_posting_comments')
+        .update({ content: trimmed, updated_at: new Date().toISOString() })
+        .eq('id', commentId)
+        .eq('author_id', currentUser.id)
+        .select()
+        .single();
+
+      if (error) {
+        if (error.code === '42P01' || error.code === 'PGRST204' || error.code === 'PGRST205') {
+          return { success: false, error: 'Opportunity comments table is not yet available. Please apply the latest Supabase migrations.' };
+        }
+        throw error;
+      }
+
+      setJobPostingComments(prev => prev.map(comment => comment.id === commentId ? data : comment));
+      return { success: true, data };
+    } catch (err) {
+      console.error('Error updating job posting comment:', err);
+      return { success: false, error: err.message };
+    }
+  };
+
+  const deleteJobPostingComment = async (commentId) => {
+    try {
+      if (!currentUser) throw new Error('You must be logged in to delete comments');
+
+      const { error } = await supabase
+        .from('job_posting_comments')
+        .delete()
+        .eq('id', commentId)
+        .eq('author_id', currentUser.id);
+
+      if (error) {
+        if (error.code === '42P01' || error.code === 'PGRST204' || error.code === 'PGRST205') {
+          return { success: false, error: 'Opportunity comments table is not yet available. Please apply the latest Supabase migrations.' };
+        }
+        throw error;
+      }
+
+      setJobPostingComments(prev => prev.filter(comment => comment.id !== commentId));
+      return { success: true };
+    } catch (err) {
+      console.error('Error deleting job posting comment:', err);
+      return { success: false, error: err.message };
+    }
+  };
+
+  const sendContactRequest = async (contactData = {}) => {
+    try {
+      if (!currentUser) throw new Error('You must be logged in to contact another user');
+
+      const message = contactData.message?.trim();
+      if (!message) {
+        return { success: false, error: 'Message is required.' };
+      }
+
+      if (!contactData.recipientId || !contactData.recipientType) {
+        return { success: false, error: 'Recipient information is missing.' };
+      }
+
+      if (contactData.recipientId === currentUser.id) {
+        return { success: false, error: 'You cannot contact yourself.' };
+      }
+
+      const payload = {
+        post_id: contactData.postId || null,
+        job_posting_id: contactData.jobPostingId || null,
+        sender_id: currentUser.id,
+        sender_type: userRole === 'partner' ? 'industry_partner' : 'student',
+        recipient_id: contactData.recipientId,
+        recipient_type: contactData.recipientType,
+        message,
+        attachment_name: contactData.attachmentName || null,
+        attachment_url: contactData.attachmentUrl || null,
+        attachment_kind: contactData.attachmentKind || 'document',
+        created_at: new Date().toISOString(),
+      };
+
+      let savedRecord = { id: `local-${Date.now()}`, ...payload };
+
+      const { data, error } = await supabase
+        .from('contact_requests')
+        .insert([payload])
+        .select()
+        .single();
+
+      if (error) {
+        if (error.code === '42P01' || error.code === 'PGRST204') {
+          console.warn('contact_requests table not found. Apply the migration to persist contact requests.');
+        } else {
+          throw error;
+        }
+      } else if (data) {
+        savedRecord = data;
+      }
+
+      setContactRequests(prev => [...prev, savedRecord]);
+      logActivity('Create', 'Contact', `Contact request sent to ${contactData.recipientType}`);
+
+      return { success: true, data: savedRecord };
+    } catch (err) {
+      console.error('Error sending contact request:', err);
+      return { success: false, error: err.message };
     }
   };
 
@@ -386,6 +571,55 @@ export const AppProvider = ({ children }) => {
   // Fetch external jobs from Remotive API
   useEffect(() => {
     fetchPosts();
+    fetchPostComments();
+
+    const fetchProgramsCatalog = async () => {
+      try {
+        let rows = null;
+        let error = null;
+
+        const primary = await supabase
+          .from('programs')
+          .select('id, name, nc_level, duration_hours, description, competencies')
+          .order('name', { ascending: true });
+
+        rows = primary.data;
+        error = primary.error;
+
+        if (error && (error.code === 'PGRST204' || String(error.message || '').toLowerCase().includes('competencies'))) {
+          const fallback = await supabase
+            .from('programs')
+            .select('id, name, nc_level, duration_hours, description')
+            .order('name', { ascending: true });
+
+          rows = fallback.data;
+          error = fallback.error;
+        }
+
+        if (error) throw error;
+
+        const mappedPrograms = (rows || []).map(program => {
+          const fromColumn = normalizeCompetencyList(program.competencies || []);
+          const fromDescription = extractCompetenciesFromProgramDescription(program.description || '');
+
+          return {
+            id: program.id,
+            name: program.name,
+            ncLevel: program.nc_level || '',
+            durationHours: program.duration_hours || null,
+            description: program.description || '',
+            competencies: fromColumn.length > 0 ? fromColumn : fromDescription,
+          };
+        });
+
+        setPrograms(mappedPrograms);
+      } catch (err) {
+        console.warn('Failed to fetch programs catalog:', err);
+      }
+    };
+
+    fetchProgramsCatalog();
+
     const fetchExternalJobs = async () => {
       try {
         const res = await fetch('https://remotive.com/api/remote-jobs?limit=25');
@@ -591,7 +825,20 @@ export const AppProvider = ({ children }) => {
       .sort((a, b) => b.matchRate - a.matchRate);
   };
 
-  const applyToJob = async (traineeId, jobId) => {
+  const normalizeApplicationStatus = (value) => {
+    const raw = String(value || 'Pending').toLowerCase();
+    if (raw === 'accepted') return 'Accepted';
+    if (raw === 'rejected') return 'Rejected';
+    return 'Pending';
+  };
+
+  const isSchemaMissingError = (error) => ['42P01', 'PGRST205'].includes(error?.code);
+  const isColumnShapeError = (error) => {
+    const message = String(error?.message || '').toLowerCase();
+    return ['PGRST204', '42703'].includes(error?.code) || message.includes('column');
+  };
+
+  const applyToJob = async (traineeId, jobId, applicationData = {}) => {
     const job = jobPostings.find(j => j.id === jobId);
 
     // Handle external jobs
@@ -604,39 +851,203 @@ export const AppProvider = ({ children }) => {
     const existing = applications.find(a => a.traineeId === traineeId && a.jobId === jobId);
     if (existing) return { success: false, error: 'Already applied to this opportunity.' };
     const trainee = trainees.find(t => t.id === traineeId);
+    const applicationMessage = applicationData.applicationMessage?.trim() || null;
+    const resumeUrl = applicationData.resumeUrl || null;
+    const resumeFileName = applicationData.resumeFileName || null;
+
+    if (!resumeUrl) {
+      return { success: false, error: 'Resume is required before submitting your application.' };
+    }
 
     const isSupabaseUser = typeof traineeId === 'string' && traineeId.includes('-');
 
     if (isSupabaseUser) {
-      const { data, error } = await supabase
-        .from('applications')
-        .insert({ student_id: traineeId, job_posting_id: jobId, status: 'Pending' })
-        .select()
-        .single();
-      if (error) return { success: false, error: error.message };
+      const attempts = [
+        {
+          table: 'job_applications',
+          payload: {
+            student_id: traineeId,
+            job_id: jobId,
+            status: 'Pending',
+            applied_at: new Date().toISOString(),
+            applicant_message: applicationMessage,
+            resume_url: resumeUrl,
+            resume_file_name: resumeFileName,
+          },
+        },
+        {
+          table: 'applications',
+          payload: {
+            student_id: traineeId,
+            job_posting_id: jobId,
+            status: 'Pending',
+            applicant_message: applicationMessage,
+            resume_url: resumeUrl,
+            resume_file_name: resumeFileName,
+          },
+        },
+      ];
+
+      let data = null;
+      let insertedTable = null;
+      let lastError = null;
+
+      for (const attempt of attempts) {
+        const result = await supabase.from(attempt.table).insert(attempt.payload).select().single();
+        if (!result.error) {
+          data = result.data;
+          insertedTable = attempt.table;
+          break;
+        }
+
+        lastError = result.error;
+        if (isSchemaMissingError(result.error) || isColumnShapeError(result.error)) {
+          continue;
+        }
+
+        return { success: false, error: result.error.message };
+      }
+
+      if (!data) {
+        return { success: false, error: lastError?.message || 'Could not save application.' };
+      }
+
       setApplications(prev => [...prev, {
         id: data.id, traineeId, jobId, status: 'Pending',
-        appliedAt: data.created_at?.split('T')[0], reviewedAt: null, notes: null,
+        appliedAt: (data.created_at || data.applied_at || '').split('T')[0] || null,
+        reviewedAt: null,
+        notes: null,
+        applicationMessage: data.applicant_message || applicationMessage,
+        resumeUrl: data.resume_url || resumeUrl,
+        resumeFileName: data.resume_file_name || resumeFileName,
+        recruitMessage: data.recruitment_message || null,
+        recruitDocumentName: data.recruitment_document_name || null,
+        recruitDocumentUrl: data.recruitment_document_url || null,
+        recruitSentAt: data.recruitment_sent_at?.split('T')[0] || null,
+        sourceTable: insertedTable,
       }]);
     } else {
       const newApplication = {
         id: applications.length + 1, traineeId, jobId, status: 'Pending',
         appliedAt: new Date().toISOString().split('T')[0], reviewedAt: null, notes: null,
+        applicationMessage,
+        resumeUrl,
+        resumeFileName,
+        recruitMessage: null,
+        recruitDocumentName: null,
+        recruitDocumentUrl: null,
+        recruitSentAt: null,
       };
-      setApplications([...applications, newApplication]);
+      setApplications(prev => [...prev, newApplication]);
     }
 
     logActivity('Create', 'Applications', `${trainee?.name || 'Trainee'} applied to ${job?.title || 'opportunity'}`, null, 'Pending');
     return { success: true };
   };
 
-  const updateApplicationStatus = (applicationId, status, notes = null) => {
+  const updateApplicationStatus = async (applicationId, status, notes = null) => {
     const app = applications.find(a => a.id === applicationId);
     const prevStatus = app?.status;
-    setApplications(applications.map(a =>
-      a.id === applicationId ? { ...a, status, notes, reviewedAt: new Date().toISOString().split('T')[0] } : a
+    const reviewedAt = new Date().toISOString().split('T')[0];
+
+    const isSupabaseApplication = typeof applicationId === 'string' && applicationId.includes('-');
+    if (isSupabaseApplication) {
+      const candidateTables = app?.sourceTable ? [app.sourceTable] : ['job_applications', 'applications'];
+      let persisted = false;
+
+      for (const table of candidateTables) {
+        const { error } = await supabase
+          .from(table)
+          .update({ status, notes, reviewed_at: new Date().toISOString() })
+          .eq('id', applicationId);
+
+        if (!error) {
+          persisted = true;
+          break;
+        }
+
+        if (isSchemaMissingError(error) || isColumnShapeError(error)) {
+          continue;
+        }
+
+        console.warn(`Failed to update application status in Supabase (${table}):`, error);
+        break;
+      }
+
+      if (!persisted) {
+        console.warn('Failed to persist application status update in Supabase for id:', applicationId);
+      }
+    }
+
+    setApplications(prev => prev.map(a =>
+      a.id === applicationId ? { ...a, status, notes, reviewedAt } : a
     ));
     logActivity('Status Change', 'Applications', `Application #${applicationId} status changed`, prevStatus, status);
+    return { success: true };
+  };
+
+  const sendRecruitMessage = async (applicationId, recruitData = {}) => {
+    const app = applications.find(a => a.id === applicationId);
+    if (!app) return { success: false, error: 'Application not found.' };
+
+    const recruitMessage = recruitData.recruitMessage?.trim() || '';
+    const recruitDocumentName = recruitData.recruitDocumentName?.trim() || null;
+    const recruitDocumentUrl = recruitData.recruitDocumentUrl?.trim() || null;
+
+    if (!recruitMessage) {
+      return { success: false, error: 'Recruitment message is required.' };
+    }
+
+    const nowIso = new Date().toISOString();
+
+    const isSupabaseApplication = typeof applicationId === 'string' && applicationId.includes('-');
+    if (isSupabaseApplication) {
+      const candidateTables = app?.sourceTable ? [app.sourceTable] : ['job_applications', 'applications'];
+      let persisted = false;
+
+      for (const table of candidateTables) {
+        const { error } = await supabase
+          .from(table)
+          .update({
+            recruitment_message: recruitMessage,
+            recruitment_document_name: recruitDocumentName,
+            recruitment_document_url: recruitDocumentUrl,
+            recruitment_sent_at: nowIso,
+          })
+          .eq('id', applicationId);
+
+        if (!error) {
+          persisted = true;
+          break;
+        }
+
+        if (isSchemaMissingError(error) || isColumnShapeError(error)) {
+          continue;
+        }
+
+        console.warn(`Failed to save recruit message in Supabase (${table}):`, error);
+        break;
+      }
+
+      if (!persisted) {
+        console.warn('Recruit message was not persisted in Supabase for id:', applicationId);
+      }
+    }
+
+    setApplications(prev => prev.map(a =>
+      a.id === applicationId
+        ? {
+            ...a,
+            recruitMessage,
+            recruitDocumentName,
+            recruitDocumentUrl,
+            recruitSentAt: nowIso.split('T')[0],
+          }
+        : a
+    ));
+
+    logActivity('Create', 'Recruit', `Recruit message sent for application #${applicationId}`);
+    return { success: true };
   };
 
   const getTraineeApplications = (traineeId) => {
@@ -664,21 +1075,74 @@ export const AppProvider = ({ children }) => {
   };
 
   // ─── JOB / OPPORTUNITY FUNCTIONS ───────────────────────────────────────────
-  const addJobPosting = (jobData) => {
+  const addJobPosting = async (jobData) => {
     const partner = partners.find(p => p.id === currentUser?.id);
+    const selectedProgram = programs.find(program =>
+      program.id === jobData.programId ||
+      program.name === jobData.ncLevel
+    );
+
+    const selectedCompetencies = normalizeCompetencyList(selectedProgram?.competencies || []);
+    const payloadCompetencies = normalizeCompetencyList(jobData.requiredCompetencies || []);
+
+    const isSupabasePartner = typeof currentUser?.id === 'string' && currentUser.id.includes('-');
+
+    if (isSupabasePartner) {
+      try {
+        const payload = {
+          partnerId: currentUser?.id,
+          title: jobData.title,
+          opportunityType: jobData.opportunityType || 'Job',
+          programId: selectedProgram?.id || jobData.programId || null,
+          ncLevel: selectedProgram?.name || jobData.ncLevel || '',
+          description: jobData.description || '',
+          employmentType: (jobData.opportunityType || 'Job') === 'OJT' ? '' : (jobData.employmentType || ''),
+          location: jobData.location || '',
+          salaryRange: jobData.salaryRange || '',
+          requiredCompetencies: payloadCompetencies.length > 0 ? payloadCompetencies : selectedCompetencies,
+          requiredSkills: normalizeCompetencyList(jobData.requiredSkills || []),
+          industry: partner?.industry || partner?.businessType || 'General',
+          attachmentName: jobData.attachmentName || null,
+          attachmentType: jobData.attachmentType || null,
+          attachmentUrl: jobData.attachmentUrl || null,
+        };
+
+        const res = await fetch('/api/partner/opportunities', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
+        const json = await res.json().catch(() => ({}));
+
+        if (!res.ok || !json?.success || !json?.job) {
+          return { success: false, error: json?.error || 'Failed to post opportunity.' };
+        }
+
+        setJobPostings(prev => [...prev, json.job]);
+        logActivity('Create', 'Opportunities', `Posted opportunity: ${json.job.title}`, null, json.job.title);
+        return { success: true, job: json.job };
+      } catch (error) {
+        return { success: false, error: error?.message || 'Failed to post opportunity.' };
+      }
+    }
+
     const newJob = {
       ...jobData,
       id: jobPostings.length + 1,
       partnerId: currentUser?.id,
+      programId: selectedProgram?.id || jobData.programId || null,
+      ncLevel: selectedProgram?.name || jobData.ncLevel || '',
+      requiredCompetencies: payloadCompetencies.length > 0 ? payloadCompetencies : selectedCompetencies,
       companyName: partner?.companyName || 'Company',
       opportunityType: jobData.opportunityType || 'Job',
+      employmentType: (jobData.opportunityType || 'Job') === 'OJT' ? '' : (jobData.employmentType || 'Full-time'),
       status: 'Open',
       datePosted: new Date().toISOString().split('T')[0],
       createdAt: new Date().toISOString(),
     };
     setJobPostings([...jobPostings, newJob]);
     logActivity('Create', 'Opportunities', `Posted opportunity: ${newJob.title}`, null, newJob.title);
-    return newJob;
+    return { success: true, job: newJob };
   };
 
   const updateJobPosting = (jobId, updates) => {
@@ -716,7 +1180,7 @@ export const AppProvider = ({ children }) => {
     logActivity('Status Change', 'Partners', `Verified partner: ${partner?.companyName}`, partner?.verificationStatus, 'Verified');
   };
 
-  const rejectPartner = async (partnerId) => {
+  const rejectPartner = async (partnerId, reason = '') => {
     const partner = partners.find(p => p.id === partnerId);
     try {
       const res = await fetch(`/api/partner-verification/status/${partnerId}`, {
@@ -731,7 +1195,8 @@ export const AppProvider = ({ children }) => {
     setPartners(partners.map(p =>
       p.id === partnerId ? { ...p, verificationStatus: 'Rejected' } : p
     ));
-    logActivity('Status Change', 'Partners', `Rejected partner: ${partner?.companyName}`, partner?.verificationStatus, 'Rejected');
+    const reasonText = reason?.trim() ? ` (Reason: ${reason.trim()})` : '';
+    logActivity('Status Change', 'Partners', `Rejected partner: ${partner?.companyName}${reasonText}`, partner?.verificationStatus, 'Rejected');
   };
 
   const registerPartner = async (partnerData) => {
@@ -764,7 +1229,9 @@ export const AppProvider = ({ children }) => {
         company_name: partnerData.companyName,
         contact_person: partnerData.contactPerson,
         business_type: partnerData.industry,
-        verification_status: 'pending'
+        contact_email: partnerData.email,
+        detailed_address: partnerData.address,
+        verification_status: null
       });
 
       if (insertError) {
@@ -836,17 +1303,57 @@ export const AppProvider = ({ children }) => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ status: 'under_review' })
       });
-      if (!res.ok) throw new Error('Failed to update status');
+      if (!res.ok) {
+        let message = 'Failed to update status';
+        try {
+          const errData = await res.json();
+          if (errData?.error) message = errData.error;
+        } catch (_) {}
+        throw new Error(message);
+      }
+
+      // Only update local state after successful DB update
+      setPartners(partners.map(p =>
+        p.id === partnerId ? { ...p, verificationStatus: 'Under Review' } : p
+      ));
+      if (currentUser?.id === partnerId) {
+        setCurrentUser(prev => ({ ...prev, verificationStatus: 'Under Review' }));
+      }
+      logActivity('Status Change', 'Partners', `${partner?.companyName} submitted documents for verification`, partner?.verificationStatus, 'Under Review');
     } catch (err) {
       console.error('Submit partner documents error:', err);
+      alert(`Failed to submit for review: ${err.message}`);
     }
-    setPartners(partners.map(p =>
-      p.id === partnerId ? { ...p, verificationStatus: 'Under Review' } : p
-    ));
-    if (currentUser?.id === partnerId) {
-      setCurrentUser(prev => ({ ...prev, verificationStatus: 'Under Review' }));
+  };
+
+  const withdrawPartnerSubmission = async (partnerId) => {
+    const partner = partners.find(p => p.id === partnerId);
+    try {
+      const res = await fetch(`/api/partner-verification/status/${partnerId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: null })
+      });
+      if (!res.ok) {
+        let message = 'Failed to withdraw submission';
+        try {
+          const errData = await res.json();
+          if (errData?.error) message = errData.error;
+        } catch (_) {}
+        throw new Error(message);
+      }
+
+      setPartners(partners.map(p =>
+        p.id === partnerId ? { ...p, verificationStatus: 'Pending' } : p
+      ));
+      if (currentUser?.id === partnerId) {
+        setCurrentUser(prev => ({ ...prev, verificationStatus: 'Pending' }));
+      }
+      logActivity('Status Change', 'Partners', `${partner?.companyName} withdrew verification submission`, 'Under Review', 'Pending');
+    } catch (err) {
+      console.error('Withdraw submission error:', err);
+      alert(`Failed to withdraw submission: ${err.message}`);
     }
-    logActivity('Status Change', 'Partners', `${partner?.companyName} submitted documents for verification`, partner?.verificationStatus, 'Under Review');
   };
 
   // ─── TRAINEE FUNCTIONS ──────────────────────────────────────────────────
@@ -954,15 +1461,65 @@ export const AppProvider = ({ children }) => {
   };
 
   // ─── ACCOUNT MANAGEMENT ───────────────────────────────────────────────────
-  const updateAccountStatus = (accountType, accountId, newStatus) => {
+  const deleteAccount = async (accountType, accountId) => {
+    const isUUID = typeof accountId === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(accountId);
+
+    if (isUUID) {
+      try {
+        console.log('[deleteAccount] Calling server for:', accountId, accountType);
+        const res = await fetch('/api/admin/delete-account', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ accountId, accountType }),
+        });
+        const json = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          const msg = json.error || res.statusText;
+          console.error('[deleteAccount] Server error:', msg);
+          alert(`Failed to delete account from database:\n\n${msg}`);
+          return;
+        }
+        console.log('[deleteAccount] Server confirmed deletion.');
+      } catch (err) {
+        console.error('[deleteAccount] Network error:', err);
+        alert('Could not reach the server to delete the account from the database. Is the otp-server running?');
+        return;
+      }
+    }
+
+    if (accountType === 'trainee') {
+      const existing = trainees.find(t => t.id === accountId);
+      setTrainees(prev => prev.filter(t => t.id !== accountId));
+      setApplications(prev => prev.filter(a => a.traineeId !== accountId));
+      setPosts(prev => prev.filter(p => p.author_id !== accountId));
+      setPostComments(prev => prev.filter(c => c.author_id !== accountId));
+      setJobPostingComments(prev => prev.filter(c => c.author_id !== accountId));
+      setContactRequests(prev => prev.filter(cr => cr.sender_id !== accountId && cr.recipient_id !== accountId));
+      logActivity('Delete', 'Accounts', `Deleted student account: ${existing?.name || existing?.profileName}`, existing?.name, null);
+    } else if (accountType === 'partner') {
+      const existing = partners.find(p => p.id === accountId);
+      const partnerJobIds = new Set(jobPostings.filter(j => j.partnerId === accountId || j.partner_id === accountId).map(j => j.id));
+      setPartners(prev => prev.filter(p => p.id !== accountId));
+      setJobPostings(prev => prev.filter(j => j.partnerId !== accountId && j.partner_id !== accountId));
+      setApplications(prev => prev.filter(a => !partnerJobIds.has(a.jobId)));
+      setPosts(prev => prev.filter(p => p.author_id !== accountId));
+      setPostComments(prev => prev.filter(c => c.author_id !== accountId));
+      setJobPostingComments(prev => prev.filter(c => c.author_id !== accountId && !partnerJobIds.has(c.job_posting_id)));
+      setContactRequests(prev => prev.filter(cr => cr.sender_id !== accountId && cr.recipient_id !== accountId));
+      logActivity('Delete', 'Accounts', `Deleted partner account: ${existing?.companyName || existing?.profileName}`, existing?.companyName, null);
+    }
+  };
+
+  const updateAccountStatus = (accountType, accountId, newStatus, reason = '') => {
+    const reasonText = reason?.trim() ? ` (Reason: ${reason.trim()})` : '';
     if (accountType === 'trainee') {
       const existing = trainees.find(t => t.id === accountId);
       setTrainees(trainees.map(t => t.id === accountId ? { ...t, accountStatus: newStatus } : t));
-      logActivity('Status Change', 'Accounts', `${existing?.name} account status changed`, existing?.accountStatus, newStatus);
+      logActivity('Status Change', 'Accounts', `${existing?.name} account status changed${reasonText}`, existing?.accountStatus, newStatus);
     } else if (accountType === 'partner') {
       const existing = partners.find(p => p.id === accountId);
       setPartners(partners.map(p => p.id === accountId ? { ...p, accountStatus: newStatus } : p));
-      logActivity('Status Change', 'Accounts', `${existing?.companyName} account status changed`, existing?.accountStatus, newStatus);
+      logActivity('Status Change', 'Accounts', `${existing?.companyName} account status changed${reasonText}`, existing?.accountStatus, newStatus);
     }
   };
 
@@ -1079,6 +1636,8 @@ export const AppProvider = ({ children }) => {
         monthsAfterGraduation: null,
         photo: student.profile_picture_url || null,
         bannerUrl: student.banner_url || null,
+        resumeUrl: student.resume_url || null,
+        registrationResumeUrl: student.resume_url || null,
         documents: {
           frontId: student.front_id_url || null,
           backId: student.back_id_url || null,
@@ -1128,29 +1687,97 @@ export const AppProvider = ({ children }) => {
     const isSupabaseUser = typeof currentUser.id === 'string' && currentUser.id.includes('-');
     if (!isSupabaseUser) return;
 
+    let adminRefreshTimeout = null;
+
     const fetchAllData = async () => {
+      // Keep comments synced for community feed actions
+      await fetchPostComments();
+      await fetchJobPostingComments();
+
+      // 0. Fetch TESDA Programs catalog (with competencies)
+      try {
+        let rows = null;
+        let error = null;
+
+        const primary = await supabase
+          .from('programs')
+          .select('id, name, nc_level, duration_hours, description, competencies')
+          .order('name', { ascending: true });
+
+        rows = primary.data;
+        error = primary.error;
+
+        if (error && (error.code === 'PGRST204' || String(error.message || '').toLowerCase().includes('competencies'))) {
+          const fallback = await supabase
+            .from('programs')
+            .select('id, name, nc_level, duration_hours, description')
+            .order('name', { ascending: true });
+
+          rows = fallback.data;
+          error = fallback.error;
+        }
+
+        if (!error && rows) {
+          setPrograms(rows.map(program => ({
+            id: program.id,
+            name: program.name,
+            ncLevel: program.nc_level || '',
+            durationHours: program.duration_hours || null,
+            description: program.description || '',
+            competencies: (() => {
+              const fromColumn = normalizeCompetencyList(program.competencies || []);
+              if (fromColumn.length > 0) return fromColumn;
+              return extractCompetenciesFromProgramDescription(program.description || '');
+            })(),
+          })));
+        }
+      } catch (err) {
+        console.warn('Failed to fetch programs in session hydration:', err);
+      }
+
       // 1. Fetch Jobs
       try {
         const { data: jobs } = await supabase
           .from('job_postings')
-          .select('*, industry_partners(company_name)')
+          .select('*, industry_partners(company_name), programs(name, competencies, description)')
           .order('created_at', { ascending: false });
 
         if (jobs) {
           setJobPostings((prev) => {
             const exts = prev.filter(p => String(p.id).startsWith('ext-'));
             const mapped = jobs.map(j => ({
+              ...(j.source === 'partner' && (j.attachment_url || j.source_url)
+                ? {
+                    attachmentUrl: j.attachment_url || j.source_url,
+                    attachmentName: j.attachment_name || decodeURIComponent(String(j.attachment_url || j.source_url).split('/').pop()?.split('?')[0] || ''),
+                    attachmentType: j.attachment_type || null,
+                  }
+                : {}),
               id: j.id,
               partnerId: j.partner_id,
               companyName: j.industry_partners?.company_name || 'Company',
               industry: j.industry || 'General',
               title: j.title,
               opportunityType: j.opportunity_type || 'Job',
-              ncLevel: j.nc_level || '',
-              requiredCompetencies: j.required_competencies || [],
+              ncLevel: j.nc_level || j.programs?.name || '',
+              requiredCompetencies: normalizeCompetencyList(
+                (j.required_competencies && j.required_competencies.length > 0)
+                  ? j.required_competencies
+                  : (j.programs?.competencies?.length > 0
+                    ? j.programs.competencies
+                    : extractCompetenciesFromProgramDescription(j.programs?.description || ''))
+              ),
               requiredSkills: j.required_skills || [],
               description: j.description || '',
-              employmentType: j.employment_type || 'Full-time',
+              employmentType: (() => {
+                if (j.opportunity_type === 'OJT') return '';
+                const rawType = String(j.employment_type || '').toLowerCase();
+                if (rawType === 'full_time' || rawType === 'full-time' || rawType === 'fulltime') return 'Full-time';
+                if (rawType === 'part_time' || rawType === 'part-time' || rawType === 'parttime') return 'Part-time';
+                if (rawType === 'contract') return 'Contract';
+                if (rawType === 'internship') return 'Internship';
+                return j.employment_type || 'Full-time';
+              })(),
               location: j.location || 'Philippines',
               salaryRange: j.salary_range || '',
               slots: j.slots || 1,
@@ -1167,23 +1794,44 @@ export const AppProvider = ({ children }) => {
       try {
         const { data: stds } = await supabase
           .from('students')
-          .select('id, full_name, profile_picture_url');
+          .select('id, full_name, profile_picture_url, contact_email, resume_url');
         if (stds) {
           setTrainees(stds.map(s => ({
             id: s.id,
             name: s.full_name,
-            photo: s.profile_picture_url
+            photo: s.profile_picture_url,
+            email: s.contact_email || '',
+            resumeUrl: s.resume_url || null,
           })));
         }
       } catch (err) { console.warn(err); }
 
       // 3. Fetch all public partner profiles (for feed resolution)
       try {
+        let submittedPartnerIds = new Set();
+        try {
+          const { data: submittedRows } = await supabase
+            .from('partner_verifications')
+            .select('partner_id');
+          if (submittedRows) {
+            submittedPartnerIds = new Set(submittedRows.map(row => row.partner_id));
+          }
+        } catch (submissionErr) {
+          console.warn('Failed to fetch partner verification submissions:', submissionErr);
+        }
+
         const { data: pts } = await supabase
           .from('industry_partners')
           .select('*');
         if (pts) {
           setPartners(pts.map(p => ({
+            verificationStatus: p.verification_status === 'verified'
+              ? 'Verified'
+              : p.verification_status === 'rejected'
+                ? 'Rejected'
+                : ((p.verification_status === 'pending' && submittedPartnerIds.has(p.id)) || p.verification_status === 'under_review')
+                  ? 'Under Review'
+                  : 'Pending',
             id: p.id,
             companyName: p.company_name,
             contactPerson: p.contact_person,
@@ -1192,7 +1840,6 @@ export const AppProvider = ({ children }) => {
             address: p.city || '',
             website: p.website || '',
             company_logo_url: p.company_logo_url,
-            verificationStatus: p.verification_status === 'verified' ? 'Verified' : p.verification_status === 'rejected' ? 'Rejected' : p.verification_status === 'under_review' ? 'Under Review' : 'Pending',
             achievements: p.achievements || [],
             benefits: p.benefits || [],
           })));
@@ -1203,15 +1850,28 @@ export const AppProvider = ({ children }) => {
       if (userRole === 'admin') {
         try {
           const res = await fetch(`/api/admin/data`);
-          const adminData = await res.json();
+          const raw = await res.text();
+          let adminData = {};
+          try {
+            adminData = raw ? JSON.parse(raw) : {};
+          } catch {
+            throw new Error(`Admin data endpoint returned non-JSON response (status ${res.status}).`);
+          }
+
+          if (!res.ok) {
+            throw new Error(adminData.error || `Failed to load admin data (status ${res.status}).`);
+          }
 
           if (adminData.students) {
             const tMap = adminData.students.map(student => {
               const address = [student.detailed_address, student.barangay, student.city, student.province, student.region].filter(Boolean).join(', ');
               return {
                 id: student.id,
-                name: student.full_name || 'Trainee',
+                profileName: student.profile_name || student.full_name || 'Trainee',
+                name: student.profile_name || student.full_name || 'Trainee',
                 email: student.email || 'None',
+                activityStatus: student.activity_status || 'Offline',
+                lastSeenAt: student.last_seen_at || null,
 
                 address: address || 'Philippines',
                 graduationYear: student.graduation_year || 'None',
@@ -1222,6 +1882,7 @@ export const AppProvider = ({ children }) => {
                 employer: student.employment_work || null,
                 jobTitle: student.employment_work || null,
                 dateHired: student.employment_start || null,
+                accountStatus: student.account_status || 'Active',
               };
             });
             console.log("Admin Data fetched mapped trainees:", tMap);
@@ -1229,15 +1890,27 @@ export const AppProvider = ({ children }) => {
           }
 
           if (adminData.partners) {
+            const submittedPartnerIds = new Set(adminData.submittedPartnerIds || []);
             const pMap = adminData.partners.map(p => ({
+              verificationStatus: p.verification_status === 'verified'
+                ? 'Verified'
+                : p.verification_status === 'rejected'
+                  ? 'Rejected'
+                  : ((p.verification_status === 'pending' && submittedPartnerIds.has(p.id)) || p.verification_status === 'under_review')
+                    ? 'Under Review'
+                    : 'Pending',
               id: p.id,
+              profileName: p.profile_name || p.company_name || 'Industry Partner',
               companyName: p.company_name,
               contactPerson: p.contact_person,
               industry: p.business_type || 'General',
-              email: p.contact_email || '',
-              verificationStatus: p.verification_status === 'verified' ? 'Verified' : p.verification_status === 'rejected' ? 'Rejected' : p.verification_status === 'under_review' ? 'Under Review' : 'Pending',
+              email: p.email || 'None',
+              contactEmail: p.contact_email || '',
+              activityStatus: p.activity_status || 'Offline',
+              lastSeenAt: p.last_seen_at || null,
               achievements: p.achievements || [],
               benefits: p.benefits || [],
+              accountStatus: p.account_status || 'Active',
             }));
             console.log("Admin Data fetched mapped partners:", pMap);
             setPartners(pMap);
@@ -1249,36 +1922,92 @@ export const AppProvider = ({ children }) => {
     };
 
     const fetchApplications = async () => {
-      // TODO: Uncomment once the 'applications' table is created in Supabase
-      // try {
-      //   const { data: apps, error } = await supabase
-      //     .from('applications')
-      //     .select('*')
-      //     .eq('student_id', currentUser.id);
+      try {
+        const isSupabaseUser = typeof currentUser?.id === 'string' && currentUser.id.includes('-');
+        if (!isSupabaseUser) return;
 
-      //   if (error && error.code !== '42P01') {
-      //     console.warn('Failed to fetch applications from Supabase:', error);
-      //   }
+        const combinedApps = [];
+        const sources = [
+          { table: 'job_applications', orderColumn: 'applied_at' },
+        ];
 
-      //   if (apps) {
-      //     const mapped = apps.map(a => ({
-      //       id: a.id,
-      //       traineeId: a.student_id,
-      //       jobId: a.job_posting_id,
-      //       status: a.status || 'Pending',
-      //       appliedAt: a.created_at?.split('T')[0],
-      //       reviewedAt: a.reviewed_at?.split('T')[0] || null,
-      //       notes: a.notes || null,
-      //     }));
-      //     setApplications(mapped);
-      //   }
-      // } catch (err) {
-      //   console.warn('Exception while fetching applications:', err);
-      // }
+        for (const source of sources) {
+          const { data, error } = await supabase
+            .from(source.table)
+            .select('*')
+            .order(source.orderColumn, { ascending: false });
+
+          if (error) {
+            if (!isSchemaMissingError(error)) {
+              console.warn(`Failed to fetch ${source.table} from Supabase:`, error);
+            }
+            continue;
+          }
+
+          combinedApps.push(...(data || []).map(row => ({ ...row, __sourceTable: source.table })));
+        }
+
+        const mapped = combinedApps
+          .filter(a => (a.student_id || a.trainee_id) && (a.job_posting_id || a.job_id))
+          .map(a => ({
+            id: a.id,
+            traineeId: a.student_id || a.trainee_id,
+            jobId: a.job_posting_id || a.job_id,
+            status: normalizeApplicationStatus(a.status),
+            appliedAt: (a.created_at || a.applied_at || '').split('T')[0] || null,
+            reviewedAt: a.reviewed_at ? a.reviewed_at.split('T')[0] : null,
+            notes: a.notes || null,
+            applicationMessage: a.applicant_message || a.application_message || null,
+            resumeUrl: a.resume_url || null,
+            resumeFileName: a.resume_file_name || null,
+            recruitMessage: a.recruitment_message || a.recruiter_message || null,
+            recruitDocumentName: a.recruitment_document_name || a.recruiter_document_name || null,
+            recruitDocumentUrl: a.recruitment_document_url || a.recruiter_document_url || null,
+            recruitSentAt: a.recruitment_sent_at ? a.recruitment_sent_at.split('T')[0] : null,
+            sourceTable: a.__sourceTable || null,
+          }));
+
+        setApplications(mapped);
+      } catch (err) {
+        console.warn('Exception while fetching applications:', err);
+      }
     };
 
     fetchAllData();
     fetchApplications();
+
+    const commentsRealtimeChannel = supabase
+      .channel(`post-comments-sync-${currentUser.id}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'post_comments' }, fetchPostComments)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'job_posting_comments' }, fetchJobPostingComments)
+      .subscribe();
+
+    if (userRole !== 'admin') {
+      return () => {
+        if (adminRefreshTimeout) clearTimeout(adminRefreshTimeout);
+        supabase.removeChannel(commentsRealtimeChannel);
+      };
+    }
+
+    const scheduleAdminRefresh = () => {
+      if (adminRefreshTimeout) clearTimeout(adminRefreshTimeout);
+      adminRefreshTimeout = setTimeout(() => {
+        fetchAllData();
+      }, 250);
+    };
+
+    const adminRealtimeChannel = supabase
+      .channel(`admin-live-sync-${currentUser.id}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'students' }, scheduleAdminRefresh)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'industry_partners' }, scheduleAdminRefresh)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'partner_verifications' }, scheduleAdminRefresh)
+      .subscribe();
+
+    return () => {
+      if (adminRefreshTimeout) clearTimeout(adminRefreshTimeout);
+      supabase.removeChannel(adminRealtimeChannel);
+      supabase.removeChannel(commentsRealtimeChannel);
+    };
   }, [currentUser?.id, userRole]);
 
   // ─── REGISTRATION DATA (multi-step persist) ──────────────────────────────
@@ -1332,20 +2061,22 @@ export const AppProvider = ({ children }) => {
       userRole,
       login,
       logout,
-      NC_COMPETENCIES,
       // Trainees
       trainees,
       addTrainee,
       updateTrainee,
       updatePartner,
       deleteTrainee,
+      deleteAccount,
       // Partners
       partners,
       approvePartner,
       rejectPartner,
       registerPartner,
       submitPartnerDocuments,
+      withdrawPartnerSubmission,
       // Opportunities
+      programs,
       jobPostings,
       addJobPosting,
       updateJobPosting,
@@ -1354,6 +2085,7 @@ export const AppProvider = ({ children }) => {
       applications,
       applyToJob,
       updateApplicationStatus,
+      sendRecruitMessage,
       getTraineeApplications,
       getJobApplicants,
       getPartnerApplicants,
@@ -1375,10 +2107,22 @@ export const AppProvider = ({ children }) => {
       setRegistrationData,
       // Community Posts
       posts,
+      postComments,
+      jobPostingComments,
+      contactRequests,
       fetchPosts,
+      fetchPostComments,
+      fetchJobPostingComments,
       createPost,
       updatePost,
       deletePost,
+      addPostComment,
+      getPostComments,
+      addJobPostingComment,
+      getJobPostingComments,
+      updateJobPostingComment,
+      deleteJobPostingComment,
+      sendContactRequest,
     }}>
       {children}
     </AppContext.Provider>
