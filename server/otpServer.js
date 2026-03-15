@@ -26,6 +26,7 @@ app.use(cors());
 app.use(express.json({ limit: '5mb' }));
 
 const PORT = 3001;
+const PRESENCE_ONLINE_WINDOW_MS = 45 * 1000;
 
 const deriveActivityStatus = (isoDateString) => {
     if (!isoDateString) return 'Offline';
@@ -35,7 +36,34 @@ const deriveActivityStatus = (isoDateString) => {
     const diffMs = Date.now() - parsed;
     if (diffMs < 0) return 'Online';
 
-    return diffMs <= 15 * 60 * 1000 ? 'Online' : 'Offline';
+    return diffMs <= PRESENCE_ONLINE_WINDOW_MS ? 'Online' : 'Offline';
+};
+
+const pickLatestSeenAt = (...isoDateStrings) => {
+    let latestTs = null;
+
+    for (const value of isoDateStrings) {
+        if (!value) continue;
+        const ts = new Date(value).getTime();
+        if (!Number.isFinite(ts)) continue;
+        if (latestTs === null || ts > latestTs) latestTs = ts;
+    }
+
+    if (latestTs === null) return null;
+    return new Date(latestTs).toISOString();
+};
+
+const resolvePresenceStatus = (storedStatus, latestSeenAt) => {
+    const normalizedStored = String(storedStatus || '').toLowerCase();
+
+    // Explicit offline (e.g., logout ping) should take effect immediately.
+    if (normalizedStored === 'offline') return 'Offline';
+
+    if (latestSeenAt) {
+        return deriveActivityStatus(latestSeenAt);
+    }
+
+    return normalizedStored === 'online' ? 'Online' : 'Offline';
 };
 
 // ─── Rate Limiting ──────────────────────────────────────────────
@@ -69,6 +97,7 @@ function createRateLimit({ windowMs = 60 * 1000, max = 10, keyPrefix = 'default'
 
 const rateLimit = createRateLimit({ windowMs: 60 * 1000, max: 10, keyPrefix: 'general' });
 const uploadRateLimit = createRateLimit({ windowMs: 60 * 1000, max: 30, keyPrefix: 'upload' });
+const presenceRateLimit = createRateLimit({ windowMs: 60 * 1000, max: 240, keyPrefix: 'presence' });
 
 // OTP expiry in minutes (default to 5)
 const OTP_EXPIRY_MIN = parseInt(process.env.OTP_EXPIRY_MIN || '5', 10);
@@ -219,23 +248,25 @@ app.get('/api/admin/data', rateLimit, async (req, res) => {
 
         const mappedStds = filteredStds.map(std => {
             const authRecord = authUsers?.users?.find(u => u.id === std.id);
+            const latestSeenAt = std.last_seen_at || authRecord?.last_sign_in_at || null;
             return {
                 ...std,
                 profile_name: std.full_name || 'Trainee',
                 email: authRecord?.email || 'None',
-                activity_status: deriveActivityStatus(authRecord?.last_sign_in_at),
-                last_seen_at: authRecord?.last_sign_in_at || null,
+                activity_status: resolvePresenceStatus(std.activity_status, latestSeenAt),
+                last_seen_at: latestSeenAt,
             };
         });
 
         const mappedPartners = filteredPartners.map(partner => {
             const authRecord = authUsers?.users?.find(u => u.id === partner.id);
+            const latestSeenAt = partner.last_seen_at || authRecord?.last_sign_in_at || null;
             return {
                 ...partner,
                 profile_name: partner.company_name || partner.contact_person || 'Industry Partner',
                 email: authRecord?.email || 'None',
-                activity_status: deriveActivityStatus(authRecord?.last_sign_in_at),
-                last_seen_at: authRecord?.last_sign_in_at || null,
+                activity_status: resolvePresenceStatus(partner.activity_status, latestSeenAt),
+                last_seen_at: latestSeenAt,
             };
         });
 
@@ -243,6 +274,176 @@ app.get('/api/admin/data', rateLimit, async (req, res) => {
     } catch (error) {
         console.error('Admin data fetch error:', error);
         res.status(500).json({ error: 'Failed to fetch admin data.' });
+    }
+});
+
+app.get('/api/public-directory', rateLimit, async (_req, res) => {
+    try {
+        let students = null;
+        let studentsError = null;
+
+        const studentsWithProfileName = await supabaseAdmin
+            .from('students')
+            .select('id, full_name, profile_name, profile_picture_url, training_status, personal_info_visibility');
+        students = studentsWithProfileName.data;
+        studentsError = studentsWithProfileName.error;
+
+        if (studentsError && ['PGRST204', '42703'].includes(studentsError.code)) {
+            const studentsFallback = await supabaseAdmin
+                .from('students')
+                .select('id, full_name, profile_picture_url, training_status');
+            students = studentsFallback.data;
+            studentsError = studentsFallback.error;
+        }
+
+        if (studentsError) throw studentsError;
+
+        const { data: partners, error: partnersError } = await supabaseAdmin
+            .from('industry_partners')
+            .select('id, company_name, contact_person, business_type, company_logo_url, verification_status, company_info_visibility');
+
+        let partnerRows = partners;
+        let partnerRowsError = partnersError;
+
+        if (partnerRowsError && ['PGRST204', '42703'].includes(partnerRowsError.code)) {
+            const partnersFallback = await supabaseAdmin
+                .from('industry_partners')
+                .select('id, company_name, contact_person, business_type, company_logo_url, verification_status');
+            partnerRows = partnersFallback.data;
+            partnerRowsError = partnersFallback.error;
+        }
+
+        if (partnerRowsError) throw partnerRowsError;
+
+        const mappedStudents = (students || []).map(student => ({
+            id: student.id,
+            name: student.full_name || student.profile_name || 'Trainee',
+            profileName: student.profile_name || student.full_name || 'Trainee',
+            photo: student.profile_picture_url || null,
+            trainingStatus: student.training_status || 'Student',
+            personalInfoVisibility: Array.isArray(student.personal_info_visibility) ? student.personal_info_visibility : ['name', 'birthday', 'gender'],
+        }));
+
+        const mappedPartners = (partnerRows || []).map(partner => ({
+            id: partner.id,
+            companyName: partner.company_name || partner.contact_person || 'Industry Partner',
+            profileName: partner.company_name || partner.contact_person || 'Industry Partner',
+            industry: partner.business_type || 'General',
+            company_logo_url: partner.company_logo_url || null,
+            companyInfoVisibility: Array.isArray(partner.company_info_visibility) ? partner.company_info_visibility : ['companyName', 'contactPerson', 'industry'],
+            verificationStatus: partner.verification_status === 'verified'
+                ? 'Verified'
+                : partner.verification_status === 'rejected'
+                    ? 'Rejected'
+                    : partner.verification_status === 'under_review'
+                        ? 'Under Review'
+                        : 'Pending',
+        }));
+
+        res.json({ students: mappedStudents, partners: mappedPartners });
+    } catch (error) {
+        console.error('Public directory fetch error:', error);
+        res.status(500).json({ error: 'Failed to fetch public directory.' });
+    }
+});
+
+app.get('/api/public-profile/:profileType/:profileId', rateLimit, async (req, res) => {
+    const { profileType, profileId } = req.params;
+    const normalizedType = String(profileType || '').toLowerCase();
+
+    try {
+        if (normalizedType === 'trainee' || normalizedType === 'student') {
+            let student = null;
+            let studentError = null;
+
+            const withProfileName = await supabaseAdmin
+                .from('students')
+                .select(`
+                    id, full_name, profile_name, profile_picture_url, banner_url, contact_email,
+                    detailed_address, city, province, region, gender, birthdate,
+                    graduation_year, training_status, employment_status, employment_work,
+                    certifications, educ_history, work_experience, skills, interests, personal_info_visibility,
+                    programs ( name )
+                `)
+                .eq('id', profileId)
+                .maybeSingle();
+
+            student = withProfileName.data;
+            studentError = withProfileName.error;
+
+            if (studentError && ['PGRST204', '42703'].includes(studentError.code)) {
+                const fallback = await supabaseAdmin
+                    .from('students')
+                    .select(`
+                        id, full_name, profile_picture_url, banner_url, contact_email,
+                        detailed_address, city, province, region, gender, birthdate,
+                        graduation_year, training_status, employment_status, employment_work,
+                        certifications, educ_history, work_experience, skills, interests,
+                        programs ( name )
+                    `)
+                    .eq('id', profileId)
+                    .maybeSingle();
+                student = fallback.data;
+                studentError = fallback.error;
+            }
+
+            if (studentError) throw studentError;
+            if (!student) return res.status(404).json({ error: 'Profile not found.' });
+
+            return res.json({
+                profileType: 'trainee',
+                profile: {
+                    ...student,
+                    full_name: student.full_name || student.profile_name || 'Trainee',
+                    personal_info_visibility: Array.isArray(student.personal_info_visibility) ? student.personal_info_visibility : ['name', 'birthday', 'gender'],
+                },
+            });
+        }
+
+        if (normalizedType === 'partner' || normalizedType === 'industry_partner') {
+            const { data: partnerWithVisibility, error: partnerWithVisibilityError } = await supabaseAdmin
+                .from('industry_partners')
+                .select(`
+                    id, company_name, company_logo_url, business_type, company_size,
+                    website, contact_person, contact_email, contact_phone,
+                    city, province, region, achievements, benefits, verification_status, company_info_visibility
+                `)
+                .eq('id', profileId)
+                .maybeSingle();
+
+            let partner = partnerWithVisibility;
+            let partnerError = partnerWithVisibilityError;
+
+            if (partnerError && ['PGRST204', '42703'].includes(partnerError.code)) {
+                const fallback = await supabaseAdmin
+                    .from('industry_partners')
+                    .select(`
+                        id, company_name, company_logo_url, business_type, company_size,
+                        website, contact_person, contact_email, contact_phone,
+                        city, province, region, achievements, benefits, verification_status
+                    `)
+                    .eq('id', profileId)
+                    .maybeSingle();
+                partner = fallback.data;
+                partnerError = fallback.error;
+            }
+
+            if (partnerError) throw partnerError;
+            if (!partner) return res.status(404).json({ error: 'Profile not found.' });
+
+            return res.json({
+                profileType: 'partner',
+                profile: {
+                    ...partner,
+                    company_info_visibility: Array.isArray(partner.company_info_visibility) ? partner.company_info_visibility : ['companyName', 'contactPerson', 'industry'],
+                },
+            });
+        }
+
+        return res.status(400).json({ error: 'Invalid profile type.' });
+    } catch (error) {
+        console.error('Public profile fetch error:', error);
+        return res.status(500).json({ error: 'Failed to fetch profile.' });
     }
 });
 
@@ -353,6 +554,65 @@ app.post('/api/admin/update-student', rateLimit, async (req, res) => {
     } catch (error) {
         console.error('Admin update student error:', error);
         res.status(500).json({ error: 'Failed to update student.' });
+    }
+});
+
+// Authenticated presence heartbeat endpoint (bypasses client-side RLS update limits)
+app.post('/api/presence/ping', presenceRateLimit, async (req, res) => {
+    const authHeader = String(req.headers.authorization || '');
+    const bodyToken = String(req.body?.token || '').trim();
+    const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7).trim() : bodyToken;
+    if (!token) {
+        return res.status(401).json({ error: 'Missing bearer token.' });
+    }
+
+    try {
+        const { data: userData, error: userErr } = await supabaseAdmin.auth.getUser(token);
+        if (userErr || !userData?.user?.id) {
+            return res.status(401).json({ error: 'Invalid session token.' });
+        }
+
+        const userId = userData.user.id;
+        const { data: profile, error: profileErr } = await supabaseAdmin
+            .from('profiles')
+            .select('user_type')
+            .eq('id', userId)
+            .maybeSingle();
+
+        if (profileErr || !profile?.user_type) {
+            return res.status(403).json({ error: 'User profile not found.' });
+        }
+
+        const role = String(profile.user_type || '').toLowerCase();
+        const tableName = (role === 'student' || role === 'trainee')
+            ? 'students'
+            : (role === 'industry_partner' || role === 'partner')
+                ? 'industry_partners'
+                : null;
+
+        if (!tableName) {
+            return res.status(403).json({ error: 'Presence tracking not supported for this role.' });
+        }
+
+        const requestedStatus = String(req.body?.status || 'online').toLowerCase();
+        const normalizedStatus = requestedStatus === 'offline' ? 'Offline' : 'Online';
+
+        const { error: updateErr } = await supabaseAdmin
+            .from(tableName)
+            .update({
+                activity_status: normalizedStatus,
+                last_seen_at: new Date().toISOString(),
+            })
+            .eq('id', userId);
+
+        if (updateErr) {
+            return res.status(500).json({ error: updateErr.message || 'Failed to update presence.' });
+        }
+
+        return res.json({ success: true, status: normalizedStatus });
+    } catch (error) {
+        console.error('Presence ping error:', error);
+        return res.status(500).json({ error: 'Failed to update presence.' });
     }
 });
 
@@ -1142,6 +1402,39 @@ app.put('/api/partner-verification/status/:partnerId', rateLimit, async (req, re
         res.status(500).json({ error: 'Failed to update verification status.' });
     }
 });
+
+// ─── Stale Presence Cleanup Job ─────────────────────────────────
+// Runs every 30 seconds server-side. Marks any user whose last_seen_at
+// is older than PRESENCE_ONLINE_WINDOW_MS as Offline in the DB.
+// Supabase Realtime then fires the change to the admin dashboard instantly.
+const runStalePresenceCleanup = async () => {
+    try {
+        const staleThreshold = new Date(Date.now() - PRESENCE_ONLINE_WINDOW_MS).toISOString();
+
+        const { error: studentsCleanupErr } = await supabaseAdmin
+            .from('students')
+            .update({ activity_status: 'Offline' })
+            .in('activity_status', ['Online', 'online'])
+            .lt('last_seen_at', staleThreshold);
+        if (studentsCleanupErr) {
+            console.warn('Stale presence cleanup (students) error:', studentsCleanupErr.message || studentsCleanupErr);
+        }
+
+        const { error: partnersCleanupErr } = await supabaseAdmin
+            .from('industry_partners')
+            .update({ activity_status: 'Offline' })
+            .in('activity_status', ['Online', 'online'])
+            .lt('last_seen_at', staleThreshold);
+        if (partnersCleanupErr) {
+            console.warn('Stale presence cleanup (partners) error:', partnersCleanupErr.message || partnersCleanupErr);
+        }
+    } catch (err) {
+        console.warn('Stale presence cleanup error:', err.message);
+    }
+};
+
+runStalePresenceCleanup();
+setInterval(runStalePresenceCleanup, 30 * 1000);
 
 if (process.env.NODE_ENV !== 'production') {
     app.listen(PORT, () => {

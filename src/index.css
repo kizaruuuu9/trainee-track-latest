@@ -263,6 +263,33 @@ body {
   margin-top: 1px;
 }
 
+/* ─── PULSE ANIMATION ─────────────────────────────────────────────── */
+.pulse-container {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: #f8fafc;
+  padding: 4px 10px;
+  border-radius: 20px;
+  border: 1px solid #e2e8f0;
+  vertical-align: middle;
+}
+
+.pulse-dot {
+  width: 6px;
+  height: 6px;
+  background: #16a34a;
+  border-radius: 50%;
+  box-shadow: 0 0 0 0 rgba(22, 163, 74, 0.4);
+  animation: pulse-green 2s infinite;
+}
+
+@keyframes pulse-green {
+  0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(22, 163, 74, 0.7); }
+  70% { transform: scale(1); box-shadow: 0 0 0 6px rgba(22, 163, 74, 0); }
+  100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(22, 163, 74, 0); }
+}
+
 .header-actions {
   display: flex;
   align-items: center;
@@ -1102,6 +1129,125 @@ a text and a able to upload documents but not needed
   height: 1px;
   background: var(--gray-100);
   margin: 4px 0;
+}
+
+.account-actions-cell {
+  position: relative;
+  display: flex;
+  width: 100%;
+  justify-content: flex-end;
+}
+
+.data-table th.account-actions-column,
+.data-table td.account-actions-column {
+  width: 88px;
+  min-width: 88px;
+  text-align: right;
+  padding-right: 14px;
+}
+
+.account-actions-trigger {
+  width: 36px;
+  height: 36px;
+  border: 1px solid var(--gray-200);
+  border-radius: 10px;
+  background: #fff;
+  color: var(--gray-600);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.account-actions-trigger:hover,
+.account-actions-trigger.is-open {
+  background: var(--gray-50);
+  border-color: #bfdbfe;
+  color: #2563eb;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);
+}
+
+.account-actions-panel {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  width: min(240px, calc(100vw - 32px));
+  padding: 12px;
+  background: #fff;
+  border: 1px solid var(--gray-200);
+  border-radius: 14px;
+  box-shadow: var(--shadow-lg);
+  z-index: 220;
+}
+
+.account-actions-panel-header {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--gray-700);
+  margin-bottom: 10px;
+}
+
+.account-actions-label {
+  display: block;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--gray-500);
+  margin-bottom: 6px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.account-actions-select {
+  width: 100%;
+  margin-bottom: 10px;
+}
+
+.account-actions-divider {
+  height: 1px;
+  background: var(--gray-100);
+  margin: 4px 0 8px;
+}
+
+.account-actions-item {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  border: none;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--gray-700);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.account-actions-item:hover:not(:disabled) {
+  background: var(--gray-50);
+}
+
+.account-actions-item.warning {
+  color: #d97706;
+}
+
+.account-actions-item.warning:hover:not(:disabled) {
+  background: #fffbeb;
+}
+
+.account-actions-item.danger {
+  color: #dc2626;
+}
+
+.account-actions-item.danger:hover:not(:disabled) {
+  background: #fef2f2;
+}
+
+.account-actions-item:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
 }
 
 /* ─── SECTION HEADER ─────────────────────────────────────────────── */
@@ -1948,7 +2094,12 @@ a text and a able to upload documents but not needed
 .upload-preview-img-wrap img {
   width: 100%;
   height: 100%;
-  object-fit: cover;
+  object-fit: contain;
+  display: block;
+}
+
+.upload-preview-img-wrap-large {
+  background: linear-gradient(180deg, #f8fafc 0%, #eef2f7 100%);
 }
 
 .upload-preview-eye {
@@ -3344,6 +3495,29 @@ a text and a able to upload documents but not needed
   padding: 12px 16px 16px;
 }
 
+.ln-media-frame {
+  width: 100%;
+  height: clamp(420px, 56vw, 620px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  background: #111827;
+}
+
+.ln-media-frame-preview {
+  height: clamp(320px, 46vw, 460px);
+}
+
+.ln-media-image {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  display: block;
+}
+
 .ln-feed-actions {
   display: flex;
   border-top: 1px solid #e0dfdc;
@@ -3509,49 +3683,6 @@ a text and a able to upload documents but not needed
 .ln-btn-save:hover {
   background: #f3f2ef;
   border-color: rgba(0, 0, 0, 0.6);
-}
-
-/* ─── MATCH BAR ───────────────────────────────────────────────────── */
-.ln-match-row {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.ln-match-bar {
-  height: 6px;
-  background: #e0dfdc;
-  border-radius: 3px;
-  overflow: hidden;
-  flex: 1;
-  min-width: 60px;
-}
-
-.ln-match-fill {
-  height: 100%;
-  border-radius: 3px;
-  transition: width 0.4s ease;
-}
-
-.ln-match-fill.high {
-  background: #057642;
-}
-
-.ln-match-fill.mid {
-  background: #b24020;
-}
-
-.ln-match-fill.low {
-  background: #cc1016;
-}
-
-.ln-match-pct {
-  font-size: 12px;
-  font-weight: 600;
-  color: rgba(0, 0, 0, 0.7);
-  flex-shrink: 0;
-  min-width: 32px;
-  text-align: right;
 }
 
 /* ─── BADGES ──────────────────────────────────────────────────────── */

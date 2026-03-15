@@ -17,6 +17,7 @@ CREATE TABLE programs (
   nc_level        text,
   duration_hours  integer,
   description     text,
+  competencies    text[] DEFAULT '{}'::text[],
   is_active       boolean DEFAULT true,
   sort_order      integer DEFAULT 0,
   created_at      timestamptz DEFAULT now()
@@ -63,7 +64,10 @@ CREATE TABLE students (
   certifications      jsonb,
   graduation_year     text,
   training_status     text,
-  contact_email       text
+  contact_email       text,
+  activity_status     text DEFAULT 'Offline',
+  last_seen_at        timestamptz,
+  personal_info_visibility text[] DEFAULT ARRAY['name'::text, 'birthday'::text, 'gender'::text]
 );
 
 -- 5. industry_partners
@@ -87,7 +91,10 @@ CREATE TABLE industry_partners (
   created_at          timestamptz DEFAULT now(),
   updated_at          timestamptz DEFAULT now(),
   achievements        text[],
-  benefits            text[]
+  benefits            text[],
+  activity_status     text DEFAULT 'Offline',
+  last_seen_at        timestamptz,
+  company_info_visibility text[] DEFAULT ARRAY['companyName'::text, 'contactPerson'::text, 'industry'::text]
 );
 
 -- 6. otp_codes
@@ -118,17 +125,27 @@ CREATE TABLE job_postings (
   id              uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   partner_id      uuid REFERENCES industry_partners(id),
   program_id      uuid REFERENCES programs(id),
+  nc_level        text,
   title           text NOT NULL,
+  opportunity_type text DEFAULT 'Job',
   company_name    text,
   description     text,
   requirements    text[],
+  required_competencies text[] DEFAULT '{}'::text[],
+  required_skills text[] DEFAULT '{}'::text[],
   location        text,
   salary_min      numeric,
   salary_max      numeric,
+  salary_range    text,
   employment_type text,
   slots           integer DEFAULT 1,
+  status          text DEFAULT 'Open',
+  industry        text DEFAULT 'General',
   source          text DEFAULT 'partner',
   source_url      text,
+  attachment_name text,
+  attachment_type text,
+  attachment_url  text,
   is_active       boolean DEFAULT true,
   created_at      timestamptz DEFAULT now(),
   expires_at      timestamptz
@@ -142,7 +159,14 @@ CREATE TABLE job_applications (
   status      text DEFAULT 'pending',
   applied_at  timestamptz DEFAULT now(),
   reviewed_at timestamptz,
-  notes       text
+  notes       text,
+  applicant_message          text,
+  resume_url                 text,
+  resume_file_name           text,
+  recruitment_message        text,
+  recruitment_document_name  text,
+  recruitment_document_url   text,
+  recruitment_sent_at        timestamptz
 );
 
 -- 10. partner_verifications
@@ -204,6 +228,86 @@ CREATE TABLE student_competencies (
   acquired_at   timestamptz DEFAULT now(),
   PRIMARY KEY (student_id, competency_id)
 );
+
+-- 16. post_comments
+CREATE TABLE post_comments (
+  id          uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  post_id     uuid NOT NULL REFERENCES posts(id) ON DELETE CASCADE,
+  author_id   uuid NOT NULL,
+  author_type text NOT NULL CHECK (author_type IN ('student', 'industry_partner')),
+  content     text NOT NULL CHECK (length(trim(content)) > 0),
+  created_at  timestamptz NOT NULL DEFAULT now(),
+  updated_at  timestamptz NOT NULL DEFAULT now()
+);
+
+-- 17. contact_requests
+CREATE TABLE contact_requests (
+  id              uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  post_id         uuid REFERENCES posts(id) ON DELETE SET NULL,
+  job_posting_id  uuid,
+  sender_id       uuid NOT NULL,
+  sender_type     text NOT NULL CHECK (sender_type IN ('student', 'industry_partner')),
+  recipient_id    uuid NOT NULL,
+  recipient_type  text NOT NULL CHECK (recipient_type IN ('student', 'industry_partner')),
+  message         text NOT NULL CHECK (length(trim(message)) > 0),
+  attachment_name text,
+  attachment_url  text,
+  attachment_kind text NOT NULL DEFAULT 'document' CHECK (attachment_kind IN ('resume', 'document')),
+  created_at      timestamptz NOT NULL DEFAULT now()
+);
+
+-- 18. job_posting_comments
+CREATE TABLE job_posting_comments (
+  id             uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  job_posting_id uuid NOT NULL REFERENCES job_postings(id) ON DELETE CASCADE,
+  author_id      uuid NOT NULL,
+  author_type    text NOT NULL CHECK (author_type IN ('student', 'industry_partner')),
+  content        text NOT NULL CHECK (length(trim(content)) > 0),
+  created_at     timestamptz NOT NULL DEFAULT now(),
+  updated_at     timestamptz NOT NULL DEFAULT now()
+);
+
+-- Indexes
+CREATE INDEX IF NOT EXISTS idx_programs_name ON programs(name);
+CREATE INDEX IF NOT EXISTS idx_students_last_seen_at ON students(last_seen_at DESC);
+CREATE INDEX IF NOT EXISTS idx_industry_partners_last_seen_at ON industry_partners(last_seen_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_post_comments_post_id ON post_comments(post_id);
+CREATE INDEX IF NOT EXISTS idx_post_comments_created_at ON post_comments(created_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_contact_requests_post_id ON contact_requests(post_id);
+CREATE INDEX IF NOT EXISTS idx_contact_requests_job_posting_id ON contact_requests(job_posting_id);
+CREATE INDEX IF NOT EXISTS idx_contact_requests_sender_id ON contact_requests(sender_id);
+CREATE INDEX IF NOT EXISTS idx_contact_requests_recipient_id ON contact_requests(recipient_id);
+CREATE INDEX IF NOT EXISTS idx_contact_requests_created_at ON contact_requests(created_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_job_posting_comments_job_posting_id ON job_posting_comments(job_posting_id);
+CREATE INDEX IF NOT EXISTS idx_job_posting_comments_author_id ON job_posting_comments(author_id);
+CREATE INDEX IF NOT EXISTS idx_job_posting_comments_created_at ON job_posting_comments(created_at DESC);
+
+CREATE UNIQUE INDEX IF NOT EXISTS uq_programs_variant_normalized
+ON programs (
+  lower(trim(regexp_replace(name, '\\s+', ' ', 'g'))),
+  lower(trim(coalesce(nc_level, ''))),
+  coalesce(duration_hours, 0)
+);
+
+ALTER TABLE job_postings
+  DROP CONSTRAINT IF EXISTS job_postings_employment_type_check;
+
+ALTER TABLE job_postings
+  ADD CONSTRAINT job_postings_employment_type_check
+  CHECK (
+    employment_type IS NULL
+    OR employment_type = ANY (ARRAY[
+      'full_time'::text,
+      'part_time'::text,
+      'ojt'::text,
+      'contractual'::text,
+      'contract'::text,
+      'internship'::text
+    ])
+  ) NOT VALID;
 
 -- RPC function
 -- is_admin() — returns boolean, checks if current user is admin

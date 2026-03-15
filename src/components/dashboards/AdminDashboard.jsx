@@ -1,11 +1,11 @@
-﻿import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useApp } from '../../context/AppContext';
 import { supabase } from '../../lib/supabase';
 import {
     LayoutDashboard, Users, Building2, Briefcase, TrendingUp, BarChart2,
     Settings, LogOut, Bell, ChevronDown, Search, Eye, Edit, CheckCircle,
     XCircle, Download, Plus, X, AlertCircle, FileText, Award, Shield,
-    UserCheck, Clock, MapPin, Star, Filter, Trash2, Menu
+    UserCheck, Clock, MapPin, Star, Filter, Trash2, Menu, MoreVertical
 } from 'lucide-react';
 import {
     BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid,
@@ -192,6 +192,14 @@ const ManageTrainees = () => {
     const [filterStatus, setFilterStatus] = useState('All');
     const [viewT, setViewT] = useState(null);
     const [editT, setEditT] = useState(null);
+    const [activityNow, setActivityNow] = useState(Date.now());
+
+    useEffect(() => {
+        const timerId = setInterval(() => {
+            setActivityNow(Date.now());
+        }, 5000); // Smoother status updates
+        return () => clearInterval(timerId);
+    }, []);
 
     const filtered = (trainees || []).filter(t => {
         if (!t) return false;
@@ -211,8 +219,18 @@ const ManageTrainees = () => {
         return <span className={`badge ${map[status] || 'badge-gray'}`}>{status || 'Active'}</span>;
     };
 
+    const getActivityStatus = (status, lastSeenAt) => {
+        const normalizedStatus = String(status || '').toLowerCase();
+        if (normalizedStatus === 'offline') return 'Offline';
+
+        const lastSeenTs = lastSeenAt ? new Date(lastSeenAt).getTime() : NaN;
+        const isRecentlyActive = Number.isFinite(lastSeenTs) && (activityNow - lastSeenTs) <= 45 * 1000;
+
+        return (normalizedStatus === 'online' || isRecentlyActive) ? 'Online' : 'Offline';
+    };
+
     const activityBadge = (status, lastSeenAt) => {
-        const normalized = status === 'Online' ? 'Online' : 'Offline';
+        const normalized = getActivityStatus(status, lastSeenAt);
         return (
             <span
                 className={`badge ${normalized === 'Online' ? 'badge-green' : 'badge-gray'}`}
@@ -228,7 +246,16 @@ const ManageTrainees = () => {
     return (
         <div>
             <div className="page-header">
-                <div><div className="page-title">Manage Trainees</div><div className="page-subtitle">View and manage all registered trainees</div></div>
+                <div>
+                    <div className="page-title" style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                        Manage Trainees
+                        <div className="pulse-container" title="Live sync active">
+                            <div className="pulse-dot"></div>
+                            <span style={{ fontSize: 10, color: '#94a3b8', fontWeight: 500, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Live</span>
+                        </div>
+                    </div>
+                    <div className="page-subtitle">View and manage all registered trainees</div>
+                </div>
             </div>
             <div className="card">
                 <div style={{ display: 'flex', gap: 12, marginBottom: 16, flexWrap: 'wrap', alignItems: 'center' }}>
@@ -741,12 +768,34 @@ const ManagePartners = () => {
     const [partnerDocs, setPartnerDocs] = useState([]);
     const [loadingDocs, setLoadingDocs] = useState(false);
     const [actionReasonById, setActionReasonById] = useState({});
+    const [openPartnerMenuKey, setOpenPartnerMenuKey] = useState(null);
+    const [activityNow, setActivityNow] = useState(Date.now());
+
+    useEffect(() => {
+        const timerId = setInterval(() => {
+            setActivityNow(Date.now());
+        }, 15000);
+        return () => clearInterval(timerId);
+    }, []);
 
     const reasonOptions = ['Incomplete Verification', 'Policy Violation', 'Fraudulent Information', 'Duplicate Account', 'Other'];
-    const getActionReason = (partnerId) => actionReasonById[partnerId] || reasonOptions[0];
+    const getActionReason = (partnerId) => actionReasonById[partnerId] || '';
     const setActionReason = (partnerId, reason) => {
         setActionReasonById(prev => ({ ...prev, [partnerId]: reason }));
     };
+    const togglePartnerMenu = (key) => setOpenPartnerMenuKey(prev => prev === key ? null : key);
+    const isPartnerMenuOpen = (key) => openPartnerMenuKey === key;
+
+    useEffect(() => {
+        if (!openPartnerMenuKey) return;
+        const close = (e) => {
+            if (e.type === 'keydown' && e.key !== 'Escape') return;
+            setOpenPartnerMenuKey(null);
+        };
+        document.addEventListener('mousedown', close);
+        document.addEventListener('keydown', close);
+        return () => { document.removeEventListener('mousedown', close); document.removeEventListener('keydown', close); };
+    }, [openPartnerMenuKey]);
 
     // Only show partners who submitted for verification (not just registered)
     const submittedPartners = partners.filter(p => p.verificationStatus !== 'Pending');
@@ -769,8 +818,18 @@ const ManagePartners = () => {
         return <span className={`badge ${map[status] || 'badge-gray'}`}>{status || 'Active'}</span>;
     };
 
+    const getActivityStatus = (status, lastSeenAt) => {
+        const normalizedStatus = String(status || '').toLowerCase();
+        if (normalizedStatus === 'offline') return 'Offline';
+
+        const lastSeenTs = lastSeenAt ? new Date(lastSeenAt).getTime() : NaN;
+        const isRecentlyActive = Number.isFinite(lastSeenTs) && (activityNow - lastSeenTs) <= 45 * 1000;
+
+        return (normalizedStatus === 'online' || isRecentlyActive) ? 'Online' : 'Offline';
+    };
+
     const activityBadge = (status, lastSeenAt) => {
-        const normalized = status === 'Online' ? 'Online' : 'Offline';
+        const normalized = getActivityStatus(status, lastSeenAt);
         return (
             <span
                 className={`badge ${normalized === 'Online' ? 'badge-green' : 'badge-gray'}`}
@@ -803,7 +862,16 @@ const ManagePartners = () => {
     return (
         <div>
             <div className="page-header">
-                <div><div className="page-title">Industry Partners</div><div className="page-subtitle">Manage and verify industry partner accounts</div></div>
+                <div>
+                    <div className="page-title" style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                        Industry Partners
+                        <div className="pulse-container" title="Live sync active">
+                            <div className="pulse-dot"></div>
+                            <span style={{ fontSize: 10, color: '#94a3b8', fontWeight: 500, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Live</span>
+                        </div>
+                    </div>
+                    <div className="page-subtitle">Manage and verify industry partner accounts</div>
+                </div>
                 <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                     {['All', 'Under Review', 'Verified', 'Rejected'].map(s => (
                         <button key={s} className={`btn btn-${filterStatus === s ? 'primary' : 'outline'} btn-sm`} onClick={() => setFilterStatus(s)}>
@@ -819,7 +887,7 @@ const ManagePartners = () => {
                 <div style={{ marginBottom: 14 }}><div className="search-bar" style={{ maxWidth: 320 }}><Search size={14} color="#94a3b8" /><input placeholder="Search company or contact..." value={search} onChange={e => setSearch(e.target.value)} /></div></div>
                 <div style={{ overflowX: 'auto' }}>
                     <table className="data-table">
-                        <thead><tr><th>Company</th><th>Profile Name</th><th>Contact Person</th><th>Industry</th><th>Auth Email</th><th>Activity</th><th>Verification</th><th>Account</th><th>Actions</th></tr></thead>
+                        <thead><tr><th>Company</th><th>Profile Name</th><th>Contact Person</th><th>Industry</th><th>Auth Email</th><th>Activity</th><th>Verification</th><th>Account</th><th className="account-actions-column">Actions</th></tr></thead>
                         <tbody>
                             {filtered.map(p => (
                                 <tr key={p.id}>
@@ -831,14 +899,25 @@ const ManagePartners = () => {
                                     <td>{activityBadge(p.activityStatus, p.lastSeenAt)}</td>
                                     <td>{statusBadge(p.verificationStatus)}</td>
                                     <td>{accountBadge(p.accountStatus || 'Active')}</td>
-                                    <td><div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', minWidth: 260 }}>
-                                        <button className="btn btn-outline btn-sm" onClick={() => openPartnerView(p)}><Eye size={12} /> View</button>
-                                        {canApprove(p.verificationStatus) && <button className="btn btn-success btn-sm" onClick={() => approvePartner(p.id)}><CheckCircle size={12} /> Approve</button>}
-                                        {canReject(p.verificationStatus) && <button className="btn btn-danger btn-sm" onClick={() => rejectPartner(p.id, getActionReason(p.id))}><XCircle size={12} /> Reject</button>}
-                                        <select className="form-select" style={{ width: 175 }} value={getActionReason(p.id)} onChange={e => setActionReason(p.id, e.target.value)}>
-                                            {reasonOptions.map(reason => <option key={reason} value={reason}>{reason}</option>)}
-                                        </select>
-                                    </div></td>
+                                    <td className="account-actions-column">
+                                        <div className="account-actions-cell" onMouseDown={e => e.stopPropagation()}>
+                                            <button
+                                                className={`account-actions-trigger${isPartnerMenuOpen(p.id) ? ' is-open' : ''}`}
+                                                onClick={() => togglePartnerMenu(p.id)}
+                                                title="Actions"
+                                            >
+                                                <MoreVertical size={16} />
+                                            </button>
+                                            {isPartnerMenuOpen(p.id) && (
+                                                <div className="account-actions-panel" onMouseDown={e => e.stopPropagation()}>
+                                                    <div className="account-actions-header">Partner Actions</div>
+                                                    <button className="account-actions-item" onClick={() => { openPartnerView(p); setOpenPartnerMenuKey(null); }}>
+                                                        <Eye size={14} /> View Details
+                                                    </button>
+                                                </div>
+                                            )}
+                                        </div>
+                                    </td>
                                 </tr>
                             ))}
                             {filtered.length === 0 && <tr><td colSpan={9} style={{ textAlign: 'center', padding: 32, color: '#94a3b8' }}>No partners found.</td></tr>}
@@ -882,9 +961,32 @@ const ManagePartners = () => {
                             )}
                         </div>
                         {(canApprove(viewPartner.verificationStatus) || canReject(viewPartner.verificationStatus)) && (
-                            <div style={{ display: 'flex', gap: 10 }}>
-                                {canReject(viewPartner.verificationStatus) && <button className="btn btn-danger" style={{ flex: 1 }} onClick={() => { rejectPartner(viewPartner.id, getActionReason(viewPartner.id)); setViewPartner(null); }}><XCircle size={15} /> Reject</button>}
-                                {canApprove(viewPartner.verificationStatus) && <button className="btn btn-success" style={{ flex: 1 }} onClick={() => { approvePartner(viewPartner.id); setViewPartner(null); }}><CheckCircle size={15} /> Approve</button>}
+                            <div>
+                                {canReject(viewPartner.verificationStatus) && (
+                                    <div style={{ marginBottom: 10 }}>
+                                        <label style={{ fontSize: 11, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.05em', display: 'block', marginBottom: 6 }}>Reject Reason</label>
+                                        <select
+                                            className="form-select"
+                                            style={{ width: '100%', marginBottom: 10 }}
+                                            value={getActionReason(viewPartner.id)}
+                                            onChange={e => setActionReason(viewPartner.id, e.target.value)}
+                                        >
+                                            <option value="" disabled>-- Select reason --</option>
+                                            {reasonOptions.map(reason => <option key={reason} value={reason}>{reason}</option>)}
+                                        </select>
+                                    </div>
+                                )}
+                                <div style={{ display: 'flex', gap: 10 }}>
+                                    {canReject(viewPartner.verificationStatus) && (
+                                        <button className="btn btn-danger" style={{ flex: 1 }} onClick={() => {
+                                            const reason = getActionReason(viewPartner.id);
+                                            if (!reason) { alert('Please select a reject reason first.'); return; }
+                                            rejectPartner(viewPartner.id, reason);
+                                            setViewPartner(null);
+                                        }}><XCircle size={15} /> Reject</button>
+                                    )}
+                                    {canApprove(viewPartner.verificationStatus) && <button className="btn btn-success" style={{ flex: 1 }} onClick={() => { approvePartner(viewPartner.id); setViewPartner(null); }}><CheckCircle size={15} /> Approve</button>}
+                                </div>
                             </div>
                         )}
                     </div>
@@ -1092,9 +1194,18 @@ const AccountManagement = () => {
     const [search, setSearch] = useState('');
     const [filterRole, setFilterRole] = useState('All');
     const [actionReasonById, setActionReasonById] = useState({});
+    const [openActionMenuKey, setOpenActionMenuKey] = useState('');
     const [accountPendingDelete, setAccountPendingDelete] = useState(null);
     const [deletingAccountKey, setDeletingAccountKey] = useState('');
+    const [activityNow, setActivityNow] = useState(Date.now());
     const reasonOptions = ['Policy Violation', 'Fraudulent Information', 'Duplicate Account', 'Requested Deactivation', 'Other'];
+
+    useEffect(() => {
+        const timerId = setInterval(() => {
+            setActivityNow(Date.now());
+        }, 15000);
+        return () => clearInterval(timerId);
+    }, []);
 
     const allAccounts = [
         ...trainees.map(t => ({
@@ -1133,8 +1244,17 @@ const AccountManagement = () => {
         return <span className={`badge ${map[r] || 'badge-gray'}`}>{label}</span>;
     };
 
+    const getActivityStatus = (status, lastSeenAt) => {
+        const normalizedStatus = String(status || '').toLowerCase();
+        if (normalizedStatus === 'offline') return 'Offline';
+
+        const lastSeenTs = lastSeenAt ? new Date(lastSeenAt).getTime() : NaN;
+        const isRecentlyActive = Number.isFinite(lastSeenTs) && (activityNow - lastSeenTs) <= 45 * 1000;
+        return (normalizedStatus === 'online' || isRecentlyActive) ? 'Online' : 'Offline';
+    };
+
     const activityBadge = (status, lastSeenAt) => {
-        const normalized = status === 'Online' ? 'Online' : 'Offline';
+        const normalized = getActivityStatus(status, lastSeenAt);
         return (
             <span
                 className={`badge ${normalized === 'Online' ? 'badge-green' : 'badge-gray'}`}
@@ -1149,7 +1269,7 @@ const AccountManagement = () => {
 
     const getActionReason = (account) => {
         const key = reasonKey(account);
-        return actionReasonById[key] || reasonOptions[0];
+        return actionReasonById[key] || '';
     };
 
     const setActionReason = (account, reason) => {
@@ -1157,11 +1277,49 @@ const AccountManagement = () => {
         setActionReasonById(prev => ({ ...prev, [key]: reason }));
     };
 
+    useEffect(() => {
+        if (!openActionMenuKey) return undefined;
+
+        const handlePointerDown = (event) => {
+            if (event.target.closest('.account-actions-cell')) return;
+            setOpenActionMenuKey('');
+        };
+
+        const handleEscape = (event) => {
+            if (event.key === 'Escape') setOpenActionMenuKey('');
+        };
+
+        document.addEventListener('mousedown', handlePointerDown);
+        document.addEventListener('keydown', handleEscape);
+
+        return () => {
+            document.removeEventListener('mousedown', handlePointerDown);
+            document.removeEventListener('keydown', handleEscape);
+        };
+    }, [openActionMenuKey]);
+
     const applyAccountAction = (account, nextStatus) => {
         updateAccountStatus(account.type, account.id, nextStatus, getActionReason(account));
     };
 
+    const toggleActionMenu = (account) => {
+        const key = reasonKey(account);
+        setOpenActionMenuKey(prev => (prev === key ? '' : key));
+    };
+
+    const isActionMenuOpen = (account) => openActionMenuKey === reasonKey(account);
+
+    const handleAccountStatusAction = (account, nextStatus) => {
+        if (!getActionReason(account)) {
+            alert('Please select a reason before taking action.');
+            return;
+        }
+        applyAccountAction(account, nextStatus);
+        setOpenActionMenuKey('');
+    };
+
     const handleDeleteAccount = (account) => {
+        setOpenActionMenuKey('');
         setAccountPendingDelete(account);
     };
 
@@ -1204,7 +1362,7 @@ const AccountManagement = () => {
             <div className="stats-grid" style={{ marginBottom: 20 }}>
                 {[
                     { label: 'Total Accounts', value: allAccounts.length, icon: <Users size={22} color="#7c3aed" />, bg: '#ede9fe' },
-                    { label: 'Online', value: allAccounts.filter(a => a.activityStatus === 'Online').length, icon: <Clock size={22} color="#16a34a" />, bg: '#dcfce7' },
+                    { label: 'Online', value: allAccounts.filter(a => getActivityStatus(a.activityStatus, a.lastSeenAt) === 'Online').length, icon: <Clock size={22} color="#16a34a" />, bg: '#dcfce7' },
                     { label: 'Active', value: allAccounts.filter(a => (a.accountStatus || 'Active') === 'Active').length, icon: <CheckCircle size={22} color="#2563eb" />, bg: '#dbeafe' },
                     { label: 'Suspended', value: allAccounts.filter(a => a.accountStatus === 'Suspended').length, icon: <AlertCircle size={22} color="#d97706" />, bg: '#fef3c7' },
                 ].map((s, i) => (
@@ -1220,7 +1378,7 @@ const AccountManagement = () => {
                 </div>
                 <div style={{ overflowX: 'auto' }}>
                     <table className="data-table">
-                        <thead><tr><th>Profile Name</th><th>Auth Email</th><th>Role</th><th>Activity</th><th>Account</th><th>Actions</th></tr></thead>
+                        <thead><tr><th>Profile Name</th><th>Auth Email</th><th>Role</th><th>Activity</th><th>Account</th><th className="account-actions-column">Actions</th></tr></thead>
                         <tbody>
                             {filtered.map((a, i) => (
                                 <tr key={`${a.type}-${a.id}-${i}`}>
@@ -1229,24 +1387,55 @@ const AccountManagement = () => {
                                     <td>{roleBadge(a.type)}</td>
                                     <td>{activityBadge(a.activityStatus, a.lastSeenAt)}</td>
                                     <td>{accountBadge(a.accountStatus || 'Active')}</td>
-                                    <td>
-                                        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', minWidth: 340 }}>
-                                            <select className="form-select" style={{ width: 170 }} value={getActionReason(a)} onChange={e => setActionReason(a, e.target.value)}>
-                                                {reasonOptions.map(reason => <option key={reason} value={reason}>{reason}</option>)}
-                                            </select>
-                                            {(a.accountStatus || 'Active') === 'Active' ? (
-                                                <button className="btn btn-outline btn-sm" onClick={() => applyAccountAction(a, 'Disabled')}><XCircle size={12} /> Disable</button>
-                                            ) : (
-                                                <button className="btn btn-outline btn-sm" onClick={() => applyAccountAction(a, 'Active')}><CheckCircle size={12} /> Enable</button>
-                                            )}
-                                            {(a.accountStatus || 'Active') !== 'Suspended' && (
-                                                <button className="btn btn-outline btn-sm" onClick={() => applyAccountAction(a, 'Suspended')} style={{ color: '#d97706' }}>
-                                                    <AlertCircle size={13} /> Suspend
-                                                </button>
-                                            )}
-                                            <button className="btn btn-outline btn-sm" onClick={() => handleDeleteAccount(a)} style={{ color: '#dc2626' }} disabled={isDeleting(a)}>
-                                                <Trash2 size={12} /> {isDeleting(a) ? 'Deleting...' : 'Delete'}
+                                    <td className="account-actions-column">
+                                        <div className="account-actions-cell">
+                                            <button
+                                                type="button"
+                                                className={`account-actions-trigger ${isActionMenuOpen(a) ? 'is-open' : ''}`}
+                                                onClick={() => toggleActionMenu(a)}
+                                                aria-haspopup="menu"
+                                                aria-expanded={isActionMenuOpen(a)}
+                                                aria-label={`Open actions for ${a.displayName}`}
+                                            >
+                                                <MoreVertical size={16} />
                                             </button>
+                                            {isActionMenuOpen(a) && (
+                                                <div className="account-actions-panel" role="menu">
+                                                    <div className="account-actions-panel-header">Account Actions</div>
+                                                    <label className="account-actions-label">Reason</label>
+                                                    <select
+                                                        className="form-select account-actions-select"
+                                                        value={getActionReason(a)}
+                                                        onChange={e => setActionReason(a, e.target.value)}
+                                                    >
+                                                        <option value="" disabled>-- Select reason --</option>
+                                                        {reasonOptions.map(reason => <option key={reason} value={reason}>{reason}</option>)}
+                                                    </select>
+                                                    <div className="account-actions-divider" />
+                                                    {(a.accountStatus || 'Active') === 'Active' ? (
+                                                        <button type="button" className="account-actions-item" onClick={() => handleAccountStatusAction(a, 'Disabled')}>
+                                                            <XCircle size={14} /> Disable
+                                                        </button>
+                                                    ) : (
+                                                        <button type="button" className="account-actions-item" onClick={() => handleAccountStatusAction(a, 'Active')}>
+                                                            <CheckCircle size={14} /> Enable
+                                                        </button>
+                                                    )}
+                                                    {(a.accountStatus || 'Active') !== 'Suspended' && (
+                                                        <button type="button" className="account-actions-item warning" onClick={() => handleAccountStatusAction(a, 'Suspended')}>
+                                                            <AlertCircle size={14} /> Suspend
+                                                        </button>
+                                                    )}
+                                                    <button
+                                                        type="button"
+                                                        className="account-actions-item danger"
+                                                        onClick={() => handleDeleteAccount(a)}
+                                                        disabled={isDeleting(a)}
+                                                    >
+                                                        <Trash2 size={14} /> {isDeleting(a) ? 'Deleting...' : 'Delete'}
+                                                    </button>
+                                                </div>
+                                            )}
                                         </div>
                                     </td>
                                 </tr>

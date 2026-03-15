@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
 import { supabase } from '../lib/supabase';
 
 const AppContext = createContext();
@@ -54,6 +54,10 @@ const normalizeCompetencyList = (values = []) => {
     });
 };
 
+const DEFAULT_STUDENT_PUBLIC_INFO_FIELDS = ['name', 'birthday', 'gender'];
+const DEFAULT_PARTNER_PUBLIC_INFO_FIELDS = ['companyName', 'contactPerson', 'industry'];
+const resolveVisibilityFields = (value, defaults = []) => (Array.isArray(value) ? value : defaults);
+
 export const AppProvider = ({ children }) => {
   const appMetadata = {
     appName: 'TraineeTrack',
@@ -64,6 +68,7 @@ export const AppProvider = ({ children }) => {
 
   const [currentUser, setCurrentUser] = useState(null);
   const [userRole, setUserRole] = useState(null); // 'admin' | 'trainee' | 'partner'
+  const presenceAccessTokenRef = useRef('');
 
   // ─── TRAINEES ────────────────────────────────────────────────────────────
   const [trainees, setTrainees] = useState([]);
@@ -75,99 +80,7 @@ export const AppProvider = ({ children }) => {
   const [programs, setPrograms] = useState([]);
 
   // ─── JOB / OPPORTUNITY POSTINGS ──────────────────────────────────────────
-  const [jobPostings, setJobPostings] = useState([
-    {
-      id: 1,
-      partnerId: 1,
-      companyName: 'TechSolutions Inc.',
-      industry: 'Information Technology',
-      title: 'Junior IT Technician',
-      opportunityType: 'Job', // Job | OJT | Apprenticeship
-      ncLevel: 'Computer Systems Servicing NC II',
-      requiredCompetencies: [
-        'Install and Configure Computer Systems',
-        'Set-Up Computer Networks',
-        'Maintain and Repair Computer Systems and Networks',
-      ],
-      requiredSkills: ['Problem Solving', 'Teamwork', 'Communication'],
-      description: 'We are looking for Computer Systems Servicing NC II certified technicians to join our growing IT support team. Full training provided for fresh trainees.',
-      employmentType: 'Full-time',
-      location: 'Makati City',
-      salaryRange: '₱18,000 – ₱22,000/month',
-      slots: 5,
-      status: 'Open',
-      datePosted: '2026-02-01',
-      createdAt: new Date().toISOString(),
-    },
-    {
-      id: 2,
-      partnerId: 1,
-      companyName: 'TechSolutions Inc.',
-      industry: 'Information Technology',
-      title: 'Web Developer Trainee',
-      opportunityType: 'OJT',
-      ncLevel: 'Contact Center Services NC II',
-      requiredCompetencies: [
-        'Communicate Effectively in English for Customer Service',
-        'Perform Customer Service Delivery Processes',
-        'Demonstrate Ability to Effectively Engage Customers',
-      ],
-      requiredSkills: ['Communication', 'English Proficiency', 'Customer Service', 'Problem Solving'],
-      description: 'Join our contact center team as an OJT trainee. You will handle customer interactions under senior team leads.',
-      employmentType: 'Full-time',
-      location: 'Makati City',
-      salaryRange: '₱20,000 – ₱25,000/month',
-      slots: 3,
-      status: 'Open',
-      datePosted: '2026-02-10',
-      createdAt: new Date().toISOString(),
-    },
-    {
-      id: 3,
-      partnerId: 2,
-      companyName: 'AutoMech Corporation',
-      industry: 'Automotive',
-      title: 'Automotive Technician',
-      opportunityType: 'Job',
-      ncLevel: 'Automotive Servicing NC I',
-      requiredCompetencies: [
-        'Perform Periodic Maintenance of Automotive Engine',
-        'Perform Periodic Maintenance of Brake System',
-        'Perform Mensuration and Calculation',
-      ],
-      requiredSkills: ['Problem Solving', 'Critical Thinking', 'Teamwork'],
-      description: 'AutoMech is hiring automotive technicians for our service center. Automotive Servicing NC holders are preferred.',
-      employmentType: 'Full-time',
-      location: 'Caloocan City',
-      salaryRange: '₱16,000 – ₱20,000/month',
-      slots: 10,
-      status: 'Open',
-      datePosted: '2026-01-20',
-      createdAt: new Date().toISOString(),
-    },
-    {
-      id: 4,
-      partnerId: 2,
-      companyName: 'AutoMech Corporation',
-      industry: 'Automotive',
-      title: 'Welder / Fabricator Apprentice',
-      opportunityType: 'Apprenticeship',
-      ncLevel: 'Shielded Metal Arc Welding (SMAW) NC I',
-      requiredCompetencies: [
-        'Weld Carbon Steel Plates Using SMAW',
-        'Setup Welding Equipment',
-      ],
-      requiredSkills: ['Teamwork', 'Time Management'],
-      description: 'We need skilled welders for our fabrication shop. Apprenticeship program for SMAW NC I holders or those currently enrolled.',
-      employmentType: 'Full-time',
-      location: 'Caloocan City',
-      salaryRange: '₱15,000 – ₱18,000/month',
-      slots: 4,
-      status: 'Filled',
-      datePosted: '2025-12-01',
-      createdAt: new Date().toISOString(),
-    },
-  ]);
+  const [jobPostings, setJobPostings] = useState([]);
 
   // ─── APPLICATIONS ─────────────────────────────────────────────────────────
   const [applications, setApplications] = useState([
@@ -568,7 +481,6 @@ export const AppProvider = ({ children }) => {
     setActivityLog(prev => [entry, ...prev]);
   };
 
-  // Fetch external jobs from Remotive API
   useEffect(() => {
     fetchPosts();
     fetchPostComments();
@@ -619,46 +531,6 @@ export const AppProvider = ({ children }) => {
     };
 
     fetchProgramsCatalog();
-
-    const fetchExternalJobs = async () => {
-      try {
-        const res = await fetch('https://remotive.com/api/remote-jobs?limit=25');
-        const data = await res.json();
-        if (data && data.jobs) {
-          const externalJobs = data.jobs.map(j => ({
-            id: `ext-${j.id}`,
-            partnerId: null,
-            companyName: j.company_name,
-            industry: j.category || 'Information Technology',
-            title: j.title,
-            opportunityType: 'Job',
-            ncLevel: 'Any',
-            requiredCompetencies: [],
-            requiredSkills: j.tags || [],
-            description: j.description.replace(/<[^>]*>?/gm, '').substring(0, 300) + '...',
-            employmentType: j.job_type === 'full_time' ? 'Full-time' : 'Contract',
-            location: j.candidate_required_location || 'Remote',
-            salaryRange: j.salary || 'Competitive',
-            slots: 1,
-            status: 'Open',
-            datePosted: j.publication_date.split('T')[0],
-            createdAt: j.publication_date,
-            isExternal: true,
-            url: j.url
-          }));
-
-          setJobPostings(prev => {
-            // Avoid duplicate fetches on strict mode
-            const existingExt = prev.some(p => String(p.id).startsWith('ext-'));
-            if (existingExt) return prev;
-            return [...prev, ...externalJobs];
-          });
-        }
-      } catch (err) {
-        console.error('Failed to fetch external jobs:', err);
-      }
-    };
-    fetchExternalJobs();
   }, []);
 
   // ─── ML-INSPIRED RECOMMENDATION ENGINE ────────────────────────────────────
@@ -832,6 +704,13 @@ export const AppProvider = ({ children }) => {
     return 'Pending';
   };
 
+  const toDateOnly = (value) => String(value || '').split('T')[0] || null;
+
+  const toTimestamp = (value) => {
+    const ts = new Date(value || '').getTime();
+    return Number.isFinite(ts) ? ts : 0;
+  };
+
   const isSchemaMissingError = (error) => ['42P01', 'PGRST205'].includes(error?.code);
   const isColumnShapeError = (error) => {
     const message = String(error?.message || '').toLowerCase();
@@ -840,13 +719,6 @@ export const AppProvider = ({ children }) => {
 
   const applyToJob = async (traineeId, jobId, applicationData = {}) => {
     const job = jobPostings.find(j => j.id === jobId);
-
-    // Handle external jobs
-    if (job?.isExternal && job?.url) {
-      window.open(job.url, '_blank', 'noopener,noreferrer');
-      logActivity('Link Click', 'Opportunities', `${traineeId} clicked to apply to external job: ${job.title}`);
-      return { success: true, external: true };
-    }
 
     const existing = applications.find(a => a.traineeId === traineeId && a.jobId === jobId);
     if (existing) return { success: false, error: 'Already applied to this opportunity.' };
@@ -1051,10 +923,59 @@ export const AppProvider = ({ children }) => {
   };
 
   const getTraineeApplications = (traineeId) => {
-    return applications.filter(a => a.traineeId === traineeId).map(a => {
-      const job = jobPostings.find(j => j.id === a.jobId);
-      return { ...a, job };
-    });
+    const applicationRecords = applications
+      .filter(a => String(a.traineeId) === String(traineeId))
+      .map(a => {
+        const job = jobPostings.find(j => String(j.id) === String(a.jobId));
+        const partner = partners.find(p => String(p.id) === String(job?.partnerId));
+
+        return {
+          ...a,
+          rowKey: `application-${a.id}`,
+          recordType: 'application',
+          activityType: 'Job Application',
+          directionLabel: 'You applied',
+          eventDate: a.appliedAt,
+          job,
+          partner: partner || (job ? { id: job.partnerId, companyName: job.companyName || 'Industry Partner' } : null),
+          outgoingMessage: a.applicationMessage || null,
+          incomingMessage: a.recruitMessage || a.notes || null,
+          attachmentName: a.resumeFileName || null,
+          attachmentUrl: a.resumeUrl || null,
+          attachmentKind: a.resumeUrl ? 'resume' : null,
+          sortAt: toTimestamp(a.appliedAt),
+        };
+      });
+
+    const contactRecords = contactRequests
+      .filter(request => String(request.sender_id) === String(traineeId) || String(request.recipient_id) === String(traineeId))
+      .map(request => {
+        const isOutgoing = String(request.sender_id) === String(traineeId);
+        const partnerId = isOutgoing ? request.recipient_id : request.sender_id;
+        const partner = partners.find(p => String(p.id) === String(partnerId));
+        const jobId = request.jobPostingId || request.job_posting_id;
+        const job = jobPostings.find(j => String(j.id) === String(jobId));
+
+        return {
+          id: request.id,
+          rowKey: `contact-${request.id}`,
+          recordType: 'contact',
+          activityType: isOutgoing ? 'Direct Apply Contact' : 'Partner Contact',
+          directionLabel: isOutgoing ? 'You contacted partner' : 'Partner contacted you',
+          eventDate: toDateOnly(request.created_at),
+          status: isOutgoing ? 'Sent' : 'Received',
+          job,
+          partner: partner || (job ? { id: job.partnerId, companyName: job.companyName || 'Industry Partner' } : { id: partnerId, companyName: 'Industry Partner' }),
+          outgoingMessage: isOutgoing ? request.message : null,
+          incomingMessage: isOutgoing ? null : request.message,
+          attachmentName: request.attachment_name || null,
+          attachmentUrl: request.attachment_url || null,
+          attachmentKind: request.attachment_kind || null,
+          sortAt: toTimestamp(request.created_at),
+        };
+      });
+
+    return [...applicationRecords, ...contactRecords].sort((a, b) => b.sortAt - a.sortAt);
   };
 
   const getJobApplicants = (jobId) => {
@@ -1065,13 +986,64 @@ export const AppProvider = ({ children }) => {
   };
 
   const getPartnerApplicants = (partnerId) => {
-    const partnerJobs = jobPostings.filter(j => j.partnerId === partnerId);
-    return partnerJobs.flatMap(job =>
-      applications.filter(a => a.jobId === job.id).map(a => {
-        const trainee = trainees.find(t => t.id === a.traineeId);
-        return { ...a, trainee, job, matchRate: getMatchRate(a.traineeId, job.id) };
-      })
+    const partnerJobs = jobPostings.filter(j => String(j.partnerId) === String(partnerId));
+
+    const applicationRecords = partnerJobs.flatMap(job =>
+      applications
+        .filter(a => String(a.jobId) === String(job.id))
+        .map(a => {
+          const trainee = trainees.find(t => String(t.id) === String(a.traineeId));
+
+          return {
+            ...a,
+            rowKey: `application-${a.id}`,
+            recordType: 'application',
+            activityType: 'Job Application',
+            directionLabel: 'Student applied',
+            eventDate: a.appliedAt,
+            trainee,
+            job,
+            outgoingMessage: a.recruitMessage || null,
+            incomingMessage: a.applicationMessage || null,
+            attachmentName: a.resumeFileName || null,
+            attachmentUrl: a.resumeUrl || null,
+            attachmentKind: a.resumeUrl ? 'resume' : null,
+            matchRate: getMatchRate(a.traineeId, job.id),
+            sortAt: toTimestamp(a.appliedAt),
+          };
+        })
     );
+
+    const contactRecords = contactRequests
+      .filter(request => String(request.sender_id) === String(partnerId) || String(request.recipient_id) === String(partnerId))
+      .map(request => {
+        const isOutgoing = String(request.sender_id) === String(partnerId);
+        const traineeId = isOutgoing ? request.recipient_id : request.sender_id;
+        const trainee = trainees.find(t => String(t.id) === String(traineeId));
+        const jobId = request.jobPostingId || request.job_posting_id;
+        const job = jobPostings.find(j => String(j.id) === String(jobId));
+
+        return {
+          id: request.id,
+          rowKey: `contact-${request.id}`,
+          recordType: 'contact',
+          activityType: isOutgoing ? 'Partner Outreach' : 'Student Contact',
+          directionLabel: isOutgoing ? 'You contacted student' : 'Student contacted you',
+          eventDate: toDateOnly(request.created_at),
+          status: isOutgoing ? 'Sent' : 'Received',
+          trainee,
+          job,
+          outgoingMessage: isOutgoing ? request.message : null,
+          incomingMessage: isOutgoing ? null : request.message,
+          attachmentName: request.attachment_name || null,
+          attachmentUrl: request.attachment_url || null,
+          attachmentKind: request.attachment_kind || null,
+          matchRate: trainee?.id && job?.id ? getMatchRate(trainee.id, job.id) : null,
+          sortAt: toTimestamp(request.created_at),
+        };
+      });
+
+    return [...applicationRecords, ...contactRecords].sort((a, b) => b.sortAt - a.sortAt);
   };
 
   // ─── JOB / OPPORTUNITY FUNCTIONS ───────────────────────────────────────────
@@ -1165,38 +1137,68 @@ export const AppProvider = ({ children }) => {
   const approvePartner = async (partnerId) => {
     const partner = partners.find(p => p.id === partnerId);
     try {
-      const res = await fetch(`/api/partner-verification/status/${partnerId}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status: 'verified' })
-      });
-      if (!res.ok) throw new Error('Failed to update status');
+      // Primary: write directly to Supabase via the client (uses authed session)
+      const { error: dbErr } = await supabase
+        .from('industry_partners')
+        .update({ verification_status: 'verified', updated_at: new Date().toISOString() })
+        .eq('id', partnerId);
+
+      if (dbErr) {
+        // Fallback: go through server API (uses service-role key, bypasses RLS)
+        const res = await fetch(`/api/partner-verification/status/${partnerId}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ status: 'verified' })
+        });
+        if (!res.ok) {
+          const errData = await res.json().catch(() => ({}));
+          throw new Error(errData?.error || 'Failed to update status');
+        }
+      }
+
+      // Only update UI after confirmed DB write
+      setPartners(partners.map(p =>
+        p.id === partnerId ? { ...p, verificationStatus: 'Verified' } : p
+      ));
+      logActivity('Status Change', 'Partners', `Verified partner: ${partner?.companyName}`, partner?.verificationStatus, 'Verified');
     } catch (err) {
       console.error('Approve partner error:', err);
+      alert(`Failed to approve partner: ${err.message}`);
     }
-    setPartners(partners.map(p =>
-      p.id === partnerId ? { ...p, verificationStatus: 'Verified' } : p
-    ));
-    logActivity('Status Change', 'Partners', `Verified partner: ${partner?.companyName}`, partner?.verificationStatus, 'Verified');
   };
 
   const rejectPartner = async (partnerId, reason = '') => {
     const partner = partners.find(p => p.id === partnerId);
     try {
-      const res = await fetch(`/api/partner-verification/status/${partnerId}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status: 'rejected' })
-      });
-      if (!res.ok) throw new Error('Failed to update status');
+      // Primary: write directly to Supabase via the client (uses authed session)
+      const { error: dbErr } = await supabase
+        .from('industry_partners')
+        .update({ verification_status: 'rejected', updated_at: new Date().toISOString() })
+        .eq('id', partnerId);
+
+      if (dbErr) {
+        // Fallback: go through server API (uses service-role key, bypasses RLS)
+        const res = await fetch(`/api/partner-verification/status/${partnerId}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ status: 'rejected' })
+        });
+        if (!res.ok) {
+          const errData = await res.json().catch(() => ({}));
+          throw new Error(errData?.error || 'Failed to update status');
+        }
+      }
+
+      // Only update UI after confirmed DB write
+      setPartners(partners.map(p =>
+        p.id === partnerId ? { ...p, verificationStatus: 'Rejected' } : p
+      ));
+      const reasonText = reason?.trim() ? ` (Reason: ${reason.trim()})` : '';
+      logActivity('Status Change', 'Partners', `Rejected partner: ${partner?.companyName}${reasonText}`, partner?.verificationStatus, 'Rejected');
     } catch (err) {
       console.error('Reject partner error:', err);
+      alert(`Failed to reject partner: ${err.message}`);
     }
-    setPartners(partners.map(p =>
-      p.id === partnerId ? { ...p, verificationStatus: 'Rejected' } : p
-    ));
-    const reasonText = reason?.trim() ? ` (Reason: ${reason.trim()})` : '';
-    logActivity('Status Change', 'Partners', `Rejected partner: ${partner?.companyName}${reasonText}`, partner?.verificationStatus, 'Rejected');
   };
 
   const registerPartner = async (partnerData) => {
@@ -1265,6 +1267,7 @@ export const AppProvider = ({ children }) => {
         if (updates.email !== undefined) dbUpdates.contact_email = updates.email;
         if (updates.achievements !== undefined) dbUpdates.achievements = updates.achievements;
         if (updates.benefits !== undefined) dbUpdates.benefits = updates.benefits;
+        if (updates.companyInfoVisibility !== undefined) dbUpdates.company_info_visibility = updates.companyInfoVisibility;
 
         if (Object.keys(dbUpdates).length > 0) {
           const { error } = await supabase
@@ -1408,6 +1411,7 @@ export const AppProvider = ({ children }) => {
         if (updates.educHistory !== undefined) dbUpdates.educ_history = updates.educHistory;
         if (updates.workExperience !== undefined) dbUpdates.work_experience = updates.workExperience;
         if (updates.email !== undefined) dbUpdates.contact_email = updates.email;
+        if (updates.personalInfoVisibility !== undefined) dbUpdates.personal_info_visibility = updates.personalInfoVisibility;
 
         if (Object.keys(dbUpdates).length > 0) {
           // If admin role, use server-side API to bypass RLS
@@ -1575,7 +1579,8 @@ export const AppProvider = ({ children }) => {
           photo: partnerRec.company_logo_url || null,
           accountStatus: 'Active',
           achievements: partnerRec.achievements || [],
-          benefits: partnerRec.benefits || []
+          benefits: partnerRec.benefits || [],
+          companyInfoVisibility: resolveVisibilityFields(partnerRec.company_info_visibility, DEFAULT_PARTNER_PUBLIC_INFO_FIELDS),
         };
 
         if (partnerUser.verificationStatus === 'Rejected') {
@@ -1609,7 +1614,7 @@ export const AppProvider = ({ children }) => {
       const address = [student.detailed_address, student.barangay, student.city, student.province, student.region].filter(Boolean).join(', ');
       const traineeUser = {
         id: userId,
-        name: student.full_name || 'Trainee',
+        name: student.full_name || student.profile_name || 'Trainee',
         email: authData.user.email || '',
         username: authData.user.email || '',
 
@@ -1645,6 +1650,7 @@ export const AppProvider = ({ children }) => {
         achievements: [],
         accountStatus: 'Active',
         certificationProgress: [],
+        personalInfoVisibility: resolveVisibilityFields(student.personal_info_visibility, DEFAULT_STUDENT_PUBLIC_INFO_FIELDS),
         selfieUrl: student.selfie_url || null,
         createdAt: student.created_at || new Date().toISOString(),
       };
@@ -1660,7 +1666,57 @@ export const AppProvider = ({ children }) => {
     }
   };
 
+  const updateOwnPresence = async (status = 'Online', options = {}) => {
+    const { keepalive = false } = options;
+    const tableName = userRole === 'partner' ? 'industry_partners' : userRole === 'trainee' ? 'students' : null;
+    const userId = currentUser?.id;
+    const isSupabaseUser = typeof userId === 'string' && userId.includes('-');
+    if (!tableName || !isSupabaseUser) return;
+
+    const normalizedStatus = String(status || '').toLowerCase() === 'offline' ? 'Offline' : 'Online';
+
+    try {
+      let accessToken = presenceAccessTokenRef.current;
+      if (!accessToken) {
+        const { data: sessionData } = await supabase.auth.getSession();
+        accessToken = sessionData?.session?.access_token || '';
+        presenceAccessTokenRef.current = accessToken;
+      }
+
+      if (accessToken) {
+        const resp = await fetch('/api/presence/ping', {
+          method: 'POST',
+          keepalive,
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${accessToken}`,
+          },
+          body: JSON.stringify({ status: normalizedStatus.toLowerCase() }),
+        });
+
+        if (resp.ok) {
+          return;
+        }
+
+        const errorPayload = await resp.json().catch(() => ({}));
+        console.warn('Presence API ping failed, falling back to direct update:', errorPayload?.error || resp.statusText);
+      }
+
+      const { error } = await supabase
+        .from(tableName)
+        .update({ activity_status: normalizedStatus, last_seen_at: new Date().toISOString() })
+        .eq('id', userId);
+
+      if (error) {
+        console.warn(`Failed to update ${normalizedStatus.toLowerCase()} presence:`, error);
+      }
+    } catch (err) {
+      console.warn(`Presence update exception (${normalizedStatus}):`, err);
+    }
+  };
+
   const logout = async () => {
+    await updateOwnPresence('Offline');
     try {
       await supabase.auth.signOut();
     } catch (e) {
@@ -1673,6 +1729,30 @@ export const AppProvider = ({ children }) => {
   };
 
   useEffect(() => {
+    let disposed = false;
+
+    const syncPresenceToken = async () => {
+      try {
+        const { data: sessionData } = await supabase.auth.getSession();
+        if (!disposed) {
+          presenceAccessTokenRef.current = sessionData?.session?.access_token || '';
+        }
+      } catch (_) {}
+    };
+
+    syncPresenceToken();
+
+    const { data: authListener } = supabase.auth.onAuthStateChange((_event, session) => {
+      presenceAccessTokenRef.current = session?.access_token || '';
+    });
+
+    return () => {
+      disposed = true;
+      authListener?.subscription?.unsubscribe();
+    };
+  }, []);
+
+  useEffect(() => {
     const savedRole = localStorage.getItem('userRole');
     const savedUser = localStorage.getItem('currentUser');
     if (savedRole && savedUser) {
@@ -1680,6 +1760,73 @@ export const AppProvider = ({ children }) => {
       setCurrentUser(JSON.parse(savedUser));
     }
   }, []);
+
+  useEffect(() => {
+    const tableName = userRole === 'partner' ? 'industry_partners' : userRole === 'trainee' ? 'students' : null;
+    const userId = currentUser?.id;
+    const isSupabaseUser = typeof userId === 'string' && userId.includes('-');
+
+    if (!tableName || !isSupabaseUser) return;
+
+    let disposed = false;
+
+    const touchOnline = async () => {
+      try {
+        await updateOwnPresence('Online');
+      } catch (err) {
+        if (!disposed) {
+          console.warn('Presence heartbeat exception:', err);
+        }
+      }
+    };
+
+    touchOnline();
+
+    const heartbeatId = setInterval(() => {
+      if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return;
+      touchOnline();
+    }, 15000);
+
+    const handleVisibilityChange = () => {
+      if (typeof document !== 'undefined' && document.visibilityState === 'visible') {
+        touchOnline();
+      }
+    };
+
+    const handlePageExit = () => {
+      const accessToken = presenceAccessTokenRef.current;
+      if (typeof navigator !== 'undefined' && typeof navigator.sendBeacon === 'function' && accessToken) {
+        const payload = JSON.stringify({ status: 'offline', token: accessToken });
+        const blob = new Blob([payload], { type: 'application/json' });
+        const queued = navigator.sendBeacon('/api/presence/ping', blob);
+        if (queued) {
+          return;
+        }
+      }
+
+      updateOwnPresence('Offline', { keepalive: true });
+    };
+
+    if (typeof document !== 'undefined') {
+      document.addEventListener('visibilitychange', handleVisibilityChange);
+    }
+    if (typeof window !== 'undefined') {
+      window.addEventListener('pagehide', handlePageExit);
+      window.addEventListener('beforeunload', handlePageExit);
+    }
+
+    return () => {
+      disposed = true;
+      clearInterval(heartbeatId);
+      if (typeof document !== 'undefined') {
+        document.removeEventListener('visibilitychange', handleVisibilityChange);
+      }
+      if (typeof window !== 'undefined') {
+        window.removeEventListener('pagehide', handlePageExit);
+        window.removeEventListener('beforeunload', handlePageExit);
+      }
+    };
+  }, [currentUser?.id, userRole]);
 
   // ─── Data Hydration (Supabase) ──────────────────────────────────────────
   useEffect(() => {
@@ -1689,10 +1836,142 @@ export const AppProvider = ({ children }) => {
 
     let adminRefreshTimeout = null;
 
+    const fetchAdminDirectoryData = async () => {
+      if (userRole !== 'admin') return;
+
+      try {
+        const res = await fetch(`/api/admin/data`);
+        const raw = await res.text();
+        let adminData = {};
+        try {
+          adminData = raw ? JSON.parse(raw) : {};
+        } catch {
+          throw new Error(`Admin data endpoint returned non-JSON response (status ${res.status}).`);
+        }
+
+        if (!res.ok) {
+          throw new Error(adminData.error || `Failed to load admin data (status ${res.status}).`);
+        }
+
+        if (adminData.students) {
+          const tMap = adminData.students.map(student => {
+            const address = [student.detailed_address, student.barangay, student.city, student.province, student.region].filter(Boolean).join(', ');
+            return {
+              id: student.id,
+              profileName: student.profile_name || student.full_name || 'Trainee',
+              name: student.profile_name || student.full_name || 'Trainee',
+              email: student.email || 'None',
+              activityStatus: student.activity_status || 'Offline',
+              lastSeenAt: student.last_seen_at || null,
+
+              address: address || 'Philippines',
+              graduationYear: student.graduation_year || 'None',
+              trainingStatus: student.training_status || 'Student',
+              certifications: student.certifications || [],
+              program: student.programs?.name || 'None',
+              employmentStatus: student.employment_status === 'employed' ? 'Employed' : student.employment_status === 'seeking_employment' ? 'Seeking Employment' : 'Not Employed',
+              employer: student.employment_work || null,
+              jobTitle: student.employment_work || null,
+              dateHired: student.employment_start || null,
+              accountStatus: student.account_status || 'Active',
+              personalInfoVisibility: resolveVisibilityFields(student.personal_info_visibility, DEFAULT_STUDENT_PUBLIC_INFO_FIELDS),
+            };
+          });
+          console.log("Admin Data fetched mapped trainees:", tMap);
+          setTrainees(tMap);
+        }
+
+        if (adminData.partners) {
+          const submittedPartnerIds = new Set(adminData.submittedPartnerIds || []);
+          const pMap = adminData.partners.map(p => ({
+            verificationStatus: p.verification_status === 'verified'
+              ? 'Verified'
+              : p.verification_status === 'rejected'
+                ? 'Rejected'
+                : ((p.verification_status === 'pending' && submittedPartnerIds.has(p.id)) || p.verification_status === 'under_review')
+                  ? 'Under Review'
+                  : 'Pending',
+            id: p.id,
+            profileName: p.profile_name || p.company_name || 'Industry Partner',
+            companyName: p.company_name,
+            contactPerson: p.contact_person,
+            industry: p.business_type || 'General',
+            email: p.email || 'None',
+            contactEmail: p.contact_email || '',
+            activityStatus: p.activity_status || 'Offline',
+            lastSeenAt: p.last_seen_at || null,
+            achievements: p.achievements || [],
+            benefits: p.benefits || [],
+            accountStatus: p.account_status || 'Active',
+            companyInfoVisibility: resolveVisibilityFields(p.company_info_visibility, DEFAULT_PARTNER_PUBLIC_INFO_FIELDS),
+          }));
+          console.log("Admin Data fetched mapped partners:", pMap);
+          setPartners(pMap);
+        }
+      } catch (err) {
+        console.error("Failed to load admin data:", err);
+      }
+    };
+
+    const isPresenceOnlyPayload = (payload) => {
+      if (payload?.eventType !== 'UPDATE' || !payload?.new) return false;
+
+      const changedKeys = Object.keys(payload.new).filter(key => {
+        if (!payload.old) return true; // Treat as changed if old data is missing
+        return payload.new[key] !== payload.old[key];
+      });
+      
+      if (changedKeys.length === 0) return false;
+
+      const allowedKeys = new Set(['activity_status', 'last_seen_at', 'updated_at']);
+      return changedKeys.every(key => allowedKeys.has(key));
+    };
+
+    const applyAdminPresenceUpdate = (tableName, payload) => {
+      const recordId = payload?.new?.id || payload?.old?.id;
+      if (!recordId) return;
+
+      const nextActivityStatus = payload?.new?.activity_status || payload?.old?.activity_status || 'Offline';
+      const nextLastSeenAt = payload?.new?.last_seen_at || payload?.old?.last_seen_at || null;
+
+      if (tableName === 'students') {
+        setTrainees(prev => prev.map(student => (
+          student.id === recordId
+            ? { ...student, activityStatus: nextActivityStatus, lastSeenAt: nextLastSeenAt }
+            : student
+        )));
+        return;
+      }
+
+      if (tableName === 'industry_partners') {
+        setPartners(prev => prev.map(partner => (
+          partner.id === recordId
+            ? { ...partner, activityStatus: nextActivityStatus, lastSeenAt: nextLastSeenAt }
+            : partner
+        )));
+      }
+    };
+
     const fetchAllData = async () => {
       // Keep comments synced for community feed actions
       await fetchPostComments();
       await fetchJobPostingComments();
+
+      let publicDirectory = { students: [], partners: [] };
+      if (userRole !== 'admin') {
+        try {
+          const response = await fetch('/api/public-directory');
+          if (response.ok) {
+            const payload = await response.json();
+            publicDirectory = {
+              students: Array.isArray(payload?.students) ? payload.students : [],
+              partners: Array.isArray(payload?.partners) ? payload.partners : [],
+            };
+          }
+        } catch (err) {
+          console.warn('Failed to fetch public directory fallback:', err);
+        }
+      }
 
       // 0. Fetch TESDA Programs catalog (with competencies)
       try {
@@ -1743,9 +2022,7 @@ export const AppProvider = ({ children }) => {
           .order('created_at', { ascending: false });
 
         if (jobs) {
-          setJobPostings((prev) => {
-            const exts = prev.filter(p => String(p.id).startsWith('ext-'));
-            const mapped = jobs.map(j => ({
+          setJobPostings(jobs.map(j => ({
               ...(j.source === 'partner' && (j.attachment_url || j.source_url)
                 ? {
                     attachmentUrl: j.attachment_url || j.source_url,
@@ -1784,26 +2061,65 @@ export const AppProvider = ({ children }) => {
               status: j.status || 'Open',
               datePosted: j.created_at?.split('T')[0],
               createdAt: j.created_at,
-            }));
-            return [...mapped, ...exts];
-          });
+            })));
         }
       } catch (err) { console.warn(err); }
 
       // 2. Fetch all public student profiles (for feed resolution)
       try {
-        const { data: stds } = await supabase
+        let stds = null;
+        let studentsError = null;
+
+        const withProfileName = await supabase
           .from('students')
-          .select('id, full_name, profile_picture_url, contact_email, resume_url');
-        if (stds) {
-          setTrainees(stds.map(s => ({
-            id: s.id,
-            name: s.full_name,
-            photo: s.profile_picture_url,
-            email: s.contact_email || '',
-            resumeUrl: s.resume_url || null,
-          })));
+          .select('id, full_name, profile_name, profile_picture_url, contact_email, resume_url, personal_info_visibility');
+        stds = withProfileName.data;
+        studentsError = withProfileName.error;
+
+        if (studentsError && (studentsError.code === 'PGRST204' || studentsError.code === '42703' || String(studentsError.message || '').toLowerCase().includes('profile_name'))) {
+          const fallback = await supabase
+            .from('students')
+            .select('id, full_name, profile_picture_url, contact_email, resume_url');
+          stds = fallback.data;
+          studentsError = fallback.error;
         }
+
+        if (studentsError) {
+          console.warn('Direct students query failed, using public directory fallback only:', studentsError);
+          stds = [];
+        }
+
+        const mergedStudents = new Map(
+          (publicDirectory.students || []).map(student => ([
+            student.id,
+            {
+              id: student.id,
+              name: student.name || student.profileName || 'Trainee',
+              profileName: student.profileName || student.name || 'Trainee',
+              photo: student.photo || null,
+              trainingStatus: student.trainingStatus || 'Student',
+              personalInfoVisibility: resolveVisibilityFields(student.personalInfoVisibility, DEFAULT_STUDENT_PUBLIC_INFO_FIELDS),
+              email: '',
+              resumeUrl: null,
+            },
+          ]))
+        );
+
+        (stds || []).forEach(student => {
+          const previous = mergedStudents.get(student.id) || {};
+          mergedStudents.set(student.id, {
+            ...previous,
+            id: student.id,
+            name: student.full_name || student.profile_name || previous.name || 'Trainee',
+            profileName: student.profile_name || student.full_name || previous.profileName || 'Trainee',
+            photo: student.profile_picture_url || previous.photo || null,
+            personalInfoVisibility: resolveVisibilityFields(student.personal_info_visibility, previous.personalInfoVisibility || DEFAULT_STUDENT_PUBLIC_INFO_FIELDS),
+            email: student.contact_email || previous.email || '',
+            resumeUrl: student.resume_url || previous.resumeUrl || null,
+          });
+        });
+
+        setTrainees(Array.from(mergedStudents.values()));
       } catch (err) { console.warn(err); }
 
       // 3. Fetch all public partner profiles (for feed resolution)
@@ -1823,101 +2139,60 @@ export const AppProvider = ({ children }) => {
         const { data: pts } = await supabase
           .from('industry_partners')
           .select('*');
-        if (pts) {
-          setPartners(pts.map(p => ({
-            verificationStatus: p.verification_status === 'verified'
+
+        const mergedPartners = new Map(
+          (publicDirectory.partners || []).map(partner => ([
+            partner.id,
+            {
+              id: partner.id,
+              companyName: partner.companyName || partner.profileName || 'Industry Partner',
+              profileName: partner.profileName || partner.companyName || 'Industry Partner',
+              industry: partner.industry || 'General',
+              company_logo_url: partner.company_logo_url || null,
+              companyInfoVisibility: resolveVisibilityFields(partner.companyInfoVisibility, DEFAULT_PARTNER_PUBLIC_INFO_FIELDS),
+              contactPerson: '',
+              email: '',
+              address: '',
+              website: '',
+              achievements: [],
+              benefits: [],
+              verificationStatus: partner.verificationStatus || 'Pending',
+            },
+          ]))
+        );
+
+        (pts || []).forEach(partner => {
+          const previous = mergedPartners.get(partner.id) || {};
+          mergedPartners.set(partner.id, {
+            ...previous,
+            id: partner.id,
+            companyName: partner.company_name || previous.companyName || 'Industry Partner',
+            profileName: previous.profileName || partner.company_name || partner.contact_person || 'Industry Partner',
+            companyInfoVisibility: resolveVisibilityFields(partner.company_info_visibility, previous.companyInfoVisibility || DEFAULT_PARTNER_PUBLIC_INFO_FIELDS),
+            contactPerson: partner.contact_person || previous.contactPerson || '',
+            industry: partner.business_type || previous.industry || 'General',
+            email: partner.contact_email || previous.email || '',
+            address: partner.city || previous.address || '',
+            website: partner.website || previous.website || '',
+            company_logo_url: partner.company_logo_url || previous.company_logo_url || null,
+            achievements: partner.achievements || previous.achievements || [],
+            benefits: partner.benefits || previous.benefits || [],
+            verificationStatus: partner.verification_status === 'verified'
               ? 'Verified'
-              : p.verification_status === 'rejected'
+              : partner.verification_status === 'rejected'
                 ? 'Rejected'
-                : ((p.verification_status === 'pending' && submittedPartnerIds.has(p.id)) || p.verification_status === 'under_review')
+                : ((partner.verification_status === 'pending' && submittedPartnerIds.has(partner.id)) || partner.verification_status === 'under_review')
                   ? 'Under Review'
-                  : 'Pending',
-            id: p.id,
-            companyName: p.company_name,
-            contactPerson: p.contact_person,
-            industry: p.business_type || 'General',
-            email: p.contact_email || '',
-            address: p.city || '',
-            website: p.website || '',
-            company_logo_url: p.company_logo_url,
-            achievements: p.achievements || [],
-            benefits: p.benefits || [],
-          })));
-        }
+                  : (previous.verificationStatus || 'Pending'),
+          });
+        });
+
+        setPartners(Array.from(mergedPartners.values()));
       } catch (err) { console.warn(err); }
 
       // 4. Fetch Admin Metrics
       if (userRole === 'admin') {
-        try {
-          const res = await fetch(`/api/admin/data`);
-          const raw = await res.text();
-          let adminData = {};
-          try {
-            adminData = raw ? JSON.parse(raw) : {};
-          } catch {
-            throw new Error(`Admin data endpoint returned non-JSON response (status ${res.status}).`);
-          }
-
-          if (!res.ok) {
-            throw new Error(adminData.error || `Failed to load admin data (status ${res.status}).`);
-          }
-
-          if (adminData.students) {
-            const tMap = adminData.students.map(student => {
-              const address = [student.detailed_address, student.barangay, student.city, student.province, student.region].filter(Boolean).join(', ');
-              return {
-                id: student.id,
-                profileName: student.profile_name || student.full_name || 'Trainee',
-                name: student.profile_name || student.full_name || 'Trainee',
-                email: student.email || 'None',
-                activityStatus: student.activity_status || 'Offline',
-                lastSeenAt: student.last_seen_at || null,
-
-                address: address || 'Philippines',
-                graduationYear: student.graduation_year || 'None',
-                trainingStatus: student.training_status || 'Student',
-                certifications: student.certifications || [],
-                program: student.programs?.name || 'None',
-                employmentStatus: student.employment_status === 'employed' ? 'Employed' : student.employment_status === 'seeking_employment' ? 'Seeking Employment' : 'Not Employed',
-                employer: student.employment_work || null,
-                jobTitle: student.employment_work || null,
-                dateHired: student.employment_start || null,
-                accountStatus: student.account_status || 'Active',
-              };
-            });
-            console.log("Admin Data fetched mapped trainees:", tMap);
-            setTrainees(tMap);
-          }
-
-          if (adminData.partners) {
-            const submittedPartnerIds = new Set(adminData.submittedPartnerIds || []);
-            const pMap = adminData.partners.map(p => ({
-              verificationStatus: p.verification_status === 'verified'
-                ? 'Verified'
-                : p.verification_status === 'rejected'
-                  ? 'Rejected'
-                  : ((p.verification_status === 'pending' && submittedPartnerIds.has(p.id)) || p.verification_status === 'under_review')
-                    ? 'Under Review'
-                    : 'Pending',
-              id: p.id,
-              profileName: p.profile_name || p.company_name || 'Industry Partner',
-              companyName: p.company_name,
-              contactPerson: p.contact_person,
-              industry: p.business_type || 'General',
-              email: p.email || 'None',
-              contactEmail: p.contact_email || '',
-              activityStatus: p.activity_status || 'Offline',
-              lastSeenAt: p.last_seen_at || null,
-              achievements: p.achievements || [],
-              benefits: p.benefits || [],
-              accountStatus: p.account_status || 'Active',
-            }));
-            console.log("Admin Data fetched mapped partners:", pMap);
-            setPartners(pMap);
-          }
-        } catch (err) {
-          console.error("Failed to load admin data:", err);
-        }
+        await fetchAdminDirectoryData();
       }
     };
 
@@ -1973,13 +2248,40 @@ export const AppProvider = ({ children }) => {
       }
     };
 
+    const fetchContactRequests = async () => {
+      try {
+        const isSupabaseUser = typeof currentUser?.id === 'string' && currentUser.id.includes('-');
+        if (!isSupabaseUser || userRole === 'admin') return;
+
+        const { data, error } = await supabase
+          .from('contact_requests')
+          .select('*')
+          .order('created_at', { ascending: false });
+
+        if (error) {
+          if (isSchemaMissingError(error) || isColumnShapeError(error)) {
+            console.warn('contact_requests table not found. Apply the migration to persist contact requests.');
+            return;
+          }
+
+          throw error;
+        }
+
+        setContactRequests(data || []);
+      } catch (err) {
+        console.warn('Exception while fetching contact requests:', err);
+      }
+    };
+
     fetchAllData();
     fetchApplications();
+    fetchContactRequests();
 
     const commentsRealtimeChannel = supabase
       .channel(`post-comments-sync-${currentUser.id}`)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'post_comments' }, fetchPostComments)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'job_posting_comments' }, fetchJobPostingComments)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'contact_requests' }, fetchContactRequests)
       .subscribe();
 
     if (userRole !== 'admin') {
@@ -1989,22 +2291,55 @@ export const AppProvider = ({ children }) => {
       };
     }
 
+    const runAdminRefresh = () => {
+      fetchAllData();
+      fetchApplications();
+    };
+
     const scheduleAdminRefresh = () => {
       if (adminRefreshTimeout) clearTimeout(adminRefreshTimeout);
       adminRefreshTimeout = setTimeout(() => {
-        fetchAllData();
-      }, 250);
+        runAdminRefresh();
+      }, 100); // Reduce debounce for faster non-presence updates
     };
 
     const adminRealtimeChannel = supabase
       .channel(`admin-live-sync-${currentUser.id}`)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'students' }, scheduleAdminRefresh)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'industry_partners' }, scheduleAdminRefresh)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'students' }, (payload) => {
+        if (isPresenceOnlyPayload(payload)) {
+          applyAdminPresenceUpdate('students', payload);
+          return;
+        }
+        scheduleAdminRefresh();
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'industry_partners' }, (payload) => {
+        if (isPresenceOnlyPayload(payload)) {
+          applyAdminPresenceUpdate('industry_partners', payload);
+          return;
+        }
+        scheduleAdminRefresh();
+      })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'partner_verifications' }, scheduleAdminRefresh)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'job_postings' }, scheduleAdminRefresh)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'job_applications' }, scheduleAdminRefresh)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'programs' }, scheduleAdminRefresh)
       .subscribe();
+
+    const onVisibilityChange = () => {
+      if (typeof document !== 'undefined' && document.visibilityState === 'visible') {
+        fetchAdminDirectoryData();
+      }
+    };
+
+    if (typeof document !== 'undefined') {
+      document.addEventListener('visibilitychange', onVisibilityChange);
+    }
 
     return () => {
       if (adminRefreshTimeout) clearTimeout(adminRefreshTimeout);
+      if (typeof document !== 'undefined') {
+        document.removeEventListener('visibilitychange', onVisibilityChange);
+      }
       supabase.removeChannel(adminRealtimeChannel);
       supabase.removeChannel(commentsRealtimeChannel);
     };

@@ -6,10 +6,15 @@ import {
   MapPin, Send, Award, ChevronRight, Trash2, Menu, Lock,
   Upload, AlertTriangle, Clock, ShieldCheck, FileCheck,
   Bell, Home, Settings, TrendingUp, Bookmark, Target, Star,
-  Camera, MessageSquare, Heart, Edit, Loader, ExternalLink
+  Camera, MessageSquare, Edit, Loader, ExternalLink
 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
-import { Routes, Route, useNavigate, useLocation, Navigate } from 'react-router-dom';
+import { Routes, Route, useNavigate, useLocation, Navigate, useParams } from 'react-router-dom';
+import ProfilePage from '../ProfilePage';
+
+const TraineeProfileContent = React.lazy(() =>
+  import('./TraineeDashboard').then(module => ({ default: module.TraineeProfileContent }))
+);
 
 /* ═══════════════════════════════════════════════════════════════════
    LINKEDIN-STYLE PARTNER DASHBOARD
@@ -63,6 +68,62 @@ const isImageAttachment = (attachmentUrl, attachmentType) => {
   if (mime.startsWith('image/')) return true;
   const cleanUrl = String(attachmentUrl || '').split('?')[0].toLowerCase();
   return /\.(png|jpe?g|gif|webp|bmp|svg)$/.test(cleanUrl);
+};
+
+const isStudentAuthorType = (authorType = '') => {
+  const normalized = String(authorType || '').toLowerCase();
+  return normalized === 'student' || normalized === 'trainee';
+};
+
+const normalizeProfileType = (profileType = '') => {
+  const normalized = String(profileType || '').toLowerCase();
+  if (normalized === 'student' || normalized === 'trainee') return 'trainee';
+  if (normalized === 'industry_partner' || normalized === 'partner') return 'partner';
+  return '';
+};
+
+const toProfileAuthorType = (authorType = '') => (isStudentAuthorType(authorType) ? 'trainee' : 'partner');
+const toRecipientAuthorType = (authorType = '') => (isStudentAuthorType(authorType) ? 'student' : 'industry_partner');
+const DEFAULT_PARTNER_PUBLIC_INFO_FIELDS = ['companyName', 'contactPerson', 'industry'];
+const resolvePartnerVisibility = (profile) => {
+  const value = profile?.companyInfoVisibility ?? profile?.company_info_visibility;
+  return Array.isArray(value) ? value : DEFAULT_PARTNER_PUBLIC_INFO_FIELDS;
+};
+
+const normalizePartnerProfile = (profile) => {
+  if (!profile) return null;
+
+  const address = profile.address
+    || [profile.detailed_address, profile.city, profile.province, profile.region].filter(Boolean).join(', ')
+    || '';
+
+  const rawVerification = String(profile.verificationStatus || profile.verification_status || '').toLowerCase();
+  const verificationStatus = profile.verificationStatus
+    || (rawVerification === 'verified'
+      ? 'Verified'
+      : rawVerification === 'rejected'
+        ? 'Rejected'
+        : rawVerification === 'under_review'
+          ? 'Under Review'
+          : rawVerification === 'pending'
+            ? 'Pending'
+            : 'Pending');
+
+  return {
+    ...profile,
+    companyName: profile.companyName || profile.company_name || profile.profileName || 'Industry Partner',
+    contactPerson: profile.contactPerson || profile.contact_person || '',
+    email: profile.email || profile.contact_email || '',
+    address,
+    website: profile.website || '',
+    industry: profile.industry || profile.business_type || 'General',
+    achievements: Array.isArray(profile.achievements) ? profile.achievements : [],
+    benefits: Array.isArray(profile.benefits) ? profile.benefits : [],
+    photo: profile.photo || profile.company_logo_url || null,
+    company_logo_url: profile.company_logo_url || profile.photo || null,
+    companyInfoVisibility: resolvePartnerVisibility(profile),
+    verificationStatus,
+  };
 };
 
 // ─── STATUS BADGE HELPER ──────────────────────────────────────────
@@ -337,6 +398,7 @@ const RecruitmentStatsWidget = ({ myJobs, myApplicants }) => (
 // ─── PAGE 1: PARTNER DASHBOARD HOME ──────────────────────────────
 const PartnerHome = ({ setActivePage }) => {
   const { currentUser, partners, jobPostings, getPartnerApplicants, posts, createPost, trainees, addPostComment, getPostComments, addJobPostingComment, getJobPostingComments, updateJobPostingComment, deleteJobPostingComment, sendContactRequest } = useApp();
+  const navigate = useNavigate();
   const partner = getLivePartner(currentUser, partners);
   const verified = isVerified(partner);
   const myJobs = jobPostings.filter(j => j.partnerId === partner?.id);
@@ -357,17 +419,26 @@ const PartnerHome = ({ setActivePage }) => {
   const [contactAttachment, setContactAttachment] = useState(null);
   const [contactSubmitting, setContactSubmitting] = useState(false);
   const [jobMediaModal, setJobMediaModal] = useState(null);
+  const [jobMediaCommentsOnly, setJobMediaCommentsOnly] = useState(false);
   const [jobMediaCommentInput, setJobMediaCommentInput] = useState('');
   const [editingJobMediaCommentId, setEditingJobMediaCommentId] = useState(null);
   const [jobMediaEditInput, setJobMediaEditInput] = useState('');
   const [jobMediaCommentSaving, setJobMediaCommentSaving] = useState(false);
   const [jobMediaCommentMenuId, setJobMediaCommentMenuId] = useState(null);
+  const [isCompactCommentViewport, setIsCompactCommentViewport] = useState(() => (
+    typeof window !== 'undefined' ? window.innerWidth <= 1024 : false
+  ));
   const fileInputRef = useRef(null);
   const contactFileInputRef = useRef(null);
   const jobMediaCommentInputRef = useRef(null);
+  const openProfile = (target) => {
+    if (!target?.id || !target?.type) return;
+    navigate(`/partner/profile-view/${target.type}/${target.id}`);
+  };
 
   const openJobMediaModal = (job, focusComment = false) => {
     setJobMediaModal(job);
+    setJobMediaCommentsOnly(Boolean(focusComment));
     setJobMediaCommentInput('');
     setEditingJobMediaCommentId(null);
     setJobMediaEditInput('');
@@ -379,11 +450,51 @@ const PartnerHome = ({ setActivePage }) => {
 
   const closeJobMediaModal = () => {
     setJobMediaModal(null);
+    setJobMediaCommentsOnly(false);
     setJobMediaCommentInput('');
     setEditingJobMediaCommentId(null);
     setJobMediaEditInput('');
     setJobMediaCommentMenuId(null);
   };
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return undefined;
+
+    const handleResize = () => {
+      setIsCompactCommentViewport(window.innerWidth <= 1024);
+    };
+
+    handleResize();
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
+  useEffect(() => {
+    const activeFeedModal = jobMediaModal || commentModalPost;
+    if (!activeFeedModal || typeof window === 'undefined' || typeof document === 'undefined') return undefined;
+
+    const scrollY = window.scrollY;
+    const originalBodyOverflow = document.body.style.overflow;
+    const originalBodyPosition = document.body.style.position;
+    const originalBodyTop = document.body.style.top;
+    const originalBodyWidth = document.body.style.width;
+    const originalHtmlOverflow = document.documentElement.style.overflow;
+
+    document.body.style.overflow = 'hidden';
+    document.body.style.position = 'fixed';
+    document.body.style.top = `-${scrollY}px`;
+    document.body.style.width = '100%';
+    document.documentElement.style.overflow = 'hidden';
+
+    return () => {
+      document.body.style.overflow = originalBodyOverflow;
+      document.body.style.position = originalBodyPosition;
+      document.body.style.top = originalBodyTop;
+      document.body.style.width = originalBodyWidth;
+      document.documentElement.style.overflow = originalHtmlOverflow;
+      window.scrollTo(0, scrollY);
+    };
+  }, [jobMediaModal, commentModalPost]);
 
   const submitJobMediaComment = async () => {
     if (!jobMediaModal) return;
@@ -609,14 +720,16 @@ const PartnerHome = ({ setActivePage }) => {
   const modalAuthor = commentModalPost
     ? (commentModalPost.author_id === currentUser?.id
         ? currentUser
-        : commentModalPost.author_type === 'student'
+        : isStudentAuthorType(commentModalPost.author_type)
           ? trainees.find(t => t.id === commentModalPost.author_id)
           : partners.find(p => p.id === commentModalPost.author_id))
     : null;
-  const modalAuthorName = modalAuthor?.name || modalAuthor?.companyName || 'Community User';
+  const modalAuthorName = modalAuthor?.name || modalAuthor?.profileName || modalAuthor?.companyName || 'Community User';
   const canContactModalAuthor = Boolean(commentModalPost && commentModalPost.author_id !== currentUser?.id);
   const contactRecipientName = contactTarget?.recipientName || 'Recipient';
   const jobMediaComments = jobMediaModal ? getJobPostingComments(jobMediaModal.id) : [];
+  const useCommentsOnlyJobModal = isCompactCommentViewport && jobMediaCommentsOnly;
+  const useCompactPostCommentModal = isCompactCommentViewport;
 
   return (
     <div className="ln-three-col">
@@ -719,8 +832,8 @@ const PartnerHome = ({ setActivePage }) => {
                   </div>
 
                   {filePreview && (
-                    <div style={{ position: 'relative', marginTop: 12, borderRadius: 8, overflow: 'hidden', border: '1px solid #e2e8f0' }}>
-                      <img src={filePreview} alt="Preview" style={{ width: '100%', maxHeight: 200, objectFit: 'cover', display: 'block' }} />
+                    <div className="ln-media-frame ln-media-frame-preview" style={{ position: 'relative', marginTop: 12 }}>
+                      <img src={filePreview} alt="Preview" className="ln-media-image" />
                       <button
                         style={{ position: 'absolute', top: 4, right: 4, background: 'rgba(0,0,0,0.5)', color: '#fff', border: 'none', borderRadius: '50%', width: 20, height: 20, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
                         onClick={() => { setSelectedFile(null); setFilePreview(null); }}
@@ -757,27 +870,49 @@ const PartnerHome = ({ setActivePage }) => {
               return (
                 <div key={`job-${item.id}`} className="ln-card ln-feed-card" style={{ marginBottom: 0 }}>
                   <div className="ln-feed-card-header">
-                    <div className="ln-feed-avatar" style={{ background: '#f0f7ff', color: '#0a66c2' }}>
+                    <button
+                      type="button"
+                      className="ln-feed-avatar"
+                      onClick={() => openProfile({ id: item.partnerId, type: 'partner' })}
+                      style={{ background: '#f0f7ff', color: '#0a66c2', border: 'none', cursor: item.partnerId ? 'pointer' : 'default' }}
+                      disabled={!item.partnerId}
+                    >
                       <Building2 size={20} />
-                    </div>
+                    </button>
                     <div>
                       <div className="ln-feed-author">
-                        {item.companyName} {myJob && <span className="ln-badge ln-badge-blue" style={{ fontSize: 10, marginLeft: 4 }}>Your Post</span>}
+                        <button
+                          type="button"
+                          onClick={() => openProfile({ id: item.partnerId, type: 'partner' })}
+                          style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', color: 'inherit', font: 'inherit', textAlign: 'left' }}
+                        >
+                          {item.companyName}
+                        </button>
+                        {myJob && <span className="ln-badge ln-badge-blue" style={{ fontSize: 10, marginLeft: 4 }}>Your Post</span>}
                       </div>
-                      <div className="ln-feed-meta">{item.industry} &bull; {item.location} &bull; {timeAgo(item.created_at || item.createdAt || item.datePosted)}</div>
+                      <div className="ln-feed-meta">
+                        {[
+                          (item.industry && String(item.industry).trim().toLowerCase() !== 'general') ? item.industry : '',
+                          item.location,
+                          item.salaryRange,
+                          timeAgo(item.created_at || item.createdAt || item.datePosted),
+                        ].filter(Boolean).join(' • ')}
+                      </div>
                     </div>
                   </div>
                   <div className="ln-feed-content">
                     <h4 style={{ fontSize: 15, fontWeight: 700, marginBottom: 4 }}>{item.title}</h4>
                     <p style={{ fontSize: 13, color: 'rgba(0,0,0,0.6)', marginBottom: 8 }}>{item.description.substring(0, 150)}...</p>
                     {item.attachmentUrl && isImageAttachment(item.attachmentUrl, item.attachmentType) && (
-                      <button type="button" onClick={() => openJobMediaModal(item)} style={{ display: 'block', marginBottom: 10, padding: 0, border: 'none', background: 'transparent', width: '100%', cursor: 'pointer' }}>
-                        <img
-                          src={item.attachmentUrl}
-                          alt={item.attachmentName || 'Opportunity attachment'}
-                          style={{ width: '100%', maxHeight: 260, objectFit: 'cover', borderRadius: 10, border: '1px solid #e2e8f0' }}
-                        />
-                      </button>
+                      <div style={{ display: 'block', marginBottom: 10 }}>
+                        <div className="ln-media-frame">
+                          <img
+                            src={item.attachmentUrl}
+                            alt={item.attachmentName || 'Opportunity attachment'}
+                            className="ln-media-image"
+                          />
+                        </div>
+                      </div>
                     )}
                     {item.attachmentUrl && !isImageAttachment(item.attachmentUrl, item.attachmentType) && (
                       <a href={item.attachmentUrl} target="_blank" rel="noreferrer" style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12, color: '#2563eb', marginBottom: 8, textDecoration: 'none' }}>
@@ -788,6 +923,9 @@ const PartnerHome = ({ setActivePage }) => {
                       <span className="ln-opp-type-badge">{item.opportunityType}</span>
                       {item.opportunityType !== 'OJT' && item.employmentType && (
                         <span className="ln-opp-type-badge" style={{ background: '#f8fafc', color: '#64748b' }}>{item.employmentType}</span>
+                      )}
+                      {item.ncLevel && (
+                        <span className="ln-opp-type-badge" style={{ background: '#ede9fe', color: '#6d28d9' }}>{item.ncLevel}</span>
                       )}
                     </div>
                     {jobComments.length > 0 && (
@@ -821,16 +959,17 @@ const PartnerHome = ({ setActivePage }) => {
                 </div>
               );
             } else {
-              const author = item.author_type === 'student'
+              const author = isStudentAuthorType(item.author_type)
                 ? trainees.find(t => t.id === item.author_id)
                 : (partners.find(p => p.id === item.author_id) || (item.author_id === currentUser?.id ? currentUser : null));
+              const authorProfileType = toProfileAuthorType(item.author_type);
 
               const authorInitial = author?.name?.charAt(0) || author?.companyName?.charAt(0) || '?';
               const isMe = item.author_id === currentUser?.id;
               const comments = getPostComments(item.id);
               const getCommentAuthorName = (comment) => {
                 if (comment.author_id === currentUser?.id) return partner?.companyName || currentUser.companyName || currentUser.name || 'You';
-                if (comment.author_type === 'student') {
+                if (isStudentAuthorType(comment.author_type)) {
                   const student = trainees.find(t => t.id === comment.author_id);
                   return student?.name || 'Trainee';
                 }
@@ -841,14 +980,25 @@ const PartnerHome = ({ setActivePage }) => {
               return (
                 <div key={`post-${item.id}`} className="ln-card ln-feed-card" style={{ marginBottom: 0 }}>
                   <div className="ln-feed-card-header">
-                    <div className="ln-feed-avatar">
+                    <button
+                      type="button"
+                      className="ln-feed-avatar"
+                      onClick={() => openProfile({ id: item.author_id, type: authorProfileType })}
+                      style={{ border: 'none', cursor: 'pointer' }}
+                    >
                       {author?.photo || author?.company_logo_url ? (
                         <img src={author.photo || author.company_logo_url} alt="" style={{ width: '100%', height: '100%', borderRadius: '50%', objectFit: 'cover' }} />
                       ) : (authorInitial)}
-                    </div>
+                    </button>
                     <div>
                       <div className="ln-feed-author" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                        {author?.name || author?.companyName || 'Unknown User'}
+                        <button
+                          type="button"
+                          onClick={() => openProfile({ id: item.author_id, type: authorProfileType })}
+                          style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', color: 'inherit', font: 'inherit', textAlign: 'left' }}
+                        >
+                          {author?.name || author?.profileName || author?.companyName || 'Unknown User'}
+                        </button>
                         {isMe && <span className="ln-badge ln-badge-gray" style={{ fontSize: 10 }}>You</span>}
                         {item.post_type !== 'general' && (
                           <span className="ln-badge ln-badge-blue" style={{ fontSize: 10 }}>
@@ -857,7 +1007,7 @@ const PartnerHome = ({ setActivePage }) => {
                         )}
                       </div>
                       <div className="ln-feed-meta">
-                        {item.author_type === 'student' ? 'TESDA Trainee' : 'Industry Partner'} &bull; {timeAgo(item.created_at)}
+                        {isStudentAuthorType(item.author_type) ? 'TESDA Trainee' : 'Industry Partner'} &bull; {timeAgo(item.created_at)}
                       </div>
                     </div>
                   </div>
@@ -866,7 +1016,9 @@ const PartnerHome = ({ setActivePage }) => {
                     {item.media_url && (
                       <div style={{ marginTop: 12 }}>
                         {item.media_url.match(/\.(jpg|jpeg|png|gif|webp)$/i) ? (
-                          <img src={item.media_url} alt="Post media" style={{ width: '100%', borderRadius: 8, border: '1px solid #f3f3f3' }} />
+                          <div className="ln-media-frame">
+                            <img src={item.media_url} alt="Post media" className="ln-media-image" />
+                          </div>
                         ) : (
                           <a
                             href={item.media_url}
@@ -891,11 +1043,21 @@ const PartnerHome = ({ setActivePage }) => {
                     </div>
                     {comments.length > 0 && (
                       <div style={{ marginTop: 12, paddingTop: 10, borderTop: '1px solid #f1f5f9', display: 'flex', flexDirection: 'column', gap: 8 }}>
-                        {comments.slice(-3).map(comment => (
-                          <div key={comment.id} style={{ fontSize: 12.5, color: '#475569', lineHeight: 1.4 }}>
-                            <span style={{ fontWeight: 700, color: '#1e293b' }}>{getCommentAuthorName(comment)}:</span> {comment.content}
-                          </div>
-                        ))}
+                        {comments.slice(-3).map(comment => {
+                          const previewCommentType = toProfileAuthorType(comment.author_type);
+                          return (
+                            <div key={comment.id} style={{ fontSize: 12.5, color: '#475569', lineHeight: 1.4 }}>
+                              <button
+                                type="button"
+                                onClick={() => openProfile({ id: comment.author_id, type: previewCommentType })}
+                                style={{ fontWeight: 700, color: '#1e293b', background: 'none', border: 'none', padding: 0, cursor: 'pointer' }}
+                              >
+                                {getCommentAuthorName(comment)}:
+                              </button>{' '}
+                              {comment.content}
+                            </div>
+                          );
+                        })}
                         {comments.length > 3 && (
                           <div style={{ fontSize: 11, color: '#94a3b8' }}>+{comments.length - 3} more comments</div>
                         )}
@@ -907,8 +1069,8 @@ const PartnerHome = ({ setActivePage }) => {
                       className="ln-feed-action-btn"
                       onClick={() => openContactModal({
                         recipientId: item.author_id,
-                        recipientType: item.author_type,
-                        recipientName: author?.name || author?.companyName || 'Community User',
+                        recipientType: toRecipientAuthorType(item.author_type),
+                        recipientName: author?.name || author?.profileName || author?.companyName || 'Community User',
                         postId: item.id,
                         sourceLabel: item.content,
                       })}
@@ -936,37 +1098,69 @@ const PartnerHome = ({ setActivePage }) => {
       </div>
 
       {jobMediaModal && (
-        <div className="modal-overlay" style={{ background: 'rgba(0, 0, 0, 0.82)' }} onClick={closeJobMediaModal}>
+        <div
+          className="modal-overlay"
+          style={useCommentsOnlyJobModal
+            ? { background: '#ffffff', padding: 0, alignItems: 'stretch' }
+            : { background: 'rgba(0, 0, 0, 0.82)' }}
+          onClick={closeJobMediaModal}
+        >
           <div
             className="ln-modal"
             onClick={e => e.stopPropagation()}
-            style={{ width: '96%', maxWidth: 1240, height: '90vh', maxHeight: 920, padding: 0, overflow: 'hidden', display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) 360px', borderRadius: 14, background: '#0f172a' }}
+            style={{
+              width: useCommentsOnlyJobModal ? '100%' : '96%',
+              maxWidth: useCommentsOnlyJobModal ? '100%' : 1240,
+              height: useCommentsOnlyJobModal ? '100vh' : '90vh',
+              maxHeight: useCommentsOnlyJobModal ? '100vh' : 920,
+              padding: 0,
+              overflow: 'hidden',
+              display: useCommentsOnlyJobModal ? 'flex' : 'grid',
+              gridTemplateColumns: useCommentsOnlyJobModal ? undefined : 'minmax(0, 1fr) 360px',
+              borderRadius: useCommentsOnlyJobModal ? 0 : 14,
+              background: useCommentsOnlyJobModal ? '#ffffff' : '#0f172a'
+            }}
           >
-            <div style={{ background: '#000', display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative' }}>
-              <button
-                onClick={closeJobMediaModal}
-                style={{ position: 'absolute', top: 12, left: 12, width: 34, height: 34, borderRadius: '50%', border: 'none', background: 'rgba(17,24,39,0.7)', color: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-              >
-                <X size={18} />
-              </button>
-              {jobMediaModal.attachmentUrl && isImageAttachment(jobMediaModal.attachmentUrl, jobMediaModal.attachmentType) ? (
-                <img src={jobMediaModal.attachmentUrl} alt={jobMediaModal.attachmentName || 'Opportunity media'} style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
-              ) : jobMediaModal.attachmentUrl ? (
-                <a href={jobMediaModal.attachmentUrl} target="_blank" rel="noreferrer" style={{ color: '#93c5fd', textDecoration: 'none', display: 'inline-flex', gap: 8, alignItems: 'center', background: '#111827', border: '1px solid #334155', borderRadius: 10, padding: '12px 14px' }}>
-                  <FileText size={18} />
-                  {jobMediaModal.attachmentName || 'Open attachment'}
-                </a>
-              ) : (
-                <div style={{ color: '#94a3b8', fontSize: 13 }}>No media attachment for this opportunity.</div>
-              )}
-            </div>
+            {!useCommentsOnlyJobModal && (
+              <div style={{ background: '#000', display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative' }}>
+                <button
+                  onClick={closeJobMediaModal}
+                  style={{ position: 'absolute', top: 12, left: 12, width: 34, height: 34, borderRadius: '50%', border: 'none', background: 'rgba(17,24,39,0.7)', color: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                >
+                  <X size={18} />
+                </button>
+                {jobMediaModal.attachmentUrl && isImageAttachment(jobMediaModal.attachmentUrl, jobMediaModal.attachmentType) ? (
+                  <img src={jobMediaModal.attachmentUrl} alt={jobMediaModal.attachmentName || 'Opportunity media'} style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
+                ) : jobMediaModal.attachmentUrl ? (
+                  <a href={jobMediaModal.attachmentUrl} target="_blank" rel="noreferrer" style={{ color: '#93c5fd', textDecoration: 'none', display: 'inline-flex', gap: 8, alignItems: 'center', background: '#111827', border: '1px solid #334155', borderRadius: 10, padding: '12px 14px' }}>
+                    <FileText size={18} />
+                    {jobMediaModal.attachmentName || 'Open attachment'}
+                  </a>
+                ) : (
+                  <div style={{ color: '#94a3b8', fontSize: 13 }}>No media attachment for this opportunity.</div>
+                )}
+              </div>
+            )}
 
-            <div style={{ background: '#ffffff', display: 'flex', flexDirection: 'column', minHeight: 0 }}>
+            <div style={{ background: '#ffffff', display: 'flex', flexDirection: 'column', minHeight: 0, flex: 1 }}>
               <div style={{ padding: '14px 16px', borderBottom: '1px solid #e5e7eb' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 10 }}>
                   <div>
-                    <div style={{ fontSize: 14, fontWeight: 700, color: '#0f172a' }}>{jobMediaModal.companyName}</div>
-                    <div style={{ fontSize: 12, color: '#64748b', marginTop: 2 }}>{jobMediaModal.industry} • {jobMediaModal.location} • {timeAgo(jobMediaModal.created_at || jobMediaModal.createdAt || jobMediaModal.datePosted)}</div>
+                    <button
+                      type="button"
+                      onClick={() => openProfile({ id: jobMediaModal.partnerId, type: 'partner' })}
+                      style={{ fontSize: 14, fontWeight: 700, color: '#0f172a', background: 'none', border: 'none', padding: 0, cursor: 'pointer' }}
+                    >
+                      {jobMediaModal.companyName}
+                    </button>
+                    <div style={{ fontSize: 12, color: '#64748b', marginTop: 2 }}>
+                      {[
+                        (jobMediaModal.industry && String(jobMediaModal.industry).trim().toLowerCase() !== 'general') ? jobMediaModal.industry : '',
+                        jobMediaModal.location,
+                        jobMediaModal.salaryRange,
+                        timeAgo(jobMediaModal.created_at || jobMediaModal.createdAt || jobMediaModal.datePosted),
+                      ].filter(Boolean).join(' • ')}
+                    </div>
                     <div style={{ marginTop: 8, fontSize: 16, fontWeight: 700, color: '#111827' }}>{jobMediaModal.title}</div>
                     <div style={{ marginTop: 4, fontSize: 13, color: '#475569', whiteSpace: 'pre-wrap' }}>{jobMediaModal.description}</div>
                   </div>
@@ -994,9 +1188,10 @@ const PartnerHome = ({ setActivePage }) => {
                 {jobMediaComments.length > 0 ? jobMediaComments.map(comment => {
                   const commentAuthorName = comment.author_id === currentUser?.id
                     ? (partner?.companyName || currentUser?.companyName || currentUser?.name || 'You')
-                    : comment.author_type === 'student'
+                    : isStudentAuthorType(comment.author_type)
                         ? (trainees.find(t => t.id === comment.author_id)?.name || 'Trainee')
                         : (partners.find(p => p.id === comment.author_id)?.companyName || 'Industry Partner');
+                  const commentAuthorType = toProfileAuthorType(comment.author_type);
                   const isOwnComment = comment.author_id === currentUser?.id;
                   const isEditing = editingJobMediaCommentId === comment.id;
                   const isMenuOpen = jobMediaCommentMenuId === comment.id;
@@ -1004,7 +1199,13 @@ const PartnerHome = ({ setActivePage }) => {
                   return (
                     <div key={comment.id} style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 10, padding: '8px 10px' }}>
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8 }}>
-                        <div style={{ fontSize: 12, fontWeight: 700, color: '#111827' }}>{commentAuthorName}</div>
+                        <button
+                          type="button"
+                          onClick={() => openProfile({ id: comment.author_id, type: commentAuthorType })}
+                          style={{ fontSize: 12, fontWeight: 700, color: '#111827', background: 'none', border: 'none', padding: 0, cursor: 'pointer' }}
+                        >
+                          {commentAuthorName}
+                        </button>
                         {isOwnComment && !isEditing && (
                           <div style={{ position: 'relative' }}>
                             <button
@@ -1131,53 +1332,64 @@ const PartnerHome = ({ setActivePage }) => {
       )}
 
       {commentModalPost && (
-        <div className="modal-overlay" style={{ background: 'rgba(0, 0, 0, 0.78)', backdropFilter: 'blur(2px)' }} onClick={() => setCommentModalPost(null)}>
+        <div className="modal-overlay" style={useCompactPostCommentModal ? { background: '#ffffff', padding: 0, alignItems: 'stretch' } : { background: 'rgba(15, 23, 42, 0.45)', backdropFilter: 'blur(2px)' }} onClick={() => setCommentModalPost(null)}>
           <div
             className="ln-modal"
             onClick={e => e.stopPropagation()}
             style={{
-              width: '96%',
-              maxWidth: 740,
-              height: '92vh',
-              maxHeight: 940,
+              width: useCompactPostCommentModal ? '100%' : '96%',
+              maxWidth: useCompactPostCommentModal ? '100%' : 740,
+              height: useCompactPostCommentModal ? '100vh' : '92vh',
+              maxHeight: useCompactPostCommentModal ? '100vh' : 940,
               padding: 0,
               overflow: 'hidden',
               display: 'flex',
               flexDirection: 'column',
-              background: '#1f2329',
-              border: '1px solid #343a40',
-              borderRadius: 16,
-              color: '#e4e6eb'
+              background: '#ffffff',
+              border: '1px solid #e2e8f0',
+              borderRadius: useCompactPostCommentModal ? 0 : 16,
+              color: '#0f172a'
             }}
           >
-            <div style={{ height: 60, borderBottom: '1px solid #343a40', position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 36, fontWeight: 700, color: '#f1f5f9' }}>
-              {modalAuthorName}'s Post
+            <div style={{ height: useCompactPostCommentModal ? 52 : 60, borderBottom: '1px solid #e2e8f0', position: 'relative', display: 'flex', alignItems: 'center', justifyContent: useCompactPostCommentModal ? 'flex-end' : 'center', fontSize: 28, fontWeight: 700, color: '#0f172a', paddingRight: useCompactPostCommentModal ? 56 : 0 }}>
+              {!useCompactPostCommentModal ? `${modalAuthorName}'s Post` : ''}
               <button
                 onClick={() => setCommentModalPost(null)}
-                style={{ position: 'absolute', right: 12, top: 12, width: 36, height: 36, borderRadius: '50%', border: 'none', background: '#3a3f45', color: '#e5e7eb', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                style={{ position: 'absolute', right: 12, top: 12, width: 36, height: 36, borderRadius: '50%', border: 'none', background: '#f1f5f9', color: '#334155', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
               >
                 <X size={20} />
               </button>
             </div>
 
-            <div style={{ flex: '0 0 56%', minHeight: 320, display: 'flex', flexDirection: 'column', borderBottom: '1px solid #343a40' }}>
+            <div style={{ flex: '0 0 clamp(250px, 50vh, 560px)', minHeight: 220, display: 'flex', flexDirection: 'column', borderBottom: '1px solid #e2e8f0' }}>
               <div style={{ padding: '10px 12px', display: 'flex', alignItems: 'center', gap: 10 }}>
-                <div className="ln-feed-avatar" style={{ width: 34, height: 34 }}>
+                <button
+                  type="button"
+                  className="ln-feed-avatar"
+                  onClick={() => openProfile({ id: commentModalPost.author_id, type: toProfileAuthorType(commentModalPost.author_type) })}
+                  style={{ width: 34, height: 34, border: 'none', cursor: 'pointer' }}
+                >
                   {(modalAuthor?.photo || modalAuthor?.company_logo_url)
                     ? <img src={modalAuthor.photo || modalAuthor.company_logo_url} alt="" style={{ width: '100%', height: '100%', borderRadius: '50%', objectFit: 'cover' }} />
                     : (modalAuthorName?.charAt(0) || 'U')}
-                </div>
+                </button>
                 <div>
-                  <div style={{ fontWeight: 700, fontSize: 13.5, color: '#f1f5f9' }}>{modalAuthorName}</div>
-                  <div style={{ fontSize: 11.5, color: '#9ca3af' }}>{timeAgo(commentModalPost.created_at)}</div>
+                  <button
+                    type="button"
+                    onClick={() => openProfile({ id: commentModalPost.author_id, type: toProfileAuthorType(commentModalPost.author_type) })}
+                    style={{ fontWeight: 700, fontSize: 13.5, color: '#0f172a', background: 'none', border: 'none', padding: 0, cursor: 'pointer' }}
+                  >
+                    {modalAuthorName}
+                  </button>
+                  <div style={{ fontSize: 11.5, color: '#64748b' }}>{timeAgo(commentModalPost.created_at)}</div>
                 </div>
               </div>
 
-              <div style={{ padding: '0 12px 10px', color: '#e5e7eb', fontSize: 14.5, whiteSpace: 'pre-wrap', lineHeight: 1.5 }}>
+              <div style={{ padding: '0 12px 10px', color: '#0f172a', fontSize: 14.5, whiteSpace: 'pre-wrap', lineHeight: 1.5 }}>
                 {commentModalPost.content}
               </div>
 
-              <div style={{ flex: 1, minHeight: 0, background: '#111418', borderTop: '1px solid #343a40', borderBottom: '1px solid #343a40', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
+              <div style={{ flex: 1, minHeight: 260, background: '#f8fafc', borderTop: '1px solid #e2e8f0', borderBottom: '1px solid #e2e8f0', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
                 {commentModalPost.media_url ? (
                   commentModalPost.media_url.match(/\.(jpg|jpeg|png|gif|webp)$/i) ? (
                     <img src={commentModalPost.media_url} alt="Post media" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
@@ -1186,33 +1398,33 @@ const PartnerHome = ({ setActivePage }) => {
                       href={commentModalPost.media_url}
                       target="_blank"
                       rel="noopener noreferrer"
-                      style={{ minWidth: 260, minHeight: 120, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 10, color: '#dbeafe', background: '#2c3138', border: '1px solid #4b5563', borderRadius: 12, padding: '14px 18px', textDecoration: 'none', fontWeight: 600, fontSize: 13 }}
+                      style={{ minWidth: 260, minHeight: 120, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 10, color: '#1d4ed8', background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: 12, padding: '14px 18px', textDecoration: 'none', fontWeight: 600, fontSize: 13 }}
                     >
                       <FileText size={28} />
                       Open attached document
                     </a>
                   )
                 ) : (
-                  <div style={{ width: '100%', height: '100%' }} />
+                  <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#94a3b8', fontWeight: 600 }}>No attachment</div>
                 )}
               </div>
 
-              <div style={{ padding: '8px 12px', borderTop: '1px solid #343a40' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', color: '#b6bec9', fontSize: 12.5, marginBottom: 8 }}>
-                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}><Heart size={14} fill="#ef4444" color="#ef4444" /> {modalComments.length} comment{modalComments.length === 1 ? '' : 's'}</span>
+              <div style={{ padding: '8px 12px', borderTop: '1px solid #e2e8f0' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', color: '#64748b', fontSize: 12.5, marginBottom: 8 }}>
+                  <span>{modalComments.length} comment{modalComments.length === 1 ? '' : 's'}</span>
                   <span>{commentModalPost.media_url ? '1 attachment' : 'No attachment'}</span>
                 </div>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: 6 }}>
                   <button
                     onClick={() => canContactModalAuthor && openContactModal({
                       recipientId: commentModalPost.author_id,
-                      recipientType: commentModalPost.author_type,
+                      recipientType: toRecipientAuthorType(commentModalPost.author_type),
                       recipientName: modalAuthorName,
                       postId: commentModalPost.id,
                       sourceLabel: commentModalPost.content,
                     })}
                     disabled={!canContactModalAuthor}
-                    style={{ background: canContactModalAuthor ? '#ffffff' : '#2d333b', border: 'none', color: canContactModalAuthor ? '#111827' : '#9ca3af', fontWeight: 700, padding: '9px 10px', borderRadius: 10, display: 'inline-flex', justifyContent: 'center', alignItems: 'center', gap: 6, cursor: canContactModalAuthor ? 'pointer' : 'not-allowed' }}
+                    style={{ background: canContactModalAuthor ? '#0f172a' : '#e2e8f0', border: 'none', color: canContactModalAuthor ? '#ffffff' : '#94a3b8', fontWeight: 700, padding: '9px 10px', borderRadius: 10, display: 'inline-flex', justifyContent: 'center', alignItems: 'center', gap: 6, cursor: canContactModalAuthor ? 'pointer' : 'not-allowed' }}
                   >
                     <MessageSquare size={16} /> {canContactModalAuthor ? 'Contact' : 'Your Post'}
                   </button>
@@ -1220,34 +1432,48 @@ const PartnerHome = ({ setActivePage }) => {
               </div>
             </div>
 
-            <div style={{ flex: '1 1 44%', minHeight: 0, display: 'flex', flexDirection: 'column' }}>
-              <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: 12, display: 'flex', flexDirection: 'column', gap: 10 }}>
+            <div style={{ flex: '1 1 44%', minHeight: 0, display: 'flex', flexDirection: 'column', background: '#ffffff' }}>
+              <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', overscrollBehavior: 'contain', WebkitOverflowScrolling: 'touch', padding: 12, display: 'flex', flexDirection: 'column', gap: 10, background: '#ffffff' }}>
                 {modalComments.length > 0 ? modalComments.map(comment => {
                   const commentAuthorName = comment.author_id === currentUser?.id
                     ? (partner?.companyName || currentUser.companyName || currentUser.name || 'You')
-                    : comment.author_type === 'student'
+                    : isStudentAuthorType(comment.author_type)
                         ? (trainees.find(t => t.id === comment.author_id)?.name || 'Trainee')
                         : (partners.find(p => p.id === comment.author_id)?.companyName || 'Industry Partner');
+                  const commentAuthorType = toProfileAuthorType(comment.author_type);
 
                   return (
                     <div key={comment.id} style={{ display: 'flex', gap: 8, alignItems: 'flex-start' }}>
-                      <div className="ln-feed-avatar" style={{ width: 30, height: 30, flexShrink: 0 }}>{commentAuthorName?.charAt(0) || 'U'}</div>
-                      <div style={{ background: '#3a3b3c', borderRadius: 14, padding: '8px 11px', flex: 1 }}>
-                        <div style={{ fontSize: 12, fontWeight: 700, color: '#f3f4f6', marginBottom: 2 }}>{commentAuthorName}</div>
-                        <div style={{ fontSize: 13.2, color: '#d1d5db', whiteSpace: 'pre-wrap', lineHeight: 1.45 }}>{comment.content}</div>
+                      <button
+                        type="button"
+                        className="ln-feed-avatar"
+                        onClick={() => openProfile({ id: comment.author_id, type: commentAuthorType })}
+                        style={{ width: 30, height: 30, flexShrink: 0, border: 'none', cursor: 'pointer' }}
+                      >
+                        {commentAuthorName?.charAt(0) || 'U'}
+                      </button>
+                        <div style={{ background: '#f1f5f9', borderRadius: 14, padding: '8px 11px', flex: 1 }}>
+                        <button
+                          type="button"
+                          onClick={() => openProfile({ id: comment.author_id, type: commentAuthorType })}
+                            style={{ fontSize: 12, fontWeight: 700, color: '#1e293b', marginBottom: 2, background: 'none', border: 'none', padding: 0, cursor: 'pointer' }}
+                        >
+                          {commentAuthorName}
+                        </button>
+                          <div style={{ fontSize: 13.2, color: '#0f172a', whiteSpace: 'pre-wrap', lineHeight: 1.45 }}>{comment.content}</div>
                       </div>
                     </div>
                   );
                 }) : (
-                  <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 10, color: '#9ca3af' }}>
-                    <FileText size={56} color="#94a3b8" />
-                    <div style={{ fontSize: 34, fontWeight: 700, color: '#d1d5db' }}>No comments yet</div>
+                    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 10, color: '#64748b' }}>
+                      <FileText size={56} color="#94a3b8" />
+                      <div style={{ fontSize: 34, fontWeight: 700, color: '#334155' }}>No comments yet</div>
                     <div style={{ fontSize: 17 }}>Be the first to comment.</div>
                   </div>
                 )}
               </div>
 
-              <div style={{ borderTop: '1px solid #343a40', padding: '10px 12px', display: 'flex', flexDirection: 'column', gap: 8 }}>
+                <div style={{ borderTop: '1px solid #e2e8f0', padding: '10px 12px', display: 'flex', flexDirection: 'column', gap: 8, background: '#ffffff' }}>
                 <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8 }}>
                   <div className="ln-feed-avatar" style={{ width: 32, height: 32, flexShrink: 0, fontSize: 13 }}>
                     {(partner?.company_logo_url || partner?.photo)
@@ -1255,16 +1481,16 @@ const PartnerHome = ({ setActivePage }) => {
                       : (partner?.companyName || currentUser?.companyName || currentUser?.name || 'P').charAt(0).toUpperCase()}
                   </div>
 
-                  <div style={{ flex: 1, background: '#3a3b3c', borderRadius: 20, padding: '8px 12px', display: 'flex', flexDirection: 'column', gap: 6 }}>
+                    <div style={{ flex: 1, background: '#f8fafc', borderRadius: 20, padding: '8px 12px', display: 'flex', flexDirection: 'column', gap: 6 }}>
                     <textarea
                       placeholder={`Comment as ${partner?.companyName || currentUser?.companyName || currentUser?.name || 'Industry Partner'}`}
                       value={commentInput}
                       onChange={e => setCommentInput(e.target.value)}
                       maxLength={1000}
-                      style={{ width: '100%', minHeight: 24, maxHeight: 78, resize: 'none', border: 'none', outline: 'none', background: 'transparent', color: '#f3f4f6', fontSize: 16, lineHeight: 1.3, fontFamily: 'inherit' }}
+                        style={{ width: '100%', minHeight: 24, maxHeight: 78, resize: 'none', border: 'none', outline: 'none', background: 'transparent', color: '#0f172a', fontSize: 16, lineHeight: 1.3, fontFamily: 'inherit' }}
                     />
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <div style={{ display: 'inline-flex', alignItems: 'center', gap: 10, color: '#9ca3af' }}>
+                        <div style={{ display: 'inline-flex', alignItems: 'center', gap: 10, color: '#64748b' }}>
                         <MessageSquare size={14} />
                         <Camera size={14} />
                         <FileText size={14} />
@@ -1272,14 +1498,14 @@ const PartnerHome = ({ setActivePage }) => {
                       <button
                         onClick={handleSubmitComment}
                         disabled={commentSubmitting || !commentInput.trim()}
-                        style={{ background: 'transparent', border: 'none', color: (commentSubmitting || !commentInput.trim()) ? '#6b7280' : '#60a5fa', cursor: (commentSubmitting || !commentInput.trim()) ? 'not-allowed' : 'pointer', padding: 0, display: 'inline-flex', alignItems: 'center' }}
+                          style={{ background: 'transparent', border: 'none', color: (commentSubmitting || !commentInput.trim()) ? '#94a3b8' : '#2563eb', cursor: (commentSubmitting || !commentInput.trim()) ? 'not-allowed' : 'pointer', padding: 0, display: 'inline-flex', alignItems: 'center' }}
                       >
                         <Send size={18} />
                       </button>
                     </div>
                   </div>
                 </div>
-                <div style={{ fontSize: 12, color: '#94a3b8', textAlign: 'left', marginLeft: 40 }}>{commentInput.length}/1000</div>
+                  <div style={{ fontSize: 12, color: '#64748b', textAlign: 'left', marginLeft: 40 }}>{commentInput.length}/1000</div>
               </div>
             </div>
           </div>
@@ -1482,53 +1708,62 @@ const VerificationPage = () => {
         <div className="ln-card" style={{ marginBottom: 16 }}>
           <div className="ln-section-header"><h3>Upload Verification Documents</h3></div>
           <div style={{ padding: '0 16px 16px' }}>
-            <div className="reg-upload-grid" style={{ gridTemplateColumns: '1fr 1fr', gap: 20, marginBottom: 24 }}>
-              {[
-                { label: 'Business Permit', key: 'business_permit' },
-                { label: 'SEC Registration', key: 'sec_registration' }
-              ].map(docType => {
-                const uploaded = documents.find(d => d.label === docType.label);
-                return (
-                  <div key={docType.key} className="upload-zone-wrapper">
-                    <label className="form-label">{docType.label} *</label>
-                    {uploaded ? (
-                      <div className="upload-preview" style={{ height: 140 }}>
-                        <div className="upload-preview-img-wrap" style={{ height: 100 }}>
-                          {uploaded.file_type.includes('image') ? (
-                            <img src={uploaded.file_url} alt={docType.label} />
-                          ) : (
-                            <div style={{ height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: '#f8fafc', gap: 8 }}>
-                              <FileText size={32} color="#0ea5e9" />
-                              <span style={{ fontSize: 11, color: '#64748b' }}>PDF Document</span>
-                            </div>
-                          )}
-                          <a href={uploaded.file_url} target="_blank" rel="noopener noreferrer" className="upload-preview-eye">
-                            <Eye size={16} />
-                          </a>
-                        </div>
-                        <div className="upload-preview-info">
-                          <span className="upload-preview-name">{uploaded.file_name}</span>
-                          <button className="upload-preview-remove" onClick={() => handleDelete(uploaded.id)}>
-                            <Trash2 size={12} /> Remove
-                          </button>
-                        </div>
-                      </div>
-                    ) : (
-                      <div className="upload-zone" style={{ padding: '32px 16px' }} onClick={() => {
-                        setDocLabel(docType.label);
-                        fileInputRef.current.click();
-                      }}>
-                        <div className="upload-zone-icon">
-                          {uploading && docLabel === docType.label ? <Loader size={24} className="spin" /> : <Upload size={24} />}
-                        </div>
-                        <div className="upload-zone-text">Click to upload</div>
-                        <div className="upload-zone-hint">PDF, JPG or PNG</div>
-                      </div>
+
+            {/* Uploaded docs list */}
+            {documents.length > 0 && (
+              <div style={{ marginBottom: 20 }}>
+                {documents.map(doc => (
+                  <div key={doc.id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 14px', background: '#f8fafc', borderRadius: 10, border: '1px solid #e2e8f0', marginBottom: 8 }}>
+                    <FileCheck size={18} color="#16a34a" style={{ flexShrink: 0 }} />
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: 13, fontWeight: 700, color: '#1e293b' }}>{doc.label}</div>
+                      <div style={{ fontSize: 11, color: '#94a3b8', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{doc.file_name}</div>
+                    </div>
+                    <a href={doc.file_url} target="_blank" rel="noopener noreferrer" style={{ color: '#0ea5e9', flexShrink: 0 }} title="View">
+                      <Eye size={16} />
+                    </a>
+                    {!isSubmitted && (
+                      <button onClick={() => setConfirmDeleteId(doc.id)} style={{ padding: 4, color: '#dc2626', background: 'none', border: 'none', cursor: 'pointer', flexShrink: 0 }} title="Remove">
+                        <Trash2 size={16} />
+                      </button>
                     )}
                   </div>
-                );
-              })}
-            </div>
+                ))}
+              </div>
+            )}
+
+            {/* Add Document Row — only when not yet submitted */}
+            {!isSubmitted && (
+              <div style={{ marginBottom: 20 }}>
+                <p style={{ fontSize: 12, color: '#64748b', marginBottom: 10 }}>
+                  Type a label for the document first, then click <strong>Choose File</strong> to upload.
+                </p>
+                <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+                  <input
+                    className="form-input"
+                    style={{ flex: 1, minWidth: 160 }}
+                    placeholder="Document label (e.g. Business Permit)"
+                    value={docLabel}
+                    onChange={e => setDocLabel(e.target.value)}
+                    disabled={uploading}
+                  />
+                  <button
+                    className="ln-btn ln-btn-outline"
+                    style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 16px', whiteSpace: 'nowrap', opacity: docLabel.trim() ? 1 : 0.45, cursor: docLabel.trim() ? 'pointer' : 'not-allowed' }}
+                    disabled={!docLabel.trim() || uploading}
+                    onClick={() => fileInputRef.current?.click()}
+                  >
+                    {uploading ? <Loader size={15} className="spin" /> : <Upload size={15} />}
+                    {uploading ? 'Uploading...' : 'Choose File'}
+                  </button>
+                </div>
+                {!docLabel.trim() && (
+                  <p style={{ fontSize: 11, color: '#f59e0b', marginTop: 6, display: 'flex', alignItems: 'center', gap: 4 }}>
+                    <AlertTriangle size={12} /> Enter a label before uploading a file.
+                  </p>
+                )}
+              </div>
+            )}
 
             <input
               ref={fileInputRef}
@@ -1538,37 +1773,21 @@ const VerificationPage = () => {
               onChange={handleFileUpload}
             />
 
-            {/* Custom Documents List (if any) */}
-            {documents.filter(d => !['Business Permit', 'SEC Registration'].includes(d.label)).length > 0 && (
-              <div style={{ marginTop: 24, borderTop: '1px solid #f1f5f9', paddingTop: 16 }}>
-                <h4 style={{ fontSize: 13, fontWeight: 700, color: '#475569', marginBottom: 12 }}>Additional Documents</h4>
-                {documents.filter(d => !['Business Permit', 'SEC Registration'].includes(d.label)).map(doc => (
-                  <div key={doc.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 14px', background: '#f8fafc', borderRadius: 10, border: '1px solid #e2e8f0', marginBottom: 8 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                      <FileCheck size={18} color="#16a34a" />
-                      <span style={{ fontSize: 13, fontWeight: 600 }}>{doc.label}</span>
-                    </div>
-                    <button onClick={() => handleDelete(doc.id)} style={{ padding: 6, color: '#dc2626', background: 'none', border: 'none', cursor: 'pointer' }}>
-                      <Trash2 size={16} />
-                    </button>
-                  </div>
-                ))}
-              </div>
-            )}
-
-            {/* Submit / Edit Button */}
+            {/* Submit / Edit Buttons */}
             {status === 'Under Review' ? (
-              <div style={{ textAlign: 'center', padding: '8px 0' }}>
-                <FileCheck size={36} color="#0ea5e9" style={{ margin: '0 auto 8px' }} />
-                <p style={{ fontSize: 13, color: 'rgba(0,0,0,0.55)', marginBottom: 12 }}>Your documents are under review by the administrators.</p>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10, padding: '8px 0' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px 16px', background: '#eff6ff', borderRadius: 10, border: '1px solid #bfdbfe' }}>
+                  <FileCheck size={20} color="#2563eb" style={{ flexShrink: 0 }} />
+                  <p style={{ fontSize: 13, color: '#1e40af', margin: 0 }}>Your documents are under review by the administrators.</p>
+                </div>
                 <button
                   className="ln-btn"
-                  style={{ padding: '8px 20px', fontSize: 13, color: '#dc2626', border: '1px solid #fecaca', background: '#fef2f2', borderRadius: 8, cursor: 'pointer' }}
+                  style={{ width: '100%', padding: '10px 20px', fontSize: 13, color: '#dc2626', border: '1px solid #fecaca', background: '#fef2f2', borderRadius: 10, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}
                   onClick={handleWithdraw}
                 >
-                  <XCircle size={14} /> Withdraw Submission
+                  <XCircle size={15} /> Edit &amp; Resubmit (Undo Submission)
                 </button>
-                <p style={{ fontSize: 11, color: '#94a3b8', marginTop: 8 }}>Withdraw to edit your documents, then resubmit.</p>
+                <p style={{ fontSize: 11, color: '#94a3b8', textAlign: 'center', margin: 0 }}>This will let you remove or re-upload documents before submitting again.</p>
               </div>
             ) : (
               <button
@@ -1772,6 +1991,16 @@ const PostJob = ({ setActivePage, opportunityType = 'Job' }) => {
     }
   };
 
+  const previewTitle = form.title?.trim() || (form.opportunityType === 'OJT' ? 'Web Dev OJT Trainee' : 'Junior IT Technician');
+  const previewLocation = form.location?.trim() || 'Location not set';
+  const previewCompany = livePartner?.companyName || 'Your Company';
+  const previewIndustry = livePartner?.industry || livePartner?.businessType || '';
+  const previewSalary = form.salaryRange?.trim() || '';
+  const previewDescriptionRaw = form.description?.trim() || 'Your opportunity description will appear here once you add details.';
+  const previewDescription = previewDescriptionRaw.length > 150
+    ? `${previewDescriptionRaw.substring(0, 150)}...`
+    : previewDescriptionRaw;
+
   if (!isVerified(livePartner)) {
     return (
       <div className="ln-page-content">
@@ -1828,7 +2057,7 @@ const PostJob = ({ setActivePage, opportunityType = 'Job' }) => {
               </select>
             </div>
             <div className="form-group">
-              <label className="ln-info-label">NC Level Required *</label>
+              <label className="ln-info-label">Program Required / NC Level Required *</label>
               <select
                 className="form-select"
                 value={form.programId || ''}
@@ -1911,6 +2140,89 @@ const PostJob = ({ setActivePage, opportunityType = 'Job' }) => {
             </div>
           </div>
         </div>
+
+        <div className="ln-card ln-feed-card" style={{ marginTop: 16 }}>
+          <div className="ln-section-header" style={{ marginBottom: 0 }}>
+            <h3 style={{ fontSize: 14, textTransform: 'uppercase', letterSpacing: '0.5px', color: 'rgba(0,0,0,0.6)' }}>Live Post Preview</h3>
+            <span className="ln-badge ln-badge-blue" style={{ fontSize: 11 }}>How trainees will see it</span>
+          </div>
+
+          <div className="ln-feed-card-header">
+            <button
+              type="button"
+              className="ln-feed-avatar"
+              onClick={() => setActivePage('profile')}
+              style={{ background: '#f0f7ff', color: '#0a66c2', border: 'none', cursor: 'pointer' }}
+            >
+              <Building2 size={20} />
+            </button>
+            <div>
+              <div className="ln-feed-author">
+                <button
+                  type="button"
+                  onClick={() => setActivePage('profile')}
+                  style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', color: 'inherit', font: 'inherit', textAlign: 'left' }}
+                >
+                  {previewCompany}
+                </button>
+                <span className="ln-badge ln-badge-blue" style={{ fontSize: 10, marginLeft: 4 }}>Your Post</span>
+              </div>
+              <div className="ln-feed-meta">
+                {[
+                  (previewIndustry && String(previewIndustry).trim().toLowerCase() !== 'general') ? previewIndustry : '',
+                  previewLocation,
+                  previewSalary,
+                  'Just now',
+                ].filter(Boolean).join(' • ')}
+              </div>
+            </div>
+          </div>
+
+          <div className="ln-feed-content">
+            <h4 style={{ fontSize: 15, fontWeight: 700, marginBottom: 4 }}>{previewTitle}</h4>
+            <p style={{ fontSize: 13, color: 'rgba(0,0,0,0.6)', marginBottom: 8 }}>{previewDescription}</p>
+
+            {form.attachmentUrl && isImageAttachment(form.attachmentUrl, form.attachmentType) && (
+              <div style={{ marginBottom: 10 }}>
+                <div className="ln-media-frame">
+                  <img
+                    src={form.attachmentUrl}
+                    alt={form.attachmentName || 'Opportunity attachment'}
+                    className="ln-media-image"
+                  />
+                </div>
+              </div>
+            )}
+
+            {form.attachmentUrl && !isImageAttachment(form.attachmentUrl, form.attachmentType) && (
+              <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12, color: '#2563eb', marginBottom: 8 }}>
+                <FileText size={13} /> {form.attachmentName || 'Attachment'}
+              </div>
+            )}
+
+            <div style={{ display: 'flex', gap: 8 }}>
+              <span className="ln-opp-type-badge">{form.opportunityType || 'Job'}</span>
+              {form.opportunityType !== 'OJT' && form.employmentType && (
+                <span className="ln-opp-type-badge" style={{ background: '#f8fafc', color: '#64748b' }}>{form.employmentType}</span>
+              )}
+              {form.ncLevel && (
+                <span className="ln-opp-type-badge" style={{ background: '#ede9fe', color: '#6d28d9' }}>{form.ncLevel}</span>
+              )}
+            </div>
+          </div>
+
+          <div className="ln-feed-actions" style={{ borderTop: '1px solid #f3f3f3', padding: '8px 12px' }}>
+            <button type="button" className="ln-feed-action-btn" disabled style={{ opacity: 0.65, cursor: 'not-allowed' }}>
+              <Users size={14} /> View Applicants
+            </button>
+            <button type="button" className="ln-feed-action-btn" disabled style={{ opacity: 0.65, cursor: 'not-allowed' }}>
+              <MessageSquare size={14} /> Comment (0)
+            </button>
+            <button type="button" className="ln-feed-action-btn" disabled style={{ opacity: 0.65, cursor: 'not-allowed' }}>
+              <MessageSquare size={14} /> Your Listing
+            </button>
+          </div>
+        </div>
       </form>
     </div>
   );
@@ -1919,6 +2231,7 @@ const PostJob = ({ setActivePage, opportunityType = 'Job' }) => {
 // ─── PAGE: VIEW APPLICANTS ────────────────────────────────────────
 const ViewApplicants = ({ setActivePage }) => {
   const { currentUser, partners, getPartnerApplicants, updateApplicationStatus, sendRecruitMessage } = useApp();
+  const navigate = useNavigate();
   const livePartner = getLivePartner(currentUser, partners);
 
   if (!isVerified(livePartner)) {
@@ -1944,16 +2257,31 @@ const ViewApplicants = ({ setActivePage }) => {
 
   const applicants = getPartnerApplicants(livePartner?.id);
   const [search, setSearch] = useState('');
-  const [filterStatus, setFilterStatus] = useState('All');
+  const [activityFilter, setActivityFilter] = useState('All');
   const [viewApp, setViewApp] = useState(null);
   const [recruitApp, setRecruitApp] = useState(null);
+  const [messageModal, setMessageModal] = useState(null);
   const [recruitMessage, setRecruitMessage] = useState('');
   const [recruitAttachment, setRecruitAttachment] = useState(null);
   const [sendingRecruit, setSendingRecruit] = useState(false);
   const recruitFileInputRef = useRef(null);
+  const openProfile = (target) => {
+    if (!target?.id || !target?.type) return;
+    navigate(`/partner/profile-view/${target.type}/${target.id}`);
+  };
   const filtered = applicants.filter(a => {
     const q = search.toLowerCase();
-    return (a.trainee?.name?.toLowerCase().includes(q) || a.job?.title?.toLowerCase().includes(q)) && (filterStatus === 'All' || a.status === filterStatus);
+    const matchesSearch = [
+      a.trainee?.name,
+      a.job?.title,
+      a.activityType,
+      a.directionLabel,
+      a.incomingMessage,
+      a.outgoingMessage,
+    ].some(value => String(value || '').toLowerCase().includes(q));
+
+    const matchesFilter = activityFilter === 'All' || a.activityType === activityFilter;
+    return matchesSearch && matchesFilter;
   });
 
   const openRecruitModal = (application) => {
@@ -1994,9 +2322,9 @@ const ViewApplicants = ({ setActivePage }) => {
       <div className="ln-pills-row" style={{ marginBottom: 16 }}>
         {[
           { label: 'Total', count: applicants.length, color: '#0ea5e9' },
-          { label: 'Pending', count: applicants.filter(a => a.status === 'Pending').length, color: '#d97706' },
-          { label: 'Accepted', count: applicants.filter(a => a.status === 'Accepted').length, color: '#16a34a' },
-          { label: 'Rejected', count: applicants.filter(a => a.status === 'Rejected').length, color: '#dc2626' },
+          { label: 'Applications', count: applicants.filter(a => a.recordType === 'application').length, color: '#d97706' },
+          { label: 'Student Contact', count: applicants.filter(a => a.recordType === 'contact' && a.activityType === 'Student Contact').length, color: '#16a34a' },
+          { label: 'Partner Outreach', count: applicants.filter(a => a.recordType === 'contact' && a.activityType === 'Partner Outreach').length, color: '#dc2626' },
         ].map(s => (
           <div key={s.label} className="ln-pill" style={{ borderLeft: `3px solid ${s.color}` }}>
             <span className="ln-pill-count" style={{ color: s.color }}>{s.count}</span>
@@ -2007,44 +2335,71 @@ const ViewApplicants = ({ setActivePage }) => {
 
       <div className="ln-card">
         <div className="ln-section-header" style={{ marginBottom: 16 }}>
-          <h3>Applications & Recruit</h3>
+          <h3>Applications and Contact Activity</h3>
           <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
             <div className="ln-search-wrap" style={{ width: 220 }}>
               <Search size={16} className="ln-search-icon" />
               <input className="ln-search-input" placeholder="Search..." value={search} onChange={e => setSearch(e.target.value)} />
             </div>
-            <select className="ln-filter-select" value={filterStatus} onChange={e => setFilterStatus(e.target.value)}>
-              {['All', 'Pending', 'Accepted', 'Rejected'].map(s => <option key={s}>{s}</option>)}
+            <select className="ln-filter-select" value={activityFilter} onChange={e => setActivityFilter(e.target.value)}>
+              {['All', 'Job Application', 'Student Contact', 'Partner Outreach'].map(s => <option key={s}>{s}</option>)}
             </select>
           </div>
         </div>
         <div style={{ overflowX: 'auto' }}>
           <table className="ln-table">
             <thead>
-              <tr><th>Trainee</th><th>Opportunity</th><th>Type</th><th>Match</th><th>Applied</th><th>Student Application</th><th>Resume</th><th>Status</th><th>Actions</th></tr>
+              <tr><th>Activity</th><th>Trainee</th><th>Opportunity</th><th>Date</th><th>Direction</th><th>Msg By</th><th>View</th><th>Attachment</th><th>Status</th><th>Actions</th></tr>
             </thead>
             <tbody>
               {filtered.map(a => (
-                <tr key={a.id}>
-                  <td style={{ fontWeight: 600 }}>{a.trainee?.name || '—'}</td>
-                  <td style={{ fontSize: 13, color: 'rgba(0,0,0,0.55)' }}>{a.job?.title || '—'}</td>
-                  <td><span className="ln-badge ln-badge-blue" style={{ fontSize: 11 }}>{a.job?.opportunityType}</span></td>
-                  <td><span style={{ fontWeight: 700, color: a.matchRate >= 70 ? '#16a34a' : a.matchRate >= 40 ? '#d97706' : '#dc2626' }}>{a.matchRate}%</span></td>
-                  <td style={{ fontSize: 12.5, color: 'rgba(0,0,0,0.5)' }}>{a.appliedAt}</td>
-                  <td style={{ fontSize: 12.5, color: 'rgba(0,0,0,0.6)', maxWidth: 220 }}>{a.applicationMessage || '—'}</td>
+                <tr key={a.rowKey || a.id}>
+                  <td><span className="ln-badge ln-badge-blue" style={{ fontSize: 11 }}>{a.activityType}</span></td>
+                  <td style={{ fontWeight: 600 }}>
+                    <button
+                      type="button"
+                      onClick={() => openProfile({ id: a.trainee?.id, type: 'trainee' })}
+                      style={{ background: 'none', border: 'none', padding: 0, cursor: a.trainee?.id ? 'pointer' : 'default', color: 'inherit', font: 'inherit' }}
+                      disabled={!a.trainee?.id}
+                    >
+                      {a.trainee?.name || '—'}
+                    </button>
+                  </td>
+                  <td style={{ fontSize: 13, color: 'rgba(0,0,0,0.55)' }}>{a.job?.title || 'Direct Contact'}</td>
+                  <td style={{ fontSize: 12.5, color: 'rgba(0,0,0,0.5)' }}>{a.eventDate || '—'}</td>
+                  <td style={{ fontSize: 12.5, color: 'rgba(0,0,0,0.65)' }}>{a.directionLabel}</td>
                   <td>
-                    {a.resumeUrl ? (
-                      <a href={a.resumeUrl} target="_blank" rel="noreferrer" className="ln-btn-sm ln-btn-outline"><Eye size={12} /> View</a>
+                    <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                      {a.incomingMessage && <span className="ln-badge ln-badge-blue" style={{ fontSize: 10 }}>Student</span>}
+                      {a.outgoingMessage && <span className="ln-badge ln-badge-green" style={{ fontSize: 10 }}>You</span>}
+                      {!a.incomingMessage && !a.outgoingMessage && <span style={{ fontSize: 12.5, color: 'rgba(0,0,0,0.45)' }}>—</span>}
+                    </div>
+                  </td>
+                  <td>
+                    {(a.incomingMessage || a.outgoingMessage) ? (
+                      <button type="button" className="ln-btn-sm ln-btn-outline" onClick={() => setMessageModal(a)}>
+                        <Eye size={12} />
+                      </button>
                     ) : (
-                      <span style={{ fontSize: 12.5, color: 'rgba(0,0,0,0.45)' }}>No resume</span>
+                      <span style={{ fontSize: 12.5, color: 'rgba(0,0,0,0.45)' }}>—</span>
                     )}
                   </td>
-                  <td><span className={`ln-badge ${a.status === 'Pending' ? 'ln-badge-yellow' : a.status === 'Accepted' ? 'ln-badge-green' : 'ln-badge-red'}`}>{a.status}</span></td>
+                  <td>
+                    {a.attachmentUrl ? (
+                      <a href={a.attachmentUrl} target="_blank" rel="noreferrer" className="ln-btn-sm ln-btn-outline"><Eye size={12} /> View</a>
+                    ) : a.attachmentName ? (
+                      <span style={{ fontSize: 12.5, color: 'rgba(0,0,0,0.55)' }}>{a.attachmentName}</span>
+                    ) : (
+                      <span style={{ fontSize: 12.5, color: 'rgba(0,0,0,0.45)' }}>—</span>
+                    )}
+                  </td>
+                  <td><span className={`ln-badge ${a.status === 'Pending' ? 'ln-badge-yellow' : a.status === 'Accepted' ? 'ln-badge-green' : a.status === 'Rejected' ? 'ln-badge-red' : 'ln-badge-blue'}`}>{a.status}</span></td>
                   <td>
                     <div style={{ display: 'flex', gap: 6 }}>
-                      <button className="ln-btn-sm ln-btn-outline" onClick={() => setViewApp(a)}><Eye size={12} /> View</button>
-                      <button className="ln-btn-sm ln-btn-primary" style={{ background: '#0a66c2', borderColor: '#0a66c2' }} onClick={() => openRecruitModal(a)}><Send size={12} /> {a.recruitMessage ? 'Update Recruit' : 'Recruit'}</button>
-                      {a.status === 'Pending' && <>
+                      <button className="ln-btn-sm ln-btn-outline" onClick={() => openProfile({ id: a.trainee?.id, type: 'trainee' })}><Eye size={12} /> Profile</button>
+                      {a.recordType === 'application' && <button className="ln-btn-sm ln-btn-outline" onClick={() => setViewApp(a)}><Eye size={12} /> View</button>}
+                      {a.recordType === 'application' && <button className="ln-btn-sm ln-btn-primary" style={{ background: '#0a66c2', borderColor: '#0a66c2' }} onClick={() => openRecruitModal(a)}><Send size={12} /> {a.outgoingMessage ? 'Update Recruit' : 'Recruit'}</button>}
+                      {a.recordType === 'application' && a.status === 'Pending' && <>
                         <button className="ln-btn-sm ln-btn-primary" style={{ background: '#16a34a', borderColor: '#16a34a' }} onClick={() => updateApplicationStatus(a.id, 'Accepted', 'Approved by partner.')}><CheckCircle size={12} /></button>
                         <button className="ln-btn-sm ln-btn-primary" style={{ background: '#dc2626', borderColor: '#dc2626' }} onClick={() => updateApplicationStatus(a.id, 'Rejected', 'Not selected.')}><XCircle size={12} /></button>
                       </>}
@@ -2053,12 +2408,137 @@ const ViewApplicants = ({ setActivePage }) => {
                 </tr>
               ))}
               {filtered.length === 0 && (
-                <tr><td colSpan={9} style={{ textAlign: 'center', padding: 40, color: 'rgba(0,0,0,0.4)' }}>No applicants found.</td></tr>
+                <tr><td colSpan={10} style={{ textAlign: 'center', padding: 40, color: 'rgba(0,0,0,0.4)' }}>No recruit activity found.</td></tr>
               )}
             </tbody>
           </table>
         </div>
       </div>
+
+      {messageModal && (
+        <div className="modal-overlay" onClick={() => setMessageModal(null)}>
+          <div className="ln-modal" onClick={e => e.stopPropagation()}>
+            <div className="ln-modal-header">
+              <div>
+                <h3 className="ln-modal-title">Message Details</h3>
+              </div>
+              <button className="ln-btn-icon" onClick={() => setMessageModal(null)}><X size={18} /></button>
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+              {messageModal.incomingMessage && (
+                <div style={{ padding: 12, borderRadius: 10, background: '#eff6ff', border: '1px solid #bfdbfe' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (messageModal.trainee?.id) {
+                          setMessageModal(null);
+                          openProfile({ id: messageModal.trainee.id, type: 'trainee' });
+                        }
+                      }}
+                      style={{
+                        width: 36,
+                        height: 36,
+                        borderRadius: '50%',
+                        background: messageModal.trainee?.photo ? 'transparent' : '#dbeafe',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        fontWeight: 700,
+                        color: '#1e40af',
+                        overflow: 'hidden',
+                        flexShrink: 0,
+                        border: 'none',
+                        padding: 0,
+                        cursor: messageModal.trainee?.id ? 'pointer' : 'default',
+                      }}
+                      disabled={!messageModal.trainee?.id}
+                    >
+                      {messageModal.trainee?.photo ? (
+                        <img src={messageModal.trainee.photo} alt={messageModal.trainee?.name || 'Trainee'} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                      ) : (
+                        ((messageModal.trainee?.name || 'T').charAt(0) || 'T').toUpperCase()
+                      )}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (messageModal.trainee?.id) {
+                          setMessageModal(null);
+                          openProfile({ id: messageModal.trainee.id, type: 'trainee' });
+                        }
+                      }}
+                      style={{ background: 'none', border: 'none', padding: 0, fontWeight: 700, fontSize: 14, cursor: messageModal.trainee?.id ? 'pointer' : 'default', color: '#1e40af', textAlign: 'left' }}
+                      disabled={!messageModal.trainee?.id}
+                    >
+                      {messageModal.trainee?.name || 'Trainee'}
+                    </button>
+                  </div>
+                  <div style={{ fontSize: 13, color: '#1e3a8a', lineHeight: 1.5 }}>{messageModal.incomingMessage}</div>
+                </div>
+              )}
+
+              {messageModal.outgoingMessage && (
+                <div style={{ padding: 12, borderRadius: 10, background: '#f0fdf4', border: '1px solid #bbf7d0' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (livePartner?.id) {
+                          setMessageModal(null);
+                          openProfile({ id: livePartner.id, type: 'partner' });
+                        }
+                      }}
+                      style={{
+                        width: 36,
+                        height: 36,
+                        borderRadius: '50%',
+                        background: livePartner?.company_logo_url ? 'transparent' : '#dcfce7',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        fontWeight: 700,
+                        color: '#166534',
+                        overflow: 'hidden',
+                        flexShrink: 0,
+                        border: 'none',
+                        padding: 0,
+                        cursor: livePartner?.id ? 'pointer' : 'default',
+                      }}
+                      disabled={!livePartner?.id}
+                    >
+                      {livePartner?.company_logo_url ? (
+                        <img src={livePartner.company_logo_url} alt={livePartner?.companyName || 'You'} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                      ) : (
+                        ((livePartner?.companyName || 'Y').charAt(0) || 'Y').toUpperCase()
+                      )}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (livePartner?.id) {
+                          setMessageModal(null);
+                          openProfile({ id: livePartner.id, type: 'partner' });
+                        }
+                      }}
+                      style={{ background: 'none', border: 'none', padding: 0, fontWeight: 700, fontSize: 14, cursor: livePartner?.id ? 'pointer' : 'default', color: '#166534', textAlign: 'left' }}
+                      disabled={!livePartner?.id}
+                    >
+                      You
+                    </button>
+                  </div>
+                  <div style={{ fontSize: 13, color: '#14532d', lineHeight: 1.5 }}>{messageModal.outgoingMessage}</div>
+                </div>
+              )}
+            </div>
+
+            <div className="ln-modal-footer">
+              <button className="ln-btn ln-btn-outline" onClick={() => setMessageModal(null)}>Close</button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Applicant Detail Modal */}
       {viewApp && (
@@ -2072,8 +2552,21 @@ const ViewApplicants = ({ setActivePage }) => {
               <button className="ln-btn-icon" onClick={() => setViewApp(null)}><X size={18} /></button>
             </div>
             <div style={{ textAlign: 'center', marginBottom: 16 }}>
-              <div style={{ width: 56, height: 56, borderRadius: '50%', background: 'linear-gradient(135deg, #ede9fe, #dbeafe)', margin: '0 auto 10px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18, fontWeight: 800, color: '#7c3aed' }}>{viewApp.trainee?.name?.charAt(0)}</div>
-              <div style={{ fontWeight: 800, fontSize: 17 }}>{viewApp.trainee?.name}</div>
+              <button
+                type="button"
+                onClick={() => { setViewApp(null); openProfile({ id: viewApp.trainee?.id, type: 'trainee' }); }}
+                style={{ width: 56, height: 56, borderRadius: '50%', background: 'linear-gradient(135deg, #ede9fe, #dbeafe)', margin: '0 auto 10px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18, fontWeight: 800, color: '#7c3aed', border: 'none', padding: 0, cursor: viewApp.trainee?.id ? 'pointer' : 'default' }}
+                disabled={!viewApp.trainee?.id}
+              >
+                {viewApp.trainee?.name?.charAt(0)}
+              </button>
+              <button
+                type="button"
+                onClick={() => { setViewApp(null); openProfile({ id: viewApp.trainee?.id, type: 'trainee' }); }}
+                style={{ fontWeight: 800, fontSize: 17, background: 'none', border: 'none', padding: 0, cursor: 'pointer', color: 'inherit' }}
+              >
+                {viewApp.trainee?.name}
+              </button>
             </div>
             <div style={{ display: 'flex', gap: 8, marginBottom: 16, flexWrap: 'wrap' }}>
               <span className={`ln-badge ${viewApp.status === 'Pending' ? 'ln-badge-yellow' : viewApp.status === 'Accepted' ? 'ln-badge-green' : 'ln-badge-red'}`}>{viewApp.status}</span>
@@ -2128,6 +2621,11 @@ const ViewApplicants = ({ setActivePage }) => {
                 <Send size={15} /> {viewApp.recruitMessage ? 'Update Recruit Message' : 'Send Recruit Message'}
               </button>
             </div>
+            <div style={{ marginTop: 8 }}>
+              <button className="ln-btn ln-btn-outline" style={{ width: '100%' }} onClick={() => { setViewApp(null); openProfile({ id: viewApp.trainee?.id, type: 'trainee' }); }}>
+                <Eye size={15} /> View Full Profile
+              </button>
+            </div>
           </div>
         </div>
       )}
@@ -2138,7 +2636,16 @@ const ViewApplicants = ({ setActivePage }) => {
             <div className="ln-modal-header">
               <div>
                 <h3 className="ln-modal-title">Recruit Form</h3>
-                <p style={{ fontSize: 14, color: 'rgba(0,0,0,0.6)', marginTop: 4 }}>{recruitApp.trainee?.name} • {recruitApp.job?.title}</p>
+                <p style={{ fontSize: 14, color: 'rgba(0,0,0,0.6)', marginTop: 4 }}>
+                  <button
+                    type="button"
+                    onClick={() => { setRecruitApp(null); openProfile({ id: recruitApp.trainee?.id, type: 'trainee' }); }}
+                    style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', color: '#0a66c2', font: 'inherit' }}
+                  >
+                    {recruitApp.trainee?.name}
+                  </button>
+                  {' '}• {recruitApp.job?.title}
+                </p>
               </div>
               <button className="ln-btn-icon" onClick={() => setRecruitApp(null)}><X size={18} /></button>
             </div>
@@ -2190,10 +2697,15 @@ const ViewApplicants = ({ setActivePage }) => {
 };
 
 // ─── PAGE: COMPANY PROFILE ────────────────────────────────────────
-const CompanyProfile = () => {
+export const CompanyProfile = ({ viewedPartnerId = null, onBack = null }) => {
   const { currentUser, partners, updatePartner, jobPostings } = useApp();
   const navigate = useNavigate();
-  const partner = partners.find(p => p.id === currentUser?.id) || currentUser;
+  const isOwnProfile = !viewedPartnerId || String(viewedPartnerId) === String(currentUser?.id);
+  const [viewedPartner, setViewedPartner] = useState(null);
+  const [loadingViewedProfile, setLoadingViewedProfile] = useState(false);
+  const partner = isOwnProfile
+    ? (partners.find(p => p.id === currentUser?.id) || currentUser)
+    : (viewedPartner || partners.find(p => String(p.id) === String(viewedPartnerId)));
 
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -2207,6 +2719,7 @@ const CompanyProfile = () => {
     achievements: [],
     benefits: []
   });
+  const [companyInfoVisibility, setCompanyInfoVisibility] = useState(() => resolvePartnerVisibility(partner));
 
   const [newAchievement, setNewAchievement] = useState('');
   const [newBenefit, setNewBenefit] = useState('');
@@ -2227,6 +2740,45 @@ const CompanyProfile = () => {
   // Email validation
   const isEmailValid = (email) => !email || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
 
+  useEffect(() => {
+    if (isOwnProfile || !viewedPartnerId) {
+      setViewedPartner(null);
+      setLoadingViewedProfile(false);
+      return;
+    }
+
+    let isMounted = true;
+    const fetchViewedPartner = async () => {
+      setLoadingViewedProfile(true);
+      try {
+        const { data, error } = await supabase
+          .from('industry_partners')
+          .select('*')
+          .eq('id', viewedPartnerId)
+          .single();
+
+        if (error || !data) {
+          const response = await fetch(`/api/public-profile/partner/${viewedPartnerId}`);
+          if (!response.ok) throw error || new Error('Failed to load viewed partner profile');
+          const payload = await response.json();
+          if (isMounted) setViewedPartner(normalizePartnerProfile(payload?.profile || null));
+        } else if (isMounted) {
+          setViewedPartner(normalizePartnerProfile(data || null));
+        }
+      } catch (err) {
+        console.error('Fetch viewed partner profile error:', err);
+        if (isMounted) setViewedPartner(null);
+      } finally {
+        if (isMounted) setLoadingViewedProfile(false);
+      }
+    };
+
+    fetchViewedPartner();
+    return () => {
+      isMounted = false;
+    };
+  }, [isOwnProfile, viewedPartnerId]);
+
   // Sync form when partner data arrives or when editing starts
   useEffect(() => {
     if (partner) {
@@ -2240,6 +2792,9 @@ const CompanyProfile = () => {
         achievements: partner.achievements || [],
         benefits: partner.benefits || []
       });
+      setCompanyInfoVisibility(resolvePartnerVisibility(partner));
+      setEditing(false);
+      setShowUploadForm(false);
     }
   }, [partner]);
 
@@ -2254,6 +2809,7 @@ const CompanyProfile = () => {
   }, [partner?.id]);
 
   const handleDocUpload = async () => {
+    if (!isOwnProfile) return;
     if (!docFile || !docLabel.trim()) return;
     setUploading(true);
     try {
@@ -2292,6 +2848,7 @@ const CompanyProfile = () => {
   };
 
   const deleteDoc = async (docId) => {
+    if (!isOwnProfile) return;
     try {
       const res = await fetch(`/api/documents/${docId}`, { method: 'DELETE' });
       const result = await res.json();
@@ -2306,6 +2863,14 @@ const CompanyProfile = () => {
     }
   };
 
+  if (loadingViewedProfile) {
+    return (
+      <div className="ln-page-content" style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: 240 }}>
+        <Loader size={30} style={{ animation: 'ocr-spin 1s linear infinite', opacity: 0.4 }} />
+      </div>
+    );
+  }
+
   if (!partner) {
     return (
       <div className="ln-container" style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100%' }}>
@@ -2317,20 +2882,49 @@ const CompanyProfile = () => {
   const activeJobs = jobPostings.filter(j => j.partnerId === partner.id && j.status === 'Open');
 
   const save = async () => {
+    if (!isOwnProfile) return;
     if (form.email && !isEmailValid(form.email)) {
       alert('Please enter a valid email address.');
       return;
     }
     setSaving(true);
-    await updatePartner(partner.id, form);
+    await updatePartner(partner.id, { ...form, companyInfoVisibility });
     setSaving(false);
     setEditing(false);
   };
 
   const initials = partner.companyName?.charAt(0)?.toUpperCase() || 'P';
+  const companyInfoFields = [
+    { label: 'Company Name', key: 'companyName', type: 'text', maxLength: 100 },
+    { label: 'Contact Person', key: 'contactPerson', type: 'text', maxLength: 100 },
+    { label: 'Contact Email', key: 'email', type: 'email', maxLength: 100 },
+    { label: 'Address', key: 'address', type: 'text', maxLength: 200 },
+    { label: 'Industry', key: 'industry', type: 'text', maxLength: 80 },
+    { label: 'Website', key: 'website', type: 'text', maxLength: 200, placeholder: 'e.g. https://example.com' },
+  ];
+
+  const toggleCompanyInfoVisibility = (fieldKey) => {
+    setCompanyInfoVisibility(prev => (
+      prev.includes(fieldKey)
+        ? prev.filter(key => key !== fieldKey)
+        : [...prev, fieldKey]
+    ));
+  };
+  const visibleCompanyInfo = new Set(resolvePartnerVisibility(partner));
+  const showHeaderCompanyName = isOwnProfile || visibleCompanyInfo.has('companyName');
+  const showHeaderIndustry = isOwnProfile || visibleCompanyInfo.has('industry');
+  const showHeaderAddress = isOwnProfile || visibleCompanyInfo.has('address');
+  const showHeaderEmail = isOwnProfile || visibleCompanyInfo.has('email');
 
   return (
     <div className="ln-page-content">
+      {!isOwnProfile && onBack && (
+        <div style={{ marginBottom: 12 }}>
+          <button type="button" className="ln-btn ln-btn-outline" onClick={onBack}>
+            <ChevronRight size={14} style={{ transform: 'rotate(180deg)' }} /> Back
+          </button>
+        </div>
+      )}
       {/* Profile Header Card */}
       <div className="ln-card ln-profile-header-card">
         <div className="ln-profile-header-banner pn-header-banner" />
@@ -2340,34 +2934,37 @@ const CompanyProfile = () => {
             <div className="ln-profile-header-top">
               <div style={{ flex: 1 }}>
                 <h1 className="ln-profile-header-name" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  {partner.companyName}
+                  {showHeaderCompanyName ? partner.companyName : 'Industry Partner'}
                   {isVerified(partner) && <CheckCircle size={20} color="#0a66c2" title="Verified" style={{ flexShrink: 0 }} />}
                 </h1>
-                <p className="ln-profile-header-headline">{partner.industry} &bull; Industry Partner</p>
-                <p className="ln-profile-header-loc"><MapPin size={14} /> {partner.address || 'Philippines'}</p>
-                <p className="ln-profile-header-contact">{partner.email}</p>
+                <p className="ln-profile-header-headline">{showHeaderIndustry && partner.industry ? `${partner.industry} • ` : ''}Industry Partner</p>
+                {showHeaderAddress && partner.address && <p className="ln-profile-header-loc"><MapPin size={14} /> {partner.address}</p>}
+                {showHeaderEmail && partner.email && <p className="ln-profile-header-contact">{partner.email}</p>}
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 12 }}>
                 <StatusBadge status={partner.verificationStatus} />
-                <button
-                  className={`ln-btn ${editing ? 'ln-btn-success' : 'ln-btn-primary'}`}
-                  onClick={editing ? save : () => {
-                    setForm({
-                      companyName: partner?.companyName || '',
-                      contactPerson: partner?.contactPerson || '',
-                      email: partner?.email || '',
-                      address: partner?.address || '',
-                      website: partner?.website || '',
-                      industry: partner?.industry || '',
-                      achievements: partner?.achievements || [],
-                      benefits: partner?.benefits || []
-                    });
-                    setEditing(true);
-                  }}
-                  disabled={saving || (editing && form.email && !isEmailValid(form.email))}
-                >
-                  {saving ? <><Loader size={15} style={{ animation: 'ocr-spin 0.8s linear infinite' }} /> Saving...</> : editing ? <><CheckCircle size={15} /> Save Changes</> : <><Edit size={15} /> Edit Profile</>}
-                </button>
+                {isOwnProfile && (
+                  <button
+                    className={`ln-btn ${editing ? 'ln-btn-success' : 'ln-btn-primary'}`}
+                    onClick={editing ? save : () => {
+                      setForm({
+                        companyName: partner?.companyName || '',
+                        contactPerson: partner?.contactPerson || '',
+                        email: partner?.email || '',
+                        address: partner?.address || '',
+                        website: partner?.website || '',
+                        industry: partner?.industry || '',
+                        achievements: partner?.achievements || [],
+                        benefits: partner?.benefits || []
+                      });
+                      setCompanyInfoVisibility(resolvePartnerVisibility(partner));
+                      setEditing(true);
+                    }}
+                    disabled={saving || (editing && form.email && !isEmailValid(form.email))}
+                  >
+                    {saving ? <><Loader size={15} style={{ animation: 'ocr-spin 0.8s linear infinite' }} /> Saving...</> : editing ? <><CheckCircle size={15} /> Save Changes</> : <><Edit size={15} /> Edit Profile</>}
+                  </button>
+                )}
               </div>
             </div>
           </div>
@@ -2377,7 +2974,7 @@ const CompanyProfile = () => {
       <div className="ln-profile-two-col">
         <div className="ln-profile-main">
           {/* Verification Status Indicator */}
-          {!isVerified(partner) && (
+          {isOwnProfile && !isVerified(partner) && (
             <div className="ln-card" style={{ borderLeft: '4px solid #d97706', marginBottom: 16 }}>
               <div style={{ padding: 16, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
                 <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
@@ -2407,38 +3004,84 @@ const CompanyProfile = () => {
           <div className="ln-card">
             <div className="ln-section-header">
               <h3>Company Information</h3>
-              {editing && <button className="ln-btn-sm ln-btn-outline" onClick={() => setEditing(false)} disabled={saving}>Cancel</button>}
+              {isOwnProfile && editing && (
+                <button
+                  className="ln-btn-sm ln-btn-outline"
+                  onClick={() => {
+                    setForm({
+                      companyName: partner?.companyName || '',
+                      contactPerson: partner?.contactPerson || '',
+                      email: partner?.email || '',
+                      address: partner?.address || '',
+                      website: partner?.website || '',
+                      industry: partner?.industry || '',
+                      achievements: partner?.achievements || [],
+                      benefits: partner?.benefits || []
+                    });
+                    setCompanyInfoVisibility(resolvePartnerVisibility(partner));
+                    setEditing(false);
+                  }}
+                  disabled={saving}
+                >
+                  Cancel
+                </button>
+              )}
             </div>
             <div className="ln-info-grid">
-              <div className="ln-info-item">
-                <label className="ln-info-label">Company Name</label>
-                {editing ? <input className="form-input" value={form.companyName} maxLength={100} onChange={e => setForm({ ...form, companyName: e.target.value })} /> : <div className="ln-info-value">{partner.companyName || '—'}</div>}
-              </div>
-              <div className="ln-info-item">
-                <label className="ln-info-label">Contact Person</label>
-                {editing ? <input className="form-input" value={form.contactPerson} maxLength={100} onChange={e => setForm({ ...form, contactPerson: e.target.value })} /> : <div className="ln-info-value">{partner.contactPerson || '—'}</div>}
-              </div>
-              <div className="ln-info-item">
-                <label className="ln-info-label">Contact Email</label>
-                {editing ? <input type="email" className="form-input" value={form.email} maxLength={100} onChange={e => setForm({ ...form, email: e.target.value })} style={form.email && !isEmailValid(form.email) ? { borderColor: '#cc1016' } : {}} /> : <div className="ln-info-value">{partner.email || '—'}</div>}
-              </div>
-              {editing && form.email && !isEmailValid(form.email) && (
+              {(() => {
+                const visibleSet = new Set(resolvePartnerVisibility(partner));
+                const fieldsToRender = companyInfoFields.filter(field => isOwnProfile || visibleSet.has(field.key));
+
+                if (fieldsToRender.length === 0) {
+                  return <div style={{ gridColumn: '1 / -1', fontSize: 13, color: '#94a3b8' }}>This company chose to hide company information.</div>;
+                }
+
+                return fieldsToRender.map(field => {
+                  const isVisible = companyInfoVisibility.includes(field.key);
+                  const value = editing ? form[field.key] : partner[field.key];
+
+                  return (
+                    <div key={field.key} className="ln-info-item">
+                      <label className="ln-info-label">{field.label}</label>
+                      {editing ? (
+                        <input
+                          type={field.type}
+                          className="form-input"
+                          value={value || ''}
+                          maxLength={field.maxLength}
+                          placeholder={field.placeholder}
+                          onChange={e => setForm({ ...form, [field.key]: e.target.value })}
+                          style={field.key === 'email' && form.email && !isEmailValid(form.email) ? { borderColor: '#cc1016' } : undefined}
+                        />
+                      ) : field.key === 'website' ? (
+                        <div className="ln-info-value">
+                          {partner.website
+                            ? <a href={partner.website.startsWith('http') ? partner.website : `https://${partner.website}`} target="_blank" rel="noreferrer" style={{ color: '#0a66c2', display: 'flex', alignItems: 'center', gap: 4 }}>{partner.website} <ExternalLink size={12} /></a>
+                            : '—'}
+                        </div>
+                      ) : (
+                        <div className="ln-info-value">{value || '—'}</div>
+                      )}
+
+                      {isOwnProfile && editing && (
+                        <label style={{ marginTop: 8, display: 'inline-flex', alignItems: 'center', gap: 8, fontSize: 12, color: isVisible ? '#166534' : '#64748b', fontWeight: 600 }}>
+                          <input
+                            type="checkbox"
+                            checked={isVisible}
+                            onChange={() => toggleCompanyInfoVisibility(field.key)}
+                            style={{ width: 14, height: 14 }}
+                          />
+                          {isVisible ? 'Shown to others' : 'Hidden from others'}
+                        </label>
+                      )}
+                    </div>
+                  );
+                });
+              })()}
+
+              {isOwnProfile && editing && form.email && !isEmailValid(form.email) && (
                 <div style={{ gridColumn: '1 / -1', fontSize: 12, color: '#cc1016', marginTop: -8 }}>Please enter a valid email address</div>
               )}
-              <div className="ln-info-item">
-                <label className="ln-info-label">Address</label>
-                {editing ? <input className="form-input" value={form.address} maxLength={200} onChange={e => setForm({ ...form, address: e.target.value })} /> : <div className="ln-info-value">{partner.address || '—'}</div>}
-              </div>
-              <div className="ln-info-item">
-                <label className="ln-info-label">Industry</label>
-                {editing ? <input className="form-input" value={form.industry} maxLength={80} onChange={e => setForm({ ...form, industry: e.target.value })} /> : <div className="ln-info-value">{partner.industry || '—'}</div>}
-              </div>
-              <div className="ln-info-item">
-                <label className="ln-info-label">Website</label>
-                {editing ? <input className="form-input" value={form.website} maxLength={200} onChange={e => setForm({ ...form, website: e.target.value })} placeholder="e.g. https://example.com" /> : <div className="ln-info-value">
-                  {partner.website ? <a href={partner.website.startsWith('http') ? partner.website : `https://${partner.website}`} target="_blank" rel="noreferrer" style={{ color: '#0a66c2', display: 'flex', alignItems: 'center', gap: 4 }}>{partner.website} <ExternalLink size={12} /></a> : '—'}
-                </div>}
-              </div>
             </div>
           </div>
         </div>
@@ -2480,7 +3123,7 @@ const CompanyProfile = () => {
         <div className="ln-card" style={{ marginTop: 20 }}>
           <div className="ln-section-header">
             <h3>Company Achievements & Awards</h3>
-            {editing && (
+            {isOwnProfile && editing && (
               <div style={{ display: 'flex', gap: 8 }}>
                 <input
                   className="form-input"
@@ -2511,7 +3154,7 @@ const CompanyProfile = () => {
                 {(editing ? form.achievements : partner.achievements).map((ach, idx) => (
                   <div key={idx} style={{ padding: '6px 14px', background: '#fffbeb', border: '1px solid #fef3c7', color: '#92400e', borderRadius: 20, fontSize: 13, display: 'flex', alignItems: 'center', gap: 8 }}>
                     <Award size={14} /> {ach}
-                    {editing && <X size={12} style={{ cursor: 'pointer' }} onClick={() => showConfirm('Are you sure you want to remove this achievement?', () => setForm({ ...form, achievements: form.achievements.filter((_, i) => i !== idx) }))} />}
+                    {isOwnProfile && editing && <X size={12} style={{ cursor: 'pointer' }} onClick={() => showConfirm('Are you sure you want to remove this achievement?', () => setForm({ ...form, achievements: form.achievements.filter((_, i) => i !== idx) }))} />}
                   </div>
                 ))}
               </div>
@@ -2525,7 +3168,7 @@ const CompanyProfile = () => {
         <div className="ln-card" style={{ marginTop: 20 }}>
           <div className="ln-section-header">
             <h3>Company Benefits & Perks</h3>
-            {editing && (
+            {isOwnProfile && editing && (
               <div style={{ display: 'flex', gap: 8 }}>
                 <input
                   className="form-input"
@@ -2556,7 +3199,7 @@ const CompanyProfile = () => {
                 {(editing ? form.benefits : partner.benefits).map((benefit, idx) => (
                   <div key={idx} style={{ padding: '10px 12px', background: '#f0fdf4', border: '1px solid #dcfce7', color: '#166534', borderRadius: 8, fontSize: 13, display: 'flex', alignItems: 'center', gap: 8 }}>
                     <CheckCircle size={14} /> {benefit}
-                    {editing && <X size={12} style={{ cursor: 'pointer', marginLeft: 'auto' }} onClick={() => showConfirm('Are you sure you want to remove this benefit?', () => setForm({ ...form, benefits: form.benefits.filter((_, i) => i !== idx) }))} />}
+                    {isOwnProfile && editing && <X size={12} style={{ cursor: 'pointer', marginLeft: 'auto' }} onClick={() => showConfirm('Are you sure you want to remove this benefit?', () => setForm({ ...form, benefits: form.benefits.filter((_, i) => i !== idx) }))} />}
                   </div>
                 ))}
               </div>
@@ -2572,14 +3215,14 @@ const CompanyProfile = () => {
         <div className="ln-card">
           <div className="ln-section-header">
             <h3>Documents</h3>
-            {editing && (
+            {isOwnProfile && editing && (
               <button className="ln-btn-sm ln-btn-primary" onClick={() => setShowUploadForm(!showUploadForm)}>
                 {showUploadForm ? <><X size={12} /> Cancel</> : <><Plus size={12} /> Add</>}
               </button>
             )}
           </div>
 
-          {editing && showUploadForm && (
+          {isOwnProfile && editing && showUploadForm && (
             <div style={{ marginBottom: 16, padding: 16, background: '#f8fafc', borderRadius: 10, border: '1px solid #e2e8f0' }}>
               <div style={{ marginBottom: 10 }}>
                 <label className="ln-info-label" style={{ marginBottom: 4, display: 'block' }}>Document Label <span style={{ color: '#cc1016' }}>*</span></label>
@@ -2606,7 +3249,7 @@ const CompanyProfile = () => {
               </div>
               <div style={{ display: 'flex', gap: 6 }}>
                 <a href={doc.file_url} target="_blank" rel="noreferrer" className="ln-btn-sm ln-btn-outline"><Eye size={12} /> View</a>
-                {editing && <button className="ln-btn-sm ln-btn-outline" onClick={() => showConfirm('Are you sure you want to delete this document?', () => deleteDoc(doc.id))} style={{ color: '#cc1016' }}><Trash2 size={12} /></button>}
+                {isOwnProfile && editing && <button className="ln-btn-sm ln-btn-outline" onClick={() => showConfirm('Are you sure you want to delete this document?', () => deleteDoc(doc.id))} style={{ color: '#cc1016' }}><Trash2 size={12} /></button>}
               </div>
             </div>
           )) : !showUploadForm && (
@@ -2655,6 +3298,32 @@ const CompanyProfile = () => {
   );
 };
 
+const PartnerProfileViewRoute = () => {
+  const { profileType, profileId } = useParams();
+  const navigate = useNavigate();
+  const normalizedProfileType = normalizeProfileType(profileType);
+
+  if (normalizedProfileType === 'partner') {
+    return <CompanyProfile viewedPartnerId={profileId} onBack={() => navigate(-1)} />;
+  }
+
+  if (normalizedProfileType === 'trainee') {
+    return (
+      <React.Suspense fallback={<div className="ln-page-content"><div className="ln-empty-state"><p>Loading profile...</p></div></div>}>
+        <TraineeProfileContent viewedProfileId={profileId} onBack={() => navigate(-1)} />
+      </React.Suspense>
+    );
+  }
+
+  return (
+    <ProfilePage
+      profileId={profileId}
+      profileType={normalizedProfileType || profileType}
+      onBack={() => navigate(-1)}
+    />
+  );
+};
+
 // ─── MAIN EXPORT ──────────────────────────────────────────────────
 export default function PartnerDashboard() {
   const { currentUser } = useApp();
@@ -2663,7 +3332,7 @@ export default function PartnerDashboard() {
 
   // Deduce active page from URL for visual consistency in child components
   const path = location.pathname.split('/').pop();
-  const activePage = (path === 'partner' || !path) ? 'dashboard' : path;
+  const activePage = location.pathname.includes('/profile-view/') ? 'dashboard' : ((path === 'partner' || !path) ? 'dashboard' : path);
 
   // Mock setActivePage to use navigate for smooth integration with existing buttons
   const setActivePage = (page) => {
@@ -2684,6 +3353,7 @@ export default function PartnerDashboard() {
         <Route path="/applicants" element={<ViewApplicants setActivePage={setActivePage} />} />
         <Route path="/profile" element={<CompanyProfile />} />
         <Route path="/verification" element={<VerificationPage />} />
+        <Route path="/profile-view/:profileType/:profileId" element={<PartnerProfileViewRoute />} />
         <Route path="*" element={<Navigate to="/partner" replace />} />
       </Routes>
     </PartnerLayout>

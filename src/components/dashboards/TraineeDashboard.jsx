@@ -2,11 +2,12 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useApp } from '../../context/AppContext';
 import {
     User, Briefcase, FileText, CheckCircle, Bell, ChevronDown, Search, Filter, MapPin, Clock, Building2,
-    Award, Send, CheckSquare, X, Eye, Plus, Target, Menu, Home, Settings, LogOut, MessageSquare, Heart, Bookmark,
+    Award, Send, CheckSquare, X, Eye, Plus, Menu, Home, Settings, LogOut, MessageSquare, Bookmark,
     Trash2, Camera, Loader, GraduationCap, MoveRight, ExternalLink, ShieldCheck, Mail, Calendar, AlignLeft, Users, ChevronRight, Edit, Upload
 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
-import { Routes, Route, useNavigate, useLocation, Navigate } from 'react-router-dom';
+import { Routes, Route, useNavigate, useLocation, Navigate, useParams } from 'react-router-dom';
+import { CompanyProfile } from './PartnerDashboard';
 
 /* ═══════════════════════════════════════════════════════════════════
    LINKEDIN-STYLE TRAINEE DASHBOARD
@@ -54,6 +55,66 @@ const isImageAttachment = (attachmentUrl, attachmentType) => {
     if (mime.startsWith('image/')) return true;
     const cleanUrl = String(attachmentUrl || '').split('?')[0].toLowerCase();
     return /\.(png|jpe?g|gif|webp|bmp|svg)$/.test(cleanUrl);
+};
+
+const isStudentAuthorType = (authorType = '') => {
+    const normalized = String(authorType || '').toLowerCase();
+    return normalized === 'student' || normalized === 'trainee';
+};
+
+const normalizeProfileType = (profileType = '') => {
+    const normalized = String(profileType || '').toLowerCase();
+    if (normalized === 'student' || normalized === 'trainee') return 'trainee';
+    if (normalized === 'industry_partner' || normalized === 'partner') return 'partner';
+    return '';
+};
+
+const toProfileAuthorType = (authorType = '') => (isStudentAuthorType(authorType) ? 'trainee' : 'partner');
+const toRecipientAuthorType = (authorType = '') => (isStudentAuthorType(authorType) ? 'student' : 'industry_partner');
+const DEFAULT_TRAINEE_PUBLIC_INFO_FIELDS = ['name', 'birthday', 'gender'];
+const resolveTraineeVisibility = (profile) => {
+    const value = profile?.personalInfoVisibility ?? profile?.personal_info_visibility;
+    return Array.isArray(value) ? value : DEFAULT_TRAINEE_PUBLIC_INFO_FIELDS;
+};
+
+const normalizeTraineeProfile = (profile) => {
+    if (!profile) return null;
+
+    const address = profile.address
+        || [profile.detailed_address, profile.barangay, profile.city, profile.province, profile.region].filter(Boolean).join(', ')
+        || '';
+
+    const rawEmploymentStatus = String(profile.employmentStatus || profile.employment_status || '').toLowerCase();
+    const employmentStatus = profile.employmentStatus
+        || (rawEmploymentStatus === 'employed'
+            ? 'Employed'
+            : rawEmploymentStatus === 'seeking_employment'
+                ? 'Seeking Employment'
+                : rawEmploymentStatus === 'not_employed' || rawEmploymentStatus === 'unemployed'
+                    ? 'Unemployed'
+                    : 'Unemployed');
+
+    return {
+        ...profile,
+        name: profile.name || profile.full_name || profile.profile_name || 'Trainee',
+        email: profile.email || profile.contact_email || '',
+        address,
+        birthday: profile.birthday || profile.birthdate || '',
+        graduationYear: profile.graduationYear || profile.graduation_year || '',
+        trainingStatus: profile.trainingStatus || profile.training_status || 'Student',
+        certifications: Array.isArray(profile.certifications) ? profile.certifications : [],
+        educHistory: Array.isArray(profile.educHistory) ? profile.educHistory : (Array.isArray(profile.educ_history) ? profile.educ_history : []),
+        workExperience: Array.isArray(profile.workExperience) ? profile.workExperience : (Array.isArray(profile.work_experience) ? profile.work_experience : []),
+        skills: Array.isArray(profile.skills) ? profile.skills : [],
+        interests: Array.isArray(profile.interests) ? profile.interests : [],
+        employmentStatus,
+        employer: profile.employer || profile.employment_work || '',
+        jobTitle: profile.jobTitle || profile.job_title || '',
+        dateHired: profile.dateHired || profile.employment_start || '',
+        photo: profile.photo || profile.profile_picture_url || null,
+        bannerUrl: profile.bannerUrl || profile.banner_url || null,
+        personalInfoVisibility: resolveTraineeVisibility(profile),
+    };
 };
 
 // ─── TOP NAVIGATION BAR (LinkedIn-style) ─────────────────────────
@@ -260,7 +321,7 @@ const ProfileSideCard = ({ trainee, setActivePage }) => {
 };
 
 // ─── RIGHT SIDEBAR WIDGET ────────────────────────────────────────
-const SuggestedOpportunities = ({ recJobs, handleApply, setActivePage }) => (
+const SuggestedOpportunities = ({ recJobs, handleApply, setActivePage, onViewProfile }) => (
     <div className="ln-card ln-widget">
         <div className="ln-widget-header">
             <span>Recommended for you</span>
@@ -273,18 +334,17 @@ const SuggestedOpportunities = ({ recJobs, handleApply, setActivePage }) => (
                 </div>
                 <div className="ln-suggested-info">
                     <div className="ln-suggested-title">{job.title}</div>
-                    <div className="ln-suggested-company">{job.companyName}</div>
+                    <div className="ln-suggested-company">
+                        <button
+                            type="button"
+                            onClick={() => onViewProfile && onViewProfile({ id: job.partnerId, type: 'partner' })}
+                            style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', color: 'inherit', font: 'inherit', textAlign: 'left' }}
+                        >
+                            {job.companyName}
+                        </button>
+                    </div>
                     <div className="ln-suggested-meta">
                         <MapPin size={11} /> {job.location} &bull; {job.opportunityType}
-                    </div>
-                    <div className="ln-match-row">
-                        <div className="ln-match-bar">
-                            <div
-                                className={`ln - match - fill ${job.matchRate >= 70 ? 'high' : job.matchRate >= 40 ? 'mid' : 'low'} `}
-                                style={{ width: `${job.matchRate}% ` }}
-                            />
-                        </div>
-                        <span className="ln-match-pct">{job.matchRate}%</span>
                     </div>
                 </div>
             </div>
@@ -326,6 +386,7 @@ const ProgressBar = ({ value, showLabel = true }) => {
 // ─── PAGE 1: DASHBOARD HOME (LinkedIn Feed-style) ───────────────
 const TraineeDashboardHome = ({ setActivePage }) => {
     const { currentUser, trainees, jobPostings, applications, getTraineeRecommendedJobs, applyToJob, posts, createPost, updatePost, deletePost, partners, addPostComment, getPostComments, addJobPostingComment, getJobPostingComments, updateJobPostingComment, deleteJobPostingComment, sendContactRequest } = useApp();
+    const navigate = useNavigate();
     const trainee = currentUser || trainees[0];
     const myApps = applications.filter(a => a.traineeId === trainee?.id);
     const recJobs = getTraineeRecommendedJobs(trainee?.id);
@@ -352,17 +413,28 @@ const TraineeDashboardHome = ({ setActivePage }) => {
     const [contactAttachment, setContactAttachment] = useState(null);
     const [contactSubmitting, setContactSubmitting] = useState(false);
     const [jobMediaModal, setJobMediaModal] = useState(null);
+    const [jobMediaCommentsOnly, setJobMediaCommentsOnly] = useState(false);
     const [jobMediaCommentInput, setJobMediaCommentInput] = useState('');
     const [editingJobMediaCommentId, setEditingJobMediaCommentId] = useState(null);
     const [jobMediaEditInput, setJobMediaEditInput] = useState('');
     const [jobMediaCommentSaving, setJobMediaCommentSaving] = useState(false);
     const [jobMediaCommentMenuId, setJobMediaCommentMenuId] = useState(null);
+    const [isCompactCommentViewport, setIsCompactCommentViewport] = useState(() => (
+        typeof window !== 'undefined' ? window.innerWidth <= 1024 : false
+    ));
     const fileInputRef = useRef(null);
     const contactFileInputRef = useRef(null);
     const jobMediaCommentInputRef = useRef(null);
+    const openProfile = (target) => {
+        if (!target?.id || !target?.type) return;
+        const profileType = normalizeProfileType(target.type);
+        if (!profileType) return;
+        navigate(`/trainee/profile-view/${profileType}/${target.id}`);
+    };
 
     const openJobMediaModal = (job, focusComment = false) => {
         setJobMediaModal(job);
+        setJobMediaCommentsOnly(Boolean(focusComment));
         setJobMediaCommentInput('');
         setEditingJobMediaCommentId(null);
         setJobMediaEditInput('');
@@ -374,11 +446,51 @@ const TraineeDashboardHome = ({ setActivePage }) => {
 
     const closeJobMediaModal = () => {
         setJobMediaModal(null);
+        setJobMediaCommentsOnly(false);
         setJobMediaCommentInput('');
         setEditingJobMediaCommentId(null);
         setJobMediaEditInput('');
         setJobMediaCommentMenuId(null);
     };
+
+    useEffect(() => {
+        if (typeof window === 'undefined') return undefined;
+
+        const handleResize = () => {
+            setIsCompactCommentViewport(window.innerWidth <= 1024);
+        };
+
+        handleResize();
+        window.addEventListener('resize', handleResize);
+        return () => window.removeEventListener('resize', handleResize);
+    }, []);
+
+    useEffect(() => {
+        const activeFeedModal = jobMediaModal || commentModalPost;
+        if (!activeFeedModal || typeof window === 'undefined' || typeof document === 'undefined') return undefined;
+
+        const scrollY = window.scrollY;
+        const originalBodyOverflow = document.body.style.overflow;
+        const originalBodyPosition = document.body.style.position;
+        const originalBodyTop = document.body.style.top;
+        const originalBodyWidth = document.body.style.width;
+        const originalHtmlOverflow = document.documentElement.style.overflow;
+
+        document.body.style.overflow = 'hidden';
+        document.body.style.position = 'fixed';
+        document.body.style.top = `-${scrollY}px`;
+        document.body.style.width = '100%';
+        document.documentElement.style.overflow = 'hidden';
+
+        return () => {
+            document.body.style.overflow = originalBodyOverflow;
+            document.body.style.position = originalBodyPosition;
+            document.body.style.top = originalBodyTop;
+            document.body.style.width = originalBodyWidth;
+            document.documentElement.style.overflow = originalHtmlOverflow;
+            window.scrollTo(0, scrollY);
+        };
+    }, [jobMediaModal, commentModalPost]);
 
     const submitJobMediaComment = async () => {
         if (!jobMediaModal) return;
@@ -636,7 +748,6 @@ const TraineeDashboardHome = ({ setActivePage }) => {
     };
 
     const stats = [
-        { label: 'Match Rate', value: recJobs.length > 0 ? `${Math.round(recJobs.reduce((s, j) => s + j.matchRate, 0) / recJobs.length)}%` : '0%', icon: <Target size={20} />, color: '#0a66c2' },
         { label: 'Applications', value: myApps.length, icon: <Send size={20} />, color: '#057642' },
         { label: 'Status', value: trainee?.employmentStatus || 'Unemployed', icon: <Briefcase size={20} />, color: '#b24020' },
         { label: 'Certifications', value: trainee?.certifications?.length || 0, icon: <Award size={20} />, color: '#7c3aed' },
@@ -646,15 +757,17 @@ const TraineeDashboardHome = ({ setActivePage }) => {
     const modalAuthor = commentModalPost
         ? (commentModalPost.author_id === currentUser?.id
             ? currentUser
-            : commentModalPost.author_type === 'student'
+            : isStudentAuthorType(commentModalPost.author_type)
                 ? trainees.find(t => t.id === commentModalPost.author_id)
                 : partners.find(p => p.id === commentModalPost.author_id))
         : null;
-    const modalAuthorName = modalAuthor?.name || modalAuthor?.companyName || 'Community User';
+    const modalAuthorName = modalAuthor?.name || modalAuthor?.profileName || modalAuthor?.companyName || 'Community User';
     const canContactModalAuthor = Boolean(commentModalPost && commentModalPost.author_id !== currentUser?.id);
     const contactRequiresResume = contactTarget?.recipientType === 'industry_partner';
     const contactRecipientName = contactTarget?.recipientName || 'Recipient';
     const jobMediaComments = jobMediaModal ? getJobPostingComments(jobMediaModal.id) : [];
+    const useCommentsOnlyJobModal = isCompactCommentViewport && jobMediaCommentsOnly;
+    const useCompactPostCommentModal = isCompactCommentViewport;
 
     return (
         <div className="ln-three-col">
@@ -725,11 +838,24 @@ const TraineeDashboardHome = ({ setActivePage }) => {
 
                             <div style={{ padding: '16px 16px' }}>
                                 <div style={{ display: 'flex', gap: 12, marginBottom: 16 }}>
-                                    <div className="ln-feed-avatar" style={{ flexShrink: 0, width: 40, height: 40 }}>
+                                    <button
+                                        type="button"
+                                        className="ln-feed-avatar"
+                                        onClick={() => openProfile({ id: trainee?.id || currentUser?.id, type: 'trainee' })}
+                                        style={{ flexShrink: 0, width: 40, height: 40, border: 'none', cursor: (trainee?.id || currentUser?.id) ? 'pointer' : 'default' }}
+                                        disabled={!(trainee?.id || currentUser?.id)}
+                                    >
                                         {trainee?.photo ? <img src={trainee.photo} alt="" style={{ width: '100%', height: '100%', borderRadius: '50%' }} /> : ((trainee?.name || '').split(' ').filter(Boolean).map(n => n[0]).join('').slice(0, 2).toUpperCase() || 'T')}
-                                    </div>
+                                    </button>
                                     <div>
-                                        <div style={{ fontWeight: 600, fontSize: 15 }}>{trainee?.name}</div>
+                                        <button
+                                            type="button"
+                                            onClick={() => openProfile({ id: trainee?.id || currentUser?.id, type: 'trainee' })}
+                                            style={{ fontWeight: 600, fontSize: 15, background: 'none', border: 'none', padding: 0, cursor: (trainee?.id || currentUser?.id) ? 'pointer' : 'default', color: 'inherit' }}
+                                            disabled={!(trainee?.id || currentUser?.id)}
+                                        >
+                                            {trainee?.name}
+                                        </button>
                                         <select
                                             style={{
                                                 background: '#e4e6eb', border: 'none', borderRadius: 6,
@@ -830,36 +956,62 @@ const TraineeDashboardHome = ({ setActivePage }) => {
                             return (
                                 <div key={`job-${item.id}`} className="ln-card ln-feed-card" style={{ marginBottom: 0 }}>
                                     <div className="ln-feed-card-header">
-                                        <div className="ln-feed-avatar" style={{ background: '#f0f7ff', color: '#0a66c2' }}>
+                                        <button
+                                            type="button"
+                                            className="ln-feed-avatar"
+                                            onClick={() => openProfile({ id: item.partnerId, type: 'partner' })}
+                                            style={{ background: '#f0f7ff', color: '#0a66c2', border: 'none', cursor: item.partnerId ? 'pointer' : 'default' }}
+                                            disabled={!item.partnerId}
+                                        >
                                             <Building2 size={20} />
-                                        </div>
+                                        </button>
                                         <div>
-                                            <div className="ln-feed-author">{item.companyName} <span style={{ fontWeight: 400, color: 'rgba(0,0,0,0.45)', marginLeft: 4 }}>posted a new {item.opportunityType}</span></div>
-                                            <div className="ln-feed-meta">{item.industry} &bull; {item.location}</div>
+                                            <div className="ln-feed-author">
+                                                <button
+                                                    type="button"
+                                                    onClick={() => openProfile({ id: item.partnerId, type: 'partner' })}
+                                                    style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', fontWeight: 700, color: 'inherit', fontSize: 'inherit', fontFamily: 'inherit' }}
+                                                >
+                                                    {item.companyName}
+                                                </button>
+                                                <span style={{ fontWeight: 400, color: 'rgba(0,0,0,0.45)', marginLeft: 4 }}>posted a new {item.opportunityType}</span>
+                                            </div>
+                                            <div className="ln-feed-meta">
+                                                {[
+                                                    (item.industry && String(item.industry).trim().toLowerCase() !== 'general') ? item.industry : '',
+                                                    item.location,
+                                                ].filter(Boolean).join(' • ')}
+                                            </div>
                                         </div>
                                     </div>
                                     <div className="ln-feed-content">
                                         <h4 style={{ fontSize: 15, fontWeight: 700, marginBottom: 4 }}>{item.title}</h4>
                                         <p style={{ fontSize: 13, color: 'rgba(0,0,0,0.6)', marginBottom: 8 }}>{item.description.substring(0, 150)}...</p>
                                         {item.attachmentUrl && isImageAttachment(item.attachmentUrl, item.attachmentType) && (
-                                            <button type="button" onClick={() => openJobMediaModal(item)} style={{ display: 'block', marginBottom: 10, padding: 0, border: 'none', background: 'transparent', width: '100%', cursor: 'pointer' }}>
+                                            <div style={{ display: 'block', marginBottom: 10 }}>
                                                 <img
                                                     src={item.attachmentUrl}
                                                     alt={item.attachmentName || 'Opportunity attachment'}
                                                     style={{ width: '100%', maxHeight: 260, objectFit: 'cover', borderRadius: 10, border: '1px solid #e2e8f0' }}
                                                 />
-                                            </button>
+                                            </div>
                                         )}
                                         {item.attachmentUrl && !isImageAttachment(item.attachmentUrl, item.attachmentType) && (
                                             <a href={item.attachmentUrl} target="_blank" rel="noreferrer" style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12, color: '#2563eb', marginBottom: 8, textDecoration: 'none' }}>
                                                 <FileText size={13} /> {item.attachmentName || decodeURIComponent(String(item.attachmentUrl).split('/').pop()?.split('?')[0] || 'Attachment')}
                                             </a>
                                         )}
-                                        <div className="ln-match-row">
-                                            <div className="ln-match-bar" style={{ flex: 1 }}>
-                                                <div className={`ln-match-fill ${item.matchRate >= 70 ? 'high' : item.matchRate >= 40 ? 'mid' : 'low'}`} style={{ width: `${item.matchRate}%` }} />
-                                            </div>
-                                            <span className="ln-match-pct" style={{ fontSize: 12 }}>{item.matchRate}% match</span>
+                                        <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
+                                            <span className="ln-opp-type-badge">{item.opportunityType}</span>
+                                            {item.opportunityType !== 'OJT' && item.employmentType && (
+                                                <span className="ln-opp-type-badge" style={{ background: '#f8fafc', color: '#64748b' }}>{item.employmentType}</span>
+                                            )}
+                                            {item.ncLevel && (
+                                                <span className="ln-opp-type-badge" style={{ background: '#ede9fe', color: '#6d28d9' }}>{item.ncLevel}</span>
+                                            )}
+                                            {item.salaryRange && (
+                                                <span style={{ fontSize: 15, color: '#057642', fontWeight: 700 }}>{item.salaryRange}</span>
+                                            )}
                                         </div>
                                         {jobComments.length > 0 && (
                                             <div style={{ marginTop: 10, fontSize: 12, color: '#64748b', display: 'flex', gap: 14 }}>
@@ -883,9 +1035,6 @@ const TraineeDashboardHome = ({ setActivePage }) => {
                                         <button className="ln-feed-action-btn" onClick={() => openJobMediaModal(item, true)}>
                                             <MessageSquare size={14} /> Comment ({jobComments.length})
                                         </button>
-                                        <button className="ln-feed-action-btn" onClick={() => setActivePage('recommendations')}>
-                                            <Eye size={14} /> View Details
-                                        </button>
                                     </div>
                                 </div>
                             );
@@ -893,16 +1042,17 @@ const TraineeDashboardHome = ({ setActivePage }) => {
                             const isOwnPost = item.author_id === currentUser?.id;
                             const author = isOwnPost
                                 ? currentUser
-                                : item.author_type === 'student'
+                                : isStudentAuthorType(item.author_type)
                                     ? trainees.find(t => t.id === item.author_id)
                                     : partners.find(p => p.id === item.author_id);
-                            const authorName = author?.name || author?.companyName || 'Unknown User';
+                            const authorProfileType = toProfileAuthorType(item.author_type);
+                            const authorName = author?.name || author?.profileName || author?.companyName || 'Unknown User';
                             const authorPhoto = author?.photo || author?.company_logo_url;
                             const authorInitial = authorName.charAt(0) || '?';
                             const comments = getPostComments(item.id);
                             const getCommentAuthorName = (comment) => {
                                 if (comment.author_id === currentUser?.id) return currentUser.name || trainee?.name || 'You';
-                                if (comment.author_type === 'student') {
+                                if (isStudentAuthorType(comment.author_type)) {
                                     const student = trainees.find(t => t.id === comment.author_id);
                                     return student?.name || 'Trainee';
                                 }
@@ -914,14 +1064,25 @@ const TraineeDashboardHome = ({ setActivePage }) => {
                                 <div key={`post-${item.id}`} className="ln-card ln-feed-card" style={{ marginBottom: 0 }}>
                                     <div className="ln-feed-card-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                                         <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
-                                            <div className="ln-feed-avatar">
+                                            <button
+                                                type="button"
+                                                className="ln-feed-avatar"
+                                                onClick={() => openProfile({ id: item.author_id, type: authorProfileType })}
+                                                style={{ border: 'none', cursor: 'pointer' }}
+                                            >
                                                 {authorPhoto ? (
                                                     <img src={authorPhoto} alt="" style={{ width: '100%', height: '100%', borderRadius: '50%', objectFit: 'cover' }} />
                                                 ) : authorInitial}
-                                            </div>
+                                            </button>
                                             <div>
                                                 <div className="ln-feed-author" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                                                    {authorName}
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => openProfile({ id: item.author_id, type: authorProfileType })}
+                                                        style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', color: 'inherit', font: 'inherit', textAlign: 'left' }}
+                                                    >
+                                                        {authorName}
+                                                    </button>
                                                     {item.post_type !== 'general' && (
                                                         <span className="ln-badge ln-badge-blue" style={{ fontSize: 10, padding: '2px 8px' }}>
                                                             {item.post_type.replace('_', ' ')}
@@ -929,7 +1090,7 @@ const TraineeDashboardHome = ({ setActivePage }) => {
                                                     )}
                                                 </div>
                                                 <div className="ln-feed-meta">
-                                                    {item.author_type === 'student' ? (author?.program || 'Trainee') : (author?.companyName || 'Industry Partner')} &bull; {timeAgo(item.created_at)}
+                                                    {isStudentAuthorType(item.author_type) ? (author?.program || 'Trainee') : (author?.companyName || 'Industry Partner')} &bull; {timeAgo(item.created_at)}
                                                     {item.updated_at && item.updated_at !== item.created_at && ' (edited)'}
                                                 </div>
                                             </div>
@@ -1040,11 +1201,21 @@ const TraineeDashboardHome = ({ setActivePage }) => {
                                         </div>
                                         {comments.length > 0 && (
                                             <div style={{ marginTop: 12, paddingTop: 10, borderTop: '1px solid #f1f5f9', display: 'flex', flexDirection: 'column', gap: 8 }}>
-                                                {comments.slice(-3).map(comment => (
-                                                    <div key={comment.id} style={{ fontSize: 12.5, color: '#475569', lineHeight: 1.4 }}>
-                                                        <span style={{ fontWeight: 700, color: '#1e293b' }}>{getCommentAuthorName(comment)}:</span> {comment.content}
-                                                    </div>
-                                                ))}
+                                                {comments.slice(-3).map(comment => {
+                                                    const previewCommentType = toProfileAuthorType(comment.author_type);
+                                                    return (
+                                                        <div key={comment.id} style={{ fontSize: 12.5, color: '#475569', lineHeight: 1.4 }}>
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => openProfile({ id: comment.author_id, type: previewCommentType })}
+                                                                style={{ fontWeight: 700, color: '#1e293b', background: 'none', border: 'none', padding: 0, cursor: 'pointer' }}
+                                                            >
+                                                                {getCommentAuthorName(comment)}:
+                                                            </button>{' '}
+                                                            {comment.content}
+                                                        </div>
+                                                    );
+                                                })}
                                                 {comments.length > 3 && (
                                                     <div style={{ fontSize: 11, color: '#94a3b8' }}>+{comments.length - 3} more comments</div>
                                                 )}
@@ -1056,7 +1227,7 @@ const TraineeDashboardHome = ({ setActivePage }) => {
                                             className="ln-feed-action-btn"
                                             onClick={() => openContactModal({
                                                 recipientId: item.author_id,
-                                                recipientType: item.author_type,
+                                                recipientType: toRecipientAuthorType(item.author_type),
                                                 recipientName: authorName,
                                                 postId: item.id,
                                                 sourceLabel: item.content,
@@ -1080,7 +1251,7 @@ const TraineeDashboardHome = ({ setActivePage }) => {
 
             {/* Right Column - Widgets */}
             <div className="ln-col-right">
-                <SuggestedOpportunities recJobs={recJobs} handleApply={handleApply} setActivePage={setActivePage} />
+                <SuggestedOpportunities recJobs={recJobs} handleApply={handleApply} setActivePage={setActivePage} onViewProfile={openProfile} />
                 <QuickLinksWidget setActivePage={setActivePage} />
             </div>
 
@@ -1153,37 +1324,69 @@ const TraineeDashboardHome = ({ setActivePage }) => {
             )}
 
             {jobMediaModal && (
-                <div className="modal-overlay" style={{ background: 'rgba(0, 0, 0, 0.82)' }} onClick={closeJobMediaModal}>
+                <div
+                    className="modal-overlay"
+                    style={useCommentsOnlyJobModal
+                        ? { background: '#ffffff', padding: 0, alignItems: 'stretch' }
+                        : { background: 'rgba(0, 0, 0, 0.82)' }}
+                    onClick={closeJobMediaModal}
+                >
                     <div
                         className="ln-modal"
                         onClick={e => e.stopPropagation()}
-                        style={{ width: '96%', maxWidth: 1240, height: '90vh', maxHeight: 920, padding: 0, overflow: 'hidden', display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) 360px', borderRadius: 14, background: '#0f172a' }}
+                        style={{
+                            width: useCommentsOnlyJobModal ? '100%' : '96%',
+                            maxWidth: useCommentsOnlyJobModal ? '100%' : 1240,
+                            height: useCommentsOnlyJobModal ? '100vh' : '90vh',
+                            maxHeight: useCommentsOnlyJobModal ? '100vh' : 920,
+                            padding: 0,
+                            overflow: 'hidden',
+                            display: useCommentsOnlyJobModal ? 'flex' : 'grid',
+                            gridTemplateColumns: useCommentsOnlyJobModal ? undefined : 'minmax(0, 1fr) 360px',
+                            borderRadius: useCommentsOnlyJobModal ? 0 : 14,
+                            background: useCommentsOnlyJobModal ? '#ffffff' : '#0f172a',
+                        }}
                     >
-                        <div style={{ background: '#000', display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative' }}>
-                            <button
-                                onClick={closeJobMediaModal}
-                                style={{ position: 'absolute', top: 12, left: 12, width: 34, height: 34, borderRadius: '50%', border: 'none', background: 'rgba(17,24,39,0.7)', color: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-                            >
-                                <X size={18} />
-                            </button>
-                            {jobMediaModal.attachmentUrl && isImageAttachment(jobMediaModal.attachmentUrl, jobMediaModal.attachmentType) ? (
-                                <img src={jobMediaModal.attachmentUrl} alt={jobMediaModal.attachmentName || 'Opportunity media'} style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
-                            ) : jobMediaModal.attachmentUrl ? (
-                                <a href={jobMediaModal.attachmentUrl} target="_blank" rel="noreferrer" style={{ color: '#93c5fd', textDecoration: 'none', display: 'inline-flex', gap: 8, alignItems: 'center', background: '#111827', border: '1px solid #334155', borderRadius: 10, padding: '12px 14px' }}>
-                                    <FileText size={18} />
-                                    {jobMediaModal.attachmentName || 'Open attachment'}
-                                </a>
-                            ) : (
-                                <div style={{ color: '#94a3b8', fontSize: 13 }}>No media attachment for this opportunity.</div>
-                            )}
-                        </div>
+                        {!useCommentsOnlyJobModal && (
+                            <div style={{ background: '#000', display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative' }}>
+                                <button
+                                    onClick={closeJobMediaModal}
+                                    style={{ position: 'absolute', top: 12, left: 12, width: 34, height: 34, borderRadius: '50%', border: 'none', background: 'rgba(17,24,39,0.7)', color: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                                >
+                                    <X size={18} />
+                                </button>
+                                {jobMediaModal.attachmentUrl && isImageAttachment(jobMediaModal.attachmentUrl, jobMediaModal.attachmentType) ? (
+                                    <img src={jobMediaModal.attachmentUrl} alt={jobMediaModal.attachmentName || 'Opportunity media'} style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
+                                ) : jobMediaModal.attachmentUrl ? (
+                                    <a href={jobMediaModal.attachmentUrl} target="_blank" rel="noreferrer" style={{ color: '#93c5fd', textDecoration: 'none', display: 'inline-flex', gap: 8, alignItems: 'center', background: '#111827', border: '1px solid #334155', borderRadius: 10, padding: '12px 14px' }}>
+                                        <FileText size={18} />
+                                        {jobMediaModal.attachmentName || 'Open attachment'}
+                                    </a>
+                                ) : (
+                                    <div style={{ color: '#94a3b8', fontSize: 13 }}>No media attachment for this opportunity.</div>
+                                )}
+                            </div>
+                        )}
 
-                        <div style={{ background: '#ffffff', display: 'flex', flexDirection: 'column', minHeight: 0 }}>
+                        <div style={{ background: '#ffffff', display: 'flex', flexDirection: 'column', minHeight: 0, flex: 1 }}>
                             <div style={{ padding: '14px 16px', borderBottom: '1px solid #e5e7eb' }}>
                                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 10 }}>
                                     <div>
-                                        <div style={{ fontSize: 14, fontWeight: 700, color: '#0f172a' }}>{jobMediaModal.companyName}</div>
-                                        <div style={{ fontSize: 12, color: '#64748b', marginTop: 2 }}>{jobMediaModal.industry} • {jobMediaModal.location} • {timeAgo(jobMediaModal.created_at || jobMediaModal.createdAt || jobMediaModal.datePosted)}</div>
+                                        <button
+                                            type="button"
+                                            onClick={() => openProfile({ id: jobMediaModal.partnerId, type: 'partner' })}
+                                            style={{ fontSize: 14, fontWeight: 700, color: '#0f172a', background: 'none', border: 'none', padding: 0, cursor: 'pointer' }}
+                                        >
+                                            {jobMediaModal.companyName}
+                                        </button>
+                                        <div style={{ fontSize: 12, color: '#64748b', marginTop: 2 }}>
+                                            {[
+                                                (jobMediaModal.industry && String(jobMediaModal.industry).trim().toLowerCase() !== 'general') ? jobMediaModal.industry : '',
+                                                jobMediaModal.location,
+                                                jobMediaModal.salaryRange,
+                                                timeAgo(jobMediaModal.created_at || jobMediaModal.createdAt || jobMediaModal.datePosted),
+                                            ].filter(Boolean).join(' • ')}
+                                        </div>
                                         <div style={{ marginTop: 8, fontSize: 16, fontWeight: 700, color: '#111827' }}>{jobMediaModal.title}</div>
                                         <div style={{ marginTop: 4, fontSize: 13, color: '#475569', whiteSpace: 'pre-wrap' }}>{jobMediaModal.description}</div>
                                     </div>
@@ -1211,9 +1414,10 @@ const TraineeDashboardHome = ({ setActivePage }) => {
                                 {jobMediaComments.length > 0 ? jobMediaComments.map(comment => {
                                     const commentAuthorName = comment.author_id === currentUser?.id
                                         ? (currentUser?.name || trainee?.name || 'You')
-                                        : comment.author_type === 'student'
+                                        : isStudentAuthorType(comment.author_type)
                                             ? (trainees.find(t => t.id === comment.author_id)?.name || 'Trainee')
                                             : (partners.find(p => p.id === comment.author_id)?.companyName || 'Industry Partner');
+                                    const commentAuthorType = toProfileAuthorType(comment.author_type);
                                     const isOwnComment = comment.author_id === currentUser?.id;
                                     const isEditing = editingJobMediaCommentId === comment.id;
                                     const isMenuOpen = jobMediaCommentMenuId === comment.id;
@@ -1221,7 +1425,13 @@ const TraineeDashboardHome = ({ setActivePage }) => {
                                     return (
                                         <div key={comment.id} style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 10, padding: '8px 10px' }}>
                                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8 }}>
-                                                <div style={{ fontSize: 12, fontWeight: 700, color: '#111827' }}>{commentAuthorName}</div>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => openProfile({ id: comment.author_id, type: commentAuthorType })}
+                                                    style={{ fontSize: 12, fontWeight: 700, color: '#111827', background: 'none', border: 'none', padding: 0, cursor: 'pointer' }}
+                                                >
+                                                    {commentAuthorName}
+                                                </button>
                                                 {isOwnComment && !isEditing && (
                                                     <div style={{ position: 'relative' }}>
                                                         <button
@@ -1352,53 +1562,64 @@ const TraineeDashboardHome = ({ setActivePage }) => {
             )}
 
             {commentModalPost && (
-                <div className="modal-overlay" style={{ background: 'rgba(0, 0, 0, 0.78)', backdropFilter: 'blur(2px)' }} onClick={() => setCommentModalPost(null)}>
+                <div className="modal-overlay" style={useCompactPostCommentModal ? { background: '#ffffff', padding: 0, alignItems: 'stretch' } : { background: 'rgba(15, 23, 42, 0.45)', backdropFilter: 'blur(2px)' }} onClick={() => setCommentModalPost(null)}>
                     <div
                         className="ln-modal"
                         onClick={e => e.stopPropagation()}
                         style={{
-                            width: '96%',
-                            maxWidth: 740,
-                            height: '92vh',
-                            maxHeight: 940,
+                            width: useCompactPostCommentModal ? '100%' : '96%',
+                            maxWidth: useCompactPostCommentModal ? '100%' : 740,
+                            height: useCompactPostCommentModal ? '100vh' : '92vh',
+                            maxHeight: useCompactPostCommentModal ? '100vh' : 940,
                             padding: 0,
                             overflow: 'hidden',
                             display: 'flex',
                             flexDirection: 'column',
-                            background: '#1f2329',
-                            border: '1px solid #343a40',
-                            borderRadius: 16,
-                            color: '#e4e6eb'
+                            background: '#ffffff',
+                            border: '1px solid #e2e8f0',
+                            borderRadius: useCompactPostCommentModal ? 0 : 16,
+                            color: '#0f172a'
                         }}
                     >
-                        <div style={{ height: 60, borderBottom: '1px solid #343a40', position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 36, fontWeight: 700, color: '#f1f5f9' }}>
-                            {modalAuthorName}'s Post
+                        <div style={{ height: useCompactPostCommentModal ? 52 : 60, borderBottom: '1px solid #e2e8f0', position: 'relative', display: 'flex', alignItems: 'center', justifyContent: useCompactPostCommentModal ? 'flex-end' : 'center', fontSize: 28, fontWeight: 700, color: '#0f172a', paddingRight: useCompactPostCommentModal ? 56 : 0 }}>
+                            {!useCompactPostCommentModal ? `${modalAuthorName}'s Post` : ''}
                             <button
                                 onClick={() => setCommentModalPost(null)}
-                                style={{ position: 'absolute', right: 12, top: 12, width: 36, height: 36, borderRadius: '50%', border: 'none', background: '#3a3f45', color: '#e5e7eb', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                                style={{ position: 'absolute', right: 12, top: 12, width: 36, height: 36, borderRadius: '50%', border: 'none', background: '#f1f5f9', color: '#334155', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
                             >
                                 <X size={20} />
                             </button>
                         </div>
 
-                        <div style={{ flex: '0 0 56%', minHeight: 320, display: 'flex', flexDirection: 'column', borderBottom: '1px solid #343a40' }}>
+                        <div style={{ flex: '0 0 clamp(250px, 50vh, 560px)', minHeight: 220, display: 'flex', flexDirection: 'column', borderBottom: '1px solid #e2e8f0' }}>
                             <div style={{ padding: '10px 12px', display: 'flex', alignItems: 'center', gap: 10 }}>
-                                <div className="ln-feed-avatar" style={{ width: 34, height: 34 }}>
+                                <button
+                                    type="button"
+                                    className="ln-feed-avatar"
+                                    onClick={() => openProfile({ id: commentModalPost.author_id, type: toProfileAuthorType(commentModalPost.author_type) })}
+                                    style={{ width: 34, height: 34, border: 'none', cursor: 'pointer' }}
+                                >
                                     {(modalAuthor?.photo || modalAuthor?.company_logo_url)
                                         ? <img src={modalAuthor.photo || modalAuthor.company_logo_url} alt="" style={{ width: '100%', height: '100%', borderRadius: '50%', objectFit: 'cover' }} />
                                         : (modalAuthorName?.charAt(0) || 'U')}
-                                </div>
+                                </button>
                                 <div>
-                                    <div style={{ fontWeight: 700, fontSize: 13.5, color: '#f1f5f9' }}>{modalAuthorName}</div>
-                                    <div style={{ fontSize: 11.5, color: '#9ca3af' }}>{timeAgo(commentModalPost.created_at)}</div>
+                                    <button
+                                        type="button"
+                                        onClick={() => openProfile({ id: commentModalPost.author_id, type: toProfileAuthorType(commentModalPost.author_type) })}
+                                        style={{ fontWeight: 700, fontSize: 13.5, color: '#0f172a', background: 'none', border: 'none', padding: 0, cursor: 'pointer' }}
+                                    >
+                                        {modalAuthorName}
+                                    </button>
+                                    <div style={{ fontSize: 11.5, color: '#64748b' }}>{timeAgo(commentModalPost.created_at)}</div>
                                 </div>
                             </div>
 
-                            <div style={{ padding: '0 12px 10px', color: '#e5e7eb', fontSize: 14.5, whiteSpace: 'pre-wrap', lineHeight: 1.5 }}>
+                            <div style={{ padding: '0 12px 10px', color: '#0f172a', fontSize: 14.5, whiteSpace: 'pre-wrap', lineHeight: 1.5 }}>
                                 {commentModalPost.content}
                             </div>
 
-                            <div style={{ flex: 1, minHeight: 0, background: '#111418', borderTop: '1px solid #343a40', borderBottom: '1px solid #343a40', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
+                            <div style={{ flex: 1, minHeight: 260, background: '#f8fafc', borderTop: '1px solid #e2e8f0', borderBottom: '1px solid #e2e8f0', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
                                 {commentModalPost.media_url ? (
                                     commentModalPost.media_url.match(/\.(jpg|jpeg|png|gif|webp)$/i) ? (
                                         <img src={commentModalPost.media_url} alt="Post media" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
@@ -1407,33 +1628,33 @@ const TraineeDashboardHome = ({ setActivePage }) => {
                                             href={commentModalPost.media_url}
                                             target="_blank"
                                             rel="noopener noreferrer"
-                                            style={{ minWidth: 260, minHeight: 120, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 10, color: '#dbeafe', background: '#2c3138', border: '1px solid #4b5563', borderRadius: 12, padding: '14px 18px', textDecoration: 'none', fontWeight: 600, fontSize: 13 }}
+                                            style={{ minWidth: 260, minHeight: 120, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 10, color: '#1d4ed8', background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: 12, padding: '14px 18px', textDecoration: 'none', fontWeight: 600, fontSize: 13 }}
                                         >
                                             <FileText size={28} />
                                             Open attached document
                                         </a>
                                     )
                                 ) : (
-                                    <div style={{ width: '100%', height: '100%' }} />
+                                    <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#94a3b8', fontWeight: 600 }}>No attachment</div>
                                 )}
                             </div>
 
-                            <div style={{ padding: '8px 12px', borderTop: '1px solid #343a40' }}>
-                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', color: '#b6bec9', fontSize: 12.5, marginBottom: 8 }}>
-                                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}><Heart size={14} fill="#ef4444" color="#ef4444" /> {modalComments.length} comment{modalComments.length === 1 ? '' : 's'}</span>
+                            <div style={{ padding: '8px 12px', borderTop: '1px solid #e2e8f0' }}>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', color: '#64748b', fontSize: 12.5, marginBottom: 8 }}>
+                                    <span>{modalComments.length} comment{modalComments.length === 1 ? '' : 's'}</span>
                                     <span>{commentModalPost.media_url ? '1 attachment' : 'No attachment'}</span>
                                 </div>
                                 <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: 6 }}>
                                     <button
                                         onClick={() => canContactModalAuthor && openContactModal({
                                             recipientId: commentModalPost.author_id,
-                                            recipientType: commentModalPost.author_type,
+                                            recipientType: toRecipientAuthorType(commentModalPost.author_type),
                                             recipientName: modalAuthorName,
                                             postId: commentModalPost.id,
                                             sourceLabel: commentModalPost.content,
                                         })}
                                         disabled={!canContactModalAuthor}
-                                        style={{ background: canContactModalAuthor ? '#ffffff' : '#2d333b', border: 'none', color: canContactModalAuthor ? '#111827' : '#9ca3af', fontWeight: 700, padding: '9px 10px', borderRadius: 10, display: 'inline-flex', justifyContent: 'center', alignItems: 'center', gap: 6, cursor: canContactModalAuthor ? 'pointer' : 'not-allowed' }}
+                                        style={{ background: canContactModalAuthor ? '#0f172a' : '#e2e8f0', border: 'none', color: canContactModalAuthor ? '#ffffff' : '#94a3b8', fontWeight: 700, padding: '9px 10px', borderRadius: 10, display: 'inline-flex', justifyContent: 'center', alignItems: 'center', gap: 6, cursor: canContactModalAuthor ? 'pointer' : 'not-allowed' }}
                                     >
                                         <MessageSquare size={16} /> {canContactModalAuthor ? 'Contact' : 'Your Post'}
                                     </button>
@@ -1441,34 +1662,48 @@ const TraineeDashboardHome = ({ setActivePage }) => {
                             </div>
                         </div>
 
-                        <div style={{ flex: '1 1 44%', minHeight: 0, display: 'flex', flexDirection: 'column' }}>
-                            <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: 12, display: 'flex', flexDirection: 'column', gap: 10 }}>
+                        <div style={{ flex: '1 1 44%', minHeight: 0, display: 'flex', flexDirection: 'column', background: '#ffffff' }}>
+                            <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', overscrollBehavior: 'contain', WebkitOverflowScrolling: 'touch', padding: 12, display: 'flex', flexDirection: 'column', gap: 10, background: '#ffffff' }}>
                                 {modalComments.length > 0 ? modalComments.map(comment => {
                                     const commentAuthorName = comment.author_id === currentUser?.id
                                         ? (currentUser.name || trainee?.name || 'You')
-                                        : comment.author_type === 'student'
+                                        : isStudentAuthorType(comment.author_type)
                                             ? (trainees.find(t => t.id === comment.author_id)?.name || 'Trainee')
                                             : (partners.find(p => p.id === comment.author_id)?.companyName || 'Industry Partner');
+                                    const commentAuthorType = toProfileAuthorType(comment.author_type);
 
                                     return (
                                         <div key={comment.id} style={{ display: 'flex', gap: 8, alignItems: 'flex-start' }}>
-                                            <div className="ln-feed-avatar" style={{ width: 30, height: 30, flexShrink: 0 }}>{commentAuthorName?.charAt(0) || 'U'}</div>
-                                            <div style={{ background: '#3a3b3c', borderRadius: 14, padding: '8px 11px', flex: 1 }}>
-                                                <div style={{ fontSize: 12, fontWeight: 700, color: '#f3f4f6', marginBottom: 2 }}>{commentAuthorName}</div>
-                                                <div style={{ fontSize: 13.2, color: '#d1d5db', whiteSpace: 'pre-wrap', lineHeight: 1.45 }}>{comment.content}</div>
+                                            <button
+                                                type="button"
+                                                className="ln-feed-avatar"
+                                                onClick={() => openProfile({ id: comment.author_id, type: commentAuthorType })}
+                                                style={{ width: 30, height: 30, flexShrink: 0, border: 'none', cursor: 'pointer' }}
+                                            >
+                                                {commentAuthorName?.charAt(0) || 'U'}
+                                            </button>
+                                            <div style={{ background: '#f1f5f9', borderRadius: 14, padding: '8px 11px', flex: 1 }}>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => openProfile({ id: comment.author_id, type: commentAuthorType })}
+                                                    style={{ fontSize: 12, fontWeight: 700, color: '#1e293b', marginBottom: 2, background: 'none', border: 'none', padding: 0, cursor: 'pointer' }}
+                                                >
+                                                    {commentAuthorName}
+                                                </button>
+                                                <div style={{ fontSize: 13.2, color: '#0f172a', whiteSpace: 'pre-wrap', lineHeight: 1.45 }}>{comment.content}</div>
                                             </div>
                                         </div>
                                     );
                                 }) : (
-                                    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 10, color: '#9ca3af' }}>
+                                    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 10, color: '#64748b' }}>
                                         <FileText size={56} color="#94a3b8" />
-                                        <div style={{ fontSize: 34, fontWeight: 700, color: '#d1d5db' }}>No comments yet</div>
+                                        <div style={{ fontSize: 34, fontWeight: 700, color: '#334155' }}>No comments yet</div>
                                         <div style={{ fontSize: 17 }}>Be the first to comment.</div>
                                     </div>
                                 )}
                             </div>
 
-                            <div style={{ borderTop: '1px solid #343a40', padding: '10px 12px', display: 'flex', flexDirection: 'column', gap: 8 }}>
+                            <div style={{ borderTop: '1px solid #e2e8f0', padding: '10px 12px', display: 'flex', flexDirection: 'column', gap: 8, background: '#ffffff' }}>
                                 <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8 }}>
                                     <div className="ln-feed-avatar" style={{ width: 32, height: 32, flexShrink: 0, fontSize: 13 }}>
                                         {(trainee?.photo)
@@ -1476,16 +1711,16 @@ const TraineeDashboardHome = ({ setActivePage }) => {
                                             : (currentUser?.name || trainee?.name || 'T').charAt(0).toUpperCase()}
                                     </div>
 
-                                    <div style={{ flex: 1, background: '#3a3b3c', borderRadius: 20, padding: '8px 12px', display: 'flex', flexDirection: 'column', gap: 6 }}>
+                                    <div style={{ flex: 1, background: '#f8fafc', borderRadius: 20, padding: '8px 12px', display: 'flex', flexDirection: 'column', gap: 6 }}>
                                         <textarea
                                             placeholder={`Comment as ${currentUser?.name || trainee?.name || 'Trainee'}`}
                                             value={commentInput}
                                             onChange={e => setCommentInput(e.target.value)}
                                             maxLength={1000}
-                                            style={{ width: '100%', minHeight: 24, maxHeight: 78, resize: 'none', border: 'none', outline: 'none', background: 'transparent', color: '#f3f4f6', fontSize: 16, lineHeight: 1.3, fontFamily: 'inherit' }}
+                                            style={{ width: '100%', minHeight: 24, maxHeight: 78, resize: 'none', border: 'none', outline: 'none', background: 'transparent', color: '#0f172a', fontSize: 16, lineHeight: 1.3, fontFamily: 'inherit' }}
                                         />
                                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                            <div style={{ display: 'inline-flex', alignItems: 'center', gap: 10, color: '#9ca3af' }}>
+                                            <div style={{ display: 'inline-flex', alignItems: 'center', gap: 10, color: '#64748b' }}>
                                                 <MessageSquare size={14} />
                                                 <Camera size={14} />
                                                 <FileText size={14} />
@@ -1493,14 +1728,14 @@ const TraineeDashboardHome = ({ setActivePage }) => {
                                             <button
                                                 onClick={handleSubmitComment}
                                                 disabled={commentSubmitting || !commentInput.trim()}
-                                                style={{ background: 'transparent', border: 'none', color: (commentSubmitting || !commentInput.trim()) ? '#6b7280' : '#60a5fa', cursor: (commentSubmitting || !commentInput.trim()) ? 'not-allowed' : 'pointer', padding: 0, display: 'inline-flex', alignItems: 'center' }}
+                                                style={{ background: 'transparent', border: 'none', color: (commentSubmitting || !commentInput.trim()) ? '#94a3b8' : '#2563eb', cursor: (commentSubmitting || !commentInput.trim()) ? 'not-allowed' : 'pointer', padding: 0, display: 'inline-flex', alignItems: 'center' }}
                                             >
                                                 <Send size={18} />
                                             </button>
                                         </div>
                                     </div>
                                 </div>
-                                <div style={{ fontSize: 12, color: '#94a3b8', textAlign: 'left', marginLeft: 40 }}>{commentInput.length}/1000</div>
+                                <div style={{ fontSize: 12, color: '#64748b', textAlign: 'left', marginLeft: 40 }}>{commentInput.length}/1000</div>
                             </div>
                         </div>
                     </div>
@@ -1523,12 +1758,18 @@ class ErrorBoundary extends React.Component {
 }
 
 // ─── PAGE 2: PROFILE ─────────────────────────────────────────────
-const TraineeProfileContent = () => {
+export const TraineeProfileContent = ({ viewedProfileId = null, onBack = null }) => {
     const { currentUser, trainees, updateTrainee } = useApp();
-    const trainee = currentUser || trainees[0];
+    const isOwnProfile = !viewedProfileId || String(viewedProfileId) === String(currentUser?.id);
+    const [viewedTrainee, setViewedTrainee] = useState(null);
+    const [loadingViewedProfile, setLoadingViewedProfile] = useState(false);
+    const trainee = isOwnProfile
+        ? (currentUser || trainees[0])
+        : (viewedTrainee || trainees.find(t => String(t.id) === String(viewedProfileId)));
     const [editing, setEditing] = useState(false);
     const [saving, setSaving] = useState(false);
     const [form, setForm] = useState({ ...trainee });
+    const [personalInfoVisibility, setPersonalInfoVisibility] = useState(() => resolveTraineeVisibility(trainee));
     const initials = (trainee?.name || '').split(' ').filter(Boolean).map(n => n[0]).join('').slice(0, 2).toUpperCase() || 'T';
 
     // Skills state
@@ -1588,9 +1829,76 @@ const TraineeProfileContent = () => {
     const [resume, setResume] = useState(null);
     const [uploadingResume, setUploadingResume] = useState(false);
 
+    useEffect(() => {
+        if (isOwnProfile || !viewedProfileId) {
+            setViewedTrainee(null);
+            setLoadingViewedProfile(false);
+            return;
+        }
+
+        let isMounted = true;
+        const fetchViewedProfile = async () => {
+            setLoadingViewedProfile(true);
+            try {
+                const { data, error } = await supabase
+                    .from('students')
+                    .select('*')
+                    .eq('id', viewedProfileId)
+                    .single();
+
+                if (error || !data) {
+                    const response = await fetch(`/api/public-profile/trainee/${viewedProfileId}`);
+                    if (!response.ok) throw error || new Error('Failed to load viewed profile');
+                    const payload = await response.json();
+                    if (isMounted) {
+                        setViewedTrainee(normalizeTraineeProfile(payload?.profile || null));
+                    }
+                } else if (isMounted) {
+                    setViewedTrainee(normalizeTraineeProfile(data || null));
+                }
+            } catch (err) {
+                console.error('Fetch viewed trainee profile error:', err);
+                if (isMounted) {
+                    setViewedTrainee(null);
+                }
+            } finally {
+                if (isMounted) {
+                    setLoadingViewedProfile(false);
+                }
+            }
+        };
+
+        fetchViewedProfile();
+        return () => {
+            isMounted = false;
+        };
+    }, [isOwnProfile, viewedProfileId]);
+
+    useEffect(() => {
+        if (!trainee) return;
+        setEditing(false);
+        setForm({ ...trainee });
+        setInterestsList(trainee?.interests || []);
+        setCerts(trainee?.certifications?.map(c => typeof c === 'string' ? { name: c, org: '', issue: '', exp: '', credId: '', url: '' } : c) || []);
+        setEducHistory(trainee?.educHistory || []);
+        setWorkExperience(trainee?.workExperience || []);
+        setTrainingForm({
+            trainingStatus: trainee?.trainingStatus || 'Student',
+            graduationYear: trainee?.graduationYear || '',
+        });
+        setEmpForm({
+            employmentStatus: (trainee?.employmentStatus === 'Unemployed' ? 'Not Employed' : trainee?.employmentStatus) || 'Not Employed',
+            employer: trainee?.employer || '',
+            jobTitle: trainee?.jobTitle || '',
+            dateHired: trainee?.dateHired || '',
+        });
+        setPersonalInfoVisibility(resolveTraineeVisibility(trainee));
+        setShowUploadForm(false);
+    }, [trainee]);
+
     // ─── Photo upload handler ──────────────────────────────
     const handlePhotoUpload = async (file) => {
-        if (!file || !trainee?.id) return;
+        if (!isOwnProfile || !file || !trainee?.id) return;
         const allowed = ['image/png', 'image/jpeg', 'image/jpg', 'image/webp'];
         if (!allowed.includes(file.type)) { alert('Please upload PNG, JPG, or WEBP images only.'); return; }
         setUploadingPhoto(true);
@@ -1616,7 +1924,7 @@ const TraineeProfileContent = () => {
 
     // ─── Banner upload handler ─────────────────────────────
     const handleBannerUpload = async (file) => {
-        if (!file || !trainee?.id) return;
+        if (!isOwnProfile || !file || !trainee?.id) return;
         const allowed = ['image/png', 'image/jpeg', 'image/jpg', 'image/webp'];
         if (!allowed.includes(file.type)) { alert('Please upload PNG, JPG, or WEBP images only.'); return; }
         setUploadingBanner(true);
@@ -1644,17 +1952,17 @@ const TraineeProfileContent = () => {
     const updateCert = (idx, field, val) => { const arr = [...certs]; arr[idx][field] = val; setCerts(arr); };
     const addCertObj = () => setCerts(prev => [...prev, { name: '', org: '', issue: '', exp: '', credId: '', url: '', noExp: false }]);
     const removeCertIdx = (idx) => { setCerts(prev => prev.filter((_, i) => i !== idx)); };
-    const saveCerts = async () => { setSavingCerts(true); await updateTrainee(trainee.id, { certifications: certs }); setSavingCerts(false); };
+    const saveCerts = async () => { if (!isOwnProfile) return; setSavingCerts(true); await updateTrainee(trainee.id, { certifications: certs }); setSavingCerts(false); };
 
     const updateEduc = (idx, field, val) => { const arr = [...educHistory]; arr[idx][field] = val; setEducHistory(arr); };
     const addEducObj = () => setEducHistory(prev => [...prev, { school: '', degree: '', from: '', to: '' }]);
     const removeEducIdx = (idx) => { setEducHistory(prev => prev.filter((_, i) => i !== idx)); };
-    const saveEduc = async () => { setSavingEduc(true); await updateTrainee(trainee.id, { educHistory }); setSavingEduc(false); };
+    const saveEduc = async () => { if (!isOwnProfile) return; setSavingEduc(true); await updateTrainee(trainee.id, { educHistory }); setSavingEduc(false); };
 
     const updateWork = (idx, field, val) => { const arr = [...workExperience]; arr[idx][field] = val; setWorkExperience(arr); };
     const addWorkObj = () => setWorkExperience(prev => [...prev, { company: '', position: '', from: '', to: '' }]);
     const removeWorkIdx = (idx) => { setWorkExperience(prev => prev.filter((_, i) => i !== idx)); };
-    const saveWork = async () => { setSavingWork(true); await updateTrainee(trainee.id, { workExperience }); setSavingWork(false); };
+    const saveWork = async () => { if (!isOwnProfile) return; setSavingWork(true); await updateTrainee(trainee.id, { workExperience }); setSavingWork(false); };
 
     // Fetch documents on mount
     useEffect(() => {
@@ -1680,6 +1988,7 @@ const TraineeProfileContent = () => {
     }, [trainee?.id]);
 
     const save = async () => {
+        if (!isOwnProfile) return;
         // --- VALIDATION ---
         const errors = [];
 
@@ -1739,6 +2048,7 @@ const TraineeProfileContent = () => {
                 ...form,
                 trainingStatus: trainingForm.trainingStatus,
                 graduationYear: trainingForm.trainingStatus === 'Graduated' ? trainingForm.graduationYear : '',
+                personalInfoVisibility,
                 ...empForm,
                 educHistory,
                 workExperience,
@@ -1756,6 +2066,7 @@ const TraineeProfileContent = () => {
     };
 
     const saveEmployment = async () => {
+        if (!isOwnProfile) return;
         await updateTrainee(trainee.id, {
             ...empForm,
             monthsAfterGraduation: empForm.dateHired ? Math.round((new Date() - new Date(empForm.dateHired)) / (1000 * 60 * 60 * 24 * 30)) : null
@@ -1790,7 +2101,24 @@ const TraineeProfileContent = () => {
         setInterestsList(updated);
     };
 
+    const personalInfoFields = [
+        { label: 'Full Name', key: 'name', type: 'text', required: true, maxLength: 100 },
+        { label: 'Contact Email', key: 'email', type: 'email', required: true },
+        { label: 'Address', key: 'address', type: 'text', maxLength: 150 },
+        { label: 'Birthday', key: 'birthday', type: 'date' },
+        { label: 'Gender', key: 'gender', type: 'select', options: ['Male', 'Female', 'Other'] },
+    ];
+
+    const togglePersonalInfoVisibility = (fieldKey) => {
+        setPersonalInfoVisibility(prev => (
+            prev.includes(fieldKey)
+                ? prev.filter(key => key !== fieldKey)
+                : [...prev, fieldKey]
+        ));
+    };
+
     const handleDocUpload = async () => {
+        if (!isOwnProfile) return;
         if (!docFile || !docLabel.trim()) return;
         setUploading(true);
         try {
@@ -1829,6 +2157,7 @@ const TraineeProfileContent = () => {
     };
 
     const deleteDoc = async (docId) => {
+        if (!isOwnProfile) return;
 
         try {
             const res = await fetch(`/api/documents/${docId}`, { method: 'DELETE' });
@@ -1850,8 +2179,22 @@ const TraineeProfileContent = () => {
         'Not Employed': '#cc1016',
         'Seeking Employment': '#0a66c2'
     };
+    const visiblePersonalInfo = new Set(resolveTraineeVisibility(trainee));
+    const showHeaderName = isOwnProfile || visiblePersonalInfo.has('name');
+    const showHeaderAddress = isOwnProfile || visiblePersonalInfo.has('address');
+    const showHeaderEmail = isOwnProfile || visiblePersonalInfo.has('email');
+    const headerLocationParts = [];
+
+    if (showHeaderAddress && trainee?.address) {
+        headerLocationParts.push(trainee.address);
+    }
+
+    if (trainee?.graduationYear) {
+        headerLocationParts.push(`Class of ${trainee.graduationYear}`);
+    }
 
     const handleResumeUpload = async (file) => {
+        if (!isOwnProfile) return;
         if (!file) return;
         const allowed = ['application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'];
         if (!allowed.includes(file.type)) { alert('Only PDF, DOC, DOCX files allowed.'); return; }
@@ -1888,8 +2231,35 @@ const TraineeProfileContent = () => {
         }
     };
 
+    if (loadingViewedProfile) {
+        return (
+            <div className="ln-page-content" style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: 240 }}>
+                <Loader size={30} style={{ animation: 'ocr-spin 1s linear infinite', opacity: 0.4 }} />
+            </div>
+        );
+    }
+
+    if (!trainee) {
+        return (
+            <div className="ln-page-content">
+                <div className="ln-empty-state">
+                    <User size={40} />
+                    <h3>Profile not found</h3>
+                    {onBack && <button className="ln-btn ln-btn-outline" onClick={onBack}>Go Back</button>}
+                </div>
+            </div>
+        );
+    }
+
     return (
-        <form className="ln-profile-page" style={{ position: 'relative' }} onSubmit={(e) => { e.preventDefault(); if (editing) save(); }}>
+        <form className="ln-profile-page" style={{ position: 'relative' }} onSubmit={(e) => { e.preventDefault(); if (isOwnProfile && editing) save(); }}>
+            {!isOwnProfile && onBack && (
+                <div style={{ marginBottom: 12 }}>
+                    <button type="button" className="ln-btn ln-btn-outline" onClick={onBack}>
+                        <ChevronRight size={14} style={{ transform: 'rotate(180deg)' }} /> Back
+                    </button>
+                </div>
+            )}
             {/* Saving overlay */}
             {saving && (
                 <div style={{
@@ -1951,36 +2321,40 @@ const TraineeProfileContent = () => {
                     backgroundSize: 'cover',
                     backgroundPosition: 'center',
                 } : {}}>
-                    <button type="button" className="ln-banner-change-btn" onClick={() => bannerInputRef.current?.click()} disabled={uploadingBanner}
-                        style={{
-                            position: 'absolute', top: 12, right: 12,
-                            background: 'rgba(0,0,0,0.6)', border: 'none', borderRadius: 8,
-                            color: 'white', padding: '6px 12px', fontSize: 12, fontWeight: 600,
-                            cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6,
-                            transition: 'background 0.2s',
-                        }}>
-                        <Camera size={14} /> {uploadingBanner ? 'Uploading...' : 'Change Banner'}
-                    </button>
+                    {isOwnProfile && (
+                        <button type="button" className="ln-banner-change-btn" onClick={() => bannerInputRef.current?.click()} disabled={uploadingBanner}
+                            style={{
+                                position: 'absolute', top: 12, right: 12,
+                                background: 'rgba(0,0,0,0.6)', border: 'none', borderRadius: 8,
+                                color: 'white', padding: '6px 12px', fontSize: 12, fontWeight: 600,
+                                cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6,
+                                transition: 'background 0.2s',
+                            }}>
+                            <Camera size={14} /> {uploadingBanner ? 'Uploading...' : 'Change Banner'}
+                        </button>
+                    )}
                 </div>
                 <div className="ln-profile-header-body">
                     <div className="ln-profile-header-avatar" style={{
-                        position: 'relative', cursor: 'pointer',
+                        position: 'relative', cursor: isOwnProfile ? 'pointer' : 'default',
                         ...(trainee?.photo ? {
                             backgroundImage: `url(${trainee.photo})`,
                             backgroundSize: 'cover',
                             backgroundPosition: 'center',
                             fontSize: 0,
                         } : {})
-                    }} onClick={() => profilePicRef.current?.click()}>
+                    }} onClick={() => { if (isOwnProfile) profilePicRef.current?.click(); }}>
                         {!trainee?.photo && initials}
-                        <div style={{
-                            position: 'absolute', bottom: 0, right: 0,
-                            width: 28, height: 28, borderRadius: '50%',
-                            background: '#0a66c2', border: '2px solid white',
-                            display: 'flex', alignItems: 'center', justifyContent: 'center',
-                        }}>
-                            <Camera size={13} color="white" />
-                        </div>
+                        {isOwnProfile && (
+                            <div style={{
+                                position: 'absolute', bottom: 0, right: 0,
+                                width: 28, height: 28, borderRadius: '50%',
+                                background: '#0a66c2', border: '2px solid white',
+                                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                            }}>
+                                <Camera size={13} color="white" />
+                            </div>
+                        )}
                         {uploadingPhoto && (
                             <div style={{
                                 position: 'absolute', inset: 0, borderRadius: '50%',
@@ -1994,12 +2368,16 @@ const TraineeProfileContent = () => {
                     <div className="ln-profile-header-info">
                         <div className="ln-profile-header-top">
                             <div>
-                                <h1 className="ln-profile-header-name">{trainee?.name}</h1>
+                                <h1 className="ln-profile-header-name">{showHeaderName ? trainee?.name : 'Trainee'}</h1>
                                 <p className="ln-profile-header-headline">TESDA Trainee &bull; {(trainee?.certifications?.length > 0) ? trainee.certifications.map(c => typeof c === 'string' ? c : c.name).slice(0, 2).join(', ') : 'No certifications yet'}</p>
-                                <p className="ln-profile-header-loc"><MapPin size={14} /> {trainee?.address || 'Philippines'} &bull; Class of {trainee?.graduationYear}</p>
-                                <p className="ln-profile-header-contact">{trainee?.email}</p>
+                                {headerLocationParts.length > 0 && (
+                                    <p className="ln-profile-header-loc">
+                                        {showHeaderAddress && trainee?.address && <MapPin size={14} />} {headerLocationParts.join(' • ')}
+                                    </p>
+                                )}
+                                {showHeaderEmail && trainee?.email && <p className="ln-profile-header-contact">{trainee?.email}</p>}
                             </div>
-                            {!editing ? (
+                            {isOwnProfile && (!editing ? (
                                 <button type="button" className="ln-btn ln-btn-primary" onClick={() => setEditing(true)} disabled={saving}>
                                     <Edit size={15} /> Edit Profile
                                 </button>
@@ -2013,6 +2391,7 @@ const TraineeProfileContent = () => {
                                         setWorkExperience(trainee?.workExperience || []);
                                         setCerts(trainee?.certifications?.map(c => typeof c === 'string' ? { name: c, org: '', issue: '', exp: '', credId: '', url: '' } : c) || []);
                                         setInterestsList(trainee?.interests || []);
+                                        setPersonalInfoVisibility(resolveTraineeVisibility(trainee));
                                         setEditing(false);
                                     }} disabled={saving}>
                                         <X size={15} /> Cancel
@@ -2021,7 +2400,7 @@ const TraineeProfileContent = () => {
                                         {saving ? <><Loader size={15} style={{ animation: 'ocr-spin 0.8s linear infinite' }} /> Saving...</> : <><CheckCircle size={15} /> Save Changes</>}
                                     </button>
                                 </div>
-                            )}
+                            ))}
                         </div>
                         {/* Resume section — bottom right */}
                         <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 12 }}>
@@ -2044,13 +2423,13 @@ const TraineeProfileContent = () => {
                                         <div style={{ fontSize: 11, color: 'rgba(0,0,0,0.4)' }}>Resume / CV</div>
                                     </div>
                                     <a href={resume.file_url} target="_blank" rel="noreferrer" className="ln-btn-sm ln-btn-outline" style={{ flexShrink: 0 }}><Eye size={12} /></a>
-                                    {editing && (
+                                    {isOwnProfile && editing && (
                                         <button type="button" className="ln-btn-sm ln-btn-outline" onClick={() => resumeInputRef.current?.click()} style={{ flexShrink: 0 }} disabled={uploadingResume}>
                                             <Upload size={12} /> {uploadingResume ? '...' : 'Update'}
                                         </button>
                                     )}
                                 </div>
-                            ) : editing ? (
+                            ) : (isOwnProfile && editing) ? (
                                 <button
                                     type="button"
                                     className="ln-btn-sm ln-btn-outline"
@@ -2074,30 +2453,49 @@ const TraineeProfileContent = () => {
                     <div className="ln-card">
                         <div className="ln-section-header"><h3>Personal Information</h3></div>
                         <div className="ln-info-grid">
-                            {[
-                                { label: 'Full Name', key: 'name', type: 'text', required: true, maxLength: 100 },
-                                { label: 'Contact Email', key: 'email', type: 'email', required: true },
-                                { label: 'Address', key: 'address', type: 'text', maxLength: 150 },
-                                { label: 'Birthday', key: 'birthday', type: 'date' },
-                                { label: 'Gender', key: 'gender', type: 'select', options: ['Male', 'Female', 'Other'] },
-                            ].map(f => (
-                                <div key={f.key} className="ln-info-item">
-                                    <label className="ln-info-label">
-                                        {f.label}{f.required && editing && <span style={{ color: '#cc1016', marginLeft: 4 }}>*</span>}
-                                    </label>
-                                    {editing ? (
-                                        f.type === 'select' ? (
-                                            <select className="form-select" value={form[f.key] || ''} onChange={e => setForm({ ...form, [f.key]: e.target.value })}>
-                                                {f.options.map(o => <option key={o}>{o}</option>)}
-                                            </select>
-                                        ) : (
-                                            <input type={f.type} className="form-input" maxLength={f.maxLength} value={form[f.key] || ''} onChange={e => setForm({ ...form, [f.key]: e.target.value })} />
-                                        )
-                                    ) : (
-                                        <div className="ln-info-value">{trainee?.[f.key] || '—'}</div>
-                                    )}
-                                </div>
-                            ))}
+                            {(() => {
+                                const visibleSet = new Set(resolveTraineeVisibility(trainee));
+                                const fieldsToRender = personalInfoFields.filter(field => isOwnProfile || visibleSet.has(field.key));
+
+                                if (fieldsToRender.length === 0) {
+                                    return <div style={{ gridColumn: '1 / -1', fontSize: 13, color: '#94a3b8' }}>This user chose to hide personal information.</div>;
+                                }
+
+                                return fieldsToRender.map(f => {
+                                    const isVisible = personalInfoVisibility.includes(f.key);
+
+                                    return (
+                                        <div key={f.key} className="ln-info-item">
+                                            <label className="ln-info-label">
+                                                {f.label}{f.required && editing && <span style={{ color: '#cc1016', marginLeft: 4 }}>*</span>}
+                                            </label>
+                                            {editing ? (
+                                                f.type === 'select' ? (
+                                                    <select className="form-select" value={form[f.key] || ''} onChange={e => setForm({ ...form, [f.key]: e.target.value })}>
+                                                        {f.options.map(o => <option key={o}>{o}</option>)}
+                                                    </select>
+                                                ) : (
+                                                    <input type={f.type} className="form-input" maxLength={f.maxLength} value={form[f.key] || ''} onChange={e => setForm({ ...form, [f.key]: e.target.value })} />
+                                                )
+                                            ) : (
+                                                <div className="ln-info-value">{trainee?.[f.key] || '—'}</div>
+                                            )}
+
+                                            {isOwnProfile && editing && (
+                                                <label style={{ marginTop: 8, display: 'inline-flex', alignItems: 'center', gap: 8, fontSize: 12, color: isVisible ? '#166534' : '#64748b', fontWeight: 600 }}>
+                                                    <input
+                                                        type="checkbox"
+                                                        checked={isVisible}
+                                                        onChange={() => togglePersonalInfoVisibility(f.key)}
+                                                        style={{ width: 14, height: 14 }}
+                                                    />
+                                                    {isVisible ? 'Shown to others' : 'Hidden from others'}
+                                                </label>
+                                            )}
+                                        </div>
+                                    );
+                                });
+                            })()}
                         </div>
                     </div>
 
@@ -2192,20 +2590,36 @@ const TraineeProfileContent = () => {
                                 </div>
                                 <div className="ln-info-grid" style={{ gap: 12 }}>
                                     <div className="ln-info-item" style={{ gridColumn: '1 / -1' }}>
-                                        <label className="ln-info-label">School / University<span style={{ color: '#cc1016', marginLeft: 4 }}>*</span></label>
-                                        <input type="text" required className="form-input" placeholder="School / University" maxLength={100} value={edu.school || ''} onChange={e => updateEduc(i, 'school', e.target.value)} />
+                                        <label className="ln-info-label">School / University{editing && <span style={{ color: '#cc1016', marginLeft: 4 }}>*</span>}</label>
+                                        {editing ? (
+                                            <input type="text" required className="form-input" placeholder="School / University" maxLength={100} value={edu.school || ''} onChange={e => updateEduc(i, 'school', e.target.value)} />
+                                        ) : (
+                                            <div className="ln-info-value">{edu.school || '—'}</div>
+                                        )}
                                     </div>
                                     <div className="ln-info-item" style={{ gridColumn: '1 / -1' }}>
-                                        <label className="ln-info-label">Degree / Program<span style={{ color: '#cc1016', marginLeft: 4 }}>*</span></label>
-                                        <input type="text" required className="form-input" placeholder="Degree / Program (e.g. BS Computer Science)" maxLength={100} value={edu.degree || ''} onChange={e => updateEduc(i, 'degree', e.target.value)} />
+                                        <label className="ln-info-label">Degree / Program{editing && <span style={{ color: '#cc1016', marginLeft: 4 }}>*</span>}</label>
+                                        {editing ? (
+                                            <input type="text" required className="form-input" placeholder="Degree / Program (e.g. BS Computer Science)" maxLength={100} value={edu.degree || ''} onChange={e => updateEduc(i, 'degree', e.target.value)} />
+                                        ) : (
+                                            <div className="ln-info-value">{edu.degree || '—'}</div>
+                                        )}
                                     </div>
                                     <div className="ln-info-item">
-                                        <label className="ln-info-label">Year From<span style={{ color: '#cc1016', marginLeft: 4 }}>*</span></label>
-                                        <input type="number" min="1950" max="2099" required className="form-input" placeholder="e.g. 2020" value={edu.from || ''} onChange={e => updateEduc(i, 'from', e.target.value)} />
+                                        <label className="ln-info-label">Year From{editing && <span style={{ color: '#cc1016', marginLeft: 4 }}>*</span>}</label>
+                                        {editing ? (
+                                            <input type="number" min="1950" max="2099" required className="form-input" placeholder="e.g. 2020" value={edu.from || ''} onChange={e => updateEduc(i, 'from', e.target.value)} />
+                                        ) : (
+                                            <div className="ln-info-value">{edu.from || '—'}</div>
+                                        )}
                                     </div>
                                     <div className="ln-info-item">
-                                        <label className="ln-info-label">Year To (or expected)<span style={{ color: '#cc1016', marginLeft: 4 }}>*</span></label>
-                                        <input type="number" min="1950" max="2099" required className="form-input" placeholder="e.g. 2025" value={edu.to || ''} onChange={e => updateEduc(i, 'to', e.target.value)} />
+                                        <label className="ln-info-label">Year To (or expected){editing && <span style={{ color: '#cc1016', marginLeft: 4 }}>*</span>}</label>
+                                        {editing ? (
+                                            <input type="number" min="1950" max="2099" required className="form-input" placeholder="e.g. 2025" value={edu.to || ''} onChange={e => updateEduc(i, 'to', e.target.value)} />
+                                        ) : (
+                                            <div className="ln-info-value">{edu.to || '—'}</div>
+                                        )}
                                     </div>
                                 </div>
                             </div>
@@ -2232,20 +2646,36 @@ const TraineeProfileContent = () => {
                                 </div>
                                 <div className="ln-info-grid" style={{ gap: 12 }}>
                                     <div className="ln-info-item" style={{ gridColumn: '1 / -1' }}>
-                                        <label className="ln-info-label">Company / Organization<span style={{ color: '#cc1016', marginLeft: 4 }}>*</span></label>
-                                        <input type="text" required className="form-input" placeholder="Company / Organization" maxLength={100} value={work.company || ''} onChange={e => updateWork(i, 'company', e.target.value)} />
+                                        <label className="ln-info-label">Company / Organization{editing && <span style={{ color: '#cc1016', marginLeft: 4 }}>*</span>}</label>
+                                        {editing ? (
+                                            <input type="text" required className="form-input" placeholder="Company / Organization" maxLength={100} value={work.company || ''} onChange={e => updateWork(i, 'company', e.target.value)} />
+                                        ) : (
+                                            <div className="ln-info-value">{work.company || '—'}</div>
+                                        )}
                                     </div>
                                     <div className="ln-info-item" style={{ gridColumn: '1 / -1' }}>
-                                        <label className="ln-info-label">Position / Role<span style={{ color: '#cc1016', marginLeft: 4 }}>*</span></label>
-                                        <input type="text" required className="form-input" placeholder="Position / Role" maxLength={50} value={work.position || ''} onChange={e => updateWork(i, 'position', e.target.value)} />
+                                        <label className="ln-info-label">Position / Role{editing && <span style={{ color: '#cc1016', marginLeft: 4 }}>*</span>}</label>
+                                        {editing ? (
+                                            <input type="text" required className="form-input" placeholder="Position / Role" maxLength={50} value={work.position || ''} onChange={e => updateWork(i, 'position', e.target.value)} />
+                                        ) : (
+                                            <div className="ln-info-value">{work.position || '—'}</div>
+                                        )}
                                     </div>
                                     <div className="ln-info-item">
-                                        <label className="ln-info-label">Start Date<span style={{ color: '#cc1016', marginLeft: 4 }}>*</span></label>
-                                        <input type="date" required className="form-input" title="Start Date" value={work.from || ''} onChange={e => updateWork(i, 'from', e.target.value)} />
+                                        <label className="ln-info-label">Start Date{editing && <span style={{ color: '#cc1016', marginLeft: 4 }}>*</span>}</label>
+                                        {editing ? (
+                                            <input type="date" required className="form-input" title="Start Date" value={work.from || ''} onChange={e => updateWork(i, 'from', e.target.value)} />
+                                        ) : (
+                                            <div className="ln-info-value">{work.from || '—'}</div>
+                                        )}
                                     </div>
                                     <div className="ln-info-item">
-                                        <label className="ln-info-label">End Date<span style={{ color: '#cc1016', marginLeft: 4 }}>*</span></label>
-                                        <input type="date" required className="form-input" title="End Date" value={work.to || ''} onChange={e => updateWork(i, 'to', e.target.value)} />
+                                        <label className="ln-info-label">End Date{editing && <span style={{ color: '#cc1016', marginLeft: 4 }}>*</span>}</label>
+                                        {editing ? (
+                                            <input type="date" required className="form-input" title="End Date" value={work.to || ''} onChange={e => updateWork(i, 'to', e.target.value)} />
+                                        ) : (
+                                            <div className="ln-info-value">{work.to || '—'}</div>
+                                        )}
                                     </div>
                                 </div>
                             </div>
@@ -2272,31 +2702,59 @@ const TraineeProfileContent = () => {
                                 </div>
                                 <div className="ln-info-grid" style={{ gap: 12 }}>
                                     <div className="ln-info-item" style={{ gridColumn: '1 / -1' }}>
-                                        <label className="ln-info-label" style={{ marginBottom: 4 }}>Certification / License Name<span style={{ color: '#cc1016', marginLeft: 4 }}>*</span></label>
-                                        <input type="text" required className="form-input" placeholder="e.g. AWS Certified Solutions Architect" maxLength={100} value={cert.name || ''} onChange={e => updateCert(i, 'name', e.target.value)} />
+                                        <label className="ln-info-label" style={{ marginBottom: 4 }}>Certification / License Name{editing && <span style={{ color: '#cc1016', marginLeft: 4 }}>*</span>}</label>
+                                        {editing ? (
+                                            <input type="text" required className="form-input" placeholder="e.g. AWS Certified Solutions Architect" maxLength={100} value={cert.name || ''} onChange={e => updateCert(i, 'name', e.target.value)} />
+                                        ) : (
+                                            <div className="ln-info-value">{cert.name || '—'}</div>
+                                        )}
                                     </div>
                                     <div className="ln-info-item" style={{ gridColumn: '1 / -1' }}>
-                                        <label className="ln-info-label" style={{ marginBottom: 4 }}>Issuing Organization<span style={{ color: '#cc1016', marginLeft: 4 }}>*</span></label>
-                                        <input type="text" required className="form-input" placeholder="e.g. Amazon Web Services, Google, PRC" maxLength={80} value={cert.org || ''} onChange={e => updateCert(i, 'org', e.target.value)} />
+                                        <label className="ln-info-label" style={{ marginBottom: 4 }}>Issuing Organization{editing && <span style={{ color: '#cc1016', marginLeft: 4 }}>*</span>}</label>
+                                        {editing ? (
+                                            <input type="text" required className="form-input" placeholder="e.g. Amazon Web Services, Google, PRC" maxLength={80} value={cert.org || ''} onChange={e => updateCert(i, 'org', e.target.value)} />
+                                        ) : (
+                                            <div className="ln-info-value">{cert.org || '—'}</div>
+                                        )}
                                     </div>
                                     <div className="ln-info-item">
-                                        <label className="ln-info-label" style={{ marginBottom: 4 }}>Issue Date<span style={{ color: '#cc1016', marginLeft: 4 }}>*</span></label>
-                                        <input type="date" required className="form-input" value={cert.issue || ''} onChange={e => updateCert(i, 'issue', e.target.value)} />
+                                        <label className="ln-info-label" style={{ marginBottom: 4 }}>Issue Date{editing && <span style={{ color: '#cc1016', marginLeft: 4 }}>*</span>}</label>
+                                        {editing ? (
+                                            <input type="date" required className="form-input" value={cert.issue || ''} onChange={e => updateCert(i, 'issue', e.target.value)} />
+                                        ) : (
+                                            <div className="ln-info-value">{cert.issue || '—'}</div>
+                                        )}
                                     </div>
                                     <div className="ln-info-item">
                                         <label className="ln-info-label" style={{ marginBottom: 4 }}>Expiration Date{!cert.noExp && <span style={{ color: '#cc1016', marginLeft: 4 }}>*</span>}</label>
-                                        <input type="date" required={!cert.noExp} className="form-input" disabled={cert.noExp} value={cert.exp || ''} onChange={e => updateCert(i, 'exp', e.target.value)} />
-                                        <label style={{ fontSize: 12, display: 'flex', alignItems: 'center', gap: 6, marginTop: 6, cursor: 'pointer', color: '#64748b' }}>
-                                            <input type="checkbox" checked={cert.noExp || false} onChange={e => updateCert(i, 'noExp', e.target.checked)} /> Does not expire
-                                        </label>
+                                        {editing ? (
+                                            <>
+                                                <input type="date" required={!cert.noExp} className="form-input" disabled={cert.noExp} value={cert.exp || ''} onChange={e => updateCert(i, 'exp', e.target.value)} />
+                                                <label style={{ fontSize: 12, display: 'flex', alignItems: 'center', gap: 6, marginTop: 6, cursor: 'pointer', color: '#64748b' }}>
+                                                    <input type="checkbox" checked={cert.noExp || false} onChange={e => updateCert(i, 'noExp', e.target.checked)} /> Does not expire
+                                                </label>
+                                            </>
+                                        ) : (
+                                            <div className="ln-info-value">{cert.noExp ? 'Does not expire' : (cert.exp || '—')}</div>
+                                        )}
                                     </div>
                                     <div className="ln-info-item" style={{ gridColumn: '1 / -1' }}>
                                         <label className="ln-info-label" style={{ marginBottom: 4 }}>Credential ID (optional)</label>
-                                        <input type="text" className="form-input" placeholder="e.g. AWS-12345" value={cert.credId || ''} onChange={e => updateCert(i, 'credId', e.target.value)} />
+                                        {editing ? (
+                                            <input type="text" className="form-input" placeholder="e.g. AWS-12345" value={cert.credId || ''} onChange={e => updateCert(i, 'credId', e.target.value)} />
+                                        ) : (
+                                            <div className="ln-info-value">{cert.credId || '—'}</div>
+                                        )}
                                     </div>
                                     <div className="ln-info-item" style={{ gridColumn: '1 / -1' }}>
                                         <label className="ln-info-label" style={{ marginBottom: 4 }}>Credential URL (optional)</label>
-                                        <input type="url" className="form-input" placeholder="https://credly.com/badges/abc123" value={cert.url || ''} onChange={e => updateCert(i, 'url', e.target.value)} />
+                                        {editing ? (
+                                            <input type="url" className="form-input" placeholder="https://credly.com/badges/abc123" value={cert.url || ''} onChange={e => updateCert(i, 'url', e.target.value)} />
+                                        ) : cert.url ? (
+                                            <a href={cert.url} target="_blank" rel="noreferrer" className="ln-info-value" style={{ color: '#0a66c2', textDecoration: 'none' }}>{cert.url}</a>
+                                        ) : (
+                                            <div className="ln-info-value">—</div>
+                                        )}
                                     </div>
                                 </div>
                             </div>
@@ -2316,14 +2774,14 @@ const TraineeProfileContent = () => {
                                     borderRadius: 20, fontSize: 13, fontWeight: 600
                                 }}>
                                     {typeof skill === 'string' ? skill : JSON.stringify(skill)}
-                                    {editing && <button type="button" onClick={() => removeSkill(skill)} style={{
+                                    {isOwnProfile && editing && <button type="button" onClick={() => removeSkill(skill)} style={{
                                         background: 'none', border: 'none', cursor: 'pointer',
                                         padding: 0, display: 'flex', color: '#64748b'
                                     }}><X size={14} /></button>}
                                 </span>
                             )) : <div className="ln-empty-widget" style={{ padding: 16, width: '100%' }}><p style={{ margin: 0 }}>No skills added yet</p></div>}
                         </div>
-                        {editing && (
+                        {isOwnProfile && editing && (
                             <div style={{ display: 'flex', gap: 8, padding: '0 16px 16px' }}>
                                 <input
                                     type="text" className="form-input" placeholder="Add a skill..."
@@ -2350,20 +2808,20 @@ const TraineeProfileContent = () => {
                                 const sizes = [14, 17, 20, 15, 18];
                                 const colors = ['#0a66c2', '#7c3aed', '#057642', '#b24020', '#1e3a5f'];
                                 return (
-                                    <span key={i} className="ln-interest-word" onClick={() => { if (editing) removeInterest(interest); }} style={{
+                                    <span key={i} className="ln-interest-word" onClick={() => { if (isOwnProfile && editing) removeInterest(interest); }} style={{
                                         display: 'inline-flex', alignItems: 'center',
                                         fontSize: sizes[i % sizes.length],
                                         fontWeight: 600 + (i % 3) * 100,
                                         color: colors[i % colors.length],
                                         padding: '4px 10px',
-                                        cursor: editing ? 'pointer' : 'default',
+                                        cursor: (isOwnProfile && editing) ? 'pointer' : 'default',
                                     }}>
                                         {interest}
                                     </span>
                                 );
                             }) : <div className="ln-empty-widget" style={{ padding: 16, width: '100%' }}><p style={{ margin: 0 }}>No interests added yet</p></div>}
                         </div>
-                        {editing && (
+                        {isOwnProfile && editing && (
                             <div style={{ display: 'flex', gap: 8, padding: '0 16px 16px' }}>
                                 <input
                                     type="text" className="form-input" placeholder="Add an interest..."
@@ -2383,14 +2841,14 @@ const TraineeProfileContent = () => {
                     <div className="ln-card">
                         <div className="ln-section-header">
                             <h3>Documents</h3>
-                            {editing && (
+                            {isOwnProfile && editing && (
                                 <button type="button" className="ln-btn-sm ln-btn-primary" onClick={() => setShowUploadForm(!showUploadForm)}>
                                     {showUploadForm ? <><X size={12} /> Cancel</> : <><Plus size={12} /> Add</>}
                                 </button>
                             )}
                         </div>
 
-                        {editing && showUploadForm && (
+                        {isOwnProfile && editing && showUploadForm && (
                             <div style={{ marginBottom: 16, padding: 16, background: '#f8fafc', borderRadius: 10, border: '1px solid #e2e8f0' }}>
                                 <div style={{ marginBottom: 10 }}>
                                     <label className="ln-info-label" style={{ marginBottom: 4, display: 'block' }}>Document Label <span style={{ color: '#cc1016' }}>*</span></label>
@@ -2423,7 +2881,7 @@ const TraineeProfileContent = () => {
                                 </div>
                                 <div style={{ display: 'flex', gap: 6 }}>
                                     <a href={doc.file_url} target="_blank" rel="noreferrer" className="ln-btn-sm ln-btn-outline"><Eye size={12} /> View</a>
-                                    {editing && <button type="button" className="ln-btn-sm ln-btn-outline" onClick={(e) => { e.preventDefault(); showConfirm('Are you sure you want to delete this document?', () => deleteDoc(doc.id)); }} style={{ color: '#cc1016' }}><Trash2 size={12} /></button>}
+                                    {isOwnProfile && editing && <button type="button" className="ln-btn-sm ln-btn-outline" onClick={(e) => { e.preventDefault(); showConfirm('Are you sure you want to delete this document?', () => deleteDoc(doc.id)); }} style={{ color: '#cc1016' }}><Trash2 size={12} /></button>}
                                 </div>
                             </div>
                         )) : !showUploadForm && (
@@ -2448,6 +2906,7 @@ const TraineeProfile = () => (
 // ─── PAGE 4: OPPORTUNITIES ───────────────────────────────────────
 const Opportunities = () => {
     const { currentUser, trainees, jobPostings, applications, getTraineeRecommendedJobs, applyToJob } = useApp();
+    const navigate = useNavigate();
     const trainee = currentUser || trainees[0];
     const myApps = applications.filter(a => a.traineeId === trainee?.id).map(a => a.jobId);
     const allJobs = getTraineeRecommendedJobs(trainee?.id);
@@ -2463,6 +2922,12 @@ const Opportunities = () => {
     const [resumeInfo, setResumeInfo] = useState(null);
     const [loadingResume, setLoadingResume] = useState(false);
     const [submittingApplication, setSubmittingApplication] = useState(false);
+    const openProfile = (target) => {
+        if (!target?.id || !target?.type) return;
+        const profileType = normalizeProfileType(target.type);
+        if (!profileType) return;
+        navigate(`/trainee/profile-view/${profileType}/${target.id}`);
+    };
 
     const industries = ['All', ...new Set(jobPostings.map(j => j.industry))];
     const types = ['All', 'Full-time', 'Part-time', 'Contract', 'Internship'];
@@ -2591,12 +3056,26 @@ const Opportunities = () => {
                     return (
                         <div key={job.id} className="ln-card ln-job-card-li">
                             <div className="ln-job-card-top">
-                                <div className="ln-job-card-icon">
+                                <button
+                                    type="button"
+                                    className="ln-job-card-icon"
+                                    onClick={() => openProfile({ id: job.partnerId, type: 'partner' })}
+                                    style={{ border: 'none', cursor: job.partnerId ? 'pointer' : 'default' }}
+                                    disabled={!job.partnerId}
+                                >
                                     <Building2 size={24} />
-                                </div>
+                                </button>
                                 <div className="ln-job-card-info">
                                     <div className="ln-job-card-title">{job.title}</div>
-                                    <div className="ln-job-card-company">{job.companyName}</div>
+                                    <div className="ln-job-card-company">
+                                        <button
+                                            type="button"
+                                            onClick={() => openProfile({ id: job.partnerId, type: 'partner' })}
+                                            style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', color: 'inherit', font: 'inherit' }}
+                                        >
+                                            {job.companyName}
+                                        </button>
+                                    </div>
                                     <div className="ln-job-card-meta">
                                         <span><MapPin size={13} /> {job.location}</span>
                                         <span><Clock size={13} /> {job.employmentType}</span>
@@ -2606,14 +3085,6 @@ const Opportunities = () => {
                                     <span className={`ln-badge ln-badge-${job.status === 'Open' ? 'green' : 'gray'}`}>{job.status}</span>
                                     <span className="ln-badge ln-badge-blue" style={{ fontSize: 11 }}>{job.opportunityType}</span>
                                 </div>
-                            </div>
-
-                            <div className="ln-match-row" style={{ margin: '12px 0' }}>
-                                <span style={{ fontSize: 13, color: 'rgba(0,0,0,0.6)' }}>Match Rate</span>
-                                <div className="ln-match-bar" style={{ flex: 1 }}>
-                                    <div className={`ln-match-fill ${job.matchRate >= 70 ? 'high' : job.matchRate >= 40 ? 'mid' : 'low'}`} style={{ width: `${job.matchRate}%` }} />
-                                </div>
-                                <span className="ln-match-pct">{job.matchRate}%</span>
                             </div>
 
                             <div className="ln-job-card-footer">
@@ -2646,7 +3117,16 @@ const Opportunities = () => {
                         <div className="ln-modal-header">
                             <div>
                                 <h3 className="ln-modal-title">{selectedJob.title}</h3>
-                                <p style={{ fontSize: 14, color: 'rgba(0,0,0,0.6)', marginTop: 4 }}>{selectedJob.companyName} &bull; {selectedJob.location}</p>
+                                <p style={{ fontSize: 14, color: 'rgba(0,0,0,0.6)', marginTop: 4 }}>
+                                    <button
+                                        type="button"
+                                        onClick={() => openProfile({ id: selectedJob.partnerId, type: 'partner' })}
+                                        style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', color: '#0a66c2', font: 'inherit' }}
+                                    >
+                                        {selectedJob.companyName}
+                                    </button>
+                                    {' '}• {selectedJob.location}
+                                </p>
                             </div>
                             <button className="ln-btn-icon" onClick={() => setSelectedJob(null)}><X size={18} /></button>
                         </div>
@@ -2655,7 +3135,6 @@ const Opportunities = () => {
                             <span className="ln-badge ln-badge-blue">{selectedJob.opportunityType}</span>
                             <span className="ln-badge ln-badge-purple">{selectedJob.ncLevel}</span>
                             <span className="ln-badge ln-badge-gray">{selectedJob.employmentType}</span>
-                            <span className="ln-badge ln-badge-blue">{selectedJob.matchRate}% Match</span>
                         </div>
                         <div style={{ marginBottom: 16 }}>
                             <div style={{ fontWeight: 600, fontSize: 14, marginBottom: 6, color: 'rgba(0,0,0,0.9)' }}>Description</div>
@@ -2715,7 +3194,16 @@ const Opportunities = () => {
                         <div className="ln-modal-header">
                             <div>
                                 <h3 className="ln-modal-title">Application Form</h3>
-                                <p style={{ fontSize: 14, color: 'rgba(0,0,0,0.6)', marginTop: 4 }}>{applyJob.title} • {applyJob.companyName}</p>
+                                <p style={{ fontSize: 14, color: 'rgba(0,0,0,0.6)', marginTop: 4 }}>
+                                    {applyJob.title} •
+                                    <button
+                                        type="button"
+                                        onClick={() => openProfile({ id: applyJob.partnerId, type: 'partner' })}
+                                        style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', color: '#0a66c2', font: 'inherit', marginLeft: 4 }}
+                                    >
+                                        {applyJob.companyName}
+                                    </button>
+                                </p>
                             </div>
                             <button className="ln-btn-icon" onClick={() => setApplyJob(null)}><X size={18} /></button>
                         </div>
@@ -2761,6 +3249,7 @@ const Opportunities = () => {
                     </div>
                 </div>
             )}
+
         </div>
     );
 };
@@ -2768,17 +3257,38 @@ const Opportunities = () => {
 // ─── PAGE 5: MY APPLICATIONS ──────────────────────────────────────
 const MyApplications = () => {
     const { currentUser, trainees, getTraineeApplications } = useApp();
+    const navigate = useNavigate();
     const trainee = currentUser || trainees[0];
     const myApps = getTraineeApplications(trainee?.id);
     const [search, setSearch] = useState('');
+    const [messageModal, setMessageModal] = useState(null);
+    const openProfile = (target) => {
+        if (!target?.id || !target?.type) return;
+        const profileType = normalizeProfileType(target.type);
+        if (!profileType) return;
+        navigate(`/trainee/profile-view/${profileType}/${target.id}`);
+    };
 
-    const filtered = myApps.filter(a =>
-        a.job?.title?.toLowerCase().includes(search.toLowerCase()) ||
-        a.job?.companyName?.toLowerCase().includes(search.toLowerCase())
-    );
+    const filtered = myApps.filter(a => {
+        const q = search.toLowerCase();
+        return [
+            a.activityType,
+            a.job?.title,
+            a.partner?.companyName,
+            a.directionLabel,
+            a.outgoingMessage,
+            a.incomingMessage,
+        ].some(value => String(value || '').toLowerCase().includes(q));
+    });
 
     const statusBadge = (s) => {
-        const map = { Pending: 'ln-badge-yellow', Accepted: 'ln-badge-green', Rejected: 'ln-badge-red' };
+        const map = {
+            Pending: 'ln-badge-yellow',
+            Accepted: 'ln-badge-green',
+            Rejected: 'ln-badge-red',
+            Sent: 'ln-badge-blue',
+            Received: 'ln-badge-blue',
+        };
         return <span className={`ln-badge ${map[s] || 'ln-badge-gray'}`}>{s}</span>;
     };
 
@@ -2796,9 +3306,9 @@ const MyApplications = () => {
             <div className="ln-pills-row">
                 {[
                     { label: 'Total', count: myApps.length, color: '#0a66c2' },
-                    { label: 'Pending', count: myApps.filter(a => a.status === 'Pending').length, color: '#b24020' },
-                    { label: 'Accepted', count: myApps.filter(a => a.status === 'Accepted').length, color: '#057642' },
-                    { label: 'Rejected', count: myApps.filter(a => a.status === 'Rejected').length, color: '#cc1016' },
+                    { label: 'Applications', count: myApps.filter(a => a.recordType === 'application').length, color: '#b24020' },
+                    { label: 'My Contact', count: myApps.filter(a => a.recordType === 'contact' && a.directionLabel === 'You contacted partner').length, color: '#057642' },
+                    { label: 'Partner Contact', count: myApps.filter(a => a.recordType === 'contact' && a.directionLabel === 'Partner contacted you').length, color: '#cc1016' },
                 ].map(s => (
                     <div key={s.label} className="ln-pill" style={{ borderLeft: `3px solid ${s.color}` }}>
                         <span className="ln-pill-count" style={{ color: s.color }}>{s.count}</span>
@@ -2809,7 +3319,7 @@ const MyApplications = () => {
 
             <div className="ln-card">
                 <div className="ln-section-header" style={{ marginBottom: 16 }}>
-                    <h3>Application History</h3>
+                    <h3>Applications and Contact Activity</h3>
                     <div className="ln-search-wrap" style={{ width: 240 }}>
                         <Search size={16} className="ln-search-icon" />
                         <input className="ln-search-input" placeholder="Search..." value={search} onChange={e => setSearch(e.target.value)} />
@@ -2818,41 +3328,221 @@ const MyApplications = () => {
                 <div style={{ overflowX: 'auto' }}>
                     <table className="ln-table">
                         <thead>
-                            <tr><th>Title</th><th>Company</th><th>Type</th><th>Date Applied</th><th>Status</th><th>Your Application</th><th>Recruit Update</th></tr>
+                            <tr><th>Activity</th><th>Partner</th><th>Opportunity</th><th>Date</th><th>Direction</th><th>Msg By</th><th>View</th><th>Attachment</th><th>Status</th></tr>
                         </thead>
                         <tbody>
                             {filtered.map(a => (
-                                <tr key={a.id}>
-                                    <td style={{ fontWeight: 600, color: '#0a66c2' }}>{a.job?.title || '—'}</td>
+                                <tr key={a.rowKey || a.id}>
+                                    <td>
+                                        <span className="ln-badge ln-badge-blue" style={{ fontSize: 11 }}>{a.activityType}</span>
+                                    </td>
                                     <td>
                                         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                                            <Building2 size={14} color="rgba(0,0,0,0.4)" />
-                                            {a.job?.companyName || '—'}
+                                            <button
+                                                type="button"
+                                                onClick={() => openProfile({ id: a.partner?.id || a.job?.partnerId, type: 'partner' })}
+                                                style={{ background: 'none', border: 'none', padding: 0, cursor: (a.partner?.id || a.job?.partnerId) ? 'pointer' : 'default', color: 'rgba(0,0,0,0.4)', display: 'inline-flex', alignItems: 'center' }}
+                                                disabled={!(a.partner?.id || a.job?.partnerId)}
+                                            >
+                                                <Building2 size={14} color="currentColor" />
+                                            </button>
+                                            <button
+                                                type="button"
+                                                onClick={() => openProfile({ id: a.partner?.id || a.job?.partnerId, type: 'partner' })}
+                                                style={{ background: 'none', border: 'none', padding: 0, cursor: (a.partner?.id || a.job?.partnerId) ? 'pointer' : 'default', color: 'inherit', font: 'inherit', textAlign: 'left' }}
+                                                disabled={!(a.partner?.id || a.job?.partnerId)}
+                                            >
+                                                {a.partner?.companyName || a.job?.companyName || '—'}
+                                            </button>
                                         </div>
                                     </td>
-                                    <td><span className="ln-badge ln-badge-blue" style={{ fontSize: 11 }}>{a.job?.opportunityType || '—'}</span></td>
-                                    <td style={{ color: 'rgba(0,0,0,0.5)', fontSize: 13 }}>{a.appliedAt}</td>
-                                    <td>{statusBadge(a.status)}</td>
-                                    <td style={{ fontSize: 13, color: 'rgba(0,0,0,0.65)', maxWidth: 240 }}>{a.applicationMessage || '—'}</td>
-                                    <td style={{ fontSize: 13, color: 'rgba(0,0,0,0.6)', maxWidth: 260 }}>
-                                        {a.recruitMessage ? (
-                                            <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                                                <span>{a.recruitMessage}</span>
-                                                {a.recruitDocumentName && <span style={{ fontSize: 11.5, color: '#64748b' }}>Attachment: {a.recruitDocumentName}</span>}
-                                            </div>
-                                        ) : (a.notes || '—')}
+                                    <td style={{ fontWeight: 600, color: '#0a66c2' }}>{a.job?.title || 'Direct Contact'}</td>
+                                    <td style={{ color: 'rgba(0,0,0,0.5)', fontSize: 13 }}>{a.eventDate || '—'}</td>
+                                    <td style={{ fontSize: 12.5, color: 'rgba(0,0,0,0.65)' }}>{a.directionLabel}</td>
+                                    <td>
+                                        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                                            {a.outgoingMessage && <span className="ln-badge ln-badge-blue" style={{ fontSize: 10 }}>You</span>}
+                                            {a.incomingMessage && <span className="ln-badge ln-badge-green" style={{ fontSize: 10 }}>Partner</span>}
+                                            {!a.outgoingMessage && !a.incomingMessage && <span style={{ fontSize: 12.5, color: 'rgba(0,0,0,0.45)' }}>—</span>}
+                                        </div>
                                     </td>
+                                    <td>
+                                        {(a.outgoingMessage || a.incomingMessage) ? (
+                                            <button type="button" className="ln-btn-sm ln-btn-outline" onClick={() => setMessageModal(a)}>
+                                                <Eye size={12} />
+                                            </button>
+                                        ) : (
+                                            <span style={{ fontSize: 12.5, color: 'rgba(0,0,0,0.45)' }}>—</span>
+                                        )}
+                                    </td>
+                                    <td>
+                                        {a.attachmentUrl ? (
+                                            <a href={a.attachmentUrl} target="_blank" rel="noreferrer" className="ln-btn-sm ln-btn-outline"><Eye size={12} /> View</a>
+                                        ) : a.attachmentName ? (
+                                            <span style={{ fontSize: 12.5, color: 'rgba(0,0,0,0.55)' }}>{a.attachmentName}</span>
+                                        ) : (
+                                            <span style={{ fontSize: 12.5, color: 'rgba(0,0,0,0.45)' }}>—</span>
+                                        )}
+                                    </td>
+                                    <td>{statusBadge(a.status)}</td>
                                 </tr>
                             ))}
                             {filtered.length === 0 && (
-                                <tr><td colSpan={7} style={{ textAlign: 'center', padding: 40, color: 'rgba(0,0,0,0.4)' }}>No applications yet. Start applying!</td></tr>
+                                <tr><td colSpan={9} style={{ textAlign: 'center', padding: 40, color: 'rgba(0,0,0,0.4)' }}>No applications or contact activity yet.</td></tr>
                             )}
                         </tbody>
                     </table>
                 </div>
             </div>
+
+            {messageModal && (
+                <div className="modal-overlay" onClick={() => setMessageModal(null)}>
+                    <div className="ln-modal" onClick={e => e.stopPropagation()}>
+                        <div className="ln-modal-header">
+                            <div>
+                                <h3 className="ln-modal-title">Message Details</h3>
+                            </div>
+                            <button className="ln-btn-icon" onClick={() => setMessageModal(null)}><X size={18} /></button>
+                        </div>
+
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                            {messageModal.outgoingMessage && (
+                                <div style={{ padding: 12, borderRadius: 10, background: '#eff6ff', border: '1px solid #bfdbfe' }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
+                                        <button
+                                            type="button"
+                                            onClick={() => {
+                                                if (trainee?.id) {
+                                                    setMessageModal(null);
+                                                    openProfile({ id: trainee.id, type: 'trainee' });
+                                                }
+                                            }}
+                                            style={{
+                                                width: 36,
+                                                height: 36,
+                                                borderRadius: '50%',
+                                                background: trainee?.photo ? 'transparent' : '#dbeafe',
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                justifyContent: 'center',
+                                                fontWeight: 700,
+                                                color: '#1e3a8a',
+                                                overflow: 'hidden',
+                                                flexShrink: 0,
+                                                border: 'none',
+                                                padding: 0,
+                                                cursor: trainee?.id ? 'pointer' : 'default',
+                                            }}
+                                            disabled={!trainee?.id}
+                                        >
+                                            {trainee?.photo ? (
+                                                <img src={trainee.photo} alt={trainee?.name || 'You'} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                                            ) : (
+                                                ((trainee?.name || 'Y').charAt(0) || 'Y').toUpperCase()
+                                            )}
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={() => {
+                                                if (trainee?.id) {
+                                                    setMessageModal(null);
+                                                    openProfile({ id: trainee.id, type: 'trainee' });
+                                                }
+                                            }}
+                                            style={{ background: 'none', border: 'none', padding: 0, fontWeight: 700, fontSize: 14, cursor: trainee?.id ? 'pointer' : 'default', color: '#1e3a8a', textAlign: 'left' }}
+                                            disabled={!trainee?.id}
+                                        >
+                                            You
+                                        </button>
+                                    </div>
+                                    <div style={{ fontSize: 13, color: '#1e3a8a', lineHeight: 1.5 }}>{messageModal.outgoingMessage}</div>
+                                </div>
+                            )}
+
+                            {messageModal.incomingMessage && (
+                                <div style={{ padding: 12, borderRadius: 10, background: '#f0fdf4', border: '1px solid #bbf7d0' }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
+                                        <button
+                                            type="button"
+                                            onClick={() => {
+                                                const partnerId = messageModal.partner?.id || messageModal.job?.partnerId;
+                                                if (partnerId) {
+                                                    setMessageModal(null);
+                                                    openProfile({ id: partnerId, type: 'partner' });
+                                                }
+                                            }}
+                                            style={{
+                                                width: 36,
+                                                height: 36,
+                                                borderRadius: '50%',
+                                                background: (messageModal.partner?.photo || messageModal.partner?.company_logo_url) ? 'transparent' : '#dcfce7',
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                justifyContent: 'center',
+                                                fontWeight: 700,
+                                                color: '#166534',
+                                                overflow: 'hidden',
+                                                flexShrink: 0,
+                                                border: 'none',
+                                                padding: 0,
+                                                cursor: (messageModal.partner?.id || messageModal.job?.partnerId) ? 'pointer' : 'default',
+                                            }}
+                                            disabled={!(messageModal.partner?.id || messageModal.job?.partnerId)}
+                                        >
+                                            {(messageModal.partner?.photo || messageModal.partner?.company_logo_url) ? (
+                                                <img src={messageModal.partner?.photo || messageModal.partner?.company_logo_url} alt={messageModal.partner?.companyName || 'Partner'} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                                            ) : (
+                                                ((messageModal.partner?.companyName || messageModal.job?.companyName || 'P').charAt(0) || 'P').toUpperCase()
+                                            )}
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={() => {
+                                                const partnerId = messageModal.partner?.id || messageModal.job?.partnerId;
+                                                if (partnerId) {
+                                                    setMessageModal(null);
+                                                    openProfile({ id: partnerId, type: 'partner' });
+                                                }
+                                            }}
+                                            style={{ background: 'none', border: 'none', padding: 0, fontWeight: 700, fontSize: 14, cursor: (messageModal.partner?.id || messageModal.job?.partnerId) ? 'pointer' : 'default', color: '#166534', textAlign: 'left' }}
+                                            disabled={!(messageModal.partner?.id || messageModal.job?.partnerId)}
+                                        >
+                                            {messageModal.partner?.companyName || messageModal.job?.companyName || 'Partner'}
+                                        </button>
+                                    </div>
+                                    <div style={{ fontSize: 13, color: '#14532d', lineHeight: 1.5 }}>{messageModal.incomingMessage}</div>
+                                </div>
+                            )}
+                        </div>
+
+                        <div className="ln-modal-footer">
+                            <button className="ln-btn ln-btn-outline" onClick={() => setMessageModal(null)}>Close</button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
+};
+
+const TraineeProfileViewRoute = () => {
+    const { profileType, profileId } = useParams();
+    const navigate = useNavigate();
+    const normalizedProfileType = normalizeProfileType(profileType);
+
+    if (normalizedProfileType === 'trainee') {
+        return (
+            <ErrorBoundary>
+                <TraineeProfileContent viewedProfileId={profileId} onBack={() => navigate(-1)} />
+            </ErrorBoundary>
+        );
+    }
+
+    if (normalizedProfileType === 'partner') {
+        return <CompanyProfile viewedPartnerId={profileId} onBack={() => navigate(-1)} />;
+    }
+
+    return <Navigate to="/trainee" replace />;
 };
 
 // ─── MAIN TRAINEE DASHBOARD ─────────────────────────────────────
@@ -2863,7 +3553,7 @@ export default function TraineeDashboard() {
 
     // Deduce active page from URL for visual consistency in child components
     const path = location.pathname.split('/').pop();
-    const activePage = (path === 'trainee' || !path) ? 'dashboard' : path;
+    const activePage = location.pathname.includes('/profile-view/') ? 'dashboard' : ((path === 'trainee' || !path) ? 'dashboard' : path);
 
     // Mock setActivePage to use navigate for smooth integration with existing buttons
     const setActivePage = (page) => {
@@ -2883,6 +3573,7 @@ export default function TraineeDashboard() {
                 <Route path="/profile" element={<TraineeProfile />} />
                 <Route path="/recommendations" element={<Opportunities />} />
                 <Route path="/applications" element={<MyApplications />} />
+                <Route path="/profile-view/:profileType/:profileId" element={<TraineeProfileViewRoute />} />
                 <Route path="*" element={<Navigate to="/trainee" replace />} />
             </Routes>
         </LinkedInLayout>
