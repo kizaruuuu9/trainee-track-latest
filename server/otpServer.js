@@ -491,7 +491,6 @@ const adminDeleteAccountHandler = async (req, res) => {
 
         if (accountType === 'trainee') {
             // 3a. Delete student-specific rows (FK children before parent)
-            await sbDelete(supabaseAdmin.from('student_competencies').delete().eq('student_id', accountId), 'student_competencies');
             await sbDelete(supabaseAdmin.from('student_skills').delete().eq('student_id', accountId), 'student_skills');
             await sbDelete(supabaseAdmin.from('student_interests').delete().eq('student_id', accountId), 'student_interests');
             await sbDelete(supabaseAdmin.from('student_documents').delete().eq('student_id', accountId), 'student_documents');
@@ -653,6 +652,56 @@ const toEmploymentUiValue = (value) => {
     return String(value);
 };
 
+const SALARY_SYMBOL_BY_CURRENCY = {
+    PHP: '₱',
+    USD: '$',
+    EUR: '€',
+    GBP: '£',
+    JPY: '¥',
+};
+
+const toSalaryNumber = (value) => {
+    const normalized = String(value ?? '')
+        .replace(/,/g, '')
+        .replace(/[^\d.]/g, '')
+        .trim();
+
+    if (!normalized) return null;
+    const parsed = Number(normalized);
+    if (!Number.isFinite(parsed) || parsed <= 0) return null;
+    return parsed;
+};
+
+const toSalaryCurrency = (value) => {
+    const normalized = String(value || '').trim().toUpperCase();
+    if (!normalized) return 'PHP';
+    return SALARY_SYMBOL_BY_CURRENCY[normalized] ? normalized : 'PHP';
+};
+
+const formatSalaryAmount = (value, currency = 'PHP') => {
+    const parsed = toSalaryNumber(value);
+    if (!parsed) return '';
+    const symbol = SALARY_SYMBOL_BY_CURRENCY[toSalaryCurrency(currency)] || '₱';
+    return `${symbol}${Math.round(parsed).toLocaleString('en-US')}`;
+};
+
+const buildSalaryRangeText = (salaryRange, salaryMin, salaryMax, salaryCurrency = 'PHP') => {
+    const existing = String(salaryRange || '').trim();
+    if (existing) return existing;
+
+    const minimum = toSalaryNumber(salaryMin);
+    const maximum = toSalaryNumber(salaryMax);
+    const currency = toSalaryCurrency(salaryCurrency);
+
+    if (minimum && maximum) {
+        return `${formatSalaryAmount(minimum, currency)} - ${formatSalaryAmount(maximum, currency)}`;
+    }
+    if (minimum) return `${formatSalaryAmount(minimum, currency)}+`;
+    if (maximum) return `Up to ${formatSalaryAmount(maximum, currency)}`;
+
+    return '';
+};
+
 app.post('/api/partner/opportunities', uploadRateLimit, async (req, res) => {
     const {
         partnerId,
@@ -664,6 +713,9 @@ app.post('/api/partner/opportunities', uploadRateLimit, async (req, res) => {
         employmentType,
         location,
         salaryRange,
+        salaryCurrency,
+        salaryMin,
+        salaryMax,
         requiredCompetencies,
         requiredSkills,
         industry,
@@ -686,6 +738,15 @@ app.post('/api/partner/opportunities', uploadRateLimit, async (req, res) => {
 
         const normalizedOpportunityType = String(opportunityType || 'Job').trim() || 'Job';
         const normalizedEmploymentType = toEmploymentDbValue(employmentType, normalizedOpportunityType);
+        const normalizedSalaryCurrency = toSalaryCurrency(salaryCurrency);
+        const normalizedSalaryMin = toSalaryNumber(salaryMin);
+        const normalizedSalaryMax = toSalaryNumber(salaryMax);
+        const normalizedSalaryRange = buildSalaryRangeText(
+            salaryRange,
+            normalizedSalaryMin,
+            normalizedSalaryMax,
+            normalizedSalaryCurrency,
+        );
 
         const commonPayload = {
             partner_id: partnerId,
@@ -701,14 +762,17 @@ app.post('/api/partner/opportunities', uploadRateLimit, async (req, res) => {
             is_active: true,
         };
 
-        const salaryNumbers = String(salaryRange || '')
-            .match(/\d[\d,]*/g)?.map(value => Number(value.replace(/,/g, '')))
-            .filter(value => Number.isFinite(value)) || [];
+        const salaryNumbers = [normalizedSalaryMin, normalizedSalaryMax].filter(value => Number.isFinite(value));
+        const parsedRangeNumbers = salaryNumbers.length > 0
+            ? salaryNumbers
+            : (String(normalizedSalaryRange || '')
+                .match(/\d[\d,]*/g)?.map(value => Number(value.replace(/,/g, '')))
+                .filter(value => Number.isFinite(value)) || []);
 
         const legacyPayload = {
             ...commonPayload,
-            salary_min: salaryNumbers[0] ?? null,
-            salary_max: salaryNumbers[1] ?? null,
+            salary_min: parsedRangeNumbers[0] ?? null,
+            salary_max: parsedRangeNumbers[1] ?? null,
             slots: 1,
         };
 
@@ -718,7 +782,7 @@ app.post('/api/partner/opportunities', uploadRateLimit, async (req, res) => {
             nc_level: String(ncLevel || '').trim() || null,
             required_competencies: normalizedComps,
             required_skills: normalizedSkills,
-            salary_range: String(salaryRange || '').trim() || null,
+            salary_range: normalizedSalaryRange || null,
             status: 'Open',
             industry: String(industry || '').trim() || 'General',
             attachment_name: String(attachmentName || '').trim() || null,
@@ -787,7 +851,10 @@ app.post('/api/partner/opportunities', uploadRateLimit, async (req, res) => {
             description: inserted.description || '',
             employmentType: toEmploymentUiValue(inserted.employment_type || normalizedEmploymentType || ''),
             location: inserted.location || location,
-            salaryRange: inserted.salary_range || String(salaryRange || '').trim() || '',
+            salaryRange: inserted.salary_range || normalizedSalaryRange || '',
+            salaryCurrency: normalizedSalaryCurrency,
+            salaryMin: toSalaryNumber(inserted.salary_min) || normalizedSalaryMin,
+            salaryMax: toSalaryNumber(inserted.salary_max) || normalizedSalaryMax,
             slots: inserted.slots || 1,
             status: inserted.status || 'Open',
             datePosted: inserted.created_at?.split('T')[0] || new Date().toISOString().split('T')[0],
@@ -801,6 +868,190 @@ app.post('/api/partner/opportunities', uploadRateLimit, async (req, res) => {
     } catch (error) {
         console.error('Partner opportunity create error:', error);
         res.status(500).json({ error: error?.message || 'Failed to post opportunity.' });
+    }
+});
+
+app.put('/api/partner/opportunities/:jobId', uploadRateLimit, async (req, res) => {
+    const { jobId } = req.params;
+    const {
+        partnerId,
+        title,
+        opportunityType,
+        programId,
+        ncLevel,
+        description,
+        employmentType,
+        location,
+        salaryRange,
+        salaryCurrency,
+        salaryMin,
+        salaryMax,
+        requiredCompetencies,
+        requiredSkills,
+        industry,
+        attachmentName,
+        attachmentType,
+        attachmentUrl,
+    } = req.body || {};
+
+    if (!partnerId || !jobId || !title || !location) {
+        return res.status(400).json({ error: 'partnerId, jobId, title, and location are required.' });
+    }
+
+    try {
+        const { data: existingJob, error: existingJobError } = await supabaseAdmin
+            .from('job_postings')
+            .select('id, partner_id')
+            .eq('id', jobId)
+            .maybeSingle();
+
+        if (existingJobError) throw existingJobError;
+        if (!existingJob) {
+            return res.status(404).json({ error: 'Opportunity not found.' });
+        }
+        if (String(existingJob.partner_id || '') !== String(partnerId)) {
+            return res.status(403).json({ error: 'You can only edit your own opportunity postings.' });
+        }
+
+        const normalizedComps = Array.isArray(requiredCompetencies)
+            ? requiredCompetencies.map(item => String(item || '').trim()).filter(Boolean)
+            : [];
+        const normalizedSkills = Array.isArray(requiredSkills)
+            ? requiredSkills.map(item => String(item || '').trim()).filter(Boolean)
+            : [];
+
+        const normalizedOpportunityType = String(opportunityType || 'Job').trim() || 'Job';
+        const normalizedEmploymentType = toEmploymentDbValue(employmentType, normalizedOpportunityType);
+        const normalizedSalaryCurrency = toSalaryCurrency(salaryCurrency);
+        const normalizedSalaryMin = toSalaryNumber(salaryMin);
+        const normalizedSalaryMax = toSalaryNumber(salaryMax);
+        const normalizedSalaryRange = buildSalaryRangeText(
+            salaryRange,
+            normalizedSalaryMin,
+            normalizedSalaryMax,
+            normalizedSalaryCurrency,
+        );
+
+        const commonPayload = {
+            program_id: programId || null,
+            title: String(title || '').trim(),
+            company_name: null,
+            description: String(description || '').trim() || null,
+            requirements: normalizedComps.length > 0 ? normalizedComps : null,
+            location: String(location || '').trim(),
+            employment_type: normalizedEmploymentType,
+            source: 'partner',
+            source_url: String(attachmentUrl || '').trim() || null,
+            is_active: true,
+        };
+
+        const salaryNumbers = [normalizedSalaryMin, normalizedSalaryMax].filter(value => Number.isFinite(value));
+        const parsedRangeNumbers = salaryNumbers.length > 0
+            ? salaryNumbers
+            : (String(normalizedSalaryRange || '')
+                .match(/\d[\d,]*/g)?.map(value => Number(value.replace(/,/g, '')))
+                .filter(value => Number.isFinite(value)) || []);
+
+        const legacyPayload = {
+            ...commonPayload,
+            salary_min: parsedRangeNumbers[0] ?? null,
+            salary_max: parsedRangeNumbers[1] ?? null,
+        };
+
+        const extendedPayload = {
+            ...commonPayload,
+            opportunity_type: normalizedOpportunityType,
+            nc_level: String(ncLevel || '').trim() || null,
+            required_competencies: normalizedComps,
+            required_skills: normalizedSkills,
+            salary_range: normalizedSalaryRange || null,
+            status: 'Open',
+            industry: String(industry || '').trim() || 'General',
+            attachment_name: String(attachmentName || '').trim() || null,
+            attachment_type: String(attachmentType || '').trim() || null,
+            attachment_url: String(attachmentUrl || '').trim() || null,
+        };
+
+        const attempts = [
+            extendedPayload,
+            {
+                ...extendedPayload,
+                attachment_name: undefined,
+                attachment_type: undefined,
+                attachment_url: undefined,
+            },
+            legacyPayload,
+        ];
+
+        let updated = null;
+        let lastError = null;
+
+        for (const payload of attempts) {
+            const cleanPayload = Object.fromEntries(
+                Object.entries(payload).filter(([, value]) => value !== undefined)
+            );
+
+            const { data, error } = await supabaseAdmin
+                .from('job_postings')
+                .update(cleanPayload)
+                .eq('id', jobId)
+                .eq('partner_id', partnerId)
+                .select('*, industry_partners(company_name), programs(name, competencies, description)')
+                .single();
+
+            if (!error) {
+                updated = data;
+                break;
+            }
+
+            lastError = error;
+            if (isColumnShapeError(error)) {
+                continue;
+            }
+
+            throw error;
+        }
+
+        if (!updated) {
+            throw lastError || new Error('Failed to update job posting.');
+        }
+
+        const resolvedAttachmentUrl = updated.attachment_url || updated.source_url || String(attachmentUrl || '').trim() || null;
+        const fallbackAttachmentName = resolvedAttachmentUrl
+            ? decodeURIComponent(String(resolvedAttachmentUrl).split('/').pop()?.split('?')[0] || '')
+            : null;
+
+        const mapped = {
+            id: updated.id,
+            partnerId: updated.partner_id || partnerId,
+            companyName: updated.company_name || updated.industry_partners?.company_name || 'Company',
+            industry: updated.industry || String(industry || '').trim() || 'General',
+            title: updated.title,
+            opportunityType: updated.opportunity_type || normalizedOpportunityType,
+            programId: updated.program_id || programId || null,
+            ncLevel: updated.nc_level || updated.programs?.name || String(ncLevel || '').trim() || '',
+            requiredCompetencies: updated.required_competencies || updated.requirements || normalizedComps,
+            requiredSkills: updated.required_skills || normalizedSkills,
+            description: updated.description || '',
+            employmentType: toEmploymentUiValue(updated.employment_type || normalizedEmploymentType || ''),
+            location: updated.location || location,
+            salaryRange: updated.salary_range || normalizedSalaryRange || '',
+            salaryCurrency: normalizedSalaryCurrency,
+            salaryMin: toSalaryNumber(updated.salary_min) || normalizedSalaryMin,
+            salaryMax: toSalaryNumber(updated.salary_max) || normalizedSalaryMax,
+            slots: updated.slots || 1,
+            status: updated.status || 'Open',
+            datePosted: updated.created_at?.split('T')[0] || new Date().toISOString().split('T')[0],
+            createdAt: updated.created_at || new Date().toISOString(),
+            attachmentName: updated.attachment_name || (fallbackAttachmentName || null),
+            attachmentType: updated.attachment_type || String(attachmentType || '').trim() || null,
+            attachmentUrl: resolvedAttachmentUrl,
+        };
+
+        res.json({ success: true, job: mapped });
+    } catch (error) {
+        console.error('Partner opportunity update error:', error);
+        res.status(500).json({ error: error?.message || 'Failed to update opportunity.' });
     }
 });
 
@@ -874,7 +1125,25 @@ app.post('/api/check-duplicate', async (req, res) => {
 
 // ─── REGISTER ENDPOINT (Atomic — creates auth user, profile, student) ────
 app.post('/api/register', rateLimit, async (req, res) => {
-    const { email, password, fullName, studentId, program, address, gender, trainingStatus, graduationYear, birthdate, frontIdBase64, backIdBase64, selfieBase64 } = req.body;
+    const {
+        email,
+        password,
+        fullName,
+        studentId,
+        programId: requestedProgramId,
+        program,
+        address,
+        gender,
+        trainingStatus,
+        graduationYear,
+        birthdate,
+        frontIdBase64,
+        backIdBase64,
+        selfieBase64,
+        frontIdUrl: providedFrontIdUrl,
+        backIdUrl: providedBackIdUrl,
+        selfieUrl: providedSelfieUrl,
+    } = req.body;
 
     if (!email || !password || !fullName || !studentId) {
         return res.status(400).json({ error: 'Email, password, full name, and student ID are required.' });
@@ -923,9 +1192,18 @@ app.post('/api/register', rateLimit, async (req, res) => {
 
         // 4. Upload images
         const timestamp = Date.now();
-        let frontIdUrl = null, backIdUrl = null, selfieUrl = null;
+        const toUploadedUrl = (value = '') => {
+            const raw = String(value || '').trim();
+            if (!raw) return null;
+            if (/^https?:\/\//i.test(raw)) return raw;
+            return null;
+        };
 
-        if (frontIdBase64) {
+        let frontIdUrl = toUploadedUrl(providedFrontIdUrl);
+        let backIdUrl = toUploadedUrl(providedBackIdUrl);
+        let selfieUrl = toUploadedUrl(providedSelfieUrl);
+
+        if (!frontIdUrl && frontIdBase64) {
             const base64Data = frontIdBase64.includes(',') ? frontIdBase64.split(',')[1] : frontIdBase64;
             const buffer = Buffer.from(base64Data, 'base64');
             const filePath = `ids/${userId}/${timestamp}_front.jpg`;
@@ -936,7 +1214,7 @@ app.post('/api/register', rateLimit, async (req, res) => {
             }
         }
 
-        if (backIdBase64) {
+        if (!backIdUrl && backIdBase64) {
             const base64Data = backIdBase64.includes(',') ? backIdBase64.split(',')[1] : backIdBase64;
             const buffer = Buffer.from(base64Data, 'base64');
             const filePath = `ids/${userId}/${timestamp}_back.jpg`;
@@ -947,7 +1225,7 @@ app.post('/api/register', rateLimit, async (req, res) => {
             }
         }
 
-        if (selfieBase64) {
+        if (!selfieUrl && selfieBase64) {
             const base64Data = selfieBase64.includes(',') ? selfieBase64.split(',')[1] : selfieBase64;
             const buffer = Buffer.from(base64Data, 'base64');
             const filePath = `selfies/${userId}/${timestamp}_selfie.jpg`;
@@ -960,9 +1238,39 @@ app.post('/api/register', rateLimit, async (req, res) => {
 
         // 5. Look up program_id
         let programId = null;
-        if (program) {
-            const { data: progData } = await supabaseAdmin.from('programs').select('id').eq('name', program).maybeSingle();
-            programId = progData?.id || null;
+
+        const normalizedProgramId = String(requestedProgramId || '').trim();
+        if (normalizedProgramId) {
+            const { data: programById } = await supabaseAdmin
+                .from('programs')
+                .select('id')
+                .eq('id', normalizedProgramId)
+                .maybeSingle();
+
+            if (programById?.id) {
+                programId = programById.id;
+            }
+        }
+
+        const normalizedProgram = String(program || '').trim();
+        if (!programId && normalizedProgram) {
+            const { data: exactProgram } = await supabaseAdmin
+                .from('programs')
+                .select('id')
+                .eq('name', normalizedProgram)
+                .maybeSingle();
+
+            if (exactProgram?.id) {
+                programId = exactProgram.id;
+            } else {
+                const { data: allPrograms } = await supabaseAdmin
+                    .from('programs')
+                    .select('id, name');
+
+                const normalizedLookup = normalizedProgram.toLowerCase();
+                const matchedProgram = (allPrograms || []).find((row) => String(row.name || '').trim().toLowerCase() === normalizedLookup);
+                programId = matchedProgram?.id || null;
+            }
         }
 
         // 5. Upsert student record
@@ -1433,8 +1741,35 @@ const runStalePresenceCleanup = async () => {
     }
 };
 
-runStalePresenceCleanup();
-setInterval(runStalePresenceCleanup, 30 * 1000);
+const isAuthorizedCronRequest = (req) => {
+    const cronSecret = String(process.env.CRON_SECRET || '').trim();
+    if (!cronSecret) {
+        const vercelCronHeader = String(req.headers['x-vercel-cron'] || '').trim();
+        return vercelCronHeader === '1' || process.env.VERCEL !== '1';
+    }
+
+    const authHeader = String(req.headers.authorization || '').trim();
+    return authHeader === `Bearer ${cronSecret}`;
+};
+
+app.get('/api/cron/presence-cleanup', async (req, res) => {
+    if (!isAuthorizedCronRequest(req)) {
+        return res.status(401).json({ error: 'Unauthorized cron request.' });
+    }
+
+    try {
+        await runStalePresenceCleanup();
+        return res.json({ success: true, cleanedAt: new Date().toISOString() });
+    } catch (error) {
+        console.error('Cron presence cleanup error:', error);
+        return res.status(500).json({ error: 'Presence cleanup failed.' });
+    }
+});
+
+if (process.env.VERCEL !== '1') {
+    runStalePresenceCleanup();
+    setInterval(runStalePresenceCleanup, 30 * 1000);
+}
 
 if (process.env.NODE_ENV !== 'production') {
     app.listen(PORT, () => {

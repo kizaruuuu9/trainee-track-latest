@@ -1,19 +1,70 @@
 import React, { useState, useEffect } from 'react';
-import { ArrowLeft, ArrowRight, CheckCircle, Loader, Users, Building2, ShieldCheck, Mail, MapPin, Building, Lock, Send } from 'lucide-react';
+import { ArrowLeft, ArrowRight, CheckCircle, Loader, Users, Building2, ShieldCheck, Mail, MapPin, Building, Lock, Send, Eye, EyeOff } from 'lucide-react';
 import Step1IDUpload from './Step1IDUpload';
 import Step2PersonalInfo from './Step2PersonalInfo';
+import { supabase } from '../../lib/supabase';
 
 const STEPS = [
   { number: 1, label: 'Account Setup' },
   { number: 2, label: 'Verification' },
 ];
 
+const REG_UPLOAD_MAX_DIMENSION = 1280;
+const REG_UPLOAD_QUALITY = 0.75;
+
+const isHttpUrl = (value = '') => /^https?:\/\//i.test(String(value || '').trim());
+
+const dataUrlToBlob = async (dataUrl) => {
+  const response = await fetch(dataUrl);
+  return response.blob();
+};
+
+const blobToDataUrl = (blob) => new Promise((resolve, reject) => {
+  const reader = new FileReader();
+  reader.onload = () => resolve(reader.result);
+  reader.onerror = reject;
+  reader.readAsDataURL(blob);
+});
+
+const compressImageDataUrl = async (dataUrl) => {
+  if (!String(dataUrl || '').startsWith('data:image/')) {
+    return dataUrl;
+  }
+
+  const sourceBlob = await dataUrlToBlob(dataUrl);
+  const sourceUrl = URL.createObjectURL(sourceBlob);
+
+  try {
+    const image = await new Promise((resolve, reject) => {
+      const img = new window.Image();
+      img.onload = () => resolve(img);
+      img.onerror = reject;
+      img.src = sourceUrl;
+    });
+
+    const ratio = Math.min(1, REG_UPLOAD_MAX_DIMENSION / Math.max(image.width || 1, image.height || 1));
+    const width = Math.max(1, Math.round((image.width || 1) * ratio));
+    const height = Math.max(1, Math.round((image.height || 1) * ratio));
+
+    const canvas = document.createElement('canvas');
+    canvas.width = width;
+    canvas.height = height;
+    const context = canvas.getContext('2d');
+    context.drawImage(image, 0, 0, width, height);
+
+    const compressedDataUrl = canvas.toDataURL('image/jpeg', REG_UPLOAD_QUALITY);
+    return compressedDataUrl;
+  } finally {
+    URL.revokeObjectURL(sourceUrl);
+  }
+};
+
 export default function RegistrationFlow({ onBackToLogin }) {
   const [selectedRole, setSelectedRole] = useState(null); // 'trainee' | 'partner'
   const [currentStep, setCurrentStep] = useState(1);
   const [traineeData, setTraineeData] = useState({
     step1: {
-      frontID: null, backID: null, fullName: '', studentId: '', program: '',
+      frontID: null, backID: null, fullName: '', studentId: '', programId: '', program: '',
       address: '', gender: '', trainingStatus: '', graduationYear: '', ocrStatus: null,
     },
     step2: {
@@ -39,12 +90,61 @@ export default function RegistrationFlow({ onBackToLogin }) {
   const [otpError, setOtpError] = useState('');
   const [otpVerified, setOtpVerified] = useState(false);
   const [otpCooldown, setOtpCooldown] = useState(0);
+  const [showPartnerPassword, setShowPartnerPassword] = useState(false);
+  const [showPartnerConfirmPassword, setShowPartnerConfirmPassword] = useState(false);
 
   const [step1Valid, setStep1Valid] = useState(false);
   const [step2Valid, setStep2Valid] = useState(false);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState('');
   const [submitted, setSubmitted] = useState(false);
+
+  const prepareRegistrationImage = async (rawValue, folder, suffix) => {
+    const value = String(rawValue || '').trim();
+    if (!value) return { uploadedUrl: null, fallbackBase64: null };
+
+    if (isHttpUrl(value)) {
+      return { uploadedUrl: value, fallbackBase64: null };
+    }
+
+    if (!value.startsWith('data:image/')) {
+      return { uploadedUrl: null, fallbackBase64: value };
+    }
+
+    let optimizedDataUrl = value;
+    try {
+      optimizedDataUrl = await compressImageDataUrl(value);
+    } catch (compressionError) {
+      console.warn('Image compression failed, using original image payload.', compressionError);
+    }
+
+    try {
+      const optimizedBlob = await dataUrlToBlob(optimizedDataUrl);
+      const path = `${folder}/pre-register/${Date.now()}_${Math.random().toString(36).slice(2)}_${suffix}.jpg`;
+      const { error: uploadError } = await supabase.storage
+        .from('registration-uploads')
+        .upload(path, optimizedBlob, { contentType: 'image/jpeg', upsert: true });
+
+      if (uploadError) {
+        throw uploadError;
+      }
+
+      const { data: urlData } = supabase.storage.from('registration-uploads').getPublicUrl(path);
+      if (urlData?.publicUrl) {
+        return { uploadedUrl: urlData.publicUrl, fallbackBase64: null };
+      }
+    } catch (uploadError) {
+      console.warn('Direct image upload failed; falling back to compact base64 payload.', uploadError);
+    }
+
+    try {
+      const optimizedBlob = await dataUrlToBlob(optimizedDataUrl);
+      const fallbackDataUrl = await blobToDataUrl(optimizedBlob);
+      return { uploadedUrl: null, fallbackBase64: fallbackDataUrl };
+    } catch (_) {
+      return { uploadedUrl: null, fallbackBase64: optimizedDataUrl };
+    }
+  };
 
   // ─── OTP Cooldown Timer ──────────────────────────────────────
   useEffect(() => {
@@ -128,13 +228,24 @@ export default function RegistrationFlow({ onBackToLogin }) {
 
       if (selectedRole === 'trainee') {
         const { step1, step2 } = traineeData;
+
+        const [frontPrepared, backPrepared, selfiePrepared] = await Promise.all([
+          prepareRegistrationImage(step1.frontID?.url, 'ids', 'front'),
+          prepareRegistrationImage(step1.backID?.url, 'ids', 'back'),
+          prepareRegistrationImage(step2.selfieUrl, 'selfies', 'selfie'),
+        ]);
+
         payload = {
           email: step2.email, password: step2.password, fullName: step1.fullName,
-          studentId: step1.studentId, program: step1.program, address: step1.address,
+          studentId: step1.studentId, programId: step1.programId, program: step1.program, address: step1.address,
           gender: step1.gender, trainingStatus: step1.trainingStatus,
           graduationYear: step1.graduationYear, birthdate: step2.birthdate,
-          frontIdBase64: step1.frontID?.url || null, backIdBase64: step1.backID?.url || null,
-          selfieBase64: step2.selfieUrl || null,
+          frontIdUrl: frontPrepared.uploadedUrl,
+          backIdUrl: backPrepared.uploadedUrl,
+          selfieUrl: selfiePrepared.uploadedUrl,
+          frontIdBase64: frontPrepared.fallbackBase64,
+          backIdBase64: backPrepared.fallbackBase64,
+          selfieBase64: selfiePrepared.fallbackBase64,
         };
       } else {
         endpoint = '/api/register-partner';
@@ -305,15 +416,31 @@ export default function RegistrationFlow({ onBackToLogin }) {
           <div className="form-group">
             <label className="form-label">Password</label>
             <div style={{ position: 'relative' }}>
-              <input type="password" className="form-input" style={{ paddingLeft: 38 }} placeholder="••••••••" value={partnerData.password} onChange={e => setPartnerData({ ...partnerData, password: e.target.value })} />
+              <input type={showPartnerPassword ? 'text' : 'password'} className="form-input" style={{ paddingLeft: 38, paddingRight: 40 }} placeholder="••••••••" value={partnerData.password} onChange={e => setPartnerData({ ...partnerData, password: e.target.value })} />
               <Lock size={16} style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: '#94a3b8' }} />
+              <button
+                type="button"
+                onClick={() => setShowPartnerPassword(prev => !prev)}
+                style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', border: 'none', background: 'none', color: '#64748b', cursor: 'pointer', padding: 2, display: 'inline-flex', alignItems: 'center' }}
+                aria-label={showPartnerPassword ? 'Hide password' : 'Show password'}
+              >
+                {showPartnerPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+              </button>
             </div>
           </div>
           <div className="form-group">
             <label className="form-label">Confirm Password</label>
             <div style={{ position: 'relative' }}>
-              <input type="password" className="form-input" style={{ paddingLeft: 38 }} placeholder="••••••••" value={partnerData.confirmPassword} onChange={e => setPartnerData({ ...partnerData, confirmPassword: e.target.value })} />
+              <input type={showPartnerConfirmPassword ? 'text' : 'password'} className="form-input" style={{ paddingLeft: 38, paddingRight: 40 }} placeholder="••••••••" value={partnerData.confirmPassword} onChange={e => setPartnerData({ ...partnerData, confirmPassword: e.target.value })} />
               <Lock size={16} style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: '#94a3b8' }} />
+              <button
+                type="button"
+                onClick={() => setShowPartnerConfirmPassword(prev => !prev)}
+                style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', border: 'none', background: 'none', color: '#64748b', cursor: 'pointer', padding: 2, display: 'inline-flex', alignItems: 'center' }}
+                aria-label={showPartnerConfirmPassword ? 'Hide confirm password' : 'Show confirm password'}
+              >
+                {showPartnerConfirmPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+              </button>
             </div>
           </div>
         </div>
