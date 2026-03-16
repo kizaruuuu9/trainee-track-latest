@@ -1,8 +1,8 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useApp } from '../../context/AppContext';
 import {
     User, Briefcase, FileText, CheckCircle, Bell, ChevronDown, Search, Filter, MapPin, Clock, Building2,
-    Award, Send, CheckSquare, X, Eye, Plus, Menu, Home, Settings, LogOut, MessageSquare, Bookmark,
+    Award, Send, CheckSquare, X, Eye, EyeOff, Plus, Menu, Home, Settings, LogOut, MessageSquare, Bookmark,
     Trash2, Camera, Loader, GraduationCap, MoveRight, ExternalLink, ShieldCheck, Mail, Calendar, AlignLeft, Users, ChevronRight, Edit, Upload
 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
@@ -57,6 +57,28 @@ const isImageAttachment = (attachmentUrl, attachmentType) => {
     return /\.(png|jpe?g|gif|webp|bmp|svg)$/.test(cleanUrl);
 };
 
+const getCurrencySymbol = (currency = 'PHP') => {
+    const code = String(currency || 'PHP').toUpperCase();
+    const symbols = {
+        PHP: '₱',
+        USD: '$',
+        EUR: '€',
+        GBP: '£',
+        JPY: '¥',
+    };
+    return symbols[code] || '₱';
+};
+
+const formatSalaryDisplay = (value = '') => {
+    const raw = String(value || '').trim();
+    if (!raw) return '';
+    const digitsOnly = raw.replace(/,/g, '');
+    if (/^\d+$/.test(digitsOnly)) {
+        return `${getCurrencySymbol('PHP')}${Number(digitsOnly).toLocaleString('en-US')}`;
+    }
+    return raw;
+};
+
 const isStudentAuthorType = (authorType = '') => {
     const normalized = String(authorType || '').toLowerCase();
     return normalized === 'student' || normalized === 'trainee';
@@ -71,7 +93,7 @@ const normalizeProfileType = (profileType = '') => {
 
 const toProfileAuthorType = (authorType = '') => (isStudentAuthorType(authorType) ? 'trainee' : 'partner');
 const toRecipientAuthorType = (authorType = '') => (isStudentAuthorType(authorType) ? 'student' : 'industry_partner');
-const DEFAULT_TRAINEE_PUBLIC_INFO_FIELDS = ['name', 'birthday', 'gender'];
+const DEFAULT_TRAINEE_PUBLIC_INFO_FIELDS = ['name', 'birthday', 'gender', 'program'];
 const resolveTraineeVisibility = (profile) => {
     const value = profile?.personalInfoVisibility ?? profile?.personal_info_visibility;
     return Array.isArray(value) ? value : DEFAULT_TRAINEE_PUBLIC_INFO_FIELDS;
@@ -97,6 +119,7 @@ const normalizeTraineeProfile = (profile) => {
     return {
         ...profile,
         name: profile.name || profile.full_name || profile.profile_name || 'Trainee',
+        program: profile.program || profile.program_name || profile.programs?.name || '',
         email: profile.email || profile.contact_email || '',
         address,
         birthday: profile.birthday || profile.birthdate || '',
@@ -274,6 +297,8 @@ const LinkedInLayout = ({ children, activePage, setActivePage }) => (
 // ─── LEFT PROFILE CARD (LinkedIn-style) ──────────────────────────
 const ProfileSideCard = ({ trainee, setActivePage }) => {
     const initials = (trainee?.name || '').split(' ').filter(Boolean).map(n => n[0]).join('').slice(0, 2).toUpperCase() || 'T';
+    const visiblePersonalInfo = new Set(resolveTraineeVisibility(trainee));
+    const showSideAddress = visiblePersonalInfo.has('address');
     return (
         <div className="ln-card ln-profile-card">
             <div className="ln-profile-banner" style={trainee?.bannerUrl ? {
@@ -292,7 +317,9 @@ const ProfileSideCard = ({ trainee, setActivePage }) => {
                 </div>
                 <h2 className="ln-profile-name">{trainee?.name}</h2>
                 <p className="ln-profile-headline">TESDA Trainee &bull; Class of {trainee?.graduationYear}</p>
-                <p className="ln-profile-location"><MapPin size={13} /> {trainee?.address || 'Philippines'}</p>
+                {showSideAddress && trainee?.address && (
+                    <p className="ln-profile-location"><MapPin size={13} /> {trainee.address}</p>
+                )}
 
                 <div className="ln-profile-stats">
                     <div className="ln-profile-stat" onClick={() => setActivePage('profile')}>
@@ -1010,7 +1037,7 @@ const TraineeDashboardHome = ({ setActivePage }) => {
                                                 <span className="ln-opp-type-badge" style={{ background: '#ede9fe', color: '#6d28d9' }}>{item.ncLevel}</span>
                                             )}
                                             {item.salaryRange && (
-                                                <span style={{ fontSize: 15, color: '#057642', fontWeight: 700 }}>{item.salaryRange}</span>
+                                                <span style={{ fontSize: 15, color: '#057642', fontWeight: 700 }}>{formatSalaryDisplay(item.salaryRange)}</span>
                                             )}
                                         </div>
                                         {jobComments.length > 0 && (
@@ -1383,7 +1410,7 @@ const TraineeDashboardHome = ({ setActivePage }) => {
                                             {[
                                                 (jobMediaModal.industry && String(jobMediaModal.industry).trim().toLowerCase() !== 'general') ? jobMediaModal.industry : '',
                                                 jobMediaModal.location,
-                                                jobMediaModal.salaryRange,
+                                                formatSalaryDisplay(jobMediaModal.salaryRange),
                                                 timeAgo(jobMediaModal.created_at || jobMediaModal.createdAt || jobMediaModal.datePosted),
                                             ].filter(Boolean).join(' • ')}
                                         </div>
@@ -1591,6 +1618,7 @@ const TraineeDashboardHome = ({ setActivePage }) => {
                             </button>
                         </div>
 
+                        {!useCompactPostCommentModal && (
                         <div style={{ flex: '0 0 clamp(250px, 50vh, 560px)', minHeight: 220, display: 'flex', flexDirection: 'column', borderBottom: '1px solid #e2e8f0' }}>
                             <div style={{ padding: '10px 12px', display: 'flex', alignItems: 'center', gap: 10 }}>
                                 <button
@@ -1661,8 +1689,9 @@ const TraineeDashboardHome = ({ setActivePage }) => {
                                 </div>
                             </div>
                         </div>
+                        )}
 
-                        <div style={{ flex: '1 1 44%', minHeight: 0, display: 'flex', flexDirection: 'column', background: '#ffffff' }}>
+                        <div style={{ flex: useCompactPostCommentModal ? '1 1 auto' : '1 1 44%', minHeight: 0, display: 'flex', flexDirection: 'column', background: '#ffffff' }}>
                             <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', overscrollBehavior: 'contain', WebkitOverflowScrolling: 'touch', padding: 12, display: 'flex', flexDirection: 'column', gap: 10, background: '#ffffff' }}>
                                 {modalComments.length > 0 ? modalComments.map(comment => {
                                     const commentAuthorName = comment.author_id === currentUser?.id
@@ -1759,7 +1788,7 @@ class ErrorBoundary extends React.Component {
 
 // ─── PAGE 2: PROFILE ─────────────────────────────────────────────
 export const TraineeProfileContent = ({ viewedProfileId = null, onBack = null }) => {
-    const { currentUser, trainees, updateTrainee } = useApp();
+    const { currentUser, trainees, updateTrainee, getSkillInterestRecommendations } = useApp();
     const isOwnProfile = !viewedProfileId || String(viewedProfileId) === String(currentUser?.id);
     const [viewedTrainee, setViewedTrainee] = useState(null);
     const [loadingViewedProfile, setLoadingViewedProfile] = useState(false);
@@ -1778,6 +1807,14 @@ export const TraineeProfileContent = ({ viewedProfileId = null, onBack = null })
     // Interests state
     const [newInterest, setNewInterest] = useState('');
     const [interestsList, setInterestsList] = useState(trainee?.interests || []);
+
+    const recommendationBubbles = useMemo(() => {
+        if (!trainee?.id || !isOwnProfile) {
+            return { skills: [], interests: [], dualTypeLabels: [], engine: 'autonomous-bubble-v1' };
+        }
+
+        return getSkillInterestRecommendations(trainee.id);
+    }, [trainee?.id, isOwnProfile, form.skills, interestsList, getSkillInterestRecommendations]);
 
     // Certification state
     const [certs, setCerts] = useState(trainee?.certifications?.map(c => typeof c === 'string' ? { name: c, org: '', issue: '', exp: '', credId: '', url: '' } : c) || []);
@@ -2076,10 +2113,12 @@ export const TraineeProfileContent = ({ viewedProfileId = null, onBack = null })
 
     const addSkill = () => {
         if (!newSkill.trim()) return;
-        const currentSkills = form.skills || [];
-        if (currentSkills.includes(newSkill.trim())) { setNewSkill(''); return; }
-        const updatedSkills = [...currentSkills, newSkill.trim()];
-        setForm({ ...form, skills: updatedSkills });
+        const normalized = newSkill.trim();
+        const exists = (form.skills || []).some(skill => String(skill || '').trim().toLowerCase() === normalized.toLowerCase());
+        if (!exists) {
+            const updatedSkills = [...(form.skills || []), normalized];
+            setForm({ ...form, skills: updatedSkills });
+        }
         setNewSkill('');
     };
 
@@ -2090,10 +2129,29 @@ export const TraineeProfileContent = ({ viewedProfileId = null, onBack = null })
 
     const addInterest = () => {
         if (!newInterest.trim()) return;
-        if (interestsList.includes(newInterest.trim())) { setNewInterest(''); return; }
-        const updated = [...interestsList, newInterest.trim()];
-        setInterestsList(updated);
+        const normalized = newInterest.trim();
+        const exists = interestsList.some(interest => String(interest || '').trim().toLowerCase() === normalized.toLowerCase());
+        if (!exists) {
+            const updated = [...interestsList, normalized];
+            setInterestsList(updated);
+        }
         setNewInterest('');
+    };
+
+    const addRecommendedSkill = (value) => {
+        const normalized = String(value || '').trim();
+        if (!normalized) return;
+        const exists = (form.skills || []).some(skill => String(skill || '').trim().toLowerCase() === normalized.toLowerCase());
+        if (exists) return;
+        setForm({ ...form, skills: [...(form.skills || []), normalized] });
+    };
+
+    const addRecommendedInterest = (value) => {
+        const normalized = String(value || '').trim();
+        if (!normalized) return;
+        const exists = interestsList.some(interest => String(interest || '').trim().toLowerCase() === normalized.toLowerCase());
+        if (exists) return;
+        setInterestsList([...interestsList, normalized]);
     };
 
     const removeInterest = (interest) => {
@@ -2103,6 +2161,7 @@ export const TraineeProfileContent = ({ viewedProfileId = null, onBack = null })
 
     const personalInfoFields = [
         { label: 'Full Name', key: 'name', type: 'text', required: true, maxLength: 100 },
+        { label: 'Program Taken', key: 'program', type: 'text', maxLength: 120 },
         { label: 'Contact Email', key: 'email', type: 'email', required: true },
         { label: 'Address', key: 'address', type: 'text', maxLength: 150 },
         { label: 'Birthday', key: 'birthday', type: 'date' },
@@ -2183,6 +2242,8 @@ export const TraineeProfileContent = ({ viewedProfileId = null, onBack = null })
     const showHeaderName = isOwnProfile || visiblePersonalInfo.has('name');
     const showHeaderAddress = isOwnProfile || visiblePersonalInfo.has('address');
     const showHeaderEmail = isOwnProfile || visiblePersonalInfo.has('email');
+    const isHeaderAddressHiddenFromOthers = isOwnProfile && !visiblePersonalInfo.has('address');
+    const isHeaderEmailHiddenFromOthers = isOwnProfile && !visiblePersonalInfo.has('email');
     const headerLocationParts = [];
 
     if (showHeaderAddress && trainee?.address) {
@@ -2371,11 +2432,18 @@ export const TraineeProfileContent = ({ viewedProfileId = null, onBack = null })
                                 <h1 className="ln-profile-header-name">{showHeaderName ? trainee?.name : 'Trainee'}</h1>
                                 <p className="ln-profile-header-headline">TESDA Trainee &bull; {(trainee?.certifications?.length > 0) ? trainee.certifications.map(c => typeof c === 'string' ? c : c.name).slice(0, 2).join(', ') : 'No certifications yet'}</p>
                                 {headerLocationParts.length > 0 && (
-                                    <p className="ln-profile-header-loc">
-                                        {showHeaderAddress && trainee?.address && <MapPin size={14} />} {headerLocationParts.join(' • ')}
+                                    <p className="ln-profile-header-loc" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                                        {showHeaderAddress && trainee?.address && <MapPin size={14} />}
+                                        <span>{headerLocationParts.join(' • ')}</span>
+                                        {isHeaderAddressHiddenFromOthers && <EyeOff size={14} color="#94a3b8" title="Hidden from others" />}
                                     </p>
                                 )}
-                                {showHeaderEmail && trainee?.email && <p className="ln-profile-header-contact">{trainee?.email}</p>}
+                                {showHeaderEmail && trainee?.email && (
+                                    <p className="ln-profile-header-contact" style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 4 }}>
+                                        <span>{trainee?.email}</span>
+                                        {isHeaderEmailHiddenFromOthers && <EyeOff size={14} color="#94a3b8" title="Hidden from others" />}
+                                    </p>
+                                )}
                             </div>
                             {isOwnProfile && (!editing ? (
                                 <button type="button" className="ln-btn ln-btn-primary" onClick={() => setEditing(true)} disabled={saving}>
@@ -2781,6 +2849,24 @@ export const TraineeProfileContent = ({ viewedProfileId = null, onBack = null })
                                 </span>
                             )) : <div className="ln-empty-widget" style={{ padding: 16, width: '100%' }}><p style={{ margin: 0 }}>No skills added yet</p></div>}
                         </div>
+                        {isOwnProfile && editing && recommendationBubbles.skills.length > 0 && (
+                            <div style={{ padding: '0 16px 12px' }}>
+                                <div className="ln-info-label" style={{ marginBottom: 8 }}>Suggested Skills</div>
+                                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                                    {recommendationBubbles.skills.map((item) => (
+                                        <button
+                                            key={`skill-suggestion-${item.label}`}
+                                            type="button"
+                                            className="ln-btn-sm ln-btn-outline"
+                                            onClick={() => addRecommendedSkill(item.label)}
+                                            title="Suggested as skill"
+                                        >
+                                            <Plus size={12} /> {item.label}
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
                         {isOwnProfile && editing && (
                             <div style={{ display: 'flex', gap: 8, padding: '0 16px 16px' }}>
                                 <input
@@ -2821,6 +2907,24 @@ export const TraineeProfileContent = ({ viewedProfileId = null, onBack = null })
                                 );
                             }) : <div className="ln-empty-widget" style={{ padding: 16, width: '100%' }}><p style={{ margin: 0 }}>No interests added yet</p></div>}
                         </div>
+                        {isOwnProfile && editing && recommendationBubbles.interests.length > 0 && (
+                            <div style={{ padding: '0 16px 12px' }}>
+                                <div className="ln-info-label" style={{ marginBottom: 8 }}>Suggested Interests</div>
+                                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                                    {recommendationBubbles.interests.map((item) => (
+                                        <button
+                                            key={`interest-suggestion-${item.label}`}
+                                            type="button"
+                                            className="ln-btn-sm ln-btn-outline"
+                                            onClick={() => addRecommendedInterest(item.label)}
+                                            title="Suggested as interest"
+                                        >
+                                            <Plus size={12} /> {item.label}
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
                         {isOwnProfile && editing && (
                             <div style={{ display: 'flex', gap: 8, padding: '0 16px 16px' }}>
                                 <input
@@ -3090,7 +3194,7 @@ const Opportunities = () => {
                             <div className="ln-job-card-footer">
                                 <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
                                     <span className="ln-badge ln-badge-purple">{job.ncLevel}</span>
-                                    {job.salaryRange && <span style={{ fontSize: 13, color: '#057642', fontWeight: 600 }}>{job.salaryRange}</span>}
+                                    {job.salaryRange && <span style={{ fontSize: 13, color: '#057642', fontWeight: 600 }}>{formatSalaryDisplay(job.salaryRange)}</span>}
                                 </div>
                                 <div style={{ display: 'flex', gap: 8 }}>
                                     <button className="ln-btn-sm ln-btn-outline" onClick={() => setSelectedJob(job)}>
@@ -3171,7 +3275,7 @@ const Opportunities = () => {
                             ))}
                         </div>
                         <div className="ln-modal-footer">
-                            <span style={{ fontSize: 15, fontWeight: 700, color: '#057642' }}>{selectedJob.salaryRange}</span>
+                            <span style={{ fontSize: 15, fontWeight: 700, color: '#057642' }}>{formatSalaryDisplay(selectedJob.salaryRange)}</span>
                             <button
                                 className="ln-btn ln-btn-primary"
                                 disabled={myApps.includes(selectedJob.id) || selectedJob.status !== 'Open'}

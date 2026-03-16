@@ -54,9 +54,127 @@ const normalizeCompetencyList = (values = []) => {
     });
 };
 
-const DEFAULT_STUDENT_PUBLIC_INFO_FIELDS = ['name', 'birthday', 'gender'];
+const DEFAULT_STUDENT_PUBLIC_INFO_FIELDS = ['name', 'birthday', 'gender', 'program'];
 const DEFAULT_PARTNER_PUBLIC_INFO_FIELDS = ['companyName', 'contactPerson', 'industry'];
 const resolveVisibilityFields = (value, defaults = []) => (Array.isArray(value) ? value : defaults);
+
+const SALARY_SYMBOL_BY_CURRENCY = {
+  PHP: '₱',
+  USD: '$',
+  EUR: '€',
+  GBP: '£',
+  JPY: '¥',
+};
+
+const toSalaryNumber = (value) => {
+  const normalized = String(value ?? '')
+    .replace(/,/g, '')
+    .replace(/[^\d.]/g, '')
+    .trim();
+
+  if (!normalized) return null;
+  const parsed = Number(normalized);
+  if (!Number.isFinite(parsed) || parsed <= 0) return null;
+  return parsed;
+};
+
+const toSalaryCurrency = (value) => {
+  const normalized = String(value || '').trim().toUpperCase();
+  if (!normalized) return 'PHP';
+  return SALARY_SYMBOL_BY_CURRENCY[normalized] ? normalized : 'PHP';
+};
+
+const formatSalaryAmount = (value, currency = 'PHP') => {
+  const parsed = toSalaryNumber(value);
+  if (!parsed) return '';
+  const symbol = SALARY_SYMBOL_BY_CURRENCY[toSalaryCurrency(currency)] || '₱';
+  return `${symbol}${Math.round(parsed).toLocaleString('en-US')}`;
+};
+
+const buildSalaryRangeText = (salaryRange, salaryMin, salaryMax, salaryCurrency = 'PHP') => {
+  const existing = String(salaryRange || '').trim();
+  if (existing) return existing;
+
+  const minimum = toSalaryNumber(salaryMin);
+  const maximum = toSalaryNumber(salaryMax);
+  const currency = toSalaryCurrency(salaryCurrency);
+
+  if (minimum && maximum) {
+    return `${formatSalaryAmount(minimum, currency)} - ${formatSalaryAmount(maximum, currency)}`;
+  }
+  if (minimum) return `${formatSalaryAmount(minimum, currency)}+`;
+  if (maximum) return `Up to ${formatSalaryAmount(maximum, currency)}`;
+
+  return '';
+};
+
+const normalizeNcLevelValue = (value = '') => {
+  const raw = String(value || '').trim();
+  if (!raw) return '';
+
+  const upper = raw.toUpperCase();
+  if (upper.includes('NC IV') || /\bNC\s*4\b/.test(upper)) return 'NC IV';
+  if (upper.includes('NC III') || /\bNC\s*3\b/.test(upper)) return 'NC III';
+  if (upper.includes('NC II') || /\bNC\s*2\b/.test(upper)) return 'NC II';
+  if (upper.includes('NC I') || /\bNC\s*1\b/.test(upper)) return 'NC I';
+
+  return '';
+};
+
+const extractProgramNameFromStudentRecord = (student = null) => {
+  if (!student) return '';
+
+  const relationProgram = Array.isArray(student.programs)
+    ? student.programs[0]?.name
+    : student.programs?.name;
+
+  return String(student.program || student.program_name || relationProgram || '').trim();
+};
+
+const resolveProgramNameFromStudentRecord = async (student = null) => {
+  const directProgram = extractProgramNameFromStudentRecord(student);
+  if (directProgram) return directProgram;
+
+  const resolveProgramById = async (programId) => {
+    if (!programId) return '';
+    const { data: programRow, error: programErr } = await supabase
+      .from('programs')
+      .select('name')
+      .eq('id', programId)
+      .maybeSingle();
+
+    if (programErr) {
+      console.warn('Failed to resolve program name by id:', programErr);
+      return '';
+    }
+
+    return String(programRow?.name || '').trim();
+  };
+
+  const existingProgramId = student?.program_id || student?.programId;
+  const fromExistingProgramId = await resolveProgramById(existingProgramId);
+  if (fromExistingProgramId) return fromExistingProgramId;
+
+  if (!student?.id) return '';
+
+  const { data: studentRow, error: studentErr } = await supabase
+    .from('students')
+    .select('id, program_id, programs(name)')
+    .eq('id', student.id)
+    .maybeSingle();
+
+  if (studentErr || !studentRow) {
+    if (studentErr) {
+      console.warn('Failed to refresh student program mapping:', studentErr);
+    }
+    return '';
+  }
+
+  const relationProgram = extractProgramNameFromStudentRecord(studentRow);
+  if (relationProgram) return relationProgram;
+
+  return resolveProgramById(studentRow.program_id);
+};
 
 export const AppProvider = ({ children }) => {
   const appMetadata = {
@@ -534,7 +652,18 @@ export const AppProvider = ({ children }) => {
   }, []);
 
   // ─── ML-INSPIRED RECOMMENDATION ENGINE ────────────────────────────────────
-  // Multi-factor weighted scoring with fuzzy matching and personalization
+  // Hybrid cold-start ranker with explainable signals and ML-ready metadata
+
+  const RECOMMENDER_ENGINE_VERSION = 'hybrid-coldstart-v1';
+  const RECOMMENDER_BASE_WEIGHTS = {
+    competency: 0.35,
+    skill: 0.18,
+    ncLevel: 0.15,
+    interest: 0.10,
+    location: 0.07,
+    partnerQuality: 0.10,
+    recency: 0.05,
+  };
 
   // Tokenize and normalize text for comparison
   const tokenize = (text) => {
@@ -544,6 +673,13 @@ export const AppProvider = ({ children }) => {
       .split(/\s+/)
       .filter(w => w.length > 2);
   };
+
+  const normalizeLooseText = (value = '') => String(value).trim().toLowerCase();
+
+  const normalizeProgramText = (value = '') => String(value)
+    .trim()
+    .replace(/\s+/g, ' ')
+    .toLowerCase();
 
   // Jaccard similarity between two token sets
   const jaccardSimilarity = (setA, setB) => {
@@ -586,86 +722,223 @@ export const AppProvider = ({ children }) => {
     return matched / needles.length;
   };
 
-  const getMatchRate = (traineeId, jobId) => {
-    const trainee = trainees.find(t => t.id === traineeId);
-    const job = jobPostings.find(j => j.id === jobId);
-    if (!trainee || !job) return 0;
+  const getJobTimestamp = (job) => {
+    const raw = job?.createdAt || job?.created_at || job?.datePosted || null;
+    const ts = new Date(raw || '').getTime();
+    return Number.isFinite(ts) ? ts : 0;
+  };
 
-    // Factor 1: Competency match (40%)
-    const compTotal = (job.requiredCompetencies || []).length;
-    const traineeComps = trainee.competencies || [];
-    const compScore = compTotal > 0 ? fuzzySetOverlap(job.requiredCompetencies, traineeComps) : 0;
+  const getTraineeProgramCompetencies = (trainee) => {
+    if (!trainee) return [];
 
-    // Factor 2: Skills match (25%)
-    const jobSkills = (job.requiredSkills || []).map(s => String(s).toLowerCase());
-    const traineeSkills = (trainee.skills || []).map(s =>
-      (typeof s === 'object' ? s.name : String(s)).toLowerCase()
+    const direct = normalizeCompetencyList(trainee.competencies || []);
+    if (direct.length > 0) return direct;
+
+    const programById = programs.find(program => String(program.id) === String(trainee.programId));
+    if (programById?.competencies?.length > 0) {
+      return normalizeCompetencyList(programById.competencies);
+    }
+
+    const traineeProgramKey = normalizeProgramText(trainee.program || '');
+    if (!traineeProgramKey) return [];
+
+    const programByName = programs.find(program => normalizeProgramText(program.name || '') === traineeProgramKey);
+    return normalizeCompetencyList(programByName?.competencies || []);
+  };
+
+  const getNCLAlignmentScore = (trainee, job) => {
+    const jobNC = normalizeLooseText(job?.ncLevel || '');
+    if (!jobNC) return 0;
+
+    const traineeProgramNC = normalizeLooseText(trainee?.program || '');
+    const traineeCerts = (trainee?.certifications || []).map(cert =>
+      normalizeLooseText(typeof cert === 'object' ? cert.name : cert)
     );
+
+    if (traineeProgramNC && traineeProgramNC === jobNC) return 1;
+    if (traineeCerts.some(cert => cert === jobNC)) return 1;
+
+    if (traineeProgramNC && (traineeProgramNC.includes(jobNC) || jobNC.includes(traineeProgramNC))) {
+      return 0.8;
+    }
+
+    if (traineeCerts.some(cert => cert.includes(jobNC) || jobNC.includes(cert))) {
+      return 0.75;
+    }
+
+    const jobTokens = tokenize(jobNC);
+    const certTokens = traineeCerts.flatMap(cert => tokenize(cert));
+    return jaccardSimilarity(jobTokens, certTokens);
+  };
+
+  const getLocationFitScore = (trainee, job) => {
+    const traineeAddress = normalizeLooseText(trainee?.address || '');
+    const jobLocation = normalizeLooseText(job?.location || '');
+
+    if (!jobLocation && !traineeAddress) return 0.5;
+    if (!jobLocation || !traineeAddress) return 0.4;
+
+    if (traineeAddress.includes(jobLocation) || jobLocation.includes(traineeAddress)) {
+      return 1;
+    }
+
+    const score = jaccardSimilarity(tokenize(traineeAddress), tokenize(jobLocation));
+    if (score > 0) return Math.min(0.9, 0.4 + score * 0.6);
+    return 0.2;
+  };
+
+  const getPartnerQualityScore = (job) => {
+    const partner = partners.find(record => String(record.id) === String(job?.partnerId));
+    let score = 0.55;
+
+    if (partner) {
+      const verification = normalizeLooseText(partner.verificationStatus || '');
+      if (verification === 'verified') score += 0.25;
+      else if (verification === 'under review') score += 0.12;
+      else if (verification === 'pending') score += 0.05;
+      else if (verification === 'rejected') score -= 0.2;
+
+      const activity = normalizeLooseText(partner.activityStatus || '');
+      if (activity === 'online') score += 0.1;
+      else if (activity === 'offline') score -= 0.05;
+    }
+
+    const jobApps = applications.filter(app => String(app.jobId) === String(job?.id));
+    if (jobApps.length > 0) {
+      const accepted = jobApps.filter(app => normalizeLooseText(app.status) === 'accepted').length;
+      const acceptedRate = accepted / jobApps.length;
+      score += acceptedRate * 0.1;
+    }
+
+    return Math.min(1, Math.max(0, score));
+  };
+
+  const buildRecommendationReasons = (signals) => {
+    const reasons = [];
+
+    if (signals.competency >= 0.5) reasons.push(`Competency match ${Math.round(signals.competency * 100)}%`);
+    if (signals.ncLevel >= 0.75) reasons.push('Strong NC level alignment');
+    if (signals.skill >= 0.5) reasons.push(`Skill match ${Math.round(signals.skill * 100)}%`);
+    if (signals.interest >= 0.4) reasons.push('Aligned with your interests');
+    if (signals.location >= 0.7) reasons.push('Location fit');
+    if (signals.partnerQuality >= 0.8) reasons.push('Trusted active partner');
+    if (signals.recency >= 0.8) reasons.push('Recently posted');
+
+    if (reasons.length === 0) {
+      reasons.push('General opportunity fit');
+    }
+
+    return reasons.slice(0, 3);
+  };
+
+  const computeRecommendationForJob = (trainee, job) => {
+    if (!trainee || !job) {
+      return {
+        matchRate: 0,
+        signals: {
+          competency: 0,
+          skill: 0,
+          ncLevel: 0,
+          interest: 0,
+          location: 0,
+          partnerQuality: 0,
+          recency: 0,
+        },
+        weights: { ...RECOMMENDER_BASE_WEIGHTS },
+        reasons: ['Insufficient data'],
+        engineVersion: RECOMMENDER_ENGINE_VERSION,
+      };
+    }
+
+    const traineeComps = getTraineeProgramCompetencies(trainee);
+    const jobCompetencies = normalizeCompetencyList(job.requiredCompetencies || []);
+    const competencyScore = jobCompetencies.length > 0
+      ? fuzzySetOverlap(jobCompetencies, traineeComps)
+      : 0;
+
+    const jobSkills = (job.requiredSkills || []).map(skill => normalizeLooseText(skill)).filter(Boolean);
+    const traineeSkills = (trainee.skills || []).map(skill =>
+      normalizeLooseText(typeof skill === 'object' ? skill.name : skill)
+    ).filter(Boolean);
     const skillScore = jobSkills.length > 0 ? fuzzySetOverlap(jobSkills, traineeSkills) : 0;
 
-    // Factor 3: Certification/NC Level alignment (20%)
-    const traineeCerts = (trainee.certifications || []).map(c => c.toLowerCase());
-    const jobNC = (job.ncLevel || '').toLowerCase();
-    let certScore = 0;
-    if (jobNC) {
-      if (traineeCerts.some(c => c === jobNC)) certScore = 1;
-      else if (traineeCerts.some(c => c.includes(jobNC.split(' ')[0]))) certScore = 0.6;
-      else {
-        const ncTokens = tokenize(jobNC);
-        const certTokens = traineeCerts.flatMap(c => tokenize(c));
-        certScore = jaccardSimilarity(ncTokens, certTokens);
-      }
+    const interestTokens = (trainee.interests || [])
+      .map(interest => normalizeLooseText(interest))
+      .flatMap(interest => tokenize(interest));
+    const jobInterestText = `${job.description || ''} ${job.title || ''} ${job.industry || ''} ${job.opportunityType || ''}`;
+    const interestScore = interestTokens.length > 0
+      ? jaccardSimilarity(interestTokens, tokenize(jobInterestText))
+      : 0;
+
+    const jobTs = getJobTimestamp(job);
+    const daysSincePosted = jobTs > 0
+      ? (Date.now() - jobTs) / (1000 * 60 * 60 * 24)
+      : Number.POSITIVE_INFINITY;
+    const recencyScore = Number.isFinite(daysSincePosted)
+      ? (daysSincePosted <= 7 ? 1 : daysSincePosted <= 30 ? 0.85 : daysSincePosted <= 90 ? 0.55 : 0.25)
+      : 0.5;
+
+    const signals = {
+      competency: competencyScore,
+      skill: skillScore,
+      ncLevel: getNCLAlignmentScore(trainee, job),
+      interest: interestScore,
+      location: getLocationFitScore(trainee, job),
+      partnerQuality: getPartnerQualityScore(job),
+      recency: recencyScore,
+    };
+
+    const activeWeights = { ...RECOMMENDER_BASE_WEIGHTS };
+    if (jobCompetencies.length === 0) activeWeights.competency = 0;
+    if (jobSkills.length === 0) activeWeights.skill = 0;
+    if (!normalizeLooseText(job.ncLevel || '')) activeWeights.ncLevel = 0;
+    if (interestTokens.length === 0) activeWeights.interest = 0;
+    if (!normalizeLooseText(job.location || '') || !normalizeLooseText(trainee.address || '')) activeWeights.location = 0;
+
+    const totalWeight = Object.values(activeWeights).reduce((sum, value) => sum + value, 0);
+    const normalizedWeights = totalWeight > 0
+      ? Object.fromEntries(Object.entries(activeWeights).map(([key, value]) => [key, value / totalWeight]))
+      : { ...activeWeights };
+
+    const weightedScore = Object.entries(normalizedWeights).reduce((sum, [key, weight]) => {
+      return sum + (weight * (signals[key] || 0));
+    }, 0);
+
+    const matchRate = Math.min(100, Math.max(0, Math.round(weightedScore * 100)));
+
+    return {
+      matchRate,
+      signals,
+      weights: normalizedWeights,
+      reasons: buildRecommendationReasons(signals),
+      engineVersion: RECOMMENDER_ENGINE_VERSION,
+    };
+  };
+
+  const resolveTraineeForMatching = (traineeId) => {
+    const fromDirectory = trainees.find(t => String(t.id) === String(traineeId));
+    const isCurrentTrainee = userRole === 'trainee' && String(currentUser?.id || '') === String(traineeId || '');
+
+    if (isCurrentTrainee) {
+      return {
+        ...(fromDirectory || {}),
+        ...(currentUser || {}),
+        id: traineeId,
+      };
     }
 
-    // Factor 4: Interest alignment (10%) — trainee interests vs job description keywords
-    const traineeInterests = (trainee.interests || []).map(i => i.toLowerCase());
-    const descTokens = tokenize(job.description + ' ' + job.title + ' ' + (job.industry || ''));
-    let interestScore = 0;
-    if (traineeInterests.length > 0 && descTokens.length > 0) {
-      const interestTokens = traineeInterests.flatMap(i => tokenize(i));
-      interestScore = jaccardSimilarity(interestTokens, descTokens);
-    }
+    return fromDirectory || null;
+  };
 
-    // Factor 5: Recency boost (5%) — jobs posted within 30 days get full score
-    let recencyScore = 0.5;
-    if (job.datePosted) {
-      const daysSincePosted = (Date.now() - new Date(job.datePosted).getTime()) / (1000 * 60 * 60 * 24);
-      recencyScore = daysSincePosted <= 7 ? 1 : daysSincePosted <= 30 ? 0.8 : daysSincePosted <= 90 ? 0.5 : 0.2;
-    }
-
-    // Weighted combination
-    const weights = { comp: 0.40, skill: 0.25, cert: 0.20, interest: 0.10, recency: 0.05 };
-
-    // Adaptive weights: if job has no competencies, redistribute weight to skills/certs
-    let activeWeights = { ...weights };
-    if (compTotal === 0) {
-      activeWeights.comp = 0;
-      activeWeights.skill += weights.comp * 0.5;
-      activeWeights.cert += weights.comp * 0.5;
-    }
-    if (jobSkills.length === 0) {
-      activeWeights.skill = 0;
-      activeWeights.comp += weights.skill * 0.6;
-      activeWeights.cert += weights.skill * 0.4;
-    }
-
-    const raw = (
-      activeWeights.comp * compScore +
-      activeWeights.skill * skillScore +
-      activeWeights.cert * certScore +
-      activeWeights.interest * interestScore +
-      activeWeights.recency * recencyScore
-    );
-
-    // Normalize to sum of active weights
-    const totalWeight = Object.values(activeWeights).reduce((s, w) => s + w, 0);
-    const normalized = totalWeight > 0 ? raw / totalWeight : 0;
-
-    return Math.min(100, Math.max(0, Math.round(normalized * 100)));
+  const getMatchRate = (traineeId, jobId) => {
+    const trainee = resolveTraineeForMatching(traineeId);
+    const job = jobPostings.find(j => j.id === jobId);
+    const result = computeRecommendationForJob(trainee, job);
+    return result.matchRate;
   };
 
   const getGapAnalysis = (traineeId, jobId) => {
-    const trainee = trainees.find(t => t.id === traineeId);
+    const trainee = resolveTraineeForMatching(traineeId);
     const job = jobPostings.find(j => j.id === jobId);
     if (!trainee || !job) return [];
 
@@ -689,12 +962,334 @@ export const AppProvider = ({ children }) => {
   };
 
   const getTraineeRecommendedJobs = (traineeId) => {
-    const trainee = trainees.find(t => t.id === traineeId);
+    const trainee = resolveTraineeForMatching(traineeId);
     if (!trainee) return [];
-    return jobPostings
+
+    const ranked = jobPostings
       .filter(j => j.status === 'Open')
-      .map(j => ({ ...j, matchRate: getMatchRate(traineeId, j.id) }))
+      .map(job => {
+        const rec = computeRecommendationForJob(trainee, job);
+        return {
+          ...job,
+          matchRate: rec.matchRate,
+          recommendationSignals: rec.signals,
+          recommendationWeights: rec.weights,
+          recommendationReasons: rec.reasons,
+          recommendationEngine: rec.engineVersion,
+          recommendationType: 'exploit',
+        };
+      })
       .sort((a, b) => b.matchRate - a.matchRate);
+
+    if (ranked.length <= 3) return ranked;
+
+    const exploitCount = Math.max(1, Math.ceil(ranked.length * 0.8));
+    const exploit = ranked.slice(0, exploitCount);
+
+    const explorePool = ranked
+      .slice(exploitCount)
+      .sort((a, b) => getJobTimestamp(b) - getJobTimestamp(a));
+
+    const explore = explorePool.map(job => ({ ...job, recommendationType: 'explore' }));
+
+    if (explore.length === 0) return exploit;
+
+    const mixed = [];
+    let exploreIndex = 0;
+    for (let index = 0; index < exploit.length; index += 1) {
+      mixed.push(exploit[index]);
+      if ((index + 1) % 4 === 0 && exploreIndex < explore.length) {
+        mixed.push(explore[exploreIndex]);
+        exploreIndex += 1;
+      }
+    }
+
+    while (exploreIndex < explore.length) {
+      mixed.push(explore[exploreIndex]);
+      exploreIndex += 1;
+    }
+
+    return mixed;
+  };
+
+  const getSkillInterestRecommendations = (traineeId) => {
+    const MAX_WORDS_PER_BUBBLE = 3;
+    const MAX_BUBBLES_PER_LANE = 6;
+
+    const trainee = resolveTraineeForMatching(traineeId);
+    if (!trainee) {
+      return {
+        skills: [],
+        interests: [],
+        dualTypeLabels: [],
+        engine: 'autonomous-bubble-v1',
+      };
+    }
+
+    const normalizeLabel = (value = '') => String(value || '')
+      .replace(/[_/]+/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+
+    const toReadableLabel = (value = '') => {
+      const normalized = normalizeLabel(value);
+      if (!normalized) return '';
+      const connectorWords = new Set(['and', 'or', 'to', 'in', 'on', 'at', 'of', 'for', 'with', 'by', 'from', 'the', 'a', 'an']);
+      const compactWords = normalized
+        .split(' ')
+        .filter(Boolean)
+        .slice(0, MAX_WORDS_PER_BUBBLE);
+
+      return compactWords
+        .map((token, index) => {
+          const lower = token.toLowerCase();
+
+          if (index > 0 && connectorWords.has(lower)) {
+            return lower;
+          }
+
+          if (/^[a-z]{1,3}\d+$/i.test(token) || /^[A-Z]{2,4}$/.test(token)) {
+            return token.toUpperCase();
+          }
+
+          return token
+            .split('-')
+            .map(part => {
+              const partLower = String(part || '').toLowerCase();
+              if (!partLower) return '';
+              return `${partLower[0].toUpperCase()}${partLower.slice(1)}`;
+            })
+            .join('-');
+        })
+        .join(' ');
+    };
+
+    const toLabelArray = (values = []) => (Array.isArray(values) ? values : [])
+      .map(item => {
+        if (typeof item === 'object') return normalizeLabel(item?.name || item?.label || '');
+        return normalizeLabel(item);
+      })
+      .filter(Boolean);
+
+    const buildKeySet = (labels = []) => new Set(labels.map(label => normalizeLooseText(label)));
+
+    const addCandidate = (map, label, score, source) => {
+      const cleanLabel = toReadableLabel(label);
+      const key = normalizeLooseText(cleanLabel);
+      if (!cleanLabel || !key || key.length < 3 || !Number.isFinite(score) || score <= 0) return;
+
+      const blocked = new Set(['other', 'general', 'work', 'job', 'training', 'program', 'skills', 'skill', 'interest', 'interests']);
+      if (blocked.has(key)) return;
+
+      const existing = map.get(key);
+      if (existing) {
+        existing.score += score;
+        existing.sources[source] = (existing.sources[source] || 0) + score;
+        return;
+      }
+
+      map.set(key, {
+        key,
+        label: cleanLabel,
+        score,
+        sources: { [source]: score },
+        wordCount: cleanLabel.split(' ').filter(Boolean).length,
+      });
+    };
+
+    const traineeSkills = toLabelArray(trainee.skills || []);
+    const traineeInterests = toLabelArray(trainee.interests || []);
+    const traineeSkillSet = buildKeySet(traineeSkills);
+    const traineeInterestSet = buildKeySet(traineeInterests);
+    const traineeProgramTokens = tokenize(trainee.program || '');
+
+    const skillMap = new Map();
+    const interestMap = new Map();
+
+    const traineeSkillTokens = traineeSkills.flatMap(skill => tokenize(skill));
+    const traineeInterestTokens = traineeInterests.flatMap(interest => tokenize(interest));
+
+    const peerSignals = trainees
+      .filter(peer => String(peer?.id || '') !== String(trainee.id || ''))
+      .map(peer => {
+        const peerSkills = toLabelArray(peer.skills || []);
+        const peerInterests = toLabelArray(peer.interests || []);
+        const peerProgramTokens = tokenize(peer.program || '');
+
+        const programSimilarity = traineeProgramTokens.length > 0
+          ? jaccardSimilarity(traineeProgramTokens, peerProgramTokens)
+          : 0;
+
+        const skillSimilarity = traineeSkillTokens.length > 0 && peerSkills.length > 0
+          ? fuzzySetOverlap(traineeSkills, peerSkills)
+          : 0;
+
+        const interestSimilarity = traineeInterestTokens.length > 0 && peerInterests.length > 0
+          ? fuzzySetOverlap(traineeInterests, peerInterests)
+          : 0;
+
+        const overall = Math.min(1, (programSimilarity * 0.45) + (skillSimilarity * 0.35) + (interestSimilarity * 0.20));
+        return { peer, overall };
+      })
+      .filter(item => item.overall >= 0.2)
+      .sort((left, right) => right.overall - left.overall)
+      .slice(0, 50);
+
+    peerSignals.forEach(({ peer, overall }) => {
+      const peerSkills = toLabelArray(peer.skills || []);
+      const peerInterests = toLabelArray(peer.interests || []);
+
+      peerSkills.forEach(skill => {
+        addCandidate(skillMap, skill, 2 * overall, 'peer-skill');
+        addCandidate(interestMap, skill, 0.35 * overall, 'peer-cross');
+      });
+
+      peerInterests.forEach(interest => {
+        addCandidate(interestMap, interest, 1.9 * overall, 'peer-interest');
+        addCandidate(skillMap, interest, 0.3 * overall, 'peer-cross');
+      });
+    });
+
+    const openJobs = jobPostings.filter(job => normalizeLooseText(job?.status || '') === 'open');
+
+    const scoredJobs = openJobs
+      .map(job => {
+        const jobSkills = toLabelArray(job.requiredSkills || []);
+        const jobComps = toLabelArray(job.requiredCompetencies || []);
+        const jobProgramTokens = tokenize(`${job.ncLevel || ''} ${job.title || ''}`);
+        const jobInterestText = `${job.title || ''} ${job.description || ''} ${job.industry || ''} ${job.opportunityType || ''}`;
+
+        const programFit = traineeProgramTokens.length > 0
+          ? jaccardSimilarity(traineeProgramTokens, jobProgramTokens)
+          : 0;
+
+        const skillFit = traineeSkills.length > 0 && jobSkills.length > 0
+          ? fuzzySetOverlap(jobSkills, traineeSkills)
+          : 0;
+
+        const interestFit = traineeInterestTokens.length > 0
+          ? jaccardSimilarity(traineeInterestTokens, tokenize(jobInterestText))
+          : 0;
+
+        const postedDays = (() => {
+          const ts = getJobTimestamp(job);
+          if (ts <= 0) return 999;
+          return (Date.now() - ts) / (1000 * 60 * 60 * 24);
+        })();
+
+        const recency = postedDays <= 7 ? 1 : postedDays <= 30 ? 0.7 : postedDays <= 90 ? 0.45 : 0.2;
+        const relevance = Math.min(1.8, Math.max(0.2, (programFit * 0.45) + (skillFit * 0.3) + (interestFit * 0.15) + (recency * 0.1)));
+
+        return {
+          job,
+          relevance,
+          jobSkills,
+          jobComps,
+        };
+      })
+      .sort((left, right) => right.relevance - left.relevance)
+      .slice(0, 40);
+
+    scoredJobs.forEach(({ job, relevance, jobSkills, jobComps }) => {
+      jobSkills.forEach(skill => {
+        addCandidate(skillMap, skill, 2.4 * relevance, 'open-job-skill');
+        addCandidate(interestMap, skill, 0.55 * relevance, 'open-job-cross');
+      });
+
+      jobComps.forEach(competency => {
+        addCandidate(skillMap, competency, 1.4 * relevance, 'open-job-competency');
+        addCandidate(interestMap, competency, 0.4 * relevance, 'open-job-cross');
+      });
+
+      addCandidate(interestMap, job.industry, 1.35 * relevance, 'open-job-industry');
+      addCandidate(interestMap, job.opportunityType, 1.1 * relevance, 'open-job-type');
+    });
+
+    const traineeApplications = applications.filter(app => String(app.traineeId) === String(trainee.id));
+    traineeApplications.forEach(app => {
+      const job = jobPostings.find(record => String(record.id) === String(app.jobId));
+      if (!job) return;
+
+      const status = normalizeLooseText(app.status || '');
+      const statusWeight = status === 'accepted' ? 1.4 : status === 'pending' ? 1 : status === 'rejected' ? 0.45 : 0.8;
+
+      toLabelArray(job.requiredSkills || []).forEach(skill => {
+        addCandidate(skillMap, skill, 1.6 * statusWeight, 'self-application');
+        addCandidate(interestMap, skill, 0.4 * statusWeight, 'self-application-cross');
+      });
+
+      toLabelArray(job.requiredCompetencies || []).forEach(competency => {
+        addCandidate(skillMap, competency, 1.1 * statusWeight, 'self-application');
+      });
+
+      addCandidate(interestMap, job.industry, 0.95 * statusWeight, 'self-application');
+      addCandidate(interestMap, job.opportunityType, 0.85 * statusWeight, 'self-application');
+    });
+
+    const strongPeerIds = new Set(peerSignals.filter(item => item.overall >= 0.35).map(item => String(item.peer.id)));
+    applications
+      .filter(app => strongPeerIds.has(String(app.traineeId)) && normalizeLooseText(app.status || '') === 'accepted')
+      .forEach(app => {
+        const job = jobPostings.find(record => String(record.id) === String(app.jobId));
+        if (!job) return;
+
+        toLabelArray(job.requiredSkills || []).forEach(skill => {
+          addCandidate(skillMap, skill, 0.9, 'peer-outcome');
+          addCandidate(interestMap, skill, 0.28, 'peer-outcome-cross');
+        });
+
+        addCandidate(interestMap, job.industry, 0.75, 'peer-outcome');
+      });
+
+    const buildLane = (map, existingSet, fallbackCount = MAX_BUBBLES_PER_LANE) => {
+      const ranked = Array.from(map.values())
+        .filter(item => !existingSet.has(item.key) && item.wordCount <= MAX_WORDS_PER_BUBBLE)
+        .sort((left, right) => right.score - left.score);
+
+      if (ranked.length === 0) return [];
+
+      const topScore = ranked[0].score || 1;
+      const minScore = Math.max(0.6, topScore * 0.22);
+
+      let filtered = ranked.filter(item => item.score >= minScore);
+      if (filtered.length < fallbackCount) {
+        filtered = ranked.slice(0, Math.max(fallbackCount, filtered.length));
+      }
+
+      filtered = filtered.sort((left, right) => {
+        if (right.score !== left.score) return right.score - left.score;
+        if (left.wordCount !== right.wordCount) return left.wordCount - right.wordCount;
+        return left.label.localeCompare(right.label);
+      });
+
+      return filtered.slice(0, MAX_BUBBLES_PER_LANE).map(item => {
+        const topSource = Object.entries(item.sources)
+          .sort((left, right) => right[1] - left[1])[0]?.[0] || 'mixed';
+
+        return {
+          label: item.label,
+          score: Number(item.score.toFixed(2)),
+          confidence: Number(Math.min(0.99, item.score / (topScore || 1)).toFixed(2)),
+          source: topSource,
+        };
+      });
+    };
+
+    const skills = buildLane(skillMap, traineeSkillSet, MAX_BUBBLES_PER_LANE);
+    const interests = buildLane(interestMap, traineeInterestSet, MAX_BUBBLES_PER_LANE);
+
+    const interestKeys = new Set(interests.map(item => normalizeLooseText(item.label)));
+    const skillKeys = new Set(skills.map(item => normalizeLooseText(item.label)));
+    const dualTypeLabels = skills
+      .map(item => item.label)
+      .filter(label => interestKeys.has(normalizeLooseText(label)));
+
+    return {
+      skills,
+      interests,
+      dualTypeLabels,
+      engine: 'autonomous-bubble-v1',
+    };
   };
 
   const normalizeApplicationStatus = (value) => {
@@ -722,7 +1317,7 @@ export const AppProvider = ({ children }) => {
 
     const existing = applications.find(a => a.traineeId === traineeId && a.jobId === jobId);
     if (existing) return { success: false, error: 'Already applied to this opportunity.' };
-    const trainee = trainees.find(t => t.id === traineeId);
+    const trainee = resolveTraineeForMatching(traineeId);
     const applicationMessage = applicationData.applicationMessage?.trim() || null;
     const resumeUrl = applicationData.resumeUrl || null;
     const resumeFileName = applicationData.resumeFileName || null;
@@ -1056,6 +1651,11 @@ export const AppProvider = ({ children }) => {
 
     const selectedCompetencies = normalizeCompetencyList(selectedProgram?.competencies || []);
     const payloadCompetencies = normalizeCompetencyList(jobData.requiredCompetencies || []);
+    const normalizedNcLevel = normalizeNcLevelValue(jobData.ncLevel || selectedProgram?.ncLevel || '');
+    const salaryCurrency = toSalaryCurrency(jobData.salaryCurrency);
+    const salaryMin = toSalaryNumber(jobData.salaryMin);
+    const salaryMax = toSalaryNumber(jobData.salaryMax);
+    const normalizedSalaryRange = buildSalaryRangeText(jobData.salaryRange, salaryMin, salaryMax, salaryCurrency);
 
     const isSupabasePartner = typeof currentUser?.id === 'string' && currentUser.id.includes('-');
 
@@ -1066,11 +1666,14 @@ export const AppProvider = ({ children }) => {
           title: jobData.title,
           opportunityType: jobData.opportunityType || 'Job',
           programId: selectedProgram?.id || jobData.programId || null,
-          ncLevel: selectedProgram?.name || jobData.ncLevel || '',
+          ncLevel: normalizedNcLevel,
           description: jobData.description || '',
           employmentType: (jobData.opportunityType || 'Job') === 'OJT' ? '' : (jobData.employmentType || ''),
           location: jobData.location || '',
-          salaryRange: jobData.salaryRange || '',
+          salaryRange: normalizedSalaryRange,
+          salaryCurrency,
+          salaryMin,
+          salaryMax,
           requiredCompetencies: payloadCompetencies.length > 0 ? payloadCompetencies : selectedCompetencies,
           requiredSkills: normalizeCompetencyList(jobData.requiredSkills || []),
           industry: partner?.industry || partner?.businessType || 'General',
@@ -1103,7 +1706,11 @@ export const AppProvider = ({ children }) => {
       id: jobPostings.length + 1,
       partnerId: currentUser?.id,
       programId: selectedProgram?.id || jobData.programId || null,
-      ncLevel: selectedProgram?.name || jobData.ncLevel || '',
+      ncLevel: normalizedNcLevel,
+      salaryRange: normalizedSalaryRange,
+      salaryCurrency,
+      salaryMin,
+      salaryMax,
       requiredCompetencies: payloadCompetencies.length > 0 ? payloadCompetencies : selectedCompetencies,
       companyName: partner?.companyName || 'Company',
       opportunityType: jobData.opportunityType || 'Job',
@@ -1115,6 +1722,238 @@ export const AppProvider = ({ children }) => {
     setJobPostings([...jobPostings, newJob]);
     logActivity('Create', 'Opportunities', `Posted opportunity: ${newJob.title}`, null, newJob.title);
     return { success: true, job: newJob };
+  };
+
+  const updatePartnerJobPosting = async (jobId, jobData) => {
+    const existingJob = jobPostings.find(job => String(job.id) === String(jobId));
+    if (!existingJob) {
+      return { success: false, error: 'Opportunity not found.' };
+    }
+
+    const partner = partners.find(partnerRecord => partnerRecord.id === currentUser?.id);
+    const selectedProgram = programs.find(program =>
+      String(program.id) === String(jobData.programId || existingJob.programId) ||
+      String(program.name) === String(jobData.ncLevel || existingJob.ncLevel)
+    );
+
+    const selectedCompetencies = normalizeCompetencyList(selectedProgram?.competencies || []);
+    const payloadCompetencies = normalizeCompetencyList(jobData.requiredCompetencies || existingJob.requiredCompetencies || []);
+    const normalizedNcLevel = normalizeNcLevelValue(jobData.ncLevel || selectedProgram?.ncLevel || existingJob.ncLevel || '');
+    const salaryCurrency = toSalaryCurrency(jobData.salaryCurrency || existingJob.salaryCurrency);
+    const salaryMin = toSalaryNumber(jobData.salaryMin ?? existingJob.salaryMin);
+    const salaryMax = toSalaryNumber(jobData.salaryMax ?? existingJob.salaryMax);
+    const normalizedSalaryRange = buildSalaryRangeText(
+      jobData.salaryRange || existingJob.salaryRange,
+      salaryMin,
+      salaryMax,
+      salaryCurrency,
+    );
+
+    const updatedPayload = {
+      title: jobData.title || existingJob.title || '',
+      opportunityType: jobData.opportunityType || existingJob.opportunityType || 'Job',
+      programId: selectedProgram?.id || jobData.programId || existingJob.programId || null,
+      ncLevel: normalizedNcLevel,
+      description: jobData.description || existingJob.description || '',
+      employmentType: (jobData.opportunityType || existingJob.opportunityType || 'Job') === 'OJT'
+        ? ''
+        : (jobData.employmentType || existingJob.employmentType || ''),
+      location: jobData.location || existingJob.location || '',
+      salaryRange: normalizedSalaryRange,
+      salaryCurrency,
+      salaryMin,
+      salaryMax,
+      requiredCompetencies: payloadCompetencies.length > 0 ? payloadCompetencies : selectedCompetencies,
+      requiredSkills: normalizeCompetencyList(jobData.requiredSkills || existingJob.requiredSkills || []),
+      industry: partner?.industry || partner?.businessType || existingJob.industry || 'General',
+      attachmentName: Object.prototype.hasOwnProperty.call(jobData, 'attachmentName')
+        ? (jobData.attachmentName || null)
+        : (existingJob.attachmentName || null),
+      attachmentType: Object.prototype.hasOwnProperty.call(jobData, 'attachmentType')
+        ? (jobData.attachmentType || null)
+        : (existingJob.attachmentType || null),
+      attachmentUrl: Object.prototype.hasOwnProperty.call(jobData, 'attachmentUrl')
+        ? (jobData.attachmentUrl || null)
+        : (existingJob.attachmentUrl || null),
+      status: existingJob.status || 'Open',
+    };
+
+    const isSupabasePartner = typeof currentUser?.id === 'string' && currentUser.id.includes('-');
+
+    if (isSupabasePartner) {
+      let apiFailureMessage = '';
+
+      const toEmploymentDbValue = (value, selectedOpportunityType) => {
+        if (String(selectedOpportunityType || '').trim().toUpperCase() === 'OJT') return null;
+
+        const raw = String(value || '').trim().toLowerCase();
+        if (!raw) return null;
+
+        const map = {
+          'full-time': 'full_time',
+          'full time': 'full_time',
+          'full_time': 'full_time',
+          'part-time': 'part_time',
+          'part time': 'part_time',
+          'part_time': 'part_time',
+          contract: 'contract',
+          internship: 'internship',
+        };
+
+        return map[raw] || raw.replace(/\s+/g, '_').replace(/-/g, '_');
+      };
+
+      try {
+        const response = await fetch(`/api/partner/opportunities/${jobId}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            partnerId: currentUser?.id,
+            ...updatedPayload,
+          }),
+        });
+
+        const json = await response.json().catch(() => ({}));
+        if (response.ok && json?.success && json?.job) {
+          setJobPostings(prev => prev.map(job =>
+            String(job.id) === String(jobId)
+              ? { ...job, ...json.job }
+              : job
+          ));
+
+          logActivity('Edit', 'Opportunities', `Updated opportunity: ${json.job.title}`, null, null);
+          return { success: true, job: json.job };
+        }
+
+        apiFailureMessage = json?.error || `Failed to update opportunity (HTTP ${response.status}).`;
+      } catch (error) {
+        apiFailureMessage = error?.message || 'Failed to update opportunity via API route.';
+      }
+
+      try {
+        const dbPayload = {
+          program_id: updatedPayload.programId || null,
+          title: String(updatedPayload.title || '').trim(),
+          description: String(updatedPayload.description || '').trim() || null,
+          location: String(updatedPayload.location || '').trim(),
+          opportunity_type: String(updatedPayload.opportunityType || 'Job').trim() || 'Job',
+          nc_level: String(updatedPayload.ncLevel || '').trim() || null,
+          employment_type: toEmploymentDbValue(updatedPayload.employmentType, updatedPayload.opportunityType),
+          required_competencies: updatedPayload.requiredCompetencies || [],
+          required_skills: updatedPayload.requiredSkills || [],
+          salary_range: updatedPayload.salaryRange || null,
+          salary_min: salaryMin,
+          salary_max: salaryMax,
+          industry: String(updatedPayload.industry || '').trim() || 'General',
+          attachment_name: updatedPayload.attachmentName || null,
+          attachment_type: updatedPayload.attachmentType || null,
+          attachment_url: updatedPayload.attachmentUrl || null,
+          source_url: updatedPayload.attachmentUrl || null,
+          source: 'partner',
+          is_active: true,
+        };
+
+        const attempts = [
+          dbPayload,
+          {
+            ...dbPayload,
+            attachment_name: undefined,
+            attachment_type: undefined,
+            attachment_url: undefined,
+          },
+        ];
+
+        let fallbackUpdated = false;
+        let fallbackError = null;
+
+        for (const attempt of attempts) {
+          const cleanAttempt = Object.fromEntries(
+            Object.entries(attempt).filter(([, value]) => value !== undefined)
+          );
+
+          const { error } = await supabase
+            .from('job_postings')
+            .update(cleanAttempt)
+            .eq('id', jobId)
+            .eq('partner_id', currentUser?.id);
+
+          if (!error) {
+            fallbackUpdated = true;
+            break;
+          }
+
+          fallbackError = error;
+
+          const message = String(error?.message || '').toLowerCase();
+          const isShapeIssue = ['PGRST204', '42703'].includes(error?.code) || message.includes('column');
+          if (!isShapeIssue) {
+            break;
+          }
+        }
+
+        if (!fallbackUpdated) {
+          throw fallbackError || new Error('Fallback update failed.');
+        }
+
+        const mergedFallbackJob = {
+          ...existingJob,
+          id: existingJob.id,
+          partnerId: existingJob.partnerId,
+          companyName: existingJob.companyName || partner?.companyName || 'Company',
+          industry: updatedPayload.industry || existingJob.industry || 'General',
+          title: updatedPayload.title,
+          opportunityType: updatedPayload.opportunityType,
+          programId: updatedPayload.programId,
+          ncLevel: updatedPayload.ncLevel,
+          requiredCompetencies: normalizeCompetencyList(updatedPayload.requiredCompetencies || []),
+          requiredSkills: normalizeCompetencyList(updatedPayload.requiredSkills || []),
+          description: updatedPayload.description,
+          employmentType: updatedPayload.employmentType,
+          location: updatedPayload.location,
+          salaryRange: updatedPayload.salaryRange,
+          salaryCurrency,
+          salaryMin,
+          salaryMax,
+          status: updatedPayload.status || existingJob.status || 'Open',
+          datePosted: existingJob.datePosted || new Date().toISOString().split('T')[0],
+          createdAt: existingJob.createdAt || new Date().toISOString(),
+          attachmentName: updatedPayload.attachmentName || null,
+          attachmentType: updatedPayload.attachmentType || null,
+          attachmentUrl: updatedPayload.attachmentUrl || null,
+        };
+
+        setJobPostings(prev => prev.map(job =>
+          String(job.id) === String(jobId)
+            ? mergedFallbackJob
+            : job
+        ));
+
+        logActivity('Edit', 'Opportunities', `Updated opportunity: ${mergedFallbackJob.title}`, null, null);
+        return { success: true, job: mergedFallbackJob };
+      } catch (fallbackError) {
+        const fallbackMessage = fallbackError?.message || 'Failed to update opportunity.';
+        const needsApiRestartHint = /http\s*404|not\s*found/i.test(String(apiFailureMessage || ''));
+        const restartHint = needsApiRestartHint ? ' Start the API server with `npm run otp-server` and retry.' : '';
+        return {
+          success: false,
+          error: apiFailureMessage
+            ? `${apiFailureMessage} ${fallbackMessage}${restartHint}`
+            : `${fallbackMessage}${restartHint}`,
+        };
+      }
+    }
+
+    const mergedLocalJob = {
+      ...existingJob,
+      ...updatedPayload,
+      companyName: existingJob.companyName || partner?.companyName || 'Company',
+      datePosted: existingJob.datePosted || new Date().toISOString().split('T')[0],
+      createdAt: existingJob.createdAt || new Date().toISOString(),
+    };
+
+    setJobPostings(prev => prev.map(job => (String(job.id) === String(jobId) ? mergedLocalJob : job)));
+    logActivity('Edit', 'Opportunities', `Updated opportunity: ${mergedLocalJob.title}`, null, null);
+    return { success: true, job: mergedLocalJob };
   };
 
   const updateJobPosting = (jobId, updates) => {
@@ -1610,6 +2449,8 @@ export const AppProvider = ({ children }) => {
         return { success: false, error: 'Student record not found.' };
       }
 
+      const resolvedProgramName = await resolveProgramNameFromStudentRecord(student);
+
       // Build trainee user object for the dashboard
       const address = [student.detailed_address, student.barangay, student.city, student.province, student.region].filter(Boolean).join(', ');
       const traineeUser = {
@@ -1622,7 +2463,7 @@ export const AppProvider = ({ children }) => {
         birthday: student.birthdate || '',
         gender: student.gender || '',
         studentId: student.student_id || '',
-        program: student.programs?.name || '',
+        program: resolvedProgramName,
         programId: student.program_id,
         graduationYear: student.graduation_year || '',
         trainingStatus: student.training_status || 'Student',
@@ -1836,6 +2677,31 @@ export const AppProvider = ({ children }) => {
 
     let adminRefreshTimeout = null;
 
+    const hydrateCurrentTraineeProgram = async () => {
+      if (userRole !== 'trainee' || !currentUser?.id) return;
+
+      const existingProgram = String(currentUser.program || '').trim();
+      if (existingProgram) return;
+
+      const resolvedProgramName = await resolveProgramNameFromStudentRecord({
+        id: currentUser.id,
+        program: currentUser.program,
+        programId: currentUser.programId,
+        program_id: currentUser.programId,
+      });
+
+      if (!resolvedProgramName) return;
+
+      setCurrentUser(prev => {
+        if (!prev || prev.id !== currentUser.id) return prev;
+        if (String(prev.program || '').trim()) return prev;
+
+        const nextUser = { ...prev, program: resolvedProgramName };
+        localStorage.setItem('currentUser', JSON.stringify(nextUser));
+        return nextUser;
+      });
+    };
+
     const fetchAdminDirectoryData = async () => {
       if (userRole !== 'admin') return;
 
@@ -2032,6 +2898,7 @@ export const AppProvider = ({ children }) => {
                 : {}),
               id: j.id,
               partnerId: j.partner_id,
+              programId: j.program_id || null,
               companyName: j.industry_partners?.company_name || 'Company',
               industry: j.industry || 'General',
               title: j.title,
@@ -2056,7 +2923,9 @@ export const AppProvider = ({ children }) => {
                 return j.employment_type || 'Full-time';
               })(),
               location: j.location || 'Philippines',
-              salaryRange: j.salary_range || '',
+              salaryRange: buildSalaryRangeText(j.salary_range, j.salary_min, j.salary_max, 'PHP'),
+              salaryMin: toSalaryNumber(j.salary_min),
+              salaryMax: toSalaryNumber(j.salary_max),
               slots: j.slots || 1,
               status: j.status || 'Open',
               datePosted: j.created_at?.split('T')[0],
@@ -2070,19 +2939,11 @@ export const AppProvider = ({ children }) => {
         let stds = null;
         let studentsError = null;
 
-        const withProfileName = await supabase
+        const baseQuery = await supabase
           .from('students')
-          .select('id, full_name, profile_name, profile_picture_url, contact_email, resume_url, personal_info_visibility');
-        stds = withProfileName.data;
-        studentsError = withProfileName.error;
-
-        if (studentsError && (studentsError.code === 'PGRST204' || studentsError.code === '42703' || String(studentsError.message || '').toLowerCase().includes('profile_name'))) {
-          const fallback = await supabase
-            .from('students')
-            .select('id, full_name, profile_picture_url, contact_email, resume_url');
-          stds = fallback.data;
-          studentsError = fallback.error;
-        }
+          .select('id, full_name, profile_picture_url, contact_email, resume_url, personal_info_visibility');
+        stds = baseQuery.data;
+        studentsError = baseQuery.error;
 
         if (studentsError) {
           console.warn('Direct students query failed, using public directory fallback only:', studentsError);
@@ -2273,6 +3134,7 @@ export const AppProvider = ({ children }) => {
       }
     };
 
+    hydrateCurrentTraineeProgram();
     fetchAllData();
     fetchApplications();
     fetchContactRequests();
@@ -2414,6 +3276,7 @@ export const AppProvider = ({ children }) => {
       programs,
       jobPostings,
       addJobPosting,
+      updatePartnerJobPosting,
       updateJobPosting,
       deleteJobPosting,
       // Applications
@@ -2428,6 +3291,7 @@ export const AppProvider = ({ children }) => {
       getMatchRate,
       getGapAnalysis,
       getTraineeRecommendedJobs,
+      getSkillInterestRecommendations,
       // Analytics
       getEmploymentStats,
       getSkillsDemand,
