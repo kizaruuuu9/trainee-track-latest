@@ -1966,10 +1966,26 @@ export const AppProvider = ({ children }) => {
     }
   };
 
-  const deleteJobPosting = (jobId) => {
+  const deleteJobPosting = async (jobId) => {
     const existing = jobPostings.find(j => j.id === jobId);
-    setJobPostings(jobPostings.filter(j => j.id !== jobId));
+    
+    // If ID is a string, it's likely a Supabase UUID
+    if (typeof jobId === 'string' && jobId.includes('-')) {
+      try {
+        const { error } = await supabase
+          .from('job_postings')
+          .delete()
+          .eq('id', jobId);
+        if (error) throw error;
+      } catch (err) {
+        console.error('Error deleting job posting from Supabase:', err);
+        return { success: false, error: err.message };
+      }
+    }
+
+    setJobPostings(prev => prev.filter(j => j.id !== jobId));
     logActivity('Delete', 'Opportunities', `Deleted opportunity: ${existing?.title}`, existing?.title, null);
+    return { success: true };
   };
 
   // ─── PARTNER FUNCTIONS ───────────────────────────────────────────────────

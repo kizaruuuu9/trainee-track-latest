@@ -330,6 +330,37 @@ export default function Step1IDUpload({ data, onChange, onValidChange }) {
         onValidChange(allFilled && idOk);
     }, [data, validate, onValidChange, idVerified, idDuplicateError, idChecking]);
 
+    useEffect(() => {
+        if (!Array.isArray(PROGRAMS) || PROGRAMS.length === 0) return;
+
+        const selectedName = String(data.program || '').trim();
+        const selectedId = String(data.programId || '').trim();
+
+        if (!selectedName && !selectedId) return;
+
+        const matchedById = selectedId
+            ? PROGRAMS.find(program => String(program.id) === selectedId)
+            : null;
+        const matchedByName = selectedName
+            ? PROGRAMS.find(program => String(program.name || '').trim() === selectedName)
+            : null;
+        const matchedProgram = matchedById || matchedByName || null;
+
+        if (!matchedProgram) return;
+
+        const updates = {};
+        if (!selectedId || selectedId !== String(matchedProgram.id || '')) {
+            updates.programId = matchedProgram.id;
+        }
+        if (!selectedName || selectedName !== String(matchedProgram.name || '')) {
+            updates.program = matchedProgram.name;
+        }
+
+        if (Object.keys(updates).length > 0) {
+            onChange(updates);
+        }
+    }, [PROGRAMS, data.program, data.programId, onChange]);
+
     const handleBlur = (field) => {
         setTouched(prev => ({ ...prev, [field]: true }));
     };
@@ -739,13 +770,19 @@ export default function Step1IDUpload({ data, onChange, onValidChange }) {
                             <label className="form-label">Program Taken <span style={{ color: '#ef4444' }}>*</span></label>
                             <select
                                 className={`form-select ${getFieldStatus('program')}`}
-                                value={data.program}
-                                onChange={(e) => onChange({ program: e.target.value })}
+                                value={data.programId || ''}
+                                onChange={(e) => {
+                                    const selectedProgram = PROGRAMS.find(program => String(program.id) === e.target.value);
+                                    onChange({
+                                        programId: selectedProgram?.id || '',
+                                        program: selectedProgram?.name || '',
+                                    });
+                                }}
                                 onBlur={() => handleBlur('program')}
                             >
                                 <option value="">— Select Program —</option>
                                 {PROGRAMS.map((prog) => (
-                                    <option key={prog.id || prog.name} value={prog.name}>{prog.label || prog.name}</option>
+                                    <option key={prog.id || prog.name} value={prog.id || ''}>{prog.label || prog.name}</option>
                                 ))}
                             </select>
                             {touched.program && errors.program && <div className="form-error">{errors.program}</div>}

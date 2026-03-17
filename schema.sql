@@ -23,13 +23,6 @@ CREATE TABLE programs (
   created_at      timestamptz DEFAULT now()
 );
 
--- 3. competencies
-CREATE TABLE competencies (
-  id          uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  name        text NOT NULL,
-  created_at  timestamptz DEFAULT now()
-);
-
 -- 4. students
 CREATE TABLE students (
   id                  uuid PRIMARY KEY,
@@ -210,23 +203,6 @@ CREATE TABLE student_interests (
   id            uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   student_id    uuid NOT NULL REFERENCES students(id),
   interest_name text NOT NULL
-);
-
--- 14. program_competencies (composite PK)
-CREATE TABLE program_competencies (
-  program_id    uuid NOT NULL REFERENCES programs(id),
-  competency_id uuid NOT NULL REFERENCES competencies(id),
-  category      text NOT NULL,
-  sort_order    integer DEFAULT 0,
-  PRIMARY KEY (program_id, competency_id)
-);
-
--- 15. student_competencies (composite PK)
-CREATE TABLE student_competencies (
-  student_id    uuid NOT NULL REFERENCES students(id),
-  competency_id uuid NOT NULL REFERENCES competencies(id),
-  acquired_at   timestamptz DEFAULT now(),
-  PRIMARY KEY (student_id, competency_id)
 );
 
 -- 16. post_comments

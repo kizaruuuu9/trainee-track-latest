@@ -352,6 +352,7 @@ const ManageTrainees = () => {
 
 // TESDA PROGRAMS: ADD / EDIT / DELETE WITH COMPETENCIES
 const ManageTesdaPrograms = () => {
+    const ncLevelOptions = ['NC I', 'NC II', 'NC III', 'NC IV'];
     const [programs, setPrograms] = useState([]);
     const [search, setSearch] = useState('');
     const [loading, setLoading] = useState(true);
@@ -359,6 +360,7 @@ const ManageTesdaPrograms = () => {
     const [showModal, setShowModal] = useState(false);
     const [editProgram, setEditProgram] = useState(null);
     const [supportsCompetenciesColumn, setSupportsCompetenciesColumn] = useState(true);
+    const [supportsProgramNameKey, setSupportsProgramNameKey] = useState(true);
     const [popupMessage, setPopupMessage] = useState('');
     const [form, setForm] = useState({
         name: '',
@@ -386,6 +388,15 @@ const ManageTesdaPrograms = () => {
         .trim()
         .replace(/\s+/g, ' ')
         .toLowerCase();
+
+    const composeProgramNameKey = (name, ncLevel, durationHours) => {
+        const safeNcLevel = normalizeNcLevel(ncLevel || '') || 'no-nc-level';
+        const safeHours = Number.isFinite(durationHours) && durationHours > 0
+            ? String(durationHours)
+            : 'no-hours';
+
+        return `${normalizeProgramName(name)}|${safeNcLevel}|${safeHours}`;
+    };
 
     const parseCompetenciesText = (value = '') => {
         const unique = new Set();
@@ -437,6 +448,136 @@ const ManageTesdaPrograms = () => {
         ].filter(Boolean).join('\n');
     };
 
+    const isMissingCompetenciesColumnError = (error) => {
+        if (!error) return false;
+        if (error.code === 'PGRST204' || error.code === '42703') return true;
+
+        const message = String(error.message || '').toLowerCase();
+        return message.includes("could not find the 'competencies' column")
+            || message.includes('column "competencies" does not exist')
+            || message.includes('column competencies does not exist');
+    };
+
+    const isMissingProgramNameKeyColumnError = (error) => {
+        if (!error) return false;
+        if (error.code === 'PGRST204' || error.code === '42703') return true;
+
+        const message = String(error.message || '').toLowerCase();
+        return message.includes('name_key') && (
+            message.includes('column')
+            || message.includes('could not find')
+        );
+    };
+
+    const isProgramNameKeyConflictError = (error) => {
+        if (!error) return false;
+        if (error.code !== '23505') return false;
+
+        const message = String(error.message || '').toLowerCase();
+        const details = String(error.details || '').toLowerCase();
+        return message.includes('programs_name_key') || details.includes('programs_name_key');
+    };
+
+    const isMissingNormalizedCompetencyTablesError = (error) => {
+        if (!error) return false;
+        if (error.code === '42P01' || error.code === 'PGRST205' || error.code === 'PGRST204') return true;
+
+        const message = String(error.message || '').toLowerCase();
+        return message.includes('relation') && (
+            message.includes('competencies')
+            || message.includes('program_competencies')
+        );
+    };
+
+    const normalizeCompetencyKey = (value = '') => String(value)
+        .trim()
+        .toLowerCase()
+        .replace(/\s+/g, ' ');
+
+    const ensureProgramCompetencySync = async (programId, competencies) => {
+        if (!programId || !Array.isArray(competencies) || competencies.length === 0) return;
+
+        const expectedCount = competencies.length;
+
+        const countExistingLinks = async () => {
+            const countQuery = await supabase
+                .from('program_competencies')
+                .select('program_id', { count: 'exact', head: true })
+                .eq('program_id', programId);
+
+            if (countQuery.error) throw countQuery.error;
+            return countQuery.count || 0;
+        };
+
+        try {
+            const existingCount = await countExistingLinks();
+            if (existingCount === expectedCount) return;
+
+            const normalizedRows = competencies.map((item, index) => ({
+                name: item,
+                name_key: normalizeCompetencyKey(item),
+                sort_order: index + 1,
+            }));
+
+            const competencyUpsert = await supabase
+                .from('competencies')
+                .upsert(
+                    normalizedRows.map(({ name, name_key }) => ({ name, name_key })),
+                    { onConflict: 'name_key' }
+                );
+
+            if (competencyUpsert.error) throw competencyUpsert.error;
+
+            const keys = normalizedRows.map(row => row.name_key);
+            const competencyFetch = await supabase
+                .from('competencies')
+                .select('id, name_key')
+                .in('name_key', keys);
+
+            if (competencyFetch.error) throw competencyFetch.error;
+
+            const keyToId = new Map((competencyFetch.data || []).map(row => [row.name_key, row.id]));
+            const missingKeys = keys.filter(key => !keyToId.has(key));
+            if (missingKeys.length > 0) {
+                throw new Error(`Missing competencies after upsert: ${missingKeys.join(', ')}`);
+            }
+
+            const deleteExisting = await supabase
+                .from('program_competencies')
+                .delete()
+                .eq('program_id', programId);
+
+            if (deleteExisting.error) throw deleteExisting.error;
+
+            const linkRows = normalizedRows.map(row => ({
+                program_id: programId,
+                competency_id: keyToId.get(row.name_key),
+                sort_order: row.sort_order,
+            }));
+
+            const insertLinks = await supabase
+                .from('program_competencies')
+                .insert(linkRows);
+
+            if (insertLinks.error) throw insertLinks.error;
+
+            const verifiedCount = await countExistingLinks();
+            if (verifiedCount !== expectedCount) {
+                throw new Error('Normalized competency sync incomplete.');
+            }
+        } catch (error) {
+            if (isMissingNormalizedCompetencyTablesError(error)) {
+                throw new Error('Required tables `competencies` and `program_competencies` are missing. Please run the setup SQL first.');
+            }
+
+            if (error.code === '42501') {
+                throw new Error('Permission denied while syncing competencies tables. Please check Supabase RLS/policies for admin writes.');
+            }
+
+            throw error;
+        }
+    };
+
     const loadPrograms = async () => {
         setLoading(true);
         try {
@@ -447,7 +588,7 @@ const ManageTesdaPrograms = () => {
                 .select('id, name, nc_level, duration_hours, description, competencies')
                 .order('name', { ascending: true });
 
-            if (error && (error.code === 'PGRST204' || String(error.message || '').toLowerCase().includes('competencies'))) {
+            if (error && isMissingCompetenciesColumnError(error)) {
                 useFallback = true;
                 setSupportsCompetenciesColumn(false);
                 const fallback = await supabase
@@ -555,7 +696,9 @@ const ManageTesdaPrograms = () => {
                 duration_hours: durationHours,
             };
 
-            const writeRecord = async (withCompetenciesColumn) => {
+            const computedNameKey = composeProgramNameKey(name, form.ncLevel, durationHours);
+
+            const writeRecord = async (withCompetenciesColumn, withNameKeyColumn) => {
                 const payload = withCompetenciesColumn
                     ? {
                         ...basePayload,
@@ -566,6 +709,10 @@ const ManageTesdaPrograms = () => {
                         ...basePayload,
                         description: composeDescription(form.description, competencies),
                     };
+
+                if (withNameKeyColumn) {
+                    payload.name_key = computedNameKey;
+                }
 
                 if (editProgram?.id) {
                     return supabase
@@ -583,15 +730,65 @@ const ManageTesdaPrograms = () => {
                     .single();
             };
 
-            let { error } = await writeRecord(supportsCompetenciesColumn);
+            let { data: savedRecord, error } = await writeRecord(supportsCompetenciesColumn, supportsProgramNameKey);
 
-            if (error && supportsCompetenciesColumn && (error.code === 'PGRST204' || String(error.message || '').toLowerCase().includes('competencies'))) {
+            if (error && supportsProgramNameKey && isMissingProgramNameKeyColumnError(error)) {
+                setSupportsProgramNameKey(false);
+                const retryWithoutNameKey = await writeRecord(supportsCompetenciesColumn, false);
+                savedRecord = retryWithoutNameKey.data;
+                error = retryWithoutNameKey.error;
+            }
+
+            if (!error && supportsCompetenciesColumn && savedRecord?.id) {
+                const savedComps = Array.isArray(savedRecord.competencies)
+                    ? savedRecord.competencies.map(item => stripCode(String(item))).filter(Boolean)
+                    : [];
+
+                const expectedSet = new Set(competencies.map(item => item.toLowerCase()));
+                const savedSet = new Set(savedComps.map(item => item.toLowerCase()));
+                const matchesExpected = expectedSet.size === savedSet.size
+                    && [...expectedSet].every(item => savedSet.has(item));
+
+                if (!matchesExpected) {
+                    const verifyPayload = {
+                        competencies,
+                        description: form.description.trim() || null,
+                    };
+
+                    const verify = await supabase
+                        .from('programs')
+                        .update(verifyPayload)
+                        .eq('id', savedRecord.id)
+                        .select('id, competencies')
+                        .single();
+
+                    error = verify.error;
+                }
+            }
+
+            if (error && supportsCompetenciesColumn && isMissingCompetenciesColumnError(error)) {
                 setSupportsCompetenciesColumn(false);
-                const retry = await writeRecord(false);
+                const retry = await writeRecord(false, supportsProgramNameKey);
+                savedRecord = retry.data;
                 error = retry.error;
+
+                if (error && supportsProgramNameKey && isMissingProgramNameKeyColumnError(error)) {
+                    setSupportsProgramNameKey(false);
+                    const secondRetry = await writeRecord(false, false);
+                    savedRecord = secondRetry.data;
+                    error = secondRetry.error;
+                }
+            }
+
+            if (error && isProgramNameKeyConflictError(error)) {
+                throw new Error('Program name conflict: same name is only allowed when NC Level and Hours are different. Please ensure your database `programs.name_key` uses name + NC level + hours, then try again.');
             }
 
             if (error) throw error;
+
+            if (savedRecord?.id) {
+                await ensureProgramCompetencySync(savedRecord.id, competencies);
+            }
 
             closeModal();
             await loadPrograms();
@@ -698,7 +895,16 @@ const ManageTesdaPrograms = () => {
                             </div>
                             <div className="form-group">
                                 <label className="form-label">NC Level</label>
-                                <input className="form-input" value={form.ncLevel} onChange={e => setForm(prev => ({ ...prev, ncLevel: e.target.value }))} placeholder="e.g. NC II" />
+                                <select
+                                    className="form-select"
+                                    value={form.ncLevel}
+                                    onChange={e => setForm(prev => ({ ...prev, ncLevel: e.target.value }))}
+                                >
+                                    <option value="">Select NC Level</option>
+                                    {ncLevelOptions.map(level => (
+                                        <option key={level} value={level}>{level}</option>
+                                    ))}
+                                </select>
                             </div>
                         </div>
 
@@ -885,7 +1091,7 @@ const ManagePartners = () => {
             )}
             <div className="card">
                 <div style={{ marginBottom: 14 }}><div className="search-bar" style={{ maxWidth: 320 }}><Search size={14} color="#94a3b8" /><input placeholder="Search company or contact..." value={search} onChange={e => setSearch(e.target.value)} /></div></div>
-                <div style={{ overflowX: 'auto' }}>
+                <div style={{ overflow: 'visible' }}>
                     <table className="data-table">
                         <thead><tr><th>Company</th><th>Profile Name</th><th>Contact Person</th><th>Industry</th><th>Auth Email</th><th>Activity</th><th>Verification</th><th>Account</th><th className="account-actions-column">Actions</th></tr></thead>
                         <tbody>
@@ -900,7 +1106,7 @@ const ManagePartners = () => {
                                     <td>{statusBadge(p.verificationStatus)}</td>
                                     <td>{accountBadge(p.accountStatus || 'Active')}</td>
                                     <td className="account-actions-column">
-                                        <div className="account-actions-cell" onMouseDown={e => e.stopPropagation()}>
+                                        <div className={`account-actions-cell${isPartnerMenuOpen(p.id) ? ' is-open' : ''}`} onMouseDown={e => e.stopPropagation()}>
                                             <button
                                                 className={`account-actions-trigger${isPartnerMenuOpen(p.id) ? ' is-open' : ''}`}
                                                 onClick={() => togglePartnerMenu(p.id)}
@@ -998,10 +1204,30 @@ const ManagePartners = () => {
 
 // â”€â”€â”€ PAGE 4: OPPORTUNITIES OVERSIGHT â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 const OpportunitiesOversight = () => {
-    const { jobPostings, updateJobPosting } = useApp();
+    const { jobPostings, updateJobPosting, deleteJobPosting } = useApp();
     const [search, setSearch] = useState('');
     const [filterStatus, setFilterStatus] = useState('All');
     const [filterType, setFilterType] = useState('All');
+    const [openMenuId, setOpenMenuId] = useState(null);
+
+    const toggleMenu = (id) => setOpenMenuId(openMenuId === id ? null : id);
+
+    useEffect(() => {
+        if (!openMenuId) return;
+        const close = (e) => {
+            if (e.target.closest('.account-actions-cell')) return;
+            setOpenMenuId(null);
+        };
+        document.addEventListener('mousedown', close);
+        return () => document.removeEventListener('mousedown', close);
+    }, [openMenuId]);
+
+    const handleDelete = async (job) => {
+        if (!window.confirm(`Delete opportunity "${job.title}"? This action cannot be undone.`)) return;
+        await deleteJobPosting(job.id);
+        setOpenMenuId(null);
+    };
+
     const filtered = jobPostings.filter(j => {
         const q = search.toLowerCase();
         return (j.title.toLowerCase().includes(q) || j.companyName.toLowerCase().includes(q)) && (filterStatus === 'All' || j.status === filterStatus) && (filterType === 'All' || j.opportunityType === filterType);
@@ -1029,7 +1255,7 @@ const OpportunitiesOversight = () => {
                         {['All', 'Job', 'OJT', 'Apprenticeship'].map(t => <option key={t}>{t}</option>)}
                     </select>
                 </div>
-                <div style={{ overflowX: 'auto' }}>
+                <div style={{ overflowX: 'auto', overflowY: 'visible' }}>
                     <table className="data-table">
                         <thead><tr><th>Title</th><th>Company</th><th>Type</th><th>NC Level</th><th>Location</th><th>Date Posted</th><th>Status</th><th>Action</th></tr></thead>
                         <tbody>
@@ -1043,8 +1269,32 @@ const OpportunitiesOversight = () => {
                                     <td style={{ fontSize: 12.5, color: '#64748b' }}>{j.datePosted}</td>
                                     <td>{statusBadge(j.status)}</td>
                                     <td>
-                                        {j.status === 'Open' && <button className="btn btn-danger btn-sm" onClick={() => updateJobPosting(j.id, { status: 'Closed' })}>Close</button>}
-                                        {j.status === 'Closed' && <button className="btn btn-success btn-sm" onClick={() => updateJobPosting(j.id, { status: 'Open' })}>Re-open</button>}
+                                        <div className={`account-actions-cell${openMenuId === j.id ? ' is-open' : ''}`}>
+                                            <button
+                                                className={`account-actions-trigger${openMenuId === j.id ? ' is-open' : ''}`}
+                                                onClick={() => toggleMenu(j.id)}
+                                                title="Actions"
+                                            >
+                                                <MoreVertical size={16} />
+                                            </button>
+                                            {openMenuId === j.id && (
+                                                <div className="account-actions-panel" style={{ right: 0 }}>
+                                                    <div className="account-actions-header">Opportunity Actions</div>
+                                                    {j.status === 'Open' ? (
+                                                        <button className="account-actions-item" onClick={() => { updateJobPosting(j.id, { status: 'Closed' }); setOpenMenuId(null); }}>
+                                                            <XCircle size={14} /> Close Posting
+                                                        </button>
+                                                    ) : (
+                                                        <button className="account-actions-item" onClick={() => { updateJobPosting(j.id, { status: 'Open' }); setOpenMenuId(null); }}>
+                                                            <CheckCircle size={14} /> Re-open Posting
+                                                        </button>
+                                                    )}
+                                                    <button className="account-actions-item" style={{ color: '#ef4444' }} onClick={() => handleDelete(j)}>
+                                                        <Trash2 size={14} /> Delete Post
+                                                    </button>
+                                                </div>
+                                            )}
+                                        </div>
                                     </td>
                                 </tr>
                             ))}
@@ -1376,7 +1626,7 @@ const AccountManagement = () => {
                         {['All', 'trainee', 'partner'].map(r => <option key={r} value={r}>{r === 'All' ? 'All Roles' : r === 'trainee' ? 'Student' : 'Partner'}</option>)}
                     </select>
                 </div>
-                <div style={{ overflowX: 'auto' }}>
+                <div style={{ overflow: 'visible' }}>
                     <table className="data-table">
                         <thead><tr><th>Profile Name</th><th>Auth Email</th><th>Role</th><th>Activity</th><th>Account</th><th className="account-actions-column">Actions</th></tr></thead>
                         <tbody>
@@ -1388,7 +1638,7 @@ const AccountManagement = () => {
                                     <td>{activityBadge(a.activityStatus, a.lastSeenAt)}</td>
                                     <td>{accountBadge(a.accountStatus || 'Active')}</td>
                                     <td className="account-actions-column">
-                                        <div className="account-actions-cell">
+                                        <div className={`account-actions-cell${isActionMenuOpen(a) ? ' is-open' : ''}`}>
                                             <button
                                                 type="button"
                                                 className={`account-actions-trigger ${isActionMenuOpen(a) ? 'is-open' : ''}`}

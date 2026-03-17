@@ -1,8 +1,10 @@
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
 
+/* stylelint-disable at-rule-no-unknown */
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+/* stylelint-enable at-rule-no-unknown */
 
 /* ─── DESIGN TOKENS ─────────────────────────────────────────────── */
 :root {
@@ -1136,6 +1138,7 @@ a text and a able to upload documents but not needed
   display: flex;
   width: 100%;
   justify-content: flex-end;
+  z-index: 1;
 }
 
 .data-table th.account-actions-column,
@@ -1144,6 +1147,7 @@ a text and a able to upload documents but not needed
   min-width: 88px;
   text-align: right;
   padding-right: 14px;
+  overflow: visible;
 }
 
 .account-actions-trigger {
@@ -1179,6 +1183,10 @@ a text and a able to upload documents but not needed
   border-radius: 14px;
   box-shadow: var(--shadow-lg);
   z-index: 220;
+}
+
+.account-actions-cell.is-open {
+  z-index: 240;
 }
 
 .account-actions-panel-header {
@@ -4281,8 +4289,6 @@ a text and a able to upload documents but not needed
   padding: 0 16px 16px;
 }
 
-.ln-info-item {}
-
 .ln-info-label {
   font-size: 13px;
   font-weight: 600;
@@ -4523,12 +4529,15 @@ a text and a able to upload documents but not needed
   }
 
   .ln-feed-actions {
-    flex-direction: column;
+    flex-direction: row;
+    flex-wrap: nowrap;
   }
 
   .ln-feed-action-btn {
-    padding: 10px 16px;
-    justify-content: flex-start;
+    padding: 10px 8px;
+    justify-content: center;
+    white-space: nowrap;
+    min-width: 0;
   }
 
   .ln-job-card-top {

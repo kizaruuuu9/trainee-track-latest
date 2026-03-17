@@ -6,7 +6,7 @@ import {
   MapPin, Send, Award, ChevronRight, Trash2, Menu, Lock,
   Upload, AlertTriangle, Clock, ShieldCheck, FileCheck,
   Bell, Home, Settings, TrendingUp, Bookmark, Target, Star,
-  Camera, MessageSquare, Edit, Loader, ExternalLink
+  Camera, MessageSquare, Edit, Loader, ExternalLink, EyeOff
 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { Routes, Route, useNavigate, useLocation, Navigate, useParams } from 'react-router-dom';
@@ -68,6 +68,101 @@ const isImageAttachment = (attachmentUrl, attachmentType) => {
   if (mime.startsWith('image/')) return true;
   const cleanUrl = String(attachmentUrl || '').split('?')[0].toLowerCase();
   return /\.(png|jpe?g|gif|webp|bmp|svg)$/.test(cleanUrl);
+};
+
+const SALARY_CURRENCY_OPTIONS = [
+  { code: 'PHP', label: 'PHP (₱)' },
+  { code: 'USD', label: 'USD ($)' },
+  { code: 'EUR', label: 'EUR (€)' },
+  { code: 'GBP', label: 'GBP (£)' },
+  { code: 'JPY', label: 'JPY (¥)' },
+];
+
+const DEFAULT_SALARY_CURRENCY = 'PHP';
+
+const sanitizeNumericSalaryInput = (value = '') => String(value || '').replace(/\D/g, '');
+
+const getCurrencySymbol = (currency = DEFAULT_SALARY_CURRENCY) => {
+  const code = String(currency || DEFAULT_SALARY_CURRENCY).toUpperCase();
+  const symbols = {
+    PHP: '₱',
+    USD: '$',
+    EUR: '€',
+    GBP: '£',
+    JPY: '¥',
+  };
+  return symbols[code] || '₱';
+};
+
+const formatSalaryAmount = (value = '', currency = DEFAULT_SALARY_CURRENCY) => {
+  const digits = sanitizeNumericSalaryInput(value);
+  if (!digits) return '';
+  return `${getCurrencySymbol(currency)}${Number(digits).toLocaleString('en-US')}`;
+};
+
+const formatSalaryRangeValue = (minimum = '', maximum = '', currency = DEFAULT_SALARY_CURRENCY) => {
+  const minDigits = sanitizeNumericSalaryInput(minimum);
+  const maxDigits = sanitizeNumericSalaryInput(maximum);
+
+  if (minDigits && maxDigits) {
+    return `${formatSalaryAmount(minDigits, currency)} - ${formatSalaryAmount(maxDigits, currency)}`;
+  }
+  if (minDigits) return `${formatSalaryAmount(minDigits, currency)}+`;
+  if (maxDigits) return `Up to ${formatSalaryAmount(maxDigits, currency)}`;
+  return '';
+};
+
+const inferSalaryCurrency = (salaryText = '', fallback = DEFAULT_SALARY_CURRENCY) => {
+  const raw = String(salaryText || '').trim().toUpperCase();
+  if (!raw) return fallback;
+  if (raw.includes('₱') || raw.includes('PHP')) return 'PHP';
+  if (raw.includes('$') || raw.includes('USD')) return 'USD';
+  if (raw.includes('€') || raw.includes('EUR')) return 'EUR';
+  if (raw.includes('£') || raw.includes('GBP')) return 'GBP';
+  if (raw.includes('¥') || raw.includes('JPY')) return 'JPY';
+  return fallback;
+};
+
+const parseSalaryRangeInputValues = (salaryText = '', fallbackCurrency = DEFAULT_SALARY_CURRENCY) => {
+  const raw = String(salaryText || '').trim();
+  if (!raw) {
+    return { salaryCurrency: fallbackCurrency, salaryMin: '', salaryMax: '' };
+  }
+
+  const currency = inferSalaryCurrency(raw, fallbackCurrency);
+  const numbers = raw
+    .match(/\d[\d,]*/g)
+    ?.map(value => sanitizeNumericSalaryInput(value))
+    .filter(Boolean) || [];
+
+  return {
+    salaryCurrency: currency,
+    salaryMin: numbers[0] || '',
+    salaryMax: numbers[1] || '',
+  };
+};
+
+const normalizeNcLevelValue = (value = '') => {
+  const raw = String(value || '').trim();
+  if (!raw) return '';
+
+  const upper = raw.toUpperCase();
+  if (upper.includes('NC IV') || /\bNC\s*4\b/.test(upper)) return 'NC IV';
+  if (upper.includes('NC III') || /\bNC\s*3\b/.test(upper)) return 'NC III';
+  if (upper.includes('NC II') || /\bNC\s*2\b/.test(upper)) return 'NC II';
+  if (upper.includes('NC I') || /\bNC\s*1\b/.test(upper)) return 'NC I';
+
+  return raw;
+};
+
+const formatSalaryDisplay = (value = '') => {
+  const raw = String(value || '').trim();
+  if (!raw) return '';
+  const digitsOnly = raw.replace(/,/g, '');
+  if (/^\d+$/.test(digitsOnly)) {
+    return formatSalaryAmount(digitsOnly, DEFAULT_SALARY_CURRENCY);
+  }
+  return raw;
 };
 
 const isStudentAuthorType = (authorType = '') => {
@@ -312,6 +407,8 @@ const PartnerLayout = ({ children, activePage, setActivePage }) => (
 const CompanySideCard = ({ partner, setActivePage }) => {
   const initials = partner?.companyName?.charAt(0)?.toUpperCase() || 'P';
   const verified = isVerified(partner);
+  const visibleCompanyInfo = new Set(resolvePartnerVisibility(partner));
+  const showSideAddress = visibleCompanyInfo.has('address');
   return (
     <div className="ln-card ln-profile-card">
       <div className="ln-profile-banner pn-profile-banner" />
@@ -324,7 +421,9 @@ const CompanySideCard = ({ partner, setActivePage }) => {
           {isVerified(partner) && <CheckCircle size={16} color="#0a66c2" title="Verified" style={{ flexShrink: 0 }} />}
         </h2>
         <p className="ln-profile-headline">{partner?.industry} &bull; Industry Partner</p>
-        <p className="ln-profile-location"><MapPin size={13} /> {partner?.address || 'Philippines'}</p>
+        {showSideAddress && partner?.address && (
+          <p className="ln-profile-location"><MapPin size={13} /> {partner.address}</p>
+        )}
 
         <div style={{ margin: '12px 0 8px', display: 'flex', justifyContent: 'center' }}>
           <StatusBadge status={partner?.verificationStatus || 'Pending Verification'} />
@@ -397,18 +496,77 @@ const RecruitmentStatsWidget = ({ myJobs, myApplicants }) => (
 
 // ─── PAGE 1: PARTNER DASHBOARD HOME ──────────────────────────────
 const PartnerHome = ({ setActivePage }) => {
-  const { currentUser, partners, jobPostings, getPartnerApplicants, posts, createPost, trainees, addPostComment, getPostComments, addJobPostingComment, getJobPostingComments, updateJobPostingComment, deleteJobPostingComment, sendContactRequest } = useApp();
+  const { currentUser, partners, jobPostings, programs, updatePartnerJobPosting, getPartnerApplicants, posts, createPost, updatePost, deletePost, deleteJobPosting, trainees, addPostComment, getPostComments, addJobPostingComment, getJobPostingComments, updateJobPostingComment, deleteJobPostingComment, sendContactRequest } = useApp();
   const navigate = useNavigate();
   const partner = getLivePartner(currentUser, partners);
   const verified = isVerified(partner);
   const myJobs = jobPostings.filter(j => j.partnerId === partner?.id);
   const myApplicants = getPartnerApplicants(partner?.id);
   const initials = partner?.companyName?.charAt(0)?.toUpperCase() || 'P';
+  const programOptions = Array.isArray(programs) ? programs : [];
+  const ncLevelOptions = ['NC I', 'NC II', 'NC III', 'NC IV'];
+
+  const buildEditJobForm = (job = null) => {
+    if (!job) {
+      return {
+        title: '',
+        opportunityType: 'Job',
+        programId: '',
+        ncLevel: '',
+        description: '',
+        employmentType: 'Full-time',
+        location: '',
+        salaryCurrency: DEFAULT_SALARY_CURRENCY,
+        salaryMin: '',
+        salaryMax: '',
+        requiredCompetencies: [],
+        attachmentName: '',
+        attachmentType: '',
+        attachmentUrl: '',
+      };
+    }
+
+    const parsedSalary = parseSalaryRangeInputValues(
+      job.salaryRange,
+      job.salaryCurrency || DEFAULT_SALARY_CURRENCY,
+    );
+
+    const matchedProgram = programOptions.find(program => String(program.id) === String(job.programId))
+      || programOptions.find(program => String(program.name || '').trim() === String(job.ncLevel || '').trim())
+      || null;
+
+    const normalizedNcLevel = normalizeNcLevelValue(job.ncLevel || matchedProgram?.ncLevel || '');
+
+    return {
+      title: job.title || '',
+      opportunityType: job.opportunityType || 'Job',
+      programId: matchedProgram?.id || job.programId || '',
+      ncLevel: ncLevelOptions.includes(normalizedNcLevel) ? normalizedNcLevel : '',
+      description: job.description || '',
+      employmentType: (job.opportunityType || 'Job') === 'OJT' ? '' : (job.employmentType || 'Full-time'),
+      location: job.location || '',
+      salaryCurrency: job.salaryCurrency || parsedSalary.salaryCurrency || DEFAULT_SALARY_CURRENCY,
+      salaryMin: job.salaryMin ? sanitizeNumericSalaryInput(job.salaryMin) : parsedSalary.salaryMin,
+      salaryMax: job.salaryMax ? sanitizeNumericSalaryInput(job.salaryMax) : parsedSalary.salaryMax,
+      requiredCompetencies: Array.isArray(job.requiredCompetencies) ? job.requiredCompetencies : [],
+      attachmentName: job.attachmentName || '',
+      attachmentType: job.attachmentType || '',
+      attachmentUrl: job.attachmentUrl || '',
+    };
+  };
 
   // Create Post state
   const [postContent, setPostContent] = useState('');
   const [isPosting, setIsPosting] = useState(false);
   const [postType, setPostType] = useState('general');
+  const [editingPostId, setEditingPostId] = useState(null);
+  const [editContent, setEditContent] = useState('');
+  const [postMenuId, setPostMenuId] = useState(null);
+  const [jobPostMenuId, setJobPostMenuId] = useState(null);
+  const [editJobModal, setEditJobModal] = useState(null);
+  const [editJobForm, setEditJobForm] = useState(() => buildEditJobForm());
+  const [editJobAttachmentFile, setEditJobAttachmentFile] = useState(null);
+  const [editJobSaving, setEditJobSaving] = useState(false);
   const [selectedFile, setSelectedFile] = useState(null);
   const [filePreview, setFilePreview] = useState(null);
   const [commentModalPost, setCommentModalPost] = useState(null);
@@ -457,6 +615,16 @@ const PartnerHome = ({ setActivePage }) => {
     setJobMediaCommentMenuId(null);
   };
 
+  const closeEditJobModal = () => {
+    if (editJobForm.attachmentUrl?.startsWith('blob:')) {
+      URL.revokeObjectURL(editJobForm.attachmentUrl);
+    }
+    setEditJobModal(null);
+    setEditJobAttachmentFile(null);
+    setEditJobSaving(false);
+    setEditJobForm(buildEditJobForm());
+  };
+
   useEffect(() => {
     if (typeof window === 'undefined') return undefined;
 
@@ -470,7 +638,7 @@ const PartnerHome = ({ setActivePage }) => {
   }, []);
 
   useEffect(() => {
-    const activeFeedModal = jobMediaModal || commentModalPost;
+    const activeFeedModal = jobMediaModal || commentModalPost || editJobModal;
     if (!activeFeedModal || typeof window === 'undefined' || typeof document === 'undefined') return undefined;
 
     const scrollY = window.scrollY;
@@ -494,7 +662,7 @@ const PartnerHome = ({ setActivePage }) => {
       document.documentElement.style.overflow = originalHtmlOverflow;
       window.scrollTo(0, scrollY);
     };
-  }, [jobMediaModal, commentModalPost]);
+  }, [jobMediaModal, commentModalPost, editJobModal]);
 
   const submitJobMediaComment = async () => {
     if (!jobMediaModal) return;
@@ -703,6 +871,204 @@ const PartnerHome = ({ setActivePage }) => {
     setCommentInput('');
   };
 
+  const handleEditPost = (post) => {
+    setEditingPostId(post.id);
+    setEditContent(post.content || '');
+    setPostMenuId(null);
+  };
+
+  const handleSaveEdit = async (postId) => {
+    if (!editContent.trim()) return;
+    const res = await updatePost(postId, { content: editContent.trim() });
+    if (res.success) {
+      setEditingPostId(null);
+      setEditContent('');
+    } else {
+      alert(res.error || 'Failed to update post');
+    }
+  };
+
+  const handleDeletePost = async (postId) => {
+    const confirmed = window.confirm('Delete this post?');
+    if (!confirmed) return;
+    const res = await deletePost(postId);
+    if (!res.success) {
+      alert(res.error || 'Failed to delete post');
+    }
+    setPostMenuId(null);
+  };
+
+  const handleDeleteOpportunity = async (jobId) => {
+    const confirmed = window.confirm('Delete this post?');
+    if (!confirmed) return;
+    const res = await deleteJobPosting(jobId);
+    if (!res.success) {
+      alert(res.error || 'Failed to delete post');
+    }
+    setJobPostMenuId(null);
+  };
+
+  const handleEditJobAttachmentChange = (event) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    const isImage = file.type.startsWith('image/');
+    const isDocument = [
+      'application/pdf',
+      'application/msword',
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    ].includes(file.type);
+
+    if (!isImage && !isDocument) {
+      alert('Only image files, PDF, DOC, and DOCX are allowed.');
+      event.target.value = '';
+      return;
+    }
+
+    const objectUrl = URL.createObjectURL(file);
+    setEditJobAttachmentFile(file);
+    setEditJobForm(prev => {
+      if (prev.attachmentUrl?.startsWith('blob:')) {
+        URL.revokeObjectURL(prev.attachmentUrl);
+      }
+      return {
+        ...prev,
+        attachmentName: file.name,
+        attachmentType: file.type || 'application/octet-stream',
+        attachmentUrl: objectUrl,
+      };
+    });
+  };
+
+  const removeEditJobAttachment = () => {
+    setEditJobAttachmentFile(null);
+    setEditJobForm(prev => {
+      if (prev.attachmentUrl?.startsWith('blob:')) {
+        URL.revokeObjectURL(prev.attachmentUrl);
+      }
+      return {
+        ...prev,
+        attachmentName: '',
+        attachmentType: '',
+        attachmentUrl: '',
+      };
+    });
+  };
+
+  const toggleEditJobCompetency = (competency) => {
+    setEditJobForm(prev => ({
+      ...prev,
+      requiredCompetencies: prev.requiredCompetencies.includes(competency)
+        ? prev.requiredCompetencies.filter(item => item !== competency)
+        : [...prev.requiredCompetencies, competency],
+    }));
+  };
+
+  const handleEditSalaryMinInput = (event) => {
+    const digits = sanitizeNumericSalaryInput(event.target.value);
+    setEditJobForm(prev => ({ ...prev, salaryMin: digits }));
+  };
+
+  const handleEditSalaryMaxInput = (event) => {
+    const digits = sanitizeNumericSalaryInput(event.target.value);
+    setEditJobForm(prev => ({ ...prev, salaryMax: digits }));
+  };
+
+  const handleEditOpportunity = (job) => {
+    if (!job?.id || !myJobIds.has(job.id)) return;
+    setJobPostMenuId(null);
+    setEditJobAttachmentFile(null);
+    setEditJobForm(buildEditJobForm(job));
+    setEditJobModal(job);
+  };
+
+  const handleSaveEditedOpportunity = async (event) => {
+    event.preventDefault();
+    if (!editJobModal?.id) return;
+
+    if (!editJobForm.title.trim() || !editJobForm.location.trim()) {
+      alert('Title and location are required.');
+      return;
+    }
+    if (!editJobForm.ncLevel) {
+      alert('Please select an NC level.');
+      return;
+    }
+
+    const hasSalaryInput = Boolean(editJobForm.salaryMin || editJobForm.salaryMax);
+    if (hasSalaryInput && (!editJobForm.salaryMin || !editJobForm.salaryMax)) {
+      alert('Please provide both minimum and maximum salary.');
+      return;
+    }
+
+    const salaryMinNumber = Number(editJobForm.salaryMin || 0);
+    const salaryMaxNumber = Number(editJobForm.salaryMax || 0);
+    if (hasSalaryInput && salaryMinNumber > salaryMaxNumber) {
+      alert('Minimum salary cannot be greater than maximum salary.');
+      return;
+    }
+
+    setEditJobSaving(true);
+
+    try {
+      let finalAttachmentUrl = editJobForm.attachmentUrl || '';
+      let finalAttachmentName = editJobForm.attachmentName || '';
+      let finalAttachmentType = editJobForm.attachmentType || '';
+
+      if (editJobAttachmentFile && currentUser?.id) {
+        const timestamp = Date.now();
+        const safeName = editJobAttachmentFile.name.replace(/[^a-zA-Z0-9._-]/g, '_');
+        const storagePath = `opportunity-attachments/${currentUser.id}/${timestamp}_${safeName}`;
+
+        const { error: uploadError } = await supabase.storage
+          .from('registration-uploads')
+          .upload(storagePath, editJobAttachmentFile, {
+            contentType: editJobAttachmentFile.type,
+            upsert: true,
+          });
+
+        if (uploadError) {
+          throw new Error(uploadError.message || 'Failed to upload attachment.');
+        }
+
+        const { data: urlData } = supabase.storage.from('registration-uploads').getPublicUrl(storagePath);
+        finalAttachmentUrl = urlData?.publicUrl || '';
+        finalAttachmentName = editJobAttachmentFile.name;
+        finalAttachmentType = editJobAttachmentFile.type || '';
+      }
+
+      const payload = {
+        ...editJobForm,
+        title: editJobForm.title.trim(),
+        location: editJobForm.location.trim(),
+        description: editJobForm.description.trim(),
+        employmentType: editJobForm.opportunityType === 'OJT' ? '' : editJobForm.employmentType,
+        salaryRange: formatSalaryRangeValue(editJobForm.salaryMin, editJobForm.salaryMax, editJobForm.salaryCurrency),
+        salaryCurrency: editJobForm.salaryCurrency,
+        salaryMin: editJobForm.salaryMin ? Number(editJobForm.salaryMin) : null,
+        salaryMax: editJobForm.salaryMax ? Number(editJobForm.salaryMax) : null,
+        attachmentName: finalAttachmentName,
+        attachmentType: finalAttachmentType,
+        attachmentUrl: finalAttachmentUrl,
+      };
+
+      const result = await updatePartnerJobPosting(editJobModal.id, payload);
+      if (!result?.success) {
+        alert(result?.error || 'Failed to update opportunity.');
+        return;
+      }
+
+      alert('Opportunity updated successfully!');
+      closeEditJobModal();
+    } catch (error) {
+      alert(error?.message || 'Failed to update opportunity.');
+    } finally {
+      setEditJobSaving(false);
+    }
+  };
+
+  const myJobIds = new Set(myJobs.map(job => job.id));
+
   // Unified Feed logic: Mix Jobs and Posts, sort by date
   const unifiedFeed = [
     ...posts.map(p => ({ ...p, feedType: 'post' })),
@@ -728,6 +1094,10 @@ const PartnerHome = ({ setActivePage }) => {
   const canContactModalAuthor = Boolean(commentModalPost && commentModalPost.author_id !== currentUser?.id);
   const contactRecipientName = contactTarget?.recipientName || 'Recipient';
   const jobMediaComments = jobMediaModal ? getJobPostingComments(jobMediaModal.id) : [];
+  const selectedEditProgram = programOptions.find(program => String(program.id) === String(editJobForm.programId))
+    || programOptions.find(program => String(program.name || '').trim() === String(editJobForm.ncLevel || '').trim())
+    || null;
+  const editProgramCompetencies = selectedEditProgram?.competencies || [];
   const useCommentsOnlyJobModal = isCompactCommentViewport && jobMediaCommentsOnly;
   const useCompactPostCommentModal = isCompactCommentViewport;
 
@@ -869,36 +1239,80 @@ const PartnerHome = ({ setActivePage }) => {
               const jobComments = getJobPostingComments(item.id);
               return (
                 <div key={`job-${item.id}`} className="ln-card ln-feed-card" style={{ marginBottom: 0 }}>
-                  <div className="ln-feed-card-header">
-                    <button
-                      type="button"
-                      className="ln-feed-avatar"
-                      onClick={() => openProfile({ id: item.partnerId, type: 'partner' })}
-                      style={{ background: '#f0f7ff', color: '#0a66c2', border: 'none', cursor: item.partnerId ? 'pointer' : 'default' }}
-                      disabled={!item.partnerId}
-                    >
-                      <Building2 size={20} />
-                    </button>
-                    <div>
-                      <div className="ln-feed-author">
-                        <button
-                          type="button"
-                          onClick={() => openProfile({ id: item.partnerId, type: 'partner' })}
-                          style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', color: 'inherit', font: 'inherit', textAlign: 'left' }}
-                        >
-                          {item.companyName}
-                        </button>
-                        {myJob && <span className="ln-badge ln-badge-blue" style={{ fontSize: 10, marginLeft: 4 }}>Your Post</span>}
-                      </div>
-                      <div className="ln-feed-meta">
-                        {[
-                          (item.industry && String(item.industry).trim().toLowerCase() !== 'general') ? item.industry : '',
-                          item.location,
-                          item.salaryRange,
-                          timeAgo(item.created_at || item.createdAt || item.datePosted),
-                        ].filter(Boolean).join(' • ')}
+                  <div className="ln-feed-card-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                    <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+                      <button
+                        type="button"
+                        className="ln-feed-avatar"
+                        onClick={() => openProfile({ id: item.partnerId, type: 'partner' })}
+                        style={{ background: '#f0f7ff', color: '#0a66c2', border: 'none', cursor: item.partnerId ? 'pointer' : 'default' }}
+                        disabled={!item.partnerId}
+                      >
+                        <Building2 size={20} />
+                      </button>
+                      <div>
+                        <div className="ln-feed-author">
+                          <button
+                            type="button"
+                            onClick={() => openProfile({ id: item.partnerId, type: 'partner' })}
+                            style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', color: 'inherit', font: 'inherit', textAlign: 'left' }}
+                          >
+                            {item.companyName}
+                          </button>
+                          {myJob && <span className="ln-badge ln-badge-blue" style={{ fontSize: 10, marginLeft: 4 }}>Your Post</span>}
+                        </div>
+                        <div className="ln-feed-meta">
+                          {[
+                            (item.industry && String(item.industry).trim().toLowerCase() !== 'general') ? item.industry : '',
+                            item.location,
+                            timeAgo(item.created_at || item.createdAt || item.datePosted),
+                          ].filter(Boolean).join(' • ')}
                       </div>
                     </div>
+                  </div>
+                  {myJob && (
+                      <div style={{ position: 'relative' }}>
+                        <button
+                          onClick={() => setJobPostMenuId(jobPostMenuId === item.id ? null : item.id)}
+                          style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 4, borderRadius: '50%', color: '#65676b' }}
+                          title="More options"
+                        >
+                          <span style={{ fontSize: 20, fontWeight: 700, letterSpacing: 2, lineHeight: 1 }}>···</span>
+                        </button>
+                        {jobPostMenuId === item.id && (
+                          <div style={{
+                            position: 'absolute', right: 0, top: 32, background: '#fff',
+                            borderRadius: 8, boxShadow: '0 2px 12px rgba(0,0,0,0.15)',
+                            border: '1px solid #e4e6eb', zIndex: 10, minWidth: 170, overflow: 'hidden'
+                          }}>
+                            <button
+                              onClick={() => handleEditOpportunity(item)}
+                              style={{
+                                display: 'flex', alignItems: 'center', gap: 10, width: '100%',
+                                padding: '10px 16px', border: 'none', background: 'none',
+                                cursor: 'pointer', fontSize: 14, color: '#1c1e21'
+                              }}
+                              onMouseEnter={e => e.target.style.background = '#f2f3f5'}
+                              onMouseLeave={e => e.target.style.background = 'none'}
+                            >
+                              <Edit size={16} /> Edit opportunity
+                            </button>
+                            <button
+                              onClick={() => handleDeleteOpportunity(item.id)}
+                              style={{
+                                display: 'flex', alignItems: 'center', gap: 10, width: '100%',
+                                padding: '10px 16px', border: 'none', background: 'none',
+                                cursor: 'pointer', fontSize: 14, color: '#e74c3c'
+                              }}
+                              onMouseEnter={e => e.target.style.background = '#f2f3f5'}
+                              onMouseLeave={e => e.target.style.background = 'none'}
+                            >
+                              <Trash2 size={16} /> Delete post
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </div>
                   <div className="ln-feed-content">
                     <h4 style={{ fontSize: 15, fontWeight: 700, marginBottom: 4 }}>{item.title}</h4>
@@ -927,6 +1341,9 @@ const PartnerHome = ({ setActivePage }) => {
                       {item.ncLevel && (
                         <span className="ln-opp-type-badge" style={{ background: '#ede9fe', color: '#6d28d9' }}>{item.ncLevel}</span>
                       )}
+                      {item.salaryRange && (
+                        <span style={{ fontSize: 15, color: '#057642', fontWeight: 700 }}>{formatSalaryDisplay(item.salaryRange)}</span>
+                      )}
                     </div>
                     {jobComments.length > 0 && (
                       <div style={{ marginTop: 10, fontSize: 12, color: '#64748b', display: 'flex', gap: 14 }}>
@@ -935,9 +1352,11 @@ const PartnerHome = ({ setActivePage }) => {
                     )}
                   </div>
                   <div className="ln-feed-actions" style={{ borderTop: '1px solid #f3f3f3', padding: '8px 12px' }}>
-                    <button className="ln-feed-action-btn" onClick={() => setActivePage(myJob ? 'applicants' : 'dashboard')}>
-                      {myJob ? <><Users size={14} /> View Applicants</> : <><Eye size={14} /> View Opportunity</>}
-                    </button>
+                    {myJob && (
+                      <button className="ln-feed-action-btn" onClick={() => setActivePage('applicants')}>
+                        <Users size={14} /> View Applicants
+                      </button>
+                    )}
                     <button className="ln-feed-action-btn" onClick={() => openJobMediaModal(item, true)}>
                       <MessageSquare size={14} /> Comment ({jobComments.length})
                     </button>
@@ -979,40 +1398,118 @@ const PartnerHome = ({ setActivePage }) => {
 
               return (
                 <div key={`post-${item.id}`} className="ln-card ln-feed-card" style={{ marginBottom: 0 }}>
-                  <div className="ln-feed-card-header">
-                    <button
-                      type="button"
-                      className="ln-feed-avatar"
-                      onClick={() => openProfile({ id: item.author_id, type: authorProfileType })}
-                      style={{ border: 'none', cursor: 'pointer' }}
-                    >
-                      {author?.photo || author?.company_logo_url ? (
-                        <img src={author.photo || author.company_logo_url} alt="" style={{ width: '100%', height: '100%', borderRadius: '50%', objectFit: 'cover' }} />
-                      ) : (authorInitial)}
-                    </button>
-                    <div>
-                      <div className="ln-feed-author" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                        <button
-                          type="button"
-                          onClick={() => openProfile({ id: item.author_id, type: authorProfileType })}
-                          style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', color: 'inherit', font: 'inherit', textAlign: 'left' }}
-                        >
-                          {author?.name || author?.profileName || author?.companyName || 'Unknown User'}
-                        </button>
-                        {isMe && <span className="ln-badge ln-badge-gray" style={{ fontSize: 10 }}>You</span>}
-                        {item.post_type !== 'general' && (
-                          <span className="ln-badge ln-badge-blue" style={{ fontSize: 10 }}>
-                            {item.post_type.replace('_', ' ')}
-                          </span>
-                        )}
-                      </div>
-                      <div className="ln-feed-meta">
-                        {isStudentAuthorType(item.author_type) ? 'TESDA Trainee' : 'Industry Partner'} &bull; {timeAgo(item.created_at)}
+                  <div className="ln-feed-card-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                    <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+                      <button
+                        type="button"
+                        className="ln-feed-avatar"
+                        onClick={() => openProfile({ id: item.author_id, type: authorProfileType })}
+                        style={{ border: 'none', cursor: 'pointer' }}
+                      >
+                        {author?.photo || author?.company_logo_url ? (
+                          <img src={author.photo || author.company_logo_url} alt="" style={{ width: '100%', height: '100%', borderRadius: '50%', objectFit: 'cover' }} />
+                        ) : (authorInitial)}
+                      </button>
+                      <div>
+                        <div className="ln-feed-author" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                          <button
+                            type="button"
+                            onClick={() => openProfile({ id: item.author_id, type: authorProfileType })}
+                            style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', color: 'inherit', font: 'inherit', textAlign: 'left' }}
+                          >
+                            {author?.name || author?.profileName || author?.companyName || 'Unknown User'}
+                          </button>
+                          {isMe && <span className="ln-badge ln-badge-gray" style={{ fontSize: 10 }}>You</span>}
+                          {item.post_type !== 'general' && (
+                            <span className="ln-badge ln-badge-blue" style={{ fontSize: 10 }}>
+                              {item.post_type.replace('_', ' ')}
+                            </span>
+                          )}
+                        </div>
+                        <div className="ln-feed-meta">
+                          {isStudentAuthorType(item.author_type) ? 'TESDA Trainee' : 'Industry Partner'} &bull; {timeAgo(item.created_at)}
+                          {item.updated_at && item.updated_at !== item.created_at && ' (edited)'}
+                        </div>
                       </div>
                     </div>
+                    {isMe && (
+                      <div style={{ position: 'relative' }}>
+                        <button
+                          onClick={() => setPostMenuId(postMenuId === item.id ? null : item.id)}
+                          style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 4, borderRadius: '50%', color: '#65676b' }}
+                          title="More options"
+                        >
+                          <span style={{ fontSize: 20, fontWeight: 700, letterSpacing: 2, lineHeight: 1 }}>···</span>
+                        </button>
+                        {postMenuId === item.id && (
+                          <div style={{
+                            position: 'absolute', right: 0, top: 32, background: '#fff',
+                            borderRadius: 8, boxShadow: '0 2px 12px rgba(0,0,0,0.15)',
+                            border: '1px solid #e4e6eb', zIndex: 10, minWidth: 150, overflow: 'hidden'
+                          }}>
+                            <button
+                              onClick={() => handleEditPost(item)}
+                              style={{
+                                display: 'flex', alignItems: 'center', gap: 10, width: '100%',
+                                padding: '10px 16px', border: 'none', background: 'none',
+                                cursor: 'pointer', fontSize: 14, color: '#1c1e21'
+                              }}
+                              onMouseEnter={e => e.target.style.background = '#f2f3f5'}
+                              onMouseLeave={e => e.target.style.background = 'none'}
+                            >
+                              <Edit size={16} /> Edit post
+                            </button>
+                            <button
+                              onClick={() => handleDeletePost(item.id)}
+                              style={{
+                                display: 'flex', alignItems: 'center', gap: 10, width: '100%',
+                                padding: '10px 16px', border: 'none', background: 'none',
+                                cursor: 'pointer', fontSize: 14, color: '#e74c3c'
+                              }}
+                              onMouseEnter={e => e.target.style.background = '#f2f3f5'}
+                              onMouseLeave={e => e.target.style.background = 'none'}
+                            >
+                              <Trash2 size={16} /> Delete post
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </div>
                   <div className="ln-feed-content">
-                    <p style={{ whiteSpace: 'pre-wrap', fontSize: 14 }}>{item.content}</p>
+                    {editingPostId === item.id ? (
+                      <div>
+                        <textarea
+                          value={editContent}
+                          onChange={e => setEditContent(e.target.value)}
+                          style={{
+                            width: '100%', minHeight: 100, padding: 12, fontSize: 14,
+                            border: '1px solid #0a66c2', borderRadius: 8, resize: 'none',
+                            outline: 'none', fontFamily: 'inherit'
+                          }}
+                          maxLength={2000}
+                        />
+                        <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 8 }}>
+                          <button
+                            onClick={() => { setEditingPostId(null); setEditContent(''); }}
+                            className="ln-btn-sm"
+                            style={{ padding: '6px 16px', borderRadius: 20, fontSize: 13 }}
+                          >
+                            Cancel
+                          </button>
+                          <button
+                            onClick={() => handleSaveEdit(item.id)}
+                            className="ln-btn-sm ln-btn-primary"
+                            style={{ padding: '6px 16px', borderRadius: 20, fontSize: 13, fontWeight: 600 }}
+                            disabled={!editContent.trim()}
+                          >
+                            Save
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <p style={{ whiteSpace: 'pre-wrap', fontSize: 14 }}>{item.content}</p>
+                    )}
                     {item.media_url && (
                       <div style={{ marginTop: 12 }}>
                         {item.media_url.match(/\.(jpg|jpeg|png|gif|webp)$/i) ? (
@@ -1097,6 +1594,226 @@ const PartnerHome = ({ setActivePage }) => {
         <RecruitmentStatsWidget myJobs={myJobs} myApplicants={myApplicants} />
       </div>
 
+      {editJobModal && (
+        <div className="modal-overlay" onClick={closeEditJobModal}>
+          <div className="ln-modal" onClick={e => e.stopPropagation()} style={{ width: '95%', maxWidth: 860, maxHeight: '92vh', overflow: 'hidden', padding: 0, background: '#fff' }}>
+            <div style={{ padding: '16px 20px', borderBottom: '1px solid #e5e7eb', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <div>
+                <h3 style={{ fontSize: 18, fontWeight: 700, color: '#0f172a', margin: 0 }}>Edit Opportunity</h3>
+                <p style={{ margin: '2px 0 0', fontSize: 12, color: '#64748b' }}>Update your posting without leaving this page.</p>
+              </div>
+              <button className="ln-btn-icon" onClick={closeEditJobModal} aria-label="Close edit opportunity modal"><X size={18} /></button>
+            </div>
+
+            <form onSubmit={handleSaveEditedOpportunity} style={{ padding: 20, overflowY: 'auto', maxHeight: 'calc(92vh - 74px)' }}>
+              <div className="ln-info-grid" style={{ gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                <div className="form-group" style={{ gridColumn: '1 / -1' }}>
+                  <label className="ln-info-label">Title *</label>
+                  <input
+                    className="form-input"
+                    value={editJobForm.title}
+                    onChange={e => setEditJobForm(prev => ({ ...prev, title: e.target.value }))}
+                    maxLength={100}
+                    required
+                  />
+                </div>
+
+                <div className="form-group">
+                  <label className="ln-info-label">Opportunity Type *</label>
+                  <select
+                    className="form-select"
+                    value={editJobForm.opportunityType}
+                    onChange={e => {
+                      const nextType = e.target.value;
+                      setEditJobForm(prev => ({
+                        ...prev,
+                        opportunityType: nextType,
+                        employmentType: nextType === 'OJT' ? '' : (prev.employmentType || 'Full-time'),
+                      }));
+                    }}
+                  >
+                    <option>Job</option>
+                    <option>OJT</option>
+                    <option>Apprenticeship</option>
+                  </select>
+                </div>
+
+                {editJobForm.opportunityType !== 'OJT' && (
+                  <div className="form-group">
+                    <label className="ln-info-label">Employment Type</label>
+                    <select
+                      className="form-select"
+                      value={editJobForm.employmentType}
+                      onChange={e => setEditJobForm(prev => ({ ...prev, employmentType: e.target.value }))}
+                    >
+                      <option>Full-time</option>
+                      <option>Part-time</option>
+                      <option>Contract</option>
+                      <option>Internship</option>
+                    </select>
+                  </div>
+                )}
+
+                <div className="form-group">
+                  <label className="ln-info-label">Program Required</label>
+                  <select
+                    className="form-select"
+                    value={editJobForm.programId || ''}
+                    onChange={e => {
+                      const selected = programOptions.find(program => String(program.id) === e.target.value);
+                      const normalizedNcLevel = normalizeNcLevelValue(selected?.ncLevel || selected?.name || '');
+                      setEditJobForm(prev => ({
+                        ...prev,
+                        programId: selected?.id || '',
+                        ncLevel: ncLevelOptions.includes(normalizedNcLevel) ? normalizedNcLevel : prev.ncLevel,
+                        requiredCompetencies: selected?.competencies || [],
+                      }));
+                    }}
+                  >
+                    {programOptions.length === 0 && <option value="">No programs available</option>}
+                    {programOptions.map(program => (
+                      <option key={program.id} value={program.id}>{program.name}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="form-group">
+                  <label className="ln-info-label">NC Level Required *</label>
+                  <select
+                    className="form-select"
+                    value={editJobForm.ncLevel}
+                    onChange={e => {
+                      const normalized = normalizeNcLevelValue(e.target.value);
+                      setEditJobForm(prev => ({ ...prev, ncLevel: ncLevelOptions.includes(normalized) ? normalized : '' }));
+                    }}
+                    required
+                  >
+                    <option value="">Select NC Level</option>
+                    {ncLevelOptions.map(level => (
+                      <option key={level} value={level}>{level}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="form-group" style={{ gridColumn: '1 / -1' }}>
+                  <label className="ln-info-label">Description</label>
+                  <textarea
+                    className="form-input"
+                    rows={4}
+                    maxLength={1000}
+                    value={editJobForm.description}
+                    onChange={e => setEditJobForm(prev => ({ ...prev, description: e.target.value }))}
+                  />
+                </div>
+
+                <div className="form-group">
+                  <label className="ln-info-label">Location *</label>
+                  <input
+                    className="form-input"
+                    value={editJobForm.location}
+                    onChange={e => setEditJobForm(prev => ({ ...prev, location: e.target.value }))}
+                    maxLength={100}
+                    required
+                  />
+                </div>
+
+                <div className="form-group">
+                  <label className="ln-info-label">Currency</label>
+                  <select
+                    className="form-select"
+                    value={editJobForm.salaryCurrency}
+                    onChange={e => setEditJobForm(prev => ({ ...prev, salaryCurrency: e.target.value }))}
+                  >
+                    {SALARY_CURRENCY_OPTIONS.map(option => (
+                      <option key={option.code} value={option.code}>{option.label}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="form-group">
+                  <label className="ln-info-label">Salary Min (Optional)</label>
+                  <input
+                    className="form-input"
+                    value={editJobForm.salaryMin}
+                    onChange={handleEditSalaryMinInput}
+                    inputMode="numeric"
+                    pattern="[0-9]*"
+                    maxLength={12}
+                    placeholder="e.g. 25000"
+                  />
+                </div>
+
+                <div className="form-group">
+                  <label className="ln-info-label">Salary Max (Optional)</label>
+                  <input
+                    className="form-input"
+                    value={editJobForm.salaryMax}
+                    onChange={handleEditSalaryMaxInput}
+                    inputMode="numeric"
+                    pattern="[0-9]*"
+                    maxLength={12}
+                    placeholder="e.g. 30000"
+                  />
+                </div>
+
+                <div className="form-group" style={{ gridColumn: '1 / -1' }}>
+                  <label className="ln-info-label">Required Competencies</label>
+                  {editProgramCompetencies.length === 0 ? (
+                    <div style={{ fontSize: 12, color: '#64748b', padding: '8px 10px', border: '1px solid #e2e8f0', borderRadius: 8, background: '#f8fafc' }}>
+                      No competencies available for the selected program.
+                    </div>
+                  ) : (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                      {editProgramCompetencies.map(competency => (
+                        <label key={competency} style={{ display: 'flex', alignItems: 'flex-start', gap: 10, padding: '8px 10px', borderRadius: 10, border: `1.5px solid ${editJobForm.requiredCompetencies.includes(competency) ? '#3b82f6' : '#e8e8e8'}`, background: editJobForm.requiredCompetencies.includes(competency) ? '#dbeafe' : '#f8fafc', cursor: 'pointer' }}>
+                          <input
+                            type="checkbox"
+                            checked={editJobForm.requiredCompetencies.includes(competency)}
+                            onChange={() => toggleEditJobCompetency(competency)}
+                            style={{ marginTop: 2 }}
+                          />
+                          <span style={{ fontSize: 13.5, color: '#475569' }}>{competency}</span>
+                        </label>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                <div className="form-group" style={{ gridColumn: '1 / -1' }}>
+                  <label className="ln-info-label">Attachment (Image or Document)</label>
+                  <input type="file" className="form-input" accept="image/*,.pdf,.doc,.docx" onChange={handleEditJobAttachmentChange} />
+                  {editJobForm.attachmentName && (
+                    <div style={{ marginTop: 8, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 8, padding: '8px 10px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 }}>
+                        <FileText size={14} color="#64748b" />
+                        <span style={{ fontSize: 12, color: '#334155', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{editJobForm.attachmentName}</span>
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                        {editJobForm.attachmentUrl && (
+                          <a href={editJobForm.attachmentUrl} target="_blank" rel="noreferrer" style={{ fontSize: 12, color: '#2563eb', textDecoration: 'none' }}>
+                            Preview
+                          </a>
+                        )}
+                        <button type="button" className="ln-feed-action-btn" style={{ padding: '2px 6px', minHeight: 'auto' }} onClick={removeEditJobAttachment}>
+                          <X size={12} />
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 18, paddingTop: 14, borderTop: '1px solid #e5e7eb' }}>
+                <button type="button" className="ln-btn ln-btn-outline" onClick={closeEditJobModal} disabled={editJobSaving}>Cancel</button>
+                <button type="submit" className="ln-btn ln-btn-primary" disabled={editJobSaving}>
+                  <Send size={14} /> {editJobSaving ? 'Saving...' : 'Save Changes'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
       {jobMediaModal && (
         <div
           className="modal-overlay"
@@ -1157,7 +1874,6 @@ const PartnerHome = ({ setActivePage }) => {
                       {[
                         (jobMediaModal.industry && String(jobMediaModal.industry).trim().toLowerCase() !== 'general') ? jobMediaModal.industry : '',
                         jobMediaModal.location,
-                        jobMediaModal.salaryRange,
                         timeAgo(jobMediaModal.created_at || jobMediaModal.createdAt || jobMediaModal.datePosted),
                       ].filter(Boolean).join(' • ')}
                     </div>
@@ -1850,16 +2566,23 @@ const VerificationPage = () => {
 
 // ─── PAGE: POST OPPORTUNITIES ─────────────────────────────────────
 const PostJob = ({ setActivePage, opportunityType = 'Job' }) => {
-  const { addJobPosting, currentUser, partners, programs } = useApp();
+  const ncLevelOptions = ['NC I', 'NC II', 'NC III', 'NC IV'];
+  const location = useLocation();
+  const { addJobPosting, updatePartnerJobPosting, currentUser, partners, programs, jobPostings } = useApp();
   const livePartner = getLivePartner(currentUser, partners);
   const programOptions = Array.isArray(programs) ? programs : [];
   const firstProgram = programOptions[0] || null;
+  const editingJobId = location?.state?.editJobId || null;
+  const editingJob = jobPostings.find(job =>
+    String(job.id) === String(editingJobId) && String(job.partnerId) === String(currentUser?.id)
+  ) || null;
+  const isEditMode = Boolean(editingJob);
   const [posting, setPosting] = useState(false);
   const [attachmentFile, setAttachmentFile] = useState(null);
   const [form, setForm] = useState({
-    title: '', opportunityType, programId: firstProgram?.id || '', ncLevel: firstProgram?.name || '', description: '',
-    employmentType: opportunityType === 'OJT' ? '' : 'Full-time', location: '', salaryRange: '',
-    requiredCompetencies: firstProgram?.competencies || [],
+    title: '', opportunityType, programId: firstProgram?.id || '', ncLevel: normalizeNcLevelValue(firstProgram?.ncLevel || firstProgram?.name || ''), description: '',
+    employmentType: opportunityType === 'OJT' ? '' : 'Full-time', location: '', salaryRange: '', salaryCurrency: DEFAULT_SALARY_CURRENCY, salaryMin: '', salaryMax: '',
+    requiredCompetencies: [],
     attachmentName: '', attachmentType: '', attachmentUrl: '',
   });
 
@@ -1868,11 +2591,49 @@ const PostJob = ({ setActivePage, opportunityType = 'Job' }) => {
       setForm(prev => ({
         ...prev,
         programId: programOptions[0].id,
-        ncLevel: programOptions[0].name,
-        requiredCompetencies: programOptions[0].competencies || [],
+        ncLevel: normalizeNcLevelValue(programOptions[0].ncLevel || programOptions[0].name || ''),
+        requiredCompetencies: [],
       }));
     }
   }, [form.ncLevel, programOptions]);
+
+  // Only allow valid NC levels in dropdown
+  const ncLevelSelectOptions = ncLevelOptions;
+
+  useEffect(() => {
+    if (!isEditMode || !editingJob) return;
+
+    const parsedSalary = parseSalaryRangeInputValues(
+      editingJob.salaryRange,
+      editingJob.salaryCurrency || DEFAULT_SALARY_CURRENCY,
+    );
+
+    // Only set ncLevel if it's a valid NC level
+    const normalizedNcLevel = normalizeNcLevelValue(editingJob.ncLevel || '');
+    const validNcLevel = ncLevelOptions.includes(normalizedNcLevel) ? normalizedNcLevel : '';
+
+    setForm(prev => ({
+      ...prev,
+      title: editingJob.title || '',
+      opportunityType: editingJob.opportunityType || opportunityType,
+      programId: editingJob.programId || prev.programId || '',
+      ncLevel: validNcLevel,
+      description: editingJob.description || '',
+      employmentType: (editingJob.opportunityType || opportunityType) === 'OJT'
+        ? ''
+        : (editingJob.employmentType || 'Full-time'),
+      location: editingJob.location || '',
+      salaryRange: editingJob.salaryRange || '',
+      salaryCurrency: editingJob.salaryCurrency || parsedSalary.salaryCurrency,
+      salaryMin: editingJob.salaryMin ? sanitizeNumericSalaryInput(editingJob.salaryMin) : parsedSalary.salaryMin,
+      salaryMax: editingJob.salaryMax ? sanitizeNumericSalaryInput(editingJob.salaryMax) : parsedSalary.salaryMax,
+      requiredCompetencies: Array.isArray(editingJob.requiredCompetencies) ? editingJob.requiredCompetencies : [],
+      attachmentName: editingJob.attachmentName || '',
+      attachmentType: editingJob.attachmentType || '',
+      attachmentUrl: editingJob.attachmentUrl || '',
+    }));
+    setAttachmentFile(null);
+  }, [isEditMode, editingJob, opportunityType]);
 
   const selectedProgram = programOptions.find(program => program.id === form.programId)
     || programOptions.find(program => program.name === form.ncLevel)
@@ -1886,6 +2647,16 @@ const PostJob = ({ setActivePage, opportunityType = 'Job' }) => {
         ? prev.requiredCompetencies.filter(c => c !== comp)
         : [...prev.requiredCompetencies, comp]
     }));
+  };
+
+  const handleSalaryMinInput = (event) => {
+    const digits = sanitizeNumericSalaryInput(event.target.value);
+    setForm(prev => ({ ...prev, salaryMin: digits }));
+  };
+
+  const handleSalaryMaxInput = (event) => {
+    const digits = sanitizeNumericSalaryInput(event.target.value);
+    setForm(prev => ({ ...prev, salaryMax: digits }));
   };
 
   const handleAttachmentChange = (e) => {
@@ -1943,6 +2714,19 @@ const PostJob = ({ setActivePage, opportunityType = 'Job' }) => {
     if (!form.title || !form.location) return alert('Title and location are required.');
     if (!form.ncLevel) return alert('Please select a TESDA program.');
 
+    const hasSalaryInput = Boolean(form.salaryMin || form.salaryMax);
+    if (hasSalaryInput && (!form.salaryMin || !form.salaryMax)) {
+      return alert('Please provide both minimum and maximum salary.');
+    }
+
+    const salaryMinNumber = Number(form.salaryMin || 0);
+    const salaryMaxNumber = Number(form.salaryMax || 0);
+    if (hasSalaryInput && salaryMinNumber > salaryMaxNumber) {
+      return alert('Minimum salary cannot be greater than maximum salary.');
+    }
+
+    const formattedSalaryRange = formatSalaryRangeValue(form.salaryMin, form.salaryMax, form.salaryCurrency);
+
     try {
       setPosting(true);
 
@@ -1969,23 +2753,30 @@ const PostJob = ({ setActivePage, opportunityType = 'Job' }) => {
         finalAttachmentType = attachmentFile.type || '';
       }
 
-      const result = await addJobPosting({
+      const payload = {
         ...form,
-        salaryRange: form.salaryRange?.trim() || '',
-        attachmentName: finalAttachmentName,
-        attachmentType: finalAttachmentType,
-        attachmentUrl: finalAttachmentUrl,
-      });
+        salaryRange: formattedSalaryRange,
+        salaryCurrency: form.salaryCurrency,
+        salaryMin: form.salaryMin ? Number(form.salaryMin) : null,
+        salaryMax: form.salaryMax ? Number(form.salaryMax) : null,
+        attachmentName: finalAttachmentName || form.attachmentName || '',
+        attachmentType: finalAttachmentType || form.attachmentType || '',
+        attachmentUrl: finalAttachmentUrl || form.attachmentUrl || '',
+      };
+
+      const result = isEditMode
+        ? await updatePartnerJobPosting(editingJob.id, payload)
+        : await addJobPosting(payload);
 
       if (!result?.success) {
-        alert(result?.error || 'Failed to post opportunity.');
+        alert(result?.error || `Failed to ${isEditMode ? 'update' : 'post'} opportunity.`);
         return;
       }
 
-      alert('Opportunity posted successfully!');
+      alert(isEditMode ? 'Opportunity updated successfully!' : 'Opportunity posted successfully!');
       setActivePage('dashboard');
     } catch (error) {
-      alert(error?.message || 'Failed to post opportunity.');
+      alert(error?.message || `Failed to ${isEditMode ? 'update' : 'post'} opportunity.`);
     } finally {
       setPosting(false);
     }
@@ -1995,7 +2786,7 @@ const PostJob = ({ setActivePage, opportunityType = 'Job' }) => {
   const previewLocation = form.location?.trim() || 'Location not set';
   const previewCompany = livePartner?.companyName || 'Your Company';
   const previewIndustry = livePartner?.industry || livePartner?.businessType || '';
-  const previewSalary = form.salaryRange?.trim() || '';
+  const previewSalary = formatSalaryRangeValue(form.salaryMin, form.salaryMax, form.salaryCurrency);
   const previewDescriptionRaw = form.description?.trim() || 'Your opportunity description will appear here once you add details.';
   const previewDescription = previewDescriptionRaw.length > 150
     ? `${previewDescriptionRaw.substring(0, 150)}...`
@@ -2027,8 +2818,8 @@ const PostJob = ({ setActivePage, opportunityType = 'Job' }) => {
     <div className="ln-page-content">
       <div className="ln-page-header">
         <div>
-          <h1 className="ln-page-title">Post Opportunities</h1>
-          <p className="ln-page-subtitle">Create a new opportunity posting</p>
+          <h1 className="ln-page-title">{isEditMode ? 'Edit Opportunity' : 'Post Opportunities'}</h1>
+          <p className="ln-page-subtitle">{isEditMode ? 'Update your opportunity posting' : 'Create a new opportunity posting'}</p>
         </div>
       </div>
       <form onSubmit={handleSubmit}>
@@ -2057,7 +2848,7 @@ const PostJob = ({ setActivePage, opportunityType = 'Job' }) => {
               </select>
             </div>
             <div className="form-group">
-              <label className="ln-info-label">Program Required / NC Level Required *</label>
+              <label className="ln-info-label">Program Required *</label>
               <select
                 className="form-select"
                 value={form.programId || ''}
@@ -2066,14 +2857,31 @@ const PostJob = ({ setActivePage, opportunityType = 'Job' }) => {
                   setForm({
                     ...form,
                     programId: selected?.id || '',
-                    ncLevel: selected?.name || '',
-                    requiredCompetencies: selected?.competencies || [],
+                    ncLevel: normalizeNcLevelValue(selected?.ncLevel || selected?.name || ''),
+                    requiredCompetencies: [],
                   });
                 }}
               >
                 {programOptions.length === 0 && <option value="">No programs available</option>}
                 {programOptions.map(program => (
                   <option key={program.id} value={program.id}>{program.name}</option>
+                ))}
+              </select>
+            </div>
+            <div className="form-group">
+              <label className="ln-info-label">NC Level Required *</label>
+              <select
+                className="form-select"
+                value={form.ncLevel}
+                onChange={e => {
+                  const nextLevel = normalizeNcLevelValue(e.target.value);
+                  setForm({ ...form, ncLevel: ncLevelOptions.includes(nextLevel) ? nextLevel : '' });
+                }}
+                required
+              >
+                <option value="">Select NC Level</option>
+                {ncLevelOptions.map(level => (
+                  <option key={level} value={level}>{level}</option>
                 ))}
               </select>
             </div>
@@ -2089,14 +2897,48 @@ const PostJob = ({ setActivePage, opportunityType = 'Job' }) => {
                 </select>
               </div>
             )}
-            <div className="ln-info-grid" style={{ gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+            <div className="ln-info-grid" style={{ gridTemplateColumns: '1fr 180px', gap: 12 }}>
               <div className="form-group">
                 <label className="ln-info-label">Location *</label>
                 <input className="form-input" value={form.location} onChange={e => setForm({ ...form, location: e.target.value })} placeholder="City" maxLength={100} required />
               </div>
               <div className="form-group">
-                <label className="ln-info-label">Salary Range (Optional)</label>
-                <input className="form-input" value={form.salaryRange} onChange={e => setForm({ ...form, salaryRange: e.target.value })} placeholder="₱15,000 – ₱20,000/month" maxLength={50} />
+                <label className="ln-info-label">Currency</label>
+                <select
+                  className="form-select"
+                  value={form.salaryCurrency}
+                  onChange={e => setForm({ ...form, salaryCurrency: e.target.value })}
+                >
+                  {SALARY_CURRENCY_OPTIONS.map(option => (
+                    <option key={option.code} value={option.code}>{option.label}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+            <div className="ln-info-grid" style={{ gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+              <div className="form-group">
+                <label className="ln-info-label">Salary Min (Optional)</label>
+                <input
+                  className="form-input"
+                  value={form.salaryMin}
+                  onChange={handleSalaryMinInput}
+                  placeholder="e.g. 25000"
+                  inputMode="numeric"
+                  pattern="[0-9]*"
+                  maxLength={12}
+                />
+              </div>
+              <div className="form-group">
+                <label className="ln-info-label">Salary Max (Optional)</label>
+                <input
+                  className="form-input"
+                  value={form.salaryMax}
+                  onChange={handleSalaryMaxInput}
+                  placeholder="e.g. 30000"
+                  inputMode="numeric"
+                  pattern="[0-9]*"
+                  maxLength={12}
+                />
               </div>
             </div>
             <div className="form-group">
@@ -2135,7 +2977,7 @@ const PostJob = ({ setActivePage, opportunityType = 'Job' }) => {
             </div>
             <div style={{ marginTop: 20 }}>
               <button type="submit" className="ln-btn ln-btn-primary" disabled={posting} style={{ width: '100%', padding: '10px 20px', fontSize: 14, opacity: posting ? 0.75 : 1, cursor: posting ? 'not-allowed' : 'pointer' }}>
-                <Send size={16} /> {posting ? 'Posting...' : 'Post Opportunity'}
+                <Send size={16} /> {posting ? (isEditMode ? 'Updating...' : 'Posting...') : (isEditMode ? 'Update Opportunity' : 'Post Opportunity')}
               </button>
             </div>
           </div>
@@ -2207,6 +3049,9 @@ const PostJob = ({ setActivePage, opportunityType = 'Job' }) => {
               )}
               {form.ncLevel && (
                 <span className="ln-opp-type-badge" style={{ background: '#ede9fe', color: '#6d28d9' }}>{form.ncLevel}</span>
+              )}
+              {previewSalary && (
+                <span style={{ fontSize: 15, color: '#057642', fontWeight: 700 }}>{previewSalary}</span>
               )}
             </div>
           </div>
@@ -2915,6 +3760,8 @@ export const CompanyProfile = ({ viewedPartnerId = null, onBack = null }) => {
   const showHeaderIndustry = isOwnProfile || visibleCompanyInfo.has('industry');
   const showHeaderAddress = isOwnProfile || visibleCompanyInfo.has('address');
   const showHeaderEmail = isOwnProfile || visibleCompanyInfo.has('email');
+  const isHeaderAddressHiddenFromOthers = isOwnProfile && !visibleCompanyInfo.has('address');
+  const isHeaderEmailHiddenFromOthers = isOwnProfile && !visibleCompanyInfo.has('email');
 
   return (
     <div className="ln-page-content">
@@ -2938,8 +3785,19 @@ export const CompanyProfile = ({ viewedPartnerId = null, onBack = null }) => {
                   {isVerified(partner) && <CheckCircle size={20} color="#0a66c2" title="Verified" style={{ flexShrink: 0 }} />}
                 </h1>
                 <p className="ln-profile-header-headline">{showHeaderIndustry && partner.industry ? `${partner.industry} • ` : ''}Industry Partner</p>
-                {showHeaderAddress && partner.address && <p className="ln-profile-header-loc"><MapPin size={14} /> {partner.address}</p>}
-                {showHeaderEmail && partner.email && <p className="ln-profile-header-contact">{partner.email}</p>}
+                {showHeaderAddress && partner.address && (
+                  <p className="ln-profile-header-loc" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <MapPin size={14} />
+                    <span>{partner.address}</span>
+                    {isHeaderAddressHiddenFromOthers && <EyeOff size={14} color="#94a3b8" title="Hidden from others" />}
+                  </p>
+                )}
+                {showHeaderEmail && partner.email && (
+                  <p className="ln-profile-header-contact" style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 4 }}>
+                    <span>{partner.email}</span>
+                    {isHeaderEmailHiddenFromOthers && <EyeOff size={14} color="#94a3b8" title="Hidden from others" />}
+                  </p>
+                )}
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 12 }}>
                 <StatusBadge status={partner.verificationStatus} />
@@ -3084,40 +3942,6 @@ export const CompanyProfile = ({ viewedPartnerId = null, onBack = null }) => {
               )}
             </div>
           </div>
-        </div>
-
-        {/* Active Openings (Automatic) */}
-        <div className="ln-card" style={{ marginTop: 20 }}>
-          <div className="ln-section-header">
-            <h3>Active Openings</h3>
-            <span className="ln-badge ln-badge-blue">{activeJobs.length} Positions</span>
-          </div>
-          <div style={{ padding: '0 16px 16px' }}>
-            {activeJobs.length > 0 ? (
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 12 }}>
-                {activeJobs.map(job => (
-                  <div key={job.id} style={{ padding: 12, border: '1px solid #e2e8f0', borderRadius: 8, background: '#f8fafc' }}>
-                    <div style={{ fontWeight: 700, fontSize: 14, color: '#1e293b', marginBottom: 4 }}>{job.title}</div>
-                    <div style={{ display: 'flex', gap: 6, marginBottom: 8 }}>
-                      <span style={{ fontSize: 10, padding: '2px 6px', background: job.opportunityType === 'Job' ? '#dcfce7' : '#fef9c3', color: job.opportunityType === 'Job' ? '#166534' : '#854d0e', borderRadius: 4, fontWeight: 600 }}>{job.opportunityType}</span>
-                      {job.opportunityType !== 'OJT' && job.employmentType && (
-                        <span style={{ fontSize: 10, padding: '2px 6px', background: '#f1f5f9', color: '#475569', borderRadius: 4 }}>{job.employmentType}</span>
-                      )}
-                    </div>
-                    <div style={{ fontSize: 12, color: '#64748b', display: 'flex', alignItems: 'center', gap: 4 }}>
-                      <MapPin size={12} /> {job.location || 'Philippines'}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <div style={{ textAlign: 'center', padding: '24px 0', color: '#64748b' }}>
-                <div style={{ marginBottom: 8 }}><Briefcase size={32} style={{ opacity: 0.2 }} /></div>
-                <p style={{ fontSize: 14 }}>No active openings at this time.</p>
-              </div>
-            )}
-          </div>
-        </div>
 
         {/* Company Achievements */}
         <div className="ln-card" style={{ marginTop: 20 }}>
@@ -3259,6 +4083,41 @@ export const CompanyProfile = ({ viewedPartnerId = null, onBack = null }) => {
             </div>
           )}
         </div>
+
+        {/* Active Openings (Automatic) */}
+        <div className="ln-card" style={{ marginTop: 20 }}>
+          <div className="ln-section-header">
+            <h3>Active Openings</h3>
+            <span className="ln-badge ln-badge-blue">{activeJobs.length} Positions</span>
+          </div>
+          <div style={{ padding: '0 16px 16px' }}>
+            {activeJobs.length > 0 ? (
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: 12 }}>
+                {activeJobs.map(job => (
+                  <div key={job.id} style={{ padding: 12, border: '1px solid #e2e8f0', borderRadius: 8, background: '#f8fafc' }}>
+                    <div style={{ fontWeight: 700, fontSize: 14, color: '#1e293b', marginBottom: 4 }}>{job.title}</div>
+                    <div style={{ display: 'flex', gap: 6, marginBottom: 8 }}>
+                      <span style={{ fontSize: 10, padding: '2px 6px', background: job.opportunityType === 'Job' ? '#dcfce7' : '#fef9c3', color: job.opportunityType === 'Job' ? '#166534' : '#854d0e', borderRadius: 4, fontWeight: 600 }}>{job.opportunityType}</span>
+                      {job.opportunityType !== 'OJT' && job.employmentType && (
+                        <span style={{ fontSize: 10, padding: '2px 6px', background: '#f1f5f9', color: '#475569', borderRadius: 4 }}>{job.employmentType}</span>
+                      )}
+                    </div>
+                    <div style={{ fontSize: 12, color: '#64748b', display: 'flex', alignItems: 'center', gap: 4 }}>
+                      <MapPin size={12} /> {job.location || 'Philippines'}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div style={{ textAlign: 'center', padding: '24px 0', color: '#64748b' }}>
+                <div style={{ marginBottom: 8 }}><Briefcase size={32} style={{ opacity: 0.2 }} /></div>
+                <p style={{ fontSize: 14 }}>No active openings at this time.</p>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+
       </div>
 
       {/* Confirm Dialog */}
