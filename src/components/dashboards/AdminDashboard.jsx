@@ -13,7 +13,44 @@ import {
 } from 'recharts';
 import { Routes, Route, useNavigate, useLocation, Navigate } from 'react-router-dom';
 
-// â”€â”€â”€ LAYOUT â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── TIME AGO HELPER ──────────────────────────────────────────────
+const timeAgo = (dateStr) => {
+    const raw = String(dateStr || '').trim();
+    if (!raw) return 'Just now';
+
+    const hasTimeInfo = raw.includes('T') || /\d{1,2}:\d{2}/.test(raw);
+    const now = new Date();
+    const date = new Date(raw);
+    if (!Number.isFinite(date.getTime())) return 'Just now';
+
+    if (!hasTimeInfo) {
+        const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+        const postDay = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+        const dayDiff = Math.floor((today - postDay) / (24 * 60 * 60 * 1000));
+        if (dayDiff <= 0) return 'Today';
+        if (dayDiff === 1) return '1d ago';
+        if (dayDiff < 30) return `${dayDiff}d ago`;
+        const months = Math.floor(dayDiff / 30);
+        if (months < 12) return `${months}mo ago`;
+        const years = Math.floor(months / 12);
+        return `${years}y ago`;
+    }
+
+    const seconds = Math.floor((now - date) / 1000);
+    if (seconds < 60) return 'Just now';
+    const minutes = Math.floor(seconds / 60);
+    if (minutes < 60) return `${minutes}m ago`;
+    const hours = Math.floor(minutes / 60);
+    if (hours < 24) return `${hours}h ago`;
+    const days = Math.floor(hours / 24);
+    if (days < 30) return `${days}d ago`;
+    const months = Math.floor(days / 30);
+    if (months < 12) return `${months}mo ago`;
+    const years = Math.floor(months / 12);
+    return `${years}y ago`;
+};
+
+// ─── LAYOUT ────────────────────────────────────────────────────────────────
 const AppLayout = ({ sidebar, children, pageTitle, pageSubtitle }) => {
     const { currentUser, logout } = useApp();
     const [showProfile, setShowProfile] = useState(false);
@@ -71,7 +108,7 @@ const AppLayout = ({ sidebar, children, pageTitle, pageSubtitle }) => {
     );
 };
 
-// â”€â”€â”€ SIDEBAR â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// — SIDEBAR —————————————————————————————————————————————————————————————————
 const AdminSidebar = ({ activePage, setActivePage, mobileOpen, closeSidebar }) => {
     const { logout } = useApp();
     const navItems = [
@@ -117,7 +154,7 @@ const AdminSidebar = ({ activePage, setActivePage, mobileOpen, closeSidebar }) =
     );
 };
 
-// â”€â”€â”€ PAGE 1: ADMIN DASHBOARD â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// — PAGE 1: ADMIN DASHBOARD —————————————————————————————————————————————————
 const AdminHome = ({ setActivePage }) => {
     const { trainees, partners, jobPostings, getEmploymentStats, getSkillsDemand } = useApp();
     const stats = getEmploymentStats();
@@ -164,7 +201,7 @@ const AdminHome = ({ setActivePage }) => {
                     <div className="chart-title">Trainee Employment Status</div>
                     <div className="chart-subtitle">Distribution across employment categories</div>
                     <ResponsiveContainer width="100%" height={220}>
-                        <PieChart><Pie data={employmentChartData} cx="50%" cy="50%" innerRadius={55} outerRadius={90} paddingAngle={3} dataKey="value" label={({ name, value }) => `${name}: ${value}`} labelLine={false}>
+                        <PieChart><Pie data={employmentChartData} cx="50%" cy="50%" innerRadius={55} outerRadius={90} paddingAngle={3} dataKey="value" label={({ name, value }) => value > 0 ? `${name}: ${value}` : null} labelLine={false}>
                             {employmentChartData.map((entry, index) => <Cell key={index} fill={entry.color} />)}
                         </Pie><Tooltip /><Legend /></PieChart>
                     </ResponsiveContainer>
@@ -210,7 +247,7 @@ const ManageTrainees = () => {
         return (name.includes(q) || email.includes(q)) && (filterStatus === 'All' || employmentStatus === filterStatus);
     });
     const statusBadge = (s) => {
-        const map = { Employed: 'badge-employed', 'Seeking Employment': 'badge-self-employed', 'Not Employed': 'badge-unemployed' };
+        const map = { Employed: 'badge-employed', 'Seeking Employment': 'badge-seeking-employment', 'Not Employed': 'badge-unemployed' };
         return <span className={`badge ${map[s] || 'badge-gray'}`}>{s || 'None'}</span>;
     };
 
@@ -1266,7 +1303,7 @@ const OpportunitiesOversight = () => {
                                     <td><span className="badge badge-cyan">{j.opportunityType}</span></td>
                                     <td><span className="badge badge-purple">{j.ncLevel}</span></td>
                                     <td style={{ fontSize: 13, color: '#64748b' }}><div style={{ display: 'flex', alignItems: 'center', gap: 4 }}><MapPin size={12} />{j.location}</div></td>
-                                    <td style={{ fontSize: 12.5, color: '#64748b' }}>{j.datePosted}</td>
+                                    <td style={{ fontSize: 12.5, color: '#64748b' }} title={new Date(j.createdAt).toLocaleString()}>{timeAgo(j.createdAt)}</td>
                                     <td>{statusBadge(j.status)}</td>
                                     <td>
                                         <div className={`account-actions-cell${openMenuId === j.id ? ' is-open' : ''}`}>
@@ -1323,9 +1360,9 @@ const EmploymentTracking = () => {
             <div className="stats-grid" style={{ marginBottom: 20 }}>
                 {[
                     { label: 'Employment Rate', value: `${stats.employmentRate}%`, icon: <TrendingUp size={22} color="#16a34a" />, bg: '#dcfce7' },
-                    { label: 'Employed', value: stats.employed, icon: <CheckCircle size={22} color="#16a34a" />, bg: '#dcfce7' },
-                    { label: 'Self-Employed', value: stats.selfEmployed, icon: <Building2 size={22} color="#2563eb" />, bg: '#dbeafe' },
-                    { label: 'Unemployed', value: stats.unemployed, icon: <XCircle size={22} color="#dc2626" />, bg: '#fee2e2' },
+                    { label: 'Employed', value: stats.employed, icon: <CheckCircle size={22} color="#2563eb" />, bg: '#dbeafe' },
+                    { label: 'Seeking Employment', value: stats.seeking_employment, icon: <Building2 size={22} color="#eab308" />, bg: '#fef9c3' },
+                    { label: 'Not Employed', value: stats.not_employed, icon: <XCircle size={22} color="#dc2626" />, bg: '#fee2e2' },
                 ].map((s, i) => (
                     <div key={i} className="stat-card"><div className="stat-icon" style={{ background: s.bg }}>{s.icon}</div><div className="stat-info"><div className="stat-label">{s.label}</div><div className="stat-value">{s.value}</div></div></div>
                 ))}
@@ -1334,7 +1371,7 @@ const EmploymentTracking = () => {
                 <div style={{ display: 'flex', gap: 12, marginBottom: 14, flexWrap: 'wrap', alignItems: 'center' }}>
                     <div className="search-bar" style={{ flex: 1, minWidth: 200 }}><Search size={14} color="#94a3b8" /><input placeholder="Search trainees..." value={search} onChange={e => setSearch(e.target.value)} /></div>
                     <select className="form-select" style={{ width: 'auto', minWidth: 160 }} value={filterStatus} onChange={e => setFilterStatus(e.target.value)}>
-                        {['All', 'Employed', 'Unemployed', 'Self-Employed', 'Underemployed'].map(s => <option key={s}>{s}</option>)}
+                        {['All', 'Employed', 'Seeking Employment', 'Not Employed'].map(s => <option key={s}>{s}</option>)}
                     </select>
                 </div>
                 <div style={{ overflowX: 'auto' }}>
@@ -1365,10 +1402,9 @@ const Analytics = () => {
     const stats = getEmploymentStats();
     const skillsDemand = getSkillsDemand();
     const empData = [
-        { name: 'Employed', value: stats.employed, color: '#16a34a' },
-        { name: 'Self-Employed', value: stats.selfEmployed, color: '#2563eb' },
-        { name: 'Underemployed', value: stats.underEmployed, color: '#d97706' },
-        { name: 'Unemployed', value: stats.unemployed, color: '#dc2626' },
+        { name: '🟦 Employed', value: stats.employed, color: '#3b82f6' },
+        { name: '🟨 Seeking Employment', value: stats.seeking_employment, color: '#eab308' },
+        { name: '🟥 Not Employed', value: stats.not_employed, color: '#ef4444' },
     ];
     const opTypeData = [
         { type: 'Job', count: jobPostings.filter(j => j.opportunityType === 'Job').length },
@@ -1392,7 +1428,7 @@ const Analytics = () => {
                 <div className="chart-wrap">
                     <div className="chart-title">Trainee Employment Distribution</div>
                     <ResponsiveContainer width="100%" height={220}>
-                        <PieChart><Pie data={empData} cx="50%" cy="50%" innerRadius={50} outerRadius={85} paddingAngle={3} dataKey="value" label={({ name, value }) => `${name}: ${value}`} labelLine={false}>
+                        <PieChart><Pie data={empData} cx="50%" cy="50%" innerRadius={50} outerRadius={85} paddingAngle={3} dataKey="value" label={({ name, value }) => value > 0 ? `${name}: ${value}` : null} labelLine={false}>
                             {empData.map((e, i) => <Cell key={i} fill={e.color} />)}
                         </Pie><Tooltip /><Legend /></PieChart>
                     </ResponsiveContainer>

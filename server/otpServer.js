@@ -95,9 +95,10 @@ function createRateLimit({ windowMs = 60 * 1000, max = 10, keyPrefix = 'default'
     };
 }
 
-const rateLimit = createRateLimit({ windowMs: 60 * 1000, max: 10, keyPrefix: 'general' });
-const uploadRateLimit = createRateLimit({ windowMs: 60 * 1000, max: 30, keyPrefix: 'upload' });
-const presenceRateLimit = createRateLimit({ windowMs: 60 * 1000, max: 240, keyPrefix: 'presence' });
+const rateLimit = createRateLimit({ windowMs: 60 * 1000, max: 200, keyPrefix: 'general' });
+const uploadRateLimit = createRateLimit({ windowMs: 60 * 1000, max: 60, keyPrefix: 'upload' });
+const presenceRateLimit = createRateLimit({ windowMs: 60 * 1000, max: 300, keyPrefix: 'presence' });
+const adminLimiter = createRateLimit({ windowMs: 60 * 1000, max: 300, keyPrefix: 'admin' });
 
 // OTP expiry in minutes (default to 5)
 const OTP_EXPIRY_MIN = parseInt(process.env.OTP_EXPIRY_MIN || '5', 10);
@@ -207,8 +208,11 @@ app.post('/api/send-otp', rateLimit, async (req, res) => {
 });
 
 // Admin Data Endpoint (Bypass RLS for Admin Dashboard)
-app.get('/api/admin/data', rateLimit, async (req, res) => {
+app.get('/api/admin/data', adminLimiter, async (req, res) => {
     try {
+        // Run presence cleanup before fetching data
+        await runStalePresenceCleanup();
+
         const { data: stds, error: stdsErr } = await supabaseAdmin
             .from('students')
             .select('*, programs(name)');
@@ -595,6 +599,9 @@ app.post('/api/presence/ping', presenceRateLimit, async (req, res) => {
 
         const requestedStatus = String(req.body?.status || 'online').toLowerCase();
         const normalizedStatus = requestedStatus === 'offline' ? 'Offline' : 'Online';
+
+        // Integrate stale cleanup during heartbeat
+        await runStalePresenceCleanup();
 
         const { error: updateErr } = await supabaseAdmin
             .from(tableName)

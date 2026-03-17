@@ -507,8 +507,8 @@ body {
 
 /* Employment status badges */
 .badge-employed {
-  background: #dcfce7;
-  color: #15803d;
+  background: #dbeafe;
+  color: #1d4ed8;
 }
 
 .badge-unemployed {
@@ -516,14 +516,14 @@ body {
   color: #b91c1c;
 }
 
-.badge-self-employed {
-  background: #dbeafe;
-  color: #1d4ed8;
+.badge-seeking-employment {
+  background: #fef9c3;
+  color: #a16207;
 }
 
 .badge-underemployed {
-  background: #fef9c3;
-  color: #a16207;
+  background: #f1f5f9;
+  color: #475569;
 }
 
 /* Status badges */

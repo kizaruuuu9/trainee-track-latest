@@ -6,7 +6,7 @@ import {
   MapPin, Send, Award, ChevronRight, Trash2, Menu, Lock,
   Upload, AlertTriangle, Clock, ShieldCheck, FileCheck,
   Bell, Home, Settings, TrendingUp, Bookmark, Target, Star,
-  Camera, MessageSquare, Edit, Loader, ExternalLink, EyeOff
+  Camera, MessageSquare, Edit, Loader, ExternalLink, EyeOff, MoreVertical
 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { Routes, Route, useNavigate, useLocation, Navigate, useParams } from 'react-router-dom';
@@ -3109,6 +3109,8 @@ const ViewApplicants = ({ setActivePage }) => {
   const [recruitMessage, setRecruitMessage] = useState('');
   const [recruitAttachment, setRecruitAttachment] = useState(null);
   const [sendingRecruit, setSendingRecruit] = useState(false);
+  const [openMenuId, setOpenMenuId] = useState(null);
+  const [menuPos, setMenuPos] = useState({ top: 0, left: 0 });
   const recruitFileInputRef = useRef(null);
   const openProfile = (target) => {
     if (!target?.id || !target?.type) return;
@@ -3240,14 +3242,75 @@ const ViewApplicants = ({ setActivePage }) => {
                   </td>
                   <td><span className={`ln-badge ${a.status === 'Pending' ? 'ln-badge-yellow' : a.status === 'Accepted' ? 'ln-badge-green' : a.status === 'Rejected' ? 'ln-badge-red' : 'ln-badge-blue'}`}>{a.status}</span></td>
                   <td>
-                    <div style={{ display: 'flex', gap: 6 }}>
-                      <button className="ln-btn-sm ln-btn-outline" onClick={() => openProfile({ id: a.trainee?.id, type: 'trainee' })}><Eye size={12} /> Profile</button>
-                      {a.recordType === 'application' && <button className="ln-btn-sm ln-btn-outline" onClick={() => setViewApp(a)}><Eye size={12} /> View</button>}
-                      {a.recordType === 'application' && <button className="ln-btn-sm ln-btn-primary" style={{ background: '#0a66c2', borderColor: '#0a66c2' }} onClick={() => openRecruitModal(a)}><Send size={12} /> {a.outgoingMessage ? 'Update Recruit' : 'Recruit'}</button>}
-                      {a.recordType === 'application' && a.status === 'Pending' && <>
-                        <button className="ln-btn-sm ln-btn-primary" style={{ background: '#16a34a', borderColor: '#16a34a' }} onClick={() => updateApplicationStatus(a.id, 'Accepted', 'Approved by partner.')}><CheckCircle size={12} /></button>
-                        <button className="ln-btn-sm ln-btn-primary" style={{ background: '#dc2626', borderColor: '#dc2626' }} onClick={() => updateApplicationStatus(a.id, 'Rejected', 'Not selected.')}><XCircle size={12} /></button>
-                      </>}
+                    <div style={{ position: 'relative' }}>
+                      <button 
+                        className="ln-btn-icon" 
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          if (openMenuId === a.id) {
+                            setOpenMenuId(null);
+                          } else {
+                            const rect = e.currentTarget.getBoundingClientRect();
+                            setMenuPos({ 
+                              top: rect.bottom + 4, 
+                              left: rect.right - 180 // Align right edge of menu to right edge of button
+                            });
+                            setOpenMenuId(a.id);
+                          }
+                        }}
+                      >
+                        <MoreVertical size={16} />
+                      </button>
+                      
+                      {openMenuId === a.id && (
+                        <>
+                          <div 
+                            style={{ position: 'fixed', inset: 0, zIndex: 998 }} 
+                            onClick={() => setOpenMenuId(null)} 
+                          />
+                          <div 
+                            className="ln-dropdown" 
+                            style={{ 
+                              position: 'fixed', 
+                              top: menuPos.top, 
+                              left: menuPos.left, 
+                              zIndex: 9999, 
+                              minWidth: 180, 
+                              display: 'block', 
+                              margin: 0, 
+                              boxShadow: '0 8px 24px rgba(0,0,0,0.2)' 
+                            }}
+                          >
+                            {a.status === 'Pending' ? (
+                              <>
+                                <button className="ln-dropdown-item" style={{ color: '#16a34a' }} onClick={() => { setOpenMenuId(null); updateApplicationStatus(a.id, 'Accepted', 'Approved by partner.'); }}>
+                                  <CheckCircle size={14} /> Accept Trainee
+                                </button>
+                                <button className="ln-dropdown-item" style={{ color: '#dc2626' }} onClick={() => { setOpenMenuId(null); updateApplicationStatus(a.id, 'Rejected', 'Not selected.'); }}>
+                                  <XCircle size={14} /> Reject Trainee
+                                </button>
+                                <div className="ln-dropdown-divider" />
+                              </>
+                            ) : null}
+                            
+                            <button className="ln-dropdown-item" onClick={() => { setOpenMenuId(null); openProfile({ id: a.trainee?.id, type: 'trainee' }); }}>
+                              <Eye size={14} /> View Profile
+                            </button>
+                            
+                            {a.recordType === 'application' && (
+                              <button className="ln-dropdown-item" onClick={() => { setOpenMenuId(null); setViewApp(a); }}>
+                                <Eye size={14} /> View Details
+                              </button>
+                            )}
+                            
+                            {a.recordType === 'application' && (
+                              <button className="ln-dropdown-item" onClick={() => { setOpenMenuId(null); openRecruitModal(a); }}>
+                                <Send size={14} /> {a.outgoingMessage ? 'Update Recruit' : 'Recruit'}
+                              </button>
+                            )}
+                          </div>
+                        </>
+                      )}
                     </div>
                   </td>
                 </tr>

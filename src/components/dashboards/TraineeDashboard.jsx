@@ -1007,6 +1007,7 @@ const TraineeDashboardHome = ({ setActivePage }) => {
                                                 {[
                                                     (item.industry && String(item.industry).trim().toLowerCase() !== 'general') ? item.industry : '',
                                                     item.location,
+                                                    timeAgo(item.createdAt),
                                                 ].filter(Boolean).join(' • ')}
                                             </div>
                                         </div>
@@ -3183,6 +3184,7 @@ const Opportunities = () => {
                                     <div className="ln-job-card-meta">
                                         <span><MapPin size={13} /> {job.location}</span>
                                         <span><Clock size={13} /> {job.employmentType}</span>
+                                        <span title={new Date(job.createdAt).toLocaleString()}><Clock size={13} /> {timeAgo(job.createdAt)}</span>
                                     </div>
                                 </div>
                                 <div className="ln-job-card-badges">
@@ -3229,7 +3231,7 @@ const Opportunities = () => {
                                     >
                                         {selectedJob.companyName}
                                     </button>
-                                    {' '}• {selectedJob.location}
+                                    {' '}• {selectedJob.location} • {timeAgo(selectedJob.createdAt)}
                                 </p>
                             </div>
                             <button className="ln-btn-icon" onClick={() => setSelectedJob(null)}><X size={18} /></button>
@@ -3386,14 +3388,28 @@ const MyApplications = () => {
     });
 
     const statusBadge = (s) => {
+        const raw = String(s || '').toLowerCase();
         const map = {
+            pending: 'ln-badge-yellow',
+            accepted: 'ln-badge-green',
+            rejected: 'ln-badge-red',
+            sent: 'ln-badge-blue',
+            received: 'ln-badge-blue',
+            // Keep capitalized versions for compatibility during transition
             Pending: 'ln-badge-yellow',
             Accepted: 'ln-badge-green',
             Rejected: 'ln-badge-red',
             Sent: 'ln-badge-blue',
             Received: 'ln-badge-blue',
         };
-        return <span className={`ln-badge ${map[s] || 'ln-badge-gray'}`}>{s}</span>;
+        const labelMap = {
+            pending: 'Pending',
+            accepted: 'Accepted',
+            rejected: 'Rejected',
+            sent: 'Sent',
+            received: 'Received',
+        };
+        return <span className={`ln-badge ${map[s] || map[raw] || 'ln-badge-gray'}`}>{labelMap[raw] || s}</span>;
     };
 
     return (

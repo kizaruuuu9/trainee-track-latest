@@ -1293,7 +1293,7 @@ export const AppProvider = ({ children }) => {
   };
 
   const normalizeApplicationStatus = (value) => {
-    const raw = String(value || 'Pending').toLowerCase();
+    const raw = String(value || '').trim().toLowerCase();
     if (raw === 'accepted') return 'Accepted';
     if (raw === 'rejected') return 'Rejected';
     return 'Pending';
@@ -1335,7 +1335,7 @@ export const AppProvider = ({ children }) => {
           payload: {
             student_id: traineeId,
             job_id: jobId,
-            status: 'Pending',
+            status: 'pending',
             applied_at: new Date().toISOString(),
             applicant_message: applicationMessage,
             resume_url: resumeUrl,
@@ -1347,7 +1347,7 @@ export const AppProvider = ({ children }) => {
           payload: {
             student_id: traineeId,
             job_posting_id: jobId,
-            status: 'Pending',
+            status: 'pending',
             applicant_message: applicationMessage,
             resume_url: resumeUrl,
             resume_file_name: resumeFileName,
@@ -1380,22 +1380,17 @@ export const AppProvider = ({ children }) => {
       }
 
       setApplications(prev => [...prev, {
-        id: data.id, traineeId, jobId, status: 'Pending',
+        id: data.id, traineeId, jobId, status: 'pending',
         appliedAt: (data.created_at || data.applied_at || '').split('T')[0] || null,
         reviewedAt: null,
-        notes: null,
-        applicationMessage: data.applicant_message || applicationMessage,
-        resumeUrl: data.resume_url || resumeUrl,
-        resumeFileName: data.resume_file_name || resumeFileName,
-        recruitMessage: data.recruitment_message || null,
-        recruitDocumentName: data.recruitment_document_name || null,
+      recruitDocumentName: data.recruitment_document_name || null,
         recruitDocumentUrl: data.recruitment_document_url || null,
         recruitSentAt: data.recruitment_sent_at?.split('T')[0] || null,
         sourceTable: insertedTable,
       }]);
     } else {
       const newApplication = {
-        id: applications.length + 1, traineeId, jobId, status: 'Pending',
+        id: applications.length + 1, traineeId, jobId, status: 'pending',
         appliedAt: new Date().toISOString().split('T')[0], reviewedAt: null, notes: null,
         applicationMessage,
         resumeUrl,
@@ -1412,44 +1407,64 @@ export const AppProvider = ({ children }) => {
     return { success: true };
   };
 
-  const updateApplicationStatus = async (applicationId, status, notes = null) => {
-    const app = applications.find(a => a.id === applicationId);
-    const prevStatus = app?.status;
+  const updateApplicationStatus = async (applicationId, statusInput, notes = null) => {
+    const normalizeStatus = (s) => {
+      const raw = String(s || '').trim().toLowerCase();
+      if (!raw || raw === 'received') return 'Pending';
+      return raw.charAt(0).toUpperCase() + raw.slice(1);
+    };
+    const status = normalizeStatus(statusInput);
+    const appRec = applications.find(a => String(a.id) === String(applicationId));
+    const conRec = contactRequests.find(r => String(r.id) === String(applicationId));
+    const targetRec = appRec || conRec;
+    const prevStatus = targetRec?.status;
     const reviewedAt = new Date().toISOString().split('T')[0];
 
     const isSupabaseApplication = typeof applicationId === 'string' && applicationId.includes('-');
     if (isSupabaseApplication) {
-      const candidateTables = app?.sourceTable ? [app.sourceTable] : ['job_applications', 'applications'];
       let persisted = false;
+      let lastErrorMessage = '';
 
+      const candidateTables = targetRec?.sourceTable
+        ? [targetRec.sourceTable]
+        : (targetRec?.recordType === 'contact' ? ['contact_requests'] : ['job_applications']);
+      
       for (const table of candidateTables) {
-        const { error } = await supabase
+        const { data, error } = await supabase
           .from(table)
-          .update({ status, notes, reviewed_at: new Date().toISOString() })
-          .eq('id', applicationId);
+          .update({ status: status.toLowerCase(), notes, reviewed_at: new Date().toISOString() })
+          .eq('id', applicationId)
+          .select();
 
-        if (!error) {
+        if (error) {
+          lastErrorMessage = error.message;
+          console.warn(`[updateApplicationStatus] Error in ${table}:`, error);
+          if (isSchemaMissingError(error) || isColumnShapeError(error)) continue;
+        }
+
+        if (data && data.length > 0) {
+          console.log(`[updateApplicationStatus] SUCCESS in ${table}:`, data[0]);
           persisted = true;
           break;
+        } else {
+          console.log(`[updateApplicationStatus] No row updated in ${table} (id: ${applicationId})`);
         }
-
-        if (isSchemaMissingError(error) || isColumnShapeError(error)) {
-          continue;
-        }
-
-        console.warn(`Failed to update application status in Supabase (${table}):`, error);
-        break;
       }
 
       if (!persisted) {
-        console.warn('Failed to persist application status update in Supabase for id:', applicationId);
+        console.error('Failed to persist status update:', lastErrorMessage || 'No matching record found in candidate tables.');
+        alert(`Error: Your decision was not saved to the database. ${lastErrorMessage ? `Details: ${lastErrorMessage}` : 'Please ensure you have run the required SQL migration for contact_requests.'}`);
+        return { success: false, error: lastErrorMessage || 'Persistence failed.' };
       }
     }
 
     setApplications(prev => prev.map(a =>
-      a.id === applicationId ? { ...a, status, notes, reviewedAt } : a
+      String(a.id) === String(applicationId) ? { ...a, status, notes, reviewedAt } : a
     ));
-    logActivity('Status Change', 'Applications', `Application #${applicationId} status changed`, prevStatus, status);
+    setContactRequests(prev => prev.map(r =>
+      String(r.id) === String(applicationId) ? { ...r, status, notes, reviewed_at: reviewedAt } : r
+    ));
+    logActivity('Status Change', 'Recruitment', `Record #${applicationId} status changed`, prevStatus, status);
     return { success: true };
   };
 
@@ -1469,7 +1484,7 @@ export const AppProvider = ({ children }) => {
 
     const isSupabaseApplication = typeof applicationId === 'string' && applicationId.includes('-');
     if (isSupabaseApplication) {
-      const candidateTables = app?.sourceTable ? [app.sourceTable] : ['job_applications', 'applications'];
+      const candidateTables = app?.sourceTable ? [app.sourceTable] : ['job_applications'];
       let persisted = false;
 
       for (const table of candidateTables) {
@@ -1502,7 +1517,7 @@ export const AppProvider = ({ children }) => {
     }
 
     setApplications(prev => prev.map(a =>
-      a.id === applicationId
+      String(a.id) === String(applicationId)
         ? {
             ...a,
             recruitMessage,
@@ -1557,8 +1572,7 @@ export const AppProvider = ({ children }) => {
           recordType: 'contact',
           activityType: isOutgoing ? 'Direct Apply Contact' : 'Partner Contact',
           directionLabel: isOutgoing ? 'You contacted partner' : 'Partner contacted you',
-          eventDate: toDateOnly(request.created_at),
-          status: isOutgoing ? 'Sent' : 'Received',
+          status: request.status ? (request.status.charAt(0).toUpperCase() + request.status.slice(1)) : (isOutgoing ? 'Sent' : 'Pending'),
           job,
           partner: partner || (job ? { id: job.partnerId, companyName: job.companyName || 'Industry Partner' } : { id: partnerId, companyName: 'Industry Partner' }),
           outgoingMessage: isOutgoing ? request.message : null,
@@ -1624,8 +1638,7 @@ export const AppProvider = ({ children }) => {
           recordType: 'contact',
           activityType: isOutgoing ? 'Partner Outreach' : 'Student Contact',
           directionLabel: isOutgoing ? 'You contacted student' : 'Student contacted you',
-          eventDate: toDateOnly(request.created_at),
-          status: isOutgoing ? 'Sent' : 'Received',
+          status: request.status ? (request.status.charAt(0).toUpperCase() + request.status.slice(1)) : (isOutgoing ? 'Sent' : 'Pending'),
           trainee,
           job,
           outgoingMessage: isOutgoing ? request.message : null,
@@ -3144,7 +3157,7 @@ export const AppProvider = ({ children }) => {
           throw error;
         }
 
-        setContactRequests(data || []);
+        setContactRequests((data || []).map(r => ({ ...r, sourceTable: 'contact_requests', recordType: 'contact' })));
       } catch (err) {
         console.warn('Exception while fetching contact requests:', err);
       }
@@ -3155,17 +3168,18 @@ export const AppProvider = ({ children }) => {
     fetchApplications();
     fetchContactRequests();
 
-    const commentsRealtimeChannel = supabase
-      .channel(`post-comments-sync-${currentUser.id}`)
+    const recruitmentSyncChannel = supabase
+      .channel(`recruitment-sync-${currentUser.id}`)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'post_comments' }, fetchPostComments)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'job_posting_comments' }, fetchJobPostingComments)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'contact_requests' }, fetchContactRequests)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'job_applications' }, fetchApplications)
       .subscribe();
 
     if (userRole !== 'admin') {
       return () => {
         if (adminRefreshTimeout) clearTimeout(adminRefreshTimeout);
-        supabase.removeChannel(commentsRealtimeChannel);
+        supabase.removeChannel(recruitmentSyncChannel);
       };
     }
 
@@ -3178,7 +3192,7 @@ export const AppProvider = ({ children }) => {
       if (adminRefreshTimeout) clearTimeout(adminRefreshTimeout);
       adminRefreshTimeout = setTimeout(() => {
         runAdminRefresh();
-      }, 100); // Reduce debounce for faster non-presence updates
+      }, 800); // Increase debounce to prevent rapid sequential fetches
     };
 
     const adminRealtimeChannel = supabase
@@ -3219,7 +3233,7 @@ export const AppProvider = ({ children }) => {
         document.removeEventListener('visibilitychange', onVisibilityChange);
       }
       supabase.removeChannel(adminRealtimeChannel);
-      supabase.removeChannel(commentsRealtimeChannel);
+      supabase.removeChannel(recruitmentSyncChannel);
     };
   }, [currentUser?.id, userRole]);
 
@@ -3229,25 +3243,33 @@ export const AppProvider = ({ children }) => {
   // ─── ANALYTICS HELPERS ───────────────────────────────────────────────────
   const getEmploymentStats = () => {
     const total = trainees.length;
-    const employed = trainees.filter(t => t.employmentStatus === 'Employed').length;
-    const seeking_employment = trainees.filter(t => t.employmentStatus === 'Seeking Employment').length;
+    
+    // Core categories
+    const employed = trainees.filter(t => 
+      t.employmentStatus === 'Employed' || 
+      t.employmentStatus === 'Self-Employed' || 
+      t.employmentStatus === 'Underemployed'
+    ).length;
+    
+    const seeking_employment = trainees.filter(t => 
+      t.employmentStatus === 'Seeking Employment' || 
+      t.employmentStatus === 'Unemployed'
+    ).length;
+    
     const not_employed = trainees.filter(t => t.employmentStatus === 'Not Employed').length;
 
-    // For backward compatibility with mock data elements still waiting to be cleared, treat 'Unemployed' and 'Self-Employed'
-    const legacyEmployed = trainees.filter(t => t.employmentStatus === 'Self-Employed' || t.employmentStatus === 'Underemployed').length;
-    const legacyUnemployed = trainees.filter(t => t.employmentStatus === 'Unemployed').length;
-
-    const employmentRate = total > 0 ? Math.round(((employed + legacyEmployed) / total) * 100) : 0;
+    const employmentRate = total > 0 ? Math.round((employed / total) * 100) : 0;
 
     return {
       total,
-      employed: employed + legacyEmployed,
-      seeking_employment: seeking_employment + legacyUnemployed,
+      employed,
+      seeking_employment,
       not_employed,
       employmentRate,
+      // For legacy components that might still reference these
       selfEmployed: 0,
       underEmployed: 0,
-      unemployed: seeking_employment + legacyUnemployed
+      unemployed: seeking_employment
     };
   };
 
