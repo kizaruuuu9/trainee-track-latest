@@ -19,15 +19,48 @@ Core features
 - Exportable analytics (CSV/PDF) for employment reports
 
 Developer notes
-- UI: React + Tailwind CSS
-- State: Context API (no backend in this prototype)
+- Frontend: React + Tailwind CSS
+- Backend: Express (OTP Server) + Vercel Serverless Functions
+- Database: Supabase
+- Multi-channel Notification: NodeMailer (Gmail)
 - Charts: Recharts
 
-Run locally
+## 🚀 Running Locally
 
+To get the project up and running on your local machine, follow these steps:
+
+### 1. Install Dependencies
+First, install all necessary packages for both the frontend and backend:
 ```bash
 npm install
+```
+
+### 2. Configure Environment Variables
+You will need to set up your environment variables for local development. Create a `.env` and `.env.local` file in the root directory:
+
+**For Frontend (.env):**
+- `VITE_SUPABASE_URL`
+- `VITE_SUPABASE_ANON_KEY`
+
+**For OTP Server (.env.local):**
+- `GMAIL_USER` (Email for sending OTPs)
+- `GMAIL_PASS` (Google App Password)
+- `SUPABASE_URL`
+- `SUPABASE_SERVICE_ROLE_KEY`
+
+### 3. Start the Application
+The platform requires both the frontend development server and the backend OTP server to be running simultaneously. Open **two separate terminals**:
+
+**Terminal 1: Frontend (Vite)**
+```bash
 npm run dev
 ```
 
-© {new Date().getFullYear()} Philippine School for Technology Development and Innovation Inc.
+**Terminal 2: OTP Server**
+```bash
+npm run otp-server
+```
+
+---
+© 2026 Philippine School for Technology Development and Innovation Inc.
+

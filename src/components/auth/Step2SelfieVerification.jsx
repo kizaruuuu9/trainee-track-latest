@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect, useCallback } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { Camera, Upload, X, CheckCircle, AlertTriangle, Loader, RotateCcw, Image } from 'lucide-react';
 import * as faceapi from 'face-api.js';
 
@@ -34,6 +34,7 @@ export default function Step2SelfieVerification({ data, onChange, onValidChange 
             }
         };
         loadModels();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
     // Validate: step is valid only when a selfie is captured AND face was detected

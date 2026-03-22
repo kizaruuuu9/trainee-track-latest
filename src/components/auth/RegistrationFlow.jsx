@@ -141,7 +141,7 @@ export default function RegistrationFlow({ onBackToLogin }) {
       const optimizedBlob = await dataUrlToBlob(optimizedDataUrl);
       const fallbackDataUrl = await blobToDataUrl(optimizedBlob);
       return { uploadedUrl: null, fallbackBase64: fallbackDataUrl };
-    } catch (_) {
+    } catch {
       return { uploadedUrl: null, fallbackBase64: optimizedDataUrl };
     }
   };

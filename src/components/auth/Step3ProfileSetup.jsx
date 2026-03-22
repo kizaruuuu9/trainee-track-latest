@@ -56,7 +56,9 @@ const getWordCloudStyle = (word) => {
     };
 };
 
-export default function Step3ProfileSetup({ data, onChange, onValidChange, userProgram }) {
+
+
+export default function Step3ProfileSetup({ data, onChange, onValidChange }) {
     const [errors, setErrors] = useState({});
     const [touched, setTouched] = useState({});
     const [newSkill, setNewSkill] = useState('');
@@ -85,6 +87,7 @@ export default function Step3ProfileSetup({ data, onChange, onValidChange, userP
 
     useEffect(() => {
         const errs = validate(data);
+        // eslint-disable-next-line react-hooks/set-state-in-effect
         setErrors(errs);
         const isValid = Object.keys(errs).length === 0;
         onValidChange(isValid);
@@ -227,7 +230,7 @@ export default function Step3ProfileSetup({ data, onChange, onValidChange, userP
         }
         const url = URL.createObjectURL(file);
         handleChange('resume', { name: file.name, size: file.size, type: file.type, url, file });
-        setErrors(prev => { const { resume, ...rest } = prev; return rest; });
+        setErrors(prev => { const { resume: _resume, ...rest } = prev; return rest; });
     };
 
 

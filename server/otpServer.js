@@ -1,6 +1,9 @@
+/* eslint-env node */
+/* global process, Buffer */
 import express from 'express';
 import cors from 'cors';
 import nodemailer from 'nodemailer';
+// eslint-disable-next-line no-unused-vars
 import bcrypt from 'bcryptjs';
 import { createClient } from '@supabase/supabase-js';
 
@@ -39,19 +42,6 @@ const deriveActivityStatus = (isoDateString) => {
     return diffMs <= PRESENCE_ONLINE_WINDOW_MS ? 'Online' : 'Offline';
 };
 
-const pickLatestSeenAt = (...isoDateStrings) => {
-    let latestTs = null;
-
-    for (const value of isoDateStrings) {
-        if (!value) continue;
-        const ts = new Date(value).getTime();
-        if (!Number.isFinite(ts)) continue;
-        if (latestTs === null || ts > latestTs) latestTs = ts;
-    }
-
-    if (latestTs === null) return null;
-    return new Date(latestTs).toISOString();
-};
 
 const resolvePresenceStatus = (storedStatus, latestSeenAt) => {
     const normalizedStored = String(storedStatus || '').toLowerCase();
@@ -464,14 +454,14 @@ async function sbDelete(query, label) {
         console.error(msg);
         throw new Error(msg);
     }
-    console.log(`[delete-account] OK: ${label}`);
+
 }
 
 // Admin Delete Account Endpoint (Bypass RLS — deletes all associated data)
 // Uses POST so request body is reliably forwarded through proxies
 const adminDeleteAccountHandler = async (req, res) => {
     const { accountId, accountType } = req.body;
-    console.log('[delete-account] Request received:', { accountId, accountType });
+
 
     if (!accountId || !accountType) {
         return res.status(400).json({ error: 'accountId and accountType are required.' });
@@ -530,7 +520,7 @@ const adminDeleteAccountHandler = async (req, res) => {
             console.log('[delete-account] Auth user deleted.');
         }
 
-        console.log('[delete-account] Complete for:', accountId);
+
         res.json({ success: true });
     } catch (error) {
         console.error('[delete-account] Aborted:', error.message);
@@ -854,7 +844,7 @@ app.post('/api/partner/opportunities', uploadRateLimit, async (req, res) => {
             programId: inserted.program_id || programId || null,
             ncLevel: inserted.nc_level || inserted.programs?.name || String(ncLevel || '').trim() || '',
             requiredCompetencies: inserted.required_competencies || inserted.requirements || normalizedComps,
-            requiredSkills: inserted.required_skills || normalizedSkills,
+            requiredSkills: normalizedSkills,
             description: inserted.description || '',
             employmentType: toEmploymentUiValue(inserted.employment_type || normalizedEmploymentType || ''),
             location: inserted.location || location,
@@ -1038,7 +1028,7 @@ app.put('/api/partner/opportunities/:jobId', uploadRateLimit, async (req, res) =
             programId: updated.program_id || programId || null,
             ncLevel: updated.nc_level || updated.programs?.name || String(ncLevel || '').trim() || '',
             requiredCompetencies: updated.required_competencies || updated.requirements || normalizedComps,
-            requiredSkills: updated.required_skills || normalizedSkills,
+            requiredSkills: normalizedSkills,
             description: updated.description || '',
             employmentType: toEmploymentUiValue(updated.employment_type || normalizedEmploymentType || ''),
             location: updated.location || location,
@@ -1303,7 +1293,7 @@ app.post('/api/register', rateLimit, async (req, res) => {
 
         if (studentError) throw new Error(`Student record creation failed: ${studentError.message}`);
 
-        console.log(`✅ Registration successful: ${email} (${userId})`);
+
         res.json({ success: true, userId });
 
     } catch (err) {
@@ -1315,7 +1305,7 @@ app.post('/api/register', rateLimit, async (req, res) => {
                 await supabaseAdmin.from('students').delete().eq('id', userId);
                 await supabaseAdmin.from('profiles').delete().eq('id', userId);
                 await supabaseAdmin.auth.admin.deleteUser(userId);
-                console.log('Cleaned up failed registration for:', userId);
+
             } catch (cleanupErr) {
                 console.error('Cleanup error:', cleanupErr);
             }
@@ -1377,7 +1367,7 @@ app.post('/api/register-partner', rateLimit, async (req, res) => {
 
         if (partnerError) throw new Error(`Partner record creation failed: ${partnerError.message}`);
 
-        console.log(`✅ Partner Registration successful: ${email} (${userId})`);
+
         res.json({ success: true, userId });
 
     } catch (err) {
@@ -1389,7 +1379,7 @@ app.post('/api/register-partner', rateLimit, async (req, res) => {
                 await supabaseAdmin.from('industry_partners').delete().eq('id', userId);
                 await supabaseAdmin.from('profiles').delete().eq('id', userId);
                 await supabaseAdmin.auth.admin.deleteUser(userId);
-                console.log('Cleaned up failed partner registration for:', userId);
+
             } catch (cleanupErr) {
                 console.error('Cleanup error:', cleanupErr);
             }
@@ -1423,7 +1413,7 @@ app.post('/api/documents/upload', uploadRateLimit, async (req, res) => {
         const storagePath = `documents/${traineeId}/${timestamp}_${fileName}`;
 
         // Upload to Supabase Storage
-        const { data: uploadData, error: uploadErr } = await supabaseAdmin.storage
+        const { error: uploadErr } = await supabaseAdmin.storage
             .from('registration-uploads')
             .upload(storagePath, buffer, { contentType: fileType });
 
@@ -1466,7 +1456,7 @@ app.post('/api/documents/upload', uploadRateLimit, async (req, res) => {
             return res.status(400).json({ error: error.message });
         }
 
-        console.log(`✅ Document uploaded for user: ${traineeId}`);
+
         res.json({ success: true, document: data?.[0] });
     } catch (err) {
         console.error('Document upload error:', err);
@@ -1544,7 +1534,7 @@ app.delete('/api/documents/:docId', rateLimit, async (req, res) => {
             return res.status(400).json({ error: error.message });
         }
 
-        console.log(`✅ Document deleted: ${docId}`);
+
         res.json({ success: true });
     } catch (err) {
         console.error('Document delete error:', err);
@@ -1603,7 +1593,7 @@ app.post('/api/partner-verification/upload', uploadRateLimit, async (req, res) =
             return res.status(400).json({ error: error.message });
         }
 
-        console.log(`✅ Partner verification doc uploaded for: ${partnerId}`);
+
         res.json({ success: true, document: data?.[0] });
     } catch (err) {
         console.error('Partner verification upload error:', err);
@@ -1676,7 +1666,7 @@ app.delete('/api/partner-verification/:docId', rateLimit, async (req, res) => {
             return res.status(400).json({ error: error.message });
         }
 
-        console.log(`✅ Partner verification doc deleted: ${docId}`);
+
         res.json({ success: true });
     } catch (err) {
         console.error('Partner verification delete error:', err);
@@ -1710,7 +1700,7 @@ app.put('/api/partner-verification/status/:partnerId', rateLimit, async (req, re
             return res.status(400).json({ error: error.message });
         }
 
-        console.log(`✅ Partner ${partnerId} status updated to: ${normalizedStatus}`);
+
         res.json({ success: true, status: normalizedStatus });
     } catch (err) {
         console.error('Partner status update error:', err);

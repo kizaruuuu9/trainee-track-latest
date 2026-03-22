@@ -406,7 +406,6 @@ const PartnerLayout = ({ children, activePage, setActivePage }) => (
 // ─── LEFT: COMPANY PROFILE CARD ──────────────────────────────────
 const CompanySideCard = ({ partner, setActivePage }) => {
   const initials = partner?.companyName?.charAt(0)?.toUpperCase() || 'P';
-  const verified = isVerified(partner);
   const visibleCompanyInfo = new Set(resolvePartnerVisibility(partner));
   const showSideAddress = visibleCompanyInfo.has('address');
   return (
@@ -744,7 +743,6 @@ const PartnerHome = ({ setActivePage }) => {
 
     try {
       if (selectedFile) {
-        const ext = selectedFile.name.split('.').pop();
         const path = `post-media/${currentUser.id}/${Date.now()}_${selectedFile.name}`;
         const { error: uploadErr } = await supabase.storage
           .from('registration-uploads')
@@ -2238,7 +2236,7 @@ const VerificationPage = () => {
   const status = livePartner?.verificationStatus || 'Pending';
   const [documents, setDocuments] = useState([]);
   const [uploading, setUploading] = useState(false);
-  const [loading, setLoading] = useState(true);
+  const [_loading, setLoading] = useState(true);
   const [docLabel, setDocLabel] = useState('');
   const fileInputRef = useRef(null);
   const [confirmDeleteId, setConfirmDeleteId] = useState(null);
@@ -2257,6 +2255,7 @@ const VerificationPage = () => {
     }
   };
 
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { if (livePartner?.id) fetchDocs(); }, [livePartner?.id]);
 
   const handleFileUpload = async (e) => {
@@ -2565,12 +2564,12 @@ const VerificationPage = () => {
 };
 
 // ─── PAGE: POST OPPORTUNITIES ─────────────────────────────────────
+const ncLevelOptions = ['NC I', 'NC II', 'NC III', 'NC IV'];
 const PostJob = ({ setActivePage, opportunityType = 'Job' }) => {
-  const ncLevelOptions = ['NC I', 'NC II', 'NC III', 'NC IV'];
   const location = useLocation();
   const { addJobPosting, updatePartnerJobPosting, currentUser, partners, programs, jobPostings } = useApp();
   const livePartner = getLivePartner(currentUser, partners);
-  const programOptions = Array.isArray(programs) ? programs : [];
+  const programOptions = React.useMemo(() => Array.isArray(programs) ? programs : [], [programs]);
   const firstProgram = programOptions[0] || null;
   const editingJobId = location?.state?.editJobId || null;
   const editingJob = jobPostings.find(job =>
@@ -2596,9 +2595,6 @@ const PostJob = ({ setActivePage, opportunityType = 'Job' }) => {
       }));
     }
   }, [form.ncLevel, programOptions]);
-
-  // Only allow valid NC levels in dropdown
-  const ncLevelSelectOptions = ncLevelOptions;
 
   useEffect(() => {
     if (!isEditMode || !editingJob) return;
@@ -3079,6 +3075,21 @@ const ViewApplicants = ({ setActivePage }) => {
   const navigate = useNavigate();
   const livePartner = getLivePartner(currentUser, partners);
 
+
+
+  const applicants = getPartnerApplicants(livePartner?.id);
+  const [search, setSearch] = useState('');
+  const [activityFilter, setActivityFilter] = useState('All');
+  const [viewApp, setViewApp] = useState(null);
+  const [recruitApp, setRecruitApp] = useState(null);
+  const [messageModal, setMessageModal] = useState(null);
+  const [recruitMessage, setRecruitMessage] = useState('');
+  const [recruitAttachment, setRecruitAttachment] = useState(null);
+  const [sendingRecruit, setSendingRecruit] = useState(false);
+  const [openMenuId, setOpenMenuId] = useState(null);
+  const [menuPos, setMenuPos] = useState({ top: 0, left: 0 });
+  const recruitFileInputRef = useRef(null);
+
   if (!isVerified(livePartner)) {
     return (
       <div className="ln-page-content">
@@ -3099,19 +3110,6 @@ const ViewApplicants = ({ setActivePage }) => {
       </div>
     );
   }
-
-  const applicants = getPartnerApplicants(livePartner?.id);
-  const [search, setSearch] = useState('');
-  const [activityFilter, setActivityFilter] = useState('All');
-  const [viewApp, setViewApp] = useState(null);
-  const [recruitApp, setRecruitApp] = useState(null);
-  const [messageModal, setMessageModal] = useState(null);
-  const [recruitMessage, setRecruitMessage] = useState('');
-  const [recruitAttachment, setRecruitAttachment] = useState(null);
-  const [sendingRecruit, setSendingRecruit] = useState(false);
-  const [openMenuId, setOpenMenuId] = useState(null);
-  const [menuPos, setMenuPos] = useState({ top: 0, left: 0 });
-  const recruitFileInputRef = useRef(null);
   const openProfile = (target) => {
     if (!target?.id || !target?.type) return;
     navigate(`/partner/profile-view/${target.type}/${target.id}`);

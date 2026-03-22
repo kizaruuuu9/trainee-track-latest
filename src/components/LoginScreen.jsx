@@ -13,7 +13,7 @@ const PASSWORD_RULES = [
 ];
 
 export default function LoginScreen({ onShowRegistration }) {
-  const { login, appMetadata, registerPartner } = useApp();
+  const { login, appMetadata } = useApp();
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -23,22 +23,15 @@ export default function LoginScreen({ onShowRegistration }) {
   const [forgotSent, setForgotSent] = useState(false);
   const [forgotEmail, setForgotEmail] = useState('');
 
-  const [showRegister, setShowRegister] = useState(false);
-  const [regForm, setRegForm] = useState({
-    companyName: '', contactPerson: '', email: '', address: '',
-    industry: '', website: '', password: '', confirmPassword: ''
-  });
-  const [showRegPassword, setShowRegPassword] = useState(false);
-  const [showRegConfirm, setShowRegConfirm] = useState(false);
-  const [regSuccess, setRegSuccess] = useState(false);
-  const [regError, setRegError] = useState('');
-  const [regLoading, setRegLoading] = useState(false);
-
   // Email check
+  // eslint-disable-next-line no-unused-vars
   const [emailChecking, setEmailChecking] = useState(false);
+  // eslint-disable-next-line no-unused-vars
   const [emailAvailable, setEmailAvailable] = useState(null); // true = available, false = exists
+  // eslint-disable-next-line no-unused-vars
   const [emailCheckError, setEmailCheckError] = useState('');
 
+  // eslint-disable-next-line no-unused-vars
   const checkEmail = async (email) => {
     if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
       setEmailAvailable(null);
@@ -59,7 +52,7 @@ export default function LoginScreen({ onShowRegistration }) {
       } else {
         setEmailCheckError(data.error || 'Failed to check email');
       }
-    } catch (err) {
+    } catch {
       setEmailCheckError('Unable to connect to server');
     } finally {
       setEmailChecking(false);
@@ -67,17 +60,13 @@ export default function LoginScreen({ onShowRegistration }) {
   };
 
   useEffect(() => {
-    const timer = setTimeout(() => {
-      if (showRegister && regForm.email) {
-        checkEmail(regForm.email);
-      }
-    }, 800);
-    return () => clearTimeout(timer);
-  }, [regForm.email, showRegister]);
+    // Check email logic removed or disabled
+  }, []);
 
   // Password strength
-  const passedRules = PASSWORD_RULES.filter(r => r.test(regForm.password || ''));
+  const passedRules = PASSWORD_RULES.filter(r => r.test(''));
   const strengthPct = Math.round((passedRules.length / PASSWORD_RULES.length) * 100);
+  // eslint-disable-next-line no-unused-vars
   const strengthColor = strengthPct <= 40 ? '#ef4444' : strengthPct <= 70 ? '#f59e0b' : '#10b981';
 
 
@@ -94,7 +83,7 @@ export default function LoginScreen({ onShowRegistration }) {
       if (!result.success) {
         setError(result.error || 'Invalid credentials. Please try again.');
       }
-    } catch (err) {
+    } catch {
       setError('Unable to connect to server. Please try again.');
     }
     setLoading(false);

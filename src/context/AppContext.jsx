@@ -3,6 +3,7 @@ import { supabase } from '../lib/supabase';
 
 const AppContext = createContext();
 
+// eslint-disable-next-line react-refresh/only-export-components
 export const useApp = () => {
   const context = useContext(AppContext);
   if (!context) throw new Error('useApp must be used within AppProvider');
@@ -21,7 +22,7 @@ const extractCompetenciesFromProgramDescription = (description = '') => {
   let parsedJson = null;
   try {
     parsedJson = JSON.parse(description);
-  } catch (_) {
+  } catch {  
     parsedJson = null;
   }
 
@@ -118,6 +119,14 @@ const normalizeNcLevelValue = (value = '') => {
   if (upper.includes('NC II') || /\bNC\s*2\b/.test(upper)) return 'NC II';
   if (upper.includes('NC I') || /\bNC\s*1\b/.test(upper)) return 'NC I';
 
+  return '';
+};
+
+const normalizeGender = (value = '') => {
+  const g = String(value || '').toLowerCase().trim();
+  if (g.startsWith('m')) return 'Male';
+  if (g.startsWith('f')) return 'Female';
+  if (g) return 'Other';
   return '';
 };
 
@@ -1279,6 +1288,7 @@ export const AppProvider = ({ children }) => {
     const interests = buildLane(interestMap, traineeInterestSet, MAX_BUBBLES_PER_LANE);
 
     const interestKeys = new Set(interests.map(item => normalizeLooseText(item.label)));
+    // eslint-disable-next-line no-unused-vars
     const skillKeys = new Set(skills.map(item => normalizeLooseText(item.label)));
     const dualTypeLabels = skills
       .map(item => item.label)
@@ -1299,6 +1309,7 @@ export const AppProvider = ({ children }) => {
     return 'Pending';
   };
 
+  // eslint-disable-next-line no-unused-vars
   const toDateOnly = (value) => String(value || '').split('T')[0] || null;
 
   const toTimestamp = (value) => {
@@ -1383,7 +1394,7 @@ export const AppProvider = ({ children }) => {
         id: data.id, traineeId, jobId, status: 'pending',
         appliedAt: (data.created_at || data.applied_at || '').split('T')[0] || null,
         reviewedAt: null,
-      recruitDocumentName: data.recruitment_document_name || null,
+        recruitDocumentName: data.recruitment_document_name || null,
         recruitDocumentUrl: data.recruitment_document_url || null,
         recruitSentAt: data.recruitment_sent_at?.split('T')[0] || null,
         sourceTable: insertedTable,
@@ -1428,7 +1439,7 @@ export const AppProvider = ({ children }) => {
       const candidateTables = targetRec?.sourceTable
         ? [targetRec.sourceTable]
         : (targetRec?.recordType === 'contact' ? ['contact_requests'] : ['job_applications']);
-      
+
       for (const table of candidateTables) {
         const { data, error } = await supabase
           .from(table)
@@ -1443,11 +1454,8 @@ export const AppProvider = ({ children }) => {
         }
 
         if (data && data.length > 0) {
-          console.log(`[updateApplicationStatus] SUCCESS in ${table}:`, data[0]);
           persisted = true;
           break;
-        } else {
-          console.log(`[updateApplicationStatus] No row updated in ${table} (id: ${applicationId})`);
         }
       }
 
@@ -1519,12 +1527,12 @@ export const AppProvider = ({ children }) => {
     setApplications(prev => prev.map(a =>
       String(a.id) === String(applicationId)
         ? {
-            ...a,
-            recruitMessage,
-            recruitDocumentName,
-            recruitDocumentUrl,
-            recruitSentAt: nowIso.split('T')[0],
-          }
+          ...a,
+          recruitMessage,
+          recruitDocumentName,
+          recruitDocumentUrl,
+          recruitSentAt: nowIso.split('T')[0],
+        }
         : a
     ));
 
@@ -1981,7 +1989,7 @@ export const AppProvider = ({ children }) => {
 
   const deleteJobPosting = async (jobId) => {
     const existing = jobPostings.find(j => j.id === jobId);
-    
+
     // If ID is a string, it's likely a Supabase UUID
     if (typeof jobId === 'string' && jobId.includes('-')) {
       try {
@@ -2179,7 +2187,9 @@ export const AppProvider = ({ children }) => {
         try {
           const errData = await res.json();
           if (errData?.error) message = errData.error;
-        } catch (_) {}
+        } catch {  
+          // Default to generic message
+        }
         throw new Error(message);
       }
 
@@ -2210,7 +2220,9 @@ export const AppProvider = ({ children }) => {
         try {
           const errData = await res.json();
           if (errData?.error) message = errData.error;
-        } catch (_) {}
+        } catch {  
+          // Default to generic message
+        }
         throw new Error(message);
       }
 
@@ -2260,7 +2272,11 @@ export const AppProvider = ({ children }) => {
         if (updates.name !== undefined) dbUpdates.full_name = updates.name;
 
         if (updates.birthday !== undefined) dbUpdates.birthdate = updates.birthday;
-        if (updates.gender !== undefined) dbUpdates.gender = updates.gender?.toLowerCase();
+        if (updates.gender !== undefined) {
+          const g = normalizeGender(updates.gender).toLowerCase();
+          // Ensure we only send valid lowercase values to satisfy DB check constraint
+          dbUpdates.gender = (g === 'male' || g === 'female') ? g : (g ? 'other' : null);
+        }
         if (updates.skills !== undefined) dbUpdates.skills = updates.skills;
         if (updates.interests !== undefined) dbUpdates.interests = updates.interests;
         if (updates.employmentStatus !== undefined) {
@@ -2279,6 +2295,7 @@ export const AppProvider = ({ children }) => {
         if (updates.educHistory !== undefined) dbUpdates.educ_history = updates.educHistory;
         if (updates.workExperience !== undefined) dbUpdates.work_experience = updates.workExperience;
         if (updates.email !== undefined) dbUpdates.contact_email = updates.email;
+        if (updates.programId !== undefined) dbUpdates.program_id = updates.programId;
         if (updates.personalInfoVisibility !== undefined) dbUpdates.personal_info_visibility = updates.personalInfoVisibility;
 
         if (Object.keys(dbUpdates).length > 0) {
@@ -2320,7 +2337,8 @@ export const AppProvider = ({ children }) => {
     }
     // Always update currentUser in state + localStorage
     if (currentUser?.id === traineeId) {
-      const updatedUser = { ...currentUser, ...updates };
+      const g = updates.gender !== undefined ? normalizeGender(updates.gender) : currentUser.gender;
+      const updatedUser = { ...currentUser, ...updates, gender: g };
       setCurrentUser(updatedUser);
       localStorage.setItem('currentUser', JSON.stringify(updatedUser));
     }
@@ -2338,7 +2356,7 @@ export const AppProvider = ({ children }) => {
 
     if (isUUID) {
       try {
-        console.log('[deleteAccount] Calling server for:', accountId, accountType);
+
         const res = await fetch('/api/admin/delete-account', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -2351,7 +2369,7 @@ export const AppProvider = ({ children }) => {
           alert(`Failed to delete account from database:\n\n${msg}`);
           return;
         }
-        console.log('[deleteAccount] Server confirmed deletion.');
+
       } catch (err) {
         console.error('[deleteAccount] Network error:', err);
         alert('Could not reach the server to delete the account from the database. Is the otp-server running?');
@@ -2470,7 +2488,7 @@ export const AppProvider = ({ children }) => {
       // Fetch student record with program name
       const { data: student, error: studentErr } = await supabase
         .from('students')
-        .select('*, programs(name)')
+        .select('*, programs(name, nc_level)')
         .eq('id', userId)
         .maybeSingle();
 
@@ -2490,10 +2508,11 @@ export const AppProvider = ({ children }) => {
 
         address: address || 'Philippines',
         birthday: student.birthdate || '',
-        gender: student.gender || '',
+        gender: normalizeGender(student.gender),
         studentId: student.student_id || '',
         program: resolvedProgramName,
         programId: student.program_id,
+        ncLevel: student.programs?.nc_level || '',
         graduationYear: student.graduation_year || '',
         trainingStatus: student.training_status || 'Student',
         certifications: student.certifications || [],
@@ -2607,7 +2626,9 @@ export const AppProvider = ({ children }) => {
         if (!disposed) {
           presenceAccessTokenRef.current = sessionData?.session?.access_token || '';
         }
-      } catch (_) {}
+      } catch {  
+        // Handle error silently
+      }
     };
 
     syncPresenceToken();
@@ -2627,7 +2648,11 @@ export const AppProvider = ({ children }) => {
     const savedUser = localStorage.getItem('currentUser');
     if (savedRole && savedUser) {
       setUserRole(savedRole);
-      setCurrentUser(JSON.parse(savedUser));
+      let parsed = JSON.parse(savedUser);
+      if (parsed && (savedRole === 'trainee' || savedRole === 'student')) {
+        parsed.gender = normalizeGender(parsed.gender);
+      }
+      setCurrentUser(parsed);
     }
   }, []);
 
@@ -2696,6 +2721,7 @@ export const AppProvider = ({ children }) => {
         window.removeEventListener('beforeunload', handlePageExit);
       }
     };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentUser?.id, userRole]);
 
   // ─── Data Hydration (Supabase) ──────────────────────────────────────────
@@ -2719,13 +2745,14 @@ export const AppProvider = ({ children }) => {
         program_id: currentUser.programId,
       });
 
+      const ncLevel = currentUser.ncLevel || (currentUser.programId ? (programs || []).find(p => String(p.id) === String(currentUser.programId))?.ncLevel : '');
+
       if (!resolvedProgramName) return;
 
       setCurrentUser(prev => {
         if (!prev || prev.id !== currentUser.id) return prev;
-        if (String(prev.program || '').trim()) return prev;
 
-        const nextUser = { ...prev, program: resolvedProgramName };
+        const nextUser = { ...prev, program: resolvedProgramName, ncLevel: prev.ncLevel || ncLevel };
         localStorage.setItem('currentUser', JSON.stringify(nextUser));
         return nextUser;
       });
@@ -2764,15 +2791,17 @@ export const AppProvider = ({ children }) => {
               trainingStatus: student.training_status || 'Student',
               certifications: student.certifications || [],
               program: student.programs?.name || 'None',
+              ncLevel: student.programs?.nc_level || '',
               employmentStatus: student.employment_status === 'employed' ? 'Employed' : student.employment_status === 'seeking_employment' ? 'Seeking Employment' : 'Not Employed',
               employer: student.employment_work || null,
               jobTitle: student.employment_work || null,
               dateHired: student.employment_start || null,
               accountStatus: student.account_status || 'Active',
+              gender: normalizeGender(student.gender),
               personalInfoVisibility: resolveVisibilityFields(student.personal_info_visibility, DEFAULT_STUDENT_PUBLIC_INFO_FIELDS),
             };
           });
-          console.log("Admin Data fetched mapped trainees:", tMap);
+
           setTrainees(tMap);
         }
 
@@ -2800,7 +2829,7 @@ export const AppProvider = ({ children }) => {
             accountStatus: p.account_status || 'Active',
             companyInfoVisibility: resolveVisibilityFields(p.company_info_visibility, DEFAULT_PARTNER_PUBLIC_INFO_FIELDS),
           }));
-          console.log("Admin Data fetched mapped partners:", pMap);
+
           setPartners(pMap);
         }
       } catch (err) {
@@ -2815,7 +2844,7 @@ export const AppProvider = ({ children }) => {
         if (!payload.old) return true; // Treat as changed if old data is missing
         return payload.new[key] !== payload.old[key];
       });
-      
+
       if (changedKeys.length === 0) return false;
 
       const allowedKeys = new Set(['activity_status', 'last_seen_at', 'updated_at']);
@@ -2918,48 +2947,48 @@ export const AppProvider = ({ children }) => {
 
         if (jobs) {
           setJobPostings(jobs.map(j => ({
-              ...(j.source === 'partner' && (j.attachment_url || j.source_url)
-                ? {
-                    attachmentUrl: j.attachment_url || j.source_url,
-                    attachmentName: j.attachment_name || decodeURIComponent(String(j.attachment_url || j.source_url).split('/').pop()?.split('?')[0] || ''),
-                    attachmentType: j.attachment_type || null,
-                  }
-                : {}),
-              id: j.id,
-              partnerId: j.partner_id,
-              programId: j.program_id || null,
-              companyName: j.industry_partners?.company_name || 'Company',
-              industry: j.industry || 'General',
-              title: j.title,
-              opportunityType: j.opportunity_type || 'Job',
-              ncLevel: j.nc_level || j.programs?.name || '',
-              requiredCompetencies: normalizeCompetencyList(
-                (j.required_competencies && j.required_competencies.length > 0)
-                  ? j.required_competencies
-                  : (j.programs?.competencies?.length > 0
-                    ? j.programs.competencies
-                    : extractCompetenciesFromProgramDescription(j.programs?.description || ''))
-              ),
-              requiredSkills: j.required_skills || [],
-              description: j.description || '',
-              employmentType: (() => {
-                if (j.opportunity_type === 'OJT') return '';
-                const rawType = String(j.employment_type || '').toLowerCase();
-                if (rawType === 'full_time' || rawType === 'full-time' || rawType === 'fulltime') return 'Full-time';
-                if (rawType === 'part_time' || rawType === 'part-time' || rawType === 'parttime') return 'Part-time';
-                if (rawType === 'contract') return 'Contract';
-                if (rawType === 'internship') return 'Internship';
-                return j.employment_type || 'Full-time';
-              })(),
-              location: j.location || 'Philippines',
-              salaryRange: buildSalaryRangeText(j.salary_range, j.salary_min, j.salary_max, 'PHP'),
-              salaryMin: toSalaryNumber(j.salary_min),
-              salaryMax: toSalaryNumber(j.salary_max),
-              slots: j.slots || 1,
-              status: j.status || 'Open',
-              datePosted: j.created_at?.split('T')[0],
-              createdAt: j.created_at,
-            })));
+            ...(j.source === 'partner' && (j.attachment_url || j.source_url)
+              ? {
+                attachmentUrl: j.attachment_url || j.source_url,
+                attachmentName: j.attachment_name || decodeURIComponent(String(j.attachment_url || j.source_url).split('/').pop()?.split('?')[0] || ''),
+                attachmentType: j.attachment_type || null,
+              }
+              : {}),
+            id: j.id,
+            partnerId: j.partner_id,
+            programId: j.program_id || null,
+            companyName: j.industry_partners?.company_name || 'Company',
+            industry: j.industry || 'General',
+            title: j.title,
+            opportunityType: j.opportunity_type || 'Job',
+            ncLevel: j.nc_level || j.programs?.name || '',
+            requiredCompetencies: normalizeCompetencyList(
+              (j.required_competencies && j.required_competencies.length > 0)
+                ? j.required_competencies
+                : (j.programs?.competencies?.length > 0
+                  ? j.programs.competencies
+                  : extractCompetenciesFromProgramDescription(j.programs?.description || ''))
+            ),
+            requiredSkills: j.required_skills || [],
+            description: j.description || '',
+            employmentType: (() => {
+              if (j.opportunity_type === 'OJT') return '';
+              const rawType = String(j.employment_type || '').toLowerCase();
+              if (rawType === 'full_time' || rawType === 'full-time' || rawType === 'fulltime') return 'Full-time';
+              if (rawType === 'part_time' || rawType === 'part-time' || rawType === 'parttime') return 'Part-time';
+              if (rawType === 'contract') return 'Contract';
+              if (rawType === 'internship') return 'Internship';
+              return j.employment_type || 'Full-time';
+            })(),
+            location: j.location || 'Philippines',
+            salaryRange: buildSalaryRangeText(j.salary_range, j.salary_min, j.salary_max, 'PHP'),
+            salaryMin: toSalaryNumber(j.salary_min),
+            salaryMax: toSalaryNumber(j.salary_max),
+            slots: j.slots || 1,
+            status: j.status || 'Open',
+            datePosted: j.created_at?.split('T')[0],
+            createdAt: j.created_at,
+          })));
         }
       } catch (err) { console.warn(err); }
 
@@ -2988,6 +3017,7 @@ export const AppProvider = ({ children }) => {
               profileName: student.profileName || student.name || 'Trainee',
               photo: student.photo || null,
               trainingStatus: student.trainingStatus || 'Student',
+              gender: normalizeGender(student.gender),
               personalInfoVisibility: resolveVisibilityFields(student.personalInfoVisibility, DEFAULT_STUDENT_PUBLIC_INFO_FIELDS),
               email: '',
               resumeUrl: null,
@@ -3235,6 +3265,7 @@ export const AppProvider = ({ children }) => {
       supabase.removeChannel(adminRealtimeChannel);
       supabase.removeChannel(recruitmentSyncChannel);
     };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentUser?.id, userRole]);
 
   // ─── REGISTRATION DATA (multi-step persist) ──────────────────────────────
@@ -3243,19 +3274,19 @@ export const AppProvider = ({ children }) => {
   // ─── ANALYTICS HELPERS ───────────────────────────────────────────────────
   const getEmploymentStats = () => {
     const total = trainees.length;
-    
+
     // Core categories
-    const employed = trainees.filter(t => 
-      t.employmentStatus === 'Employed' || 
-      t.employmentStatus === 'Self-Employed' || 
+    const employed = trainees.filter(t =>
+      t.employmentStatus === 'Employed' ||
+      t.employmentStatus === 'Self-Employed' ||
       t.employmentStatus === 'Underemployed'
     ).length;
-    
-    const seeking_employment = trainees.filter(t => 
-      t.employmentStatus === 'Seeking Employment' || 
+
+    const seeking_employment = trainees.filter(t =>
+      t.employmentStatus === 'Seeking Employment' ||
       t.employmentStatus === 'Unemployed'
     ).length;
-    
+
     const not_employed = trainees.filter(t => t.employmentStatus === 'Not Employed').length;
 
     const employmentRate = total > 0 ? Math.round((employed / total) * 100) : 0;

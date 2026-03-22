@@ -60,6 +60,7 @@ export default function Step2PersonalInfo({ data, onChange, onValidChange }) {
         };
         loadModels();
         return () => stopCamera();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
     // ─── Camera Functions ────────────────────────────────────────
     const startCamera = async () => {

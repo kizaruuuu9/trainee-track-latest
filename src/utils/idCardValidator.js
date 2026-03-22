@@ -33,13 +33,11 @@ function loadImage(src) {
 function analyzeColors(ctx, width, height) {
   const imageData = ctx.getImageData(0, 0, width, height);
   const pixels = imageData.data;
-  const totalPixels = width * height;
 
   let blueCount = 0;
   let whiteCount = 0;
   let darkCount = 0;
   let totalBrightness = 0;
-  let colorVariance = 0;
   const buckets = new Array(8).fill(0); // Color diversity buckets
 
   // Sample every 4th pixel for performance

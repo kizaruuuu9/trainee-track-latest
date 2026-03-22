@@ -1,0 +1,143 @@
+﻿
+> trainee-track@0.0.0 lint
+> eslint .
+
+
+C:\Users\admin\Downloads\CAPSTONE\TraineeTrackV2\trainee-track-v2\get_ids.js
+  5:21  error  'process' is not defined  no-undef
+  6:21  error  'process' is not defined  no-undef
+
+C:\Users\admin\Downloads\CAPSTONE\TraineeTrackV2\trainee-track-v2\server\otpServer.js
+     4:8   error  'bcrypt' is defined but never used. Allowed unused vars must match /^[A-Z_]/u                     no-unused-vars
+     8:6   error  'process' is not defined                                                                          no-undef
+    20:5   error  'process' is not defined                                                                          no-undef
+    20:33  error  'process' is not defined                                                                          no-undef
+    21:5   error  'process' is not defined                                                                          no-undef
+    42:7   error  'pickLatestSeenAt' is assigned a value but never used. Allowed unused vars must match /^[A-Z_]/u  no-unused-vars
+   104:33  error  'process' is not defined                                                                          no-undef
+   110:15  error  'process' is not defined                                                                          no-undef
+   111:15  error  'process' is not defined                                                                          no-undef
+   122:10  error  'process' is not defined                                                                          no-undef
+   122:37  error  'process' is not defined                                                                          no-undef
+   183:19  error  'process' is not defined                                                                          no-undef
+  1159:10  error  'process' is not defined                                                                          no-undef
+  1215:28  error  'Buffer' is not defined                                                                           no-undef
+  1226:28  error  'Buffer' is not defined                                                                           no-undef
+  1237:28  error  'Buffer' is not defined                                                                           no-undef
+  1336:10  error  'process' is not defined                                                                          no-undef
+  1421:24  error  'Buffer' is not defined                                                                           no-undef
+  1426:23  error  'uploadData' is assigned a value but never used. Allowed unused vars must match /^[A-Z_]/u        no-unused-vars
+  1569:24  error  'Buffer' is not defined                                                                           no-undef
+  1752:31  error  'process' is not defined                                                                          no-undef
+  1755:44  error  'process' is not defined                                                                          no-undef
+  1776:5   error  'process' is not defined                                                                          no-undef
+  1781:5   error  'process' is not defined                                                                          no-undef
+
+C:\Users\admin\Downloads\CAPSTONE\TraineeTrackV2\trainee-track-v2\setup_demo_profiles.js
+  5:21  error  'process' is not defined  no-undef
+  6:21  error  'process' is not defined  no-undef
+
+C:\Users\admin\Downloads\CAPSTONE\TraineeTrackV2\trainee-track-v2\src\components\LoginScreen.jsx
+  16:31  error  'registerPartner' is assigned a value but never used. Allowed unused vars must match /^[A-Z_]/u     no-unused-vars
+  26:24  error  'setShowRegister' is assigned a value but never used. Allowed unused vars must match /^[A-Z_]/u     no-unused-vars
+  27:19  error  'setRegForm' is assigned a value but never used. Allowed unused vars must match /^[A-Z_]/u          no-unused-vars
+  31:10  error  'showRegPassword' is assigned a value but never used. Allowed unused vars must match /^[A-Z_]/u     no-unused-vars
+  31:27  error  'setShowRegPassword' is assigned a value but never used. Allowed unused vars must match /^[A-Z_]/u  no-unused-vars
+  32:10  error  'showRegConfirm' is assigned a value but never used. Allowed unused vars must match /^[A-Z_]/u      no-unused-vars
+  32:26  error  'setShowRegConfirm' is assigned a value but never used. Allowed unused vars must match /^[A-Z_]/u   no-unused-vars
+  33:10  error  'regSuccess' is assigned a value but never used. Allowed unused vars must match /^[A-Z_]/u          no-unused-vars
+  33:22  error  'setRegSuccess' is assigned a value but never used. Allowed unused vars must match /^[A-Z_]/u       no-unused-vars
+  34:10  error  'regError' is assigned a value but never used. Allowed unused vars must match /^[A-Z_]/u            no-unused-vars
+  34:20  error  'setRegError' is assigned a value but never used. Allowed unused vars must match /^[A-Z_]/u         no-unused-vars
+  35:10  error  'regLoading' is assigned a value but never used. Allowed unused vars must match /^[A-Z_]/u          no-unused-vars
+  35:22  error  'setRegLoading' is assigned a value but never used. Allowed unused vars must match /^[A-Z_]/u       no-unused-vars
+  38:10  error  'emailChecking' is assigned a value but never used. Allowed unused vars must match /^[A-Z_]/u       no-unused-vars
+  39:10  error  'emailAvailable' is assigned a value but never used. Allowed unused vars must match /^[A-Z_]/u      no-unused-vars
+  40:10  error  'emailCheckError' is assigned a value but never used. Allowed unused vars must match /^[A-Z_]/u     no-unused-vars
+  62:14  error  'err' is defined but never used                                                                     no-unused-vars
+  81:9   error  'strengthColor' is assigned a value but never used. Allowed unused vars must match /^[A-Z_]/u       no-unused-vars
+  97:14  error  'err' is defined but never used                                                                     no-unused-vars
+
+C:\Users\admin\Downloads\CAPSTONE\TraineeTrackV2\trainee-track-v2\src\components\auth\RegistrationFlow.jsx
+  144:14  error  '_' is defined but never used  no-unused-vars
+
+C:\Users\admin\Downloads\CAPSTONE\TraineeTrackV2\trainee-track-v2\src\components\auth\Step1IDUpload.jsx
+   28:11   error  'lowerFullText' is assigned a value but never used. Allowed unused vars must match /^[A-Z_]/u  no-unused-vars
+   80:64   error  Unnecessary escape character: \-                                                               no-useless-escape
+   80:103  error  Unnecessary escape character: \-                                                               no-useless-escape
+  201:12   error  'rawOcrText' is assigned a value but never used. Allowed unused vars must match /^[A-Z_]/u     no-unused-vars
+
+C:\Users\admin\Downloads\CAPSTONE\TraineeTrackV2\trainee-track-v2\src\components\auth\Step2PersonalInfo.jsx
+  63:8  warning  React Hook useEffect has missing dependencies: 'modelsLoaded' and 'modelsLoading'. Either include them or remove the dependency array  react-hooks/exhaustive-deps
+
+C:\Users\admin\Downloads\CAPSTONE\TraineeTrackV2\trainee-track-v2\src\components\auth\Step2SelfieVerification.jsx
+   1:46  error    'useCallback' is defined but never used. Allowed unused vars must match /^[A-Z_]/u                                                     no-unused-vars
+  37:8   warning  React Hook useEffect has missing dependencies: 'modelsLoaded' and 'modelsLoading'. Either include them or remove the dependency array  react-hooks/exhaustive-deps
+
+C:\Users\admin\Downloads\CAPSTONE\TraineeTrackV2\trainee-track-v2\src\components\auth\Step3ProfileSetup.jsx
+   59:76  error  'userProgram' is defined but never used                                                 no-unused-vars
+  231:37  error  'resume' is assigned a value but never used. Allowed unused vars must match /^[A-Z_]/u  no-unused-vars
+
+C:\Users\admin\Downloads\CAPSTONE\TraineeTrackV2\trainee-track-v2\src\components\auth\Step4Confirmation.jsx
+  8:26  error  'Icon' is defined but never used  no-unused-vars
+
+C:\Users\admin\Downloads\CAPSTONE\TraineeTrackV2\trainee-track-v2\src\components\dashboards\AdminDashboard.jsx
+  161:5   warning  Unused eslint-disable directive (no problems were reported from 'no-unused-vars')
+  464:18  error    '_' is defined but never used                                                                                    no-unused-vars
+  464:21  error    Empty block statement                                                                                            no-empty
+  671:8   warning  React Hook useEffect has a missing dependency: 'loadPrograms'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+
+C:\Users\admin\Downloads\CAPSTONE\TraineeTrackV2\trainee-track-v2\src\components\dashboards\PartnerDashboard.jsx
+   409:9   error    'verified' is assigned a value but never used. Allowed unused vars must match /^[A-Z_]/u                                                                                                                  no-unused-vars
+   747:15  error    'ext' is assigned a value but never used. Allowed unused vars must match /^[A-Z_]/u                                                                                                                       no-unused-vars
+  2241:10  error    'loading' is assigned a value but never used. Allowed unused vars must match /^[A-Z_]/u                                                                                                                   no-unused-vars
+  2260:58  warning  React Hook useEffect has a missing dependency: 'fetchDocs'. Either include it or remove the dependency array                                                                                              react-hooks/exhaustive-deps
+  2573:9   warning  The 'programOptions' conditional could make the dependencies of useEffect Hook (at line 2598) change on every render. To fix this, wrap the initialization of 'programOptions' in its own useMemo() Hook  react-hooks/exhaustive-deps
+  2601:9   error    'ncLevelSelectOptions' is assigned a value but never used. Allowed unused vars must match /^[A-Z_]/u                                                                                                      no-unused-vars
+  2636:6   warning  React Hook useEffect has a missing dependency: 'ncLevelOptions'. Either include it or remove the dependency array                                                                                         react-hooks/exhaustive-deps
+
+C:\Users\admin\Downloads\CAPSTONE\TraineeTrackV2\trainee-track-v2\src\components\dashboards\TraineeDashboard.jsx
+   155:26  error    'userRole' is assigned a value but never used. Allowed unused vars must match /^[A-Z_]/u                                                no-unused-vars
+   361:44  error    'handleApply' is defined but never used                                                                                                 no-unused-vars
+   425:36  error    'jobPostings' is assigned a value but never used. Allowed unused vars must match /^[A-Z_]/u                                             no-unused-vars
+   425:90  error    'applyToJob' is assigned a value but never used. Allowed unused vars must match /^[A-Z_]/u                                              no-unused-vars
+   612:23  error    'ext' is assigned a value but never used. Allowed unused vars must match /^[A-Z_]/u                                                     no-unused-vars
+  1970:8   warning  React Hook useMemo has unnecessary dependencies: 'form.skills' and 'interestsList'. Either exclude them or remove the dependency array  react-hooks/exhaustive-deps
+  1977:12  error    'savingEduc' is assigned a value but never used. Allowed unused vars must match /^[A-Z_]/u                                              no-unused-vars
+  1981:12  error    'savingWork' is assigned a value but never used. Allowed unused vars must match /^[A-Z_]/u                                              no-unused-vars
+  1986:12  error    'editingTraining' is assigned a value but never used. Allowed unused vars must match /^[A-Z_]/u                                         no-unused-vars
+  1986:29  error    'setEditingTraining' is assigned a value but never used. Allowed unused vars must match /^[A-Z_]/u                                      no-unused-vars
+  1994:12  error    'trainingForm' is assigned a value but never used. Allowed unused vars must match /^[A-Z_]/u                                            no-unused-vars
+  2003:12  error    'editingEmployment' is assigned a value but never used. Allowed unused vars must match /^[A-Z_]/u                                       no-unused-vars
+  2032:11  error    'resumeInputRef' is assigned a value but never used. Allowed unused vars must match /^[A-Z_]/u                                          no-unused-vars
+  2034:12  error    'uploadingResume' is assigned a value but never used. Allowed unused vars must match /^[A-Z_]/u                                         no-unused-vars
+  2116:8   warning  React Hook useEffect has a missing dependency: 'programs'. Either include it or remove the dependency array                             react-hooks/exhaustive-deps
+  2200:11  error    'saveEduc' is assigned a value but never used. Allowed unused vars must match /^[A-Z_]/u                                                no-unused-vars
+  2205:11  error    'saveWork' is assigned a value but never used. Allowed unused vars must match /^[A-Z_]/u                                                no-unused-vars
+  2299:11  error    'saveEmployment' is assigned a value but never used. Allowed unused vars must match /^[A-Z_]/u                                          no-unused-vars
+  2439:11  error    'isHeaderAddressHiddenFromOthers' is assigned a value but never used. Allowed unused vars must match /^[A-Z_]/u                         no-unused-vars
+  2440:11  error    'isHeaderEmailHiddenFromOthers' is assigned a value but never used. Allowed unused vars must match /^[A-Z_]/u                           no-unused-vars
+  2451:11  error    'handleResumeUpload' is assigned a value but never used. Allowed unused vars must match /^[A-Z_]/u                                      no-unused-vars
+
+C:\Users\admin\Downloads\CAPSTONE\TraineeTrackV2\trainee-track-v2\src\context\AppContext.jsx
+     6:14  error    Fast refresh only works when a file only exports components. Use a new file to share constants or functions between components   react-refresh/only-export-components
+    24:12  error    '_' is defined but never used                                                                                                    no-unused-vars
+  1290:11  error    'skillKeys' is assigned a value but never used. Allowed unused vars must match /^[A-Z_]/u                                        no-unused-vars
+  1310:9   error    'toDateOnly' is assigned a value but never used. Allowed unused vars must match /^[A-Z_]/u                                       no-unused-vars
+  1457:16  error    Empty block statement                                                                                                            no-empty
+  2190:18  error    '_' is defined but never used                                                                                                    no-unused-vars
+  2190:21  error    Empty block statement                                                                                                            no-empty
+  2221:18  error    '_' is defined but never used                                                                                                    no-unused-vars
+  2221:21  error    Empty block statement                                                                                                            no-empty
+  2625:16  error    '_' is defined but never used                                                                                                    no-unused-vars
+  2625:19  error    Empty block statement                                                                                                            no-empty
+  2718:6   warning  React Hook useEffect has a missing dependency: 'updateOwnPresence'. Either include it or remove the dependency array             react-hooks/exhaustive-deps
+  3261:6   warning  React Hook useEffect has missing dependencies: 'currentUser' and 'programs'. Either include them or remove the dependency array  react-hooks/exhaustive-deps
+
+C:\Users\admin\Downloads\CAPSTONE\TraineeTrackV2\trainee-track-v2\src\utils\idCardValidator.js
+  36:9  error  'totalPixels' is assigned a value but never used. Allowed unused vars must match /^[A-Z_]/u    no-unused-vars
+  42:7  error  'colorVariance' is assigned a value but never used. Allowed unused vars must match /^[A-Z_]/u  no-unused-vars
+
+Γ£û 105 problems (94 errors, 11 warnings)
+  0 errors and 1 warning potentially fixable with the `--fix` option.
+

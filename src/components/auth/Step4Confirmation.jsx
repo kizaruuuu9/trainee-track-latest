@@ -5,6 +5,46 @@ import {
     Briefcase, Award, Sparkles, Heart, FileText, ExternalLink, Camera
 } from 'lucide-react';
 
+// eslint-disable-next-line no-unused-vars
+const InfoRow = ({ icon: Icon, label, value, status }) => (
+    <div style={{
+        display: 'flex', alignItems: 'flex-start', gap: 12,
+        padding: '10px 0',
+        borderBottom: '1px solid #f1f5f9',
+    }}>
+        <div style={{
+            width: 32, height: 32, borderRadius: 8,
+            background: 'linear-gradient(135deg, #eff6ff, #dbeafe)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            flexShrink: 0,
+        }}>
+            <Icon size={15} style={{ color: '#2563eb' }} />
+        </div>
+        <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontSize: 11, fontWeight: 600, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                {label}
+            </div>
+            <div style={{ fontSize: 14, fontWeight: 600, color: '#0f172a', marginTop: 2, wordBreak: 'break-word' }}>
+                {value || <span style={{ color: '#cbd5e1', fontStyle: 'italic' }}>Not provided</span>}
+            </div>
+        </div>
+        {status && (
+            <div style={{
+                display: 'flex', alignItems: 'center', gap: 4,
+                fontSize: 11, fontWeight: 600,
+                color: status === 'verified' ? '#16a34a' : '#f59e0b',
+                background: status === 'verified' ? '#f0fdf4' : '#fffbeb',
+                border: `1px solid ${status === 'verified' ? '#bbf7d0' : '#fde68a'}`,
+                borderRadius: 6, padding: '3px 8px',
+                flexShrink: 0,
+            }}>
+                {status === 'verified' ? <ShieldCheck size={12} /> : <AlertTriangle size={12} />}
+                {status === 'verified' ? 'Verified' : 'Pending'}
+            </div>
+        )}
+    </div>
+);
+
 export default function Step4Confirmation({ step1Data, step2Data, step3Data, step4Data }) {
     const [showPassword, setShowPassword] = useState(false);
 
@@ -29,44 +69,7 @@ export default function Step4Confirmation({ step1Data, step2Data, step3Data, ste
         ? showPassword ? step3Data.password : '•'.repeat(step3Data.password.length)
         : '—';
 
-    const InfoRow = ({ icon: Icon, label, value, status }) => (
-        <div style={{
-            display: 'flex', alignItems: 'flex-start', gap: 12,
-            padding: '10px 0',
-            borderBottom: '1px solid #f1f5f9',
-        }}>
-            <div style={{
-                width: 32, height: 32, borderRadius: 8,
-                background: 'linear-gradient(135deg, #eff6ff, #dbeafe)',
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                flexShrink: 0,
-            }}>
-                <Icon size={15} style={{ color: '#2563eb' }} />
-            </div>
-            <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontSize: 11, fontWeight: 600, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                    {label}
-                </div>
-                <div style={{ fontSize: 14, fontWeight: 600, color: '#0f172a', marginTop: 2, wordBreak: 'break-word' }}>
-                    {value || <span style={{ color: '#cbd5e1', fontStyle: 'italic' }}>Not provided</span>}
-                </div>
-            </div>
-            {status && (
-                <div style={{
-                    display: 'flex', alignItems: 'center', gap: 4,
-                    fontSize: 11, fontWeight: 600,
-                    color: status === 'verified' ? '#16a34a' : '#f59e0b',
-                    background: status === 'verified' ? '#f0fdf4' : '#fffbeb',
-                    border: `1px solid ${status === 'verified' ? '#bbf7d0' : '#fde68a'}`,
-                    borderRadius: 6, padding: '3px 8px',
-                    flexShrink: 0,
-                }}>
-                    {status === 'verified' ? <ShieldCheck size={12} /> : <AlertTriangle size={12} />}
-                    {status === 'verified' ? 'Verified' : 'Pending'}
-                </div>
-            )}
-        </div>
-    );
+
 
     return (
         <div>

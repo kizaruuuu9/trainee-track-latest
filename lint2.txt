@@ -1,0 +1,95 @@
+﻿
+> trainee-track@0.0.0 lint
+> eslint .
+
+
+C:\Users\admin\Downloads\CAPSTONE\TraineeTrackV2\trainee-track-v2\get_ids.js
+  6:21  error  'process' is not defined  no-undef
+  7:21  error  'process' is not defined  no-undef
+
+C:\Users\admin\Downloads\CAPSTONE\TraineeTrackV2\trainee-track-v2\server\otpServer.js
+    10:6   error  'process' is not defined  no-undef
+    22:5   error  'process' is not defined  no-undef
+    22:33  error  'process' is not defined  no-undef
+    23:5   error  'process' is not defined  no-undef
+    93:33  error  'process' is not defined  no-undef
+    99:15  error  'process' is not defined  no-undef
+   100:15  error  'process' is not defined  no-undef
+   111:10  error  'process' is not defined  no-undef
+   111:37  error  'process' is not defined  no-undef
+   172:19  error  'process' is not defined  no-undef
+  1148:10  error  'process' is not defined  no-undef
+  1204:28  error  'Buffer' is not defined   no-undef
+  1215:28  error  'Buffer' is not defined   no-undef
+  1226:28  error  'Buffer' is not defined   no-undef
+  1325:10  error  'process' is not defined  no-undef
+  1410:24  error  'Buffer' is not defined   no-undef
+  1558:24  error  'Buffer' is not defined   no-undef
+  1741:31  error  'process' is not defined  no-undef
+  1744:44  error  'process' is not defined  no-undef
+  1765:5   error  'process' is not defined  no-undef
+  1770:5   error  'process' is not defined  no-undef
+
+C:\Users\admin\Downloads\CAPSTONE\TraineeTrackV2\trainee-track-v2\setup_demo_profiles.js
+  6:21  error  'process' is not defined  no-undef
+  7:21  error  'process' is not defined  no-undef
+
+C:\Users\admin\Downloads\CAPSTONE\TraineeTrackV2\trainee-track-v2\src\components\LoginScreen.jsx
+  55:14  error    'err' is defined but never used                                                    no-unused-vars
+  86:14  error    'err' is defined but never used                                                    no-unused-vars
+  86:21  warning  Unused eslint-disable directive (no problems were reported from 'no-unused-vars')
+
+C:\Users\admin\Downloads\CAPSTONE\TraineeTrackV2\trainee-track-v2\src\components\auth\RegistrationFlow.jsx
+  144:14  error  '_' is defined but never used  no-unused-vars
+
+C:\Users\admin\Downloads\CAPSTONE\TraineeTrackV2\trainee-track-v2\src\components\auth\Step1IDUpload.jsx
+   28:11   error  'lowerFullText' is assigned a value but never used. Allowed unused vars must match /^[A-Z_]/u  no-unused-vars
+   80:64   error  Unnecessary escape character: \-                                                               no-useless-escape
+   80:103  error  Unnecessary escape character: \-                                                               no-useless-escape
+  201:12   error  'rawOcrText' is assigned a value but never used. Allowed unused vars must match /^[A-Z_]/u     no-unused-vars
+
+C:\Users\admin\Downloads\CAPSTONE\TraineeTrackV2\trainee-track-v2\src\components\auth\Step2PersonalInfo.jsx
+  63:8  warning  React Hook useEffect has missing dependencies: 'modelsLoaded' and 'modelsLoading'. Either include them or remove the dependency array  react-hooks/exhaustive-deps
+
+C:\Users\admin\Downloads\CAPSTONE\TraineeTrackV2\trainee-track-v2\src\components\auth\Step2SelfieVerification.jsx
+   1:46  error    'useCallback' is defined but never used. Allowed unused vars must match /^[A-Z_]/u                                                     no-unused-vars
+  37:8   warning  React Hook useEffect has missing dependencies: 'modelsLoaded' and 'modelsLoading'. Either include them or remove the dependency array  react-hooks/exhaustive-deps
+
+C:\Users\admin\Downloads\CAPSTONE\TraineeTrackV2\trainee-track-v2\src\components\auth\Step3ProfileSetup.jsx
+   59:76  error  'userProgram' is defined but never used                                                 no-unused-vars
+  231:37  error  'resume' is assigned a value but never used. Allowed unused vars must match /^[A-Z_]/u  no-unused-vars
+
+C:\Users\admin\Downloads\CAPSTONE\TraineeTrackV2\trainee-track-v2\src\components\auth\Step4Confirmation.jsx
+  8:26  error  'Icon' is defined but never used  no-unused-vars
+
+C:\Users\admin\Downloads\CAPSTONE\TraineeTrackV2\trainee-track-v2\src\components\dashboards\AdminDashboard.jsx
+  161:5   warning  Unused eslint-disable directive (no problems were reported from 'no-unused-vars')
+  464:18  error    '_' is defined but never used                                                                                    no-unused-vars
+  464:21  error    Empty block statement                                                                                            no-empty
+  671:8   warning  React Hook useEffect has a missing dependency: 'loadPrograms'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+
+C:\Users\admin\Downloads\CAPSTONE\TraineeTrackV2\trainee-track-v2\src\components\dashboards\PartnerDashboard.jsx
+   409:9   error    'verified' is assigned a value but never used. Allowed unused vars must match /^[A-Z_]/u                                                                                                                  no-unused-vars
+   747:15  error    'ext' is assigned a value but never used. Allowed unused vars must match /^[A-Z_]/u                                                                                                                       no-unused-vars
+  2241:10  error    'loading' is assigned a value but never used. Allowed unused vars must match /^[A-Z_]/u                                                                                                                   no-unused-vars
+  2260:58  warning  React Hook useEffect has a missing dependency: 'fetchDocs'. Either include it or remove the dependency array                                                                                              react-hooks/exhaustive-deps
+  2573:9   warning  The 'programOptions' conditional could make the dependencies of useEffect Hook (at line 2598) change on every render. To fix this, wrap the initialization of 'programOptions' in its own useMemo() Hook  react-hooks/exhaustive-deps
+  2601:9   error    'ncLevelSelectOptions' is assigned a value but never used. Allowed unused vars must match /^[A-Z_]/u                                                                                                      no-unused-vars
+  2636:6   warning  React Hook useEffect has a missing dependency: 'ncLevelOptions'. Either include it or remove the dependency array                                                                                         react-hooks/exhaustive-deps
+
+C:\Users\admin\Downloads\CAPSTONE\TraineeTrackV2\trainee-track-v2\src\components\dashboards\TraineeDashboard.jsx
+  2122:8  warning  React Hook useEffect has a missing dependency: 'programs'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+
+C:\Users\admin\Downloads\CAPSTONE\TraineeTrackV2\trainee-track-v2\src\context\AppContext.jsx
+    25:12  error    '_' is defined but never used                                                      no-unused-vars
+    25:17  warning  Unused eslint-disable directive (no problems were reported from 'no-unused-vars')
+  2190:18  error    '_' is defined but never used                                                      no-unused-vars
+  2190:23  warning  Unused eslint-disable directive (no problems were reported from 'no-unused-vars')
+  2223:18  error    '_' is defined but never used                                                      no-unused-vars
+  2223:23  warning  Unused eslint-disable directive (no problems were reported from 'no-unused-vars')
+  2629:16  error    '_' is defined but never used                                                      no-unused-vars
+  2629:21  warning  Unused eslint-disable directive (no problems were reported from 'no-unused-vars')
+
+Γ£û 59 problems (46 errors, 13 warnings)
+  0 errors and 6 warnings potentially fixable with the `--fix` option.
+

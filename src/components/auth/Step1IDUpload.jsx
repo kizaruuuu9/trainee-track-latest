@@ -25,7 +25,6 @@ function parseOCRText(frontText, backText, programs) {
     const combinedLines = [...frontText.split('\n'), ...backText.split('\n')]
         .map(l => l.trim()).filter(Boolean);
     const fullText = combinedLines.join(' ');
-    const lowerFullText = fullText.toLowerCase();
     const result = { fullName: '', studentId: '', program: '', address: '', gender: '' };
 
     // 0. PSTDI Verification — uses data patterns & layout instead of unreadable logos
@@ -77,7 +76,7 @@ function parseOCRText(frontText, backText, programs) {
     }
 
     // 2. Gender — look for "Sex: Female" or "Gender: Male"
-    const genderMatch = fullText.match(/\b(male|female|sex\s*[:\-]?\s*(?:female|male|[mf])|gender\s*[:\-]?\s*(?:female|male|[mf]))\b/i);
+    const genderMatch = fullText.match(/\b(male|female|sex\s*[:-]?\s*(?:female|male|[mf])|gender\s*[:-]?\s*(?:female|male|[mf]))\b/i);
     if (genderMatch) {
         const g = genderMatch[0].toLowerCase();
         if (g.includes('f') || g === 'female') result.gender = 'Female';
@@ -198,6 +197,7 @@ export default function Step1IDUpload({ data, onChange, onValidChange }) {
     const [touched, setTouched] = useState({});
     const [previewModal, setPreviewModal] = useState(null);
     const [ocrProgress, setOcrProgress] = useState(0);
+    // eslint-disable-next-line no-unused-vars
     const [rawOcrText, setRawOcrText] = useState('');
     const [visualValidation, setVisualValidation] = useState({ front: null, back: null });
     const [idDuplicateError, setIdDuplicateError] = useState('');

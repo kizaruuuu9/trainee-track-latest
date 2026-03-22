@@ -156,9 +156,10 @@ const AdminSidebar = ({ activePage, setActivePage, mobileOpen, closeSidebar }) =
 
 // — PAGE 1: ADMIN DASHBOARD —————————————————————————————————————————————————
 const AdminHome = ({ setActivePage }) => {
-    const { trainees, partners, jobPostings, getEmploymentStats, getSkillsDemand } = useApp();
+    const { trainees, partners, jobPostings, getEmploymentStats } = useApp();
     const stats = getEmploymentStats();
-    const skillsDemand = getSkillsDemand();
+     
+    const _skillsDemand = null;
     const statCards = [
         { label: 'Total Trainees', value: trainees.length, icon: <Users size={22} color="#7c3aed" />, bg: '#ede9fe', sub: `${stats.employed} employed` },
         { label: 'Employment Rate', value: `${stats.employmentRate}%`, icon: <TrendingUp size={22} color="#16a34a" />, bg: '#dcfce7', sub: `${stats.unemployed} still unemployed` },
@@ -229,7 +230,7 @@ const ManageTrainees = () => {
     const [filterStatus, setFilterStatus] = useState('All');
     const [viewT, setViewT] = useState(null);
     const [editT, setEditT] = useState(null);
-    const [activityNow, setActivityNow] = useState(Date.now());
+    const [activityNow, setActivityNow] = useState(() => Date.now());
 
     useEffect(() => {
         const timerId = setInterval(() => {
@@ -278,7 +279,7 @@ const ManageTrainees = () => {
         );
     };
 
-    console.log("AdminDashboard trainees array:", trainees, "filterStatus:", filterStatus, "filtered:", filtered);
+
 
     return (
         <div>
@@ -460,7 +461,8 @@ const ManageTesdaPrograms = () => {
                     competencies: parsed.competencies.map(c => stripCode(String(c))).filter(Boolean),
                 };
             }
-        } catch (_) {
+        } catch {
+            // ignore error
         }
 
         const lines = description.split('\n');
@@ -667,6 +669,7 @@ const ManageTesdaPrograms = () => {
 
     useEffect(() => {
         loadPrograms();
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
     const openCreateModal = () => {
@@ -1012,7 +1015,7 @@ const ManagePartners = () => {
     const [loadingDocs, setLoadingDocs] = useState(false);
     const [actionReasonById, setActionReasonById] = useState({});
     const [openPartnerMenuKey, setOpenPartnerMenuKey] = useState(null);
-    const [activityNow, setActivityNow] = useState(Date.now());
+    const [activityNow, setActivityNow] = useState(() => Date.now());
 
     useEffect(() => {
         const timerId = setInterval(() => {
