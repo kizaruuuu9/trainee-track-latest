@@ -5,13 +5,64 @@ import {
     LayoutDashboard, Users, Building2, Briefcase, TrendingUp, BarChart2,
     Settings, LogOut, Bell, ChevronDown, Search, Eye, Edit, CheckCircle,
     XCircle, Download, Plus, X, AlertCircle, FileText, Award, Shield,
-    UserCheck, Clock, MapPin, Star, Filter, Trash2, Menu, MoreVertical
+    UserCheck, Clock, MapPin, Star, Filter, Trash2, Menu, MoreVertical,
+    ChevronLeft, ChevronRight
 } from 'lucide-react';
 import {
     BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid,
     Tooltip, Legend, ResponsiveContainer
 } from 'recharts';
 import { Routes, Route, useNavigate, useLocation, Navigate } from 'react-router-dom';
+
+// ─── SHARED: TABLE PAGINATION ──────────────────────────────────────
+const TablePagination = ({ currentPage, totalItems, pageSize, onPageChange }) => {
+    const totalPages = Math.ceil(totalItems / pageSize);
+    if (totalPages <= 1) return null;
+
+    const startIdx = (currentPage - 1) * pageSize + 1;
+    const endIdx = Math.min(totalItems, currentPage * pageSize);
+
+    return (
+        <div className="admin-pagination">
+            <div className="admin-pagination-info">
+                Showing <b>{startIdx}</b> to <b>{endIdx}</b> of <b>{totalItems}</b> entries
+            </div>
+            <div className="admin-pagination-controls">
+                <button 
+                    className="admin-pagination-btn" 
+                    disabled={currentPage === 1}
+                    onClick={() => onPageChange(currentPage - 1)}
+                >
+                    <ChevronLeft size={16} />
+                </button>
+                
+                <div className="admin-pagination-numbers">
+                    {Array.from({ length: totalPages }, (_, i) => i + 1)
+                        .filter(p => p === 1 || p === totalPages || (p >= currentPage - 1 && p <= currentPage + 1))
+                        .map((p, i, arr) => (
+                            <React.Fragment key={p}>
+                                {i > 0 && arr[i - 1] !== p - 1 && <span className="admin-pagination-ellipsis" style={{ color: '#94a3b8', padding: '0 4px' }}>...</span>}
+                                <button 
+                                    className={`admin-pagination-num ${currentPage === p ? 'active' : ''}`}
+                                    onClick={() => onPageChange(p)}
+                                >
+                                    {p}
+                                </button>
+                            </React.Fragment>
+                        ))}
+                </div>
+
+                <button 
+                    className="admin-pagination-btn" 
+                    disabled={currentPage === totalPages}
+                    onClick={() => onPageChange(currentPage + 1)}
+                >
+                    <ChevronRight size={16} />
+                </button>
+            </div>
+        </div>
+    );
+};
 
 // ─── TIME AGO HELPER ──────────────────────────────────────────────
 const timeAgo = (dateStr) => {
@@ -231,6 +282,13 @@ const ManageTrainees = () => {
     const [viewT, setViewT] = useState(null);
     const [editT, setEditT] = useState(null);
     const [activityNow, setActivityNow] = useState(() => Date.now());
+    const [currentPage, setCurrentPage] = useState(1);
+    const pageSize = 10;
+
+    // Reset page when search or filters change
+    useEffect(() => {
+        setCurrentPage(1);
+    }, [search, filterStatus]);
 
     useEffect(() => {
         const timerId = setInterval(() => {
@@ -247,9 +305,18 @@ const ManageTrainees = () => {
         const employmentStatus = t?.employmentStatus || 'Not Employed';
         return (name.includes(q) || email.includes(q)) && (filterStatus === 'All' || employmentStatus === filterStatus);
     });
+    const displayedItems = filtered.slice((currentPage - 1) * pageSize, currentPage * pageSize);
+
     const statusBadge = (s) => {
-        const map = { Employed: 'badge-employed', 'Seeking Employment': 'badge-seeking-employment', 'Not Employed': 'badge-unemployed' };
-        return <span className={`badge ${map[s] || 'badge-gray'}`}>{s || 'None'}</span>;
+        const colorMap = {
+            'Employed': '#057642',
+            'Seeking Employment': '#0a66c2',
+            'Certified': '#7c3aed',
+            'Seeking OJT': '#ea580c',
+            'OJT In Progress': '#ca8a04',
+        };
+        const bg = colorMap[s] || '#64748b';
+        return <span className="badge" style={{ background: bg, color: 'white' }}>{s || 'None'}</span>;
     };
 
     const accountBadge = (status) => {
@@ -298,15 +365,15 @@ const ManageTrainees = () => {
             <div className="card">
                 <div style={{ display: 'flex', gap: 12, marginBottom: 16, flexWrap: 'wrap', alignItems: 'center' }}>
                     <div className="search-bar" style={{ flex: 1, minWidth: 200 }}><Search size={14} color="#94a3b8" /><input placeholder="Search by name or email..." value={search} onChange={e => setSearch(e.target.value)} /></div>
-                    <select className="form-select" style={{ width: 'auto', minWidth: 160 }} value={filterStatus} onChange={e => setFilterStatus(e.target.value)}>
-                        {['All', 'Employed', 'Seeking Employment', 'Not Employed'].map(s => <option key={s}>{s}</option>)}
+                    <select className="form-select" style={{ width: 'auto', minWidth: 180 }} value={filterStatus} onChange={e => setFilterStatus(e.target.value)}>
+                        {['All', 'Employed', 'Seeking Employment', 'Certified', 'Seeking OJT', 'OJT In Progress'].map(s => <option key={s}>{s}</option>)}
                     </select>
                 </div>
                 <div style={{ overflowX: 'auto' }}>
                     <table className="data-table">
                         <thead><tr><th>Profile Name</th><th>Auth Email</th><th>Program</th><th>Training Status</th><th>Employment Status</th><th>Activity</th><th>Account</th><th>Actions</th></tr></thead>
                         <tbody>
-                            {filtered.map(t => (
+                            {displayedItems.map(t => (
                                 <tr key={t.id}>
                                     <td style={{ fontWeight: 600 }}><div style={{ display: 'flex', alignItems: 'center', gap: 8 }}><div style={{ width: 30, height: 30, borderRadius: '50%', background: 'linear-gradient(135deg, #ede9fe, #dbeafe)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 800, color: '#7c3aed' }}>{(t.profileName && t.profileName !== 'Trainee' ? t.profileName : (t.name || 'N')).charAt(0)}</div>{t.profileName || t.name || 'None'}</div></td>
                                     <td style={{ fontSize: 13, color: '#64748b' }}>{t.email && t.email !== 'Protected' ? t.email : 'None'}</td>
@@ -330,6 +397,12 @@ const ManageTrainees = () => {
                         </tbody>
                     </table>
                 </div>
+                <TablePagination 
+                    currentPage={currentPage} 
+                    totalItems={filtered.length} 
+                    pageSize={pageSize} 
+                    onPageChange={setCurrentPage} 
+                />
             </div>
             {viewT && (
                 <div className="modal-overlay" onClick={() => setViewT(null)}>
@@ -369,12 +442,16 @@ const ManageTrainees = () => {
                         </div>
                         {editT.trainingStatus === 'Graduated' && (
                             <div className="form-group"><label className="form-label">Graduation Year</label>
-                                <input type="number" className="form-input" value={editT.graduationYear || ''} onChange={e => setEditT({ ...editT, graduationYear: e.target.value })} />
+                                <input type="number" min="1950" max="2099" className="form-input" placeholder="YYYY" maxLength={4} onInput={e => { if (e.target.value.length > 4) e.target.value = e.target.value.slice(0, 4); }} value={editT.graduationYear || ''} onChange={e => setEditT({ ...editT, graduationYear: e.target.value })} />
                             </div>
                         )}
-                        <div className="form-group"><label className="form-label">Employment Status</label>
+                        <div className="form-group"><label className="form-label">Career Status</label>
                             <select className="form-select" value={editT.employmentStatus} onChange={e => setEditT({ ...editT, employmentStatus: e.target.value })}>
-                                {['Employed', 'Seeking Employment', 'Not Employed'].map(s => <option key={s}>{s}</option>)}
+                                <option value="Employed">🟢 Employed</option>
+                                <option value="Seeking Employment">🔵 Seeking Employment</option>
+                                <option value="Certified">🟣 Certified</option>
+                                <option value="Seeking OJT">🟠 Seeking OJT</option>
+                                <option value="OJT In Progress">🟡 OJT In Progress</option>
                             </select>
                         </div>
                         <div style={{ display: 'flex', gap: 10 }}>
@@ -407,6 +484,13 @@ const ManageTesdaPrograms = () => {
         description: '',
         competenciesText: '',
     });
+    const [currentPage, setCurrentPage] = useState(1);
+    const pageSize = 10;
+
+    // Reset page when search changes
+    useEffect(() => {
+        setCurrentPage(1);
+    }, [search]);
 
     const openPopup = (message) => setPopupMessage(message || 'Something went wrong.');
     const closePopup = () => setPopupMessage('');
@@ -856,6 +940,7 @@ const ManageTesdaPrograms = () => {
         const q = search.toLowerCase();
         return program.name.toLowerCase().includes(q) || (program.ncLevel || '').toLowerCase().includes(q);
     });
+    const displayedItems = filteredPrograms.slice((currentPage - 1) * pageSize, currentPage * pageSize);
 
     return (
         <div>
@@ -890,7 +975,7 @@ const ManageTesdaPrograms = () => {
                             {loading && (
                                 <tr><td colSpan={5} style={{ textAlign: 'center', padding: 26, color: '#94a3b8' }}>Loading programs...</td></tr>
                             )}
-                            {!loading && filteredPrograms.map(program => (
+                            {!loading && displayedItems.map(program => (
                                 <tr key={program.id}>
                                     <td style={{ fontWeight: 700 }}>{program.name}</td>
                                     <td><span className="badge badge-blue">{program.ncLevel || 'N/A'}</span></td>
@@ -918,6 +1003,12 @@ const ManageTesdaPrograms = () => {
                         </tbody>
                     </table>
                 </div>
+                <TablePagination 
+                    currentPage={currentPage} 
+                    totalItems={filteredPrograms.length} 
+                    pageSize={pageSize} 
+                    onPageChange={setCurrentPage} 
+                />
             </div>
 
             {showModal && (
@@ -1016,6 +1107,8 @@ const ManagePartners = () => {
     const [actionReasonById, setActionReasonById] = useState({});
     const [openPartnerMenuKey, setOpenPartnerMenuKey] = useState(null);
     const [activityNow, setActivityNow] = useState(() => Date.now());
+    const [currentPage, setCurrentPage] = useState(1);
+    const pageSize = 10;
 
     useEffect(() => {
         const timerId = setInterval(() => {
@@ -1023,6 +1116,10 @@ const ManagePartners = () => {
         }, 15000);
         return () => clearInterval(timerId);
     }, []);
+
+    useEffect(() => {
+        setCurrentPage(1);
+    }, [search, filterStatus]);
 
     const reasonOptions = ['Incomplete Verification', 'Policy Violation', 'Fraudulent Information', 'Duplicate Account', 'Other'];
     const getActionReason = (partnerId) => actionReasonById[partnerId] || '';
@@ -1054,6 +1151,8 @@ const ManagePartners = () => {
         const authEmail = (p.email || '').toLowerCase();
         return (profileName.includes(q) || companyName.includes(q) || contactPerson.includes(q) || authEmail.includes(q)) && (filterStatus === 'All' || p.verificationStatus === filterStatus);
     });
+    const displayedItems = filtered.slice((currentPage - 1) * pageSize, currentPage * pageSize);
+
     const statusBadge = (s) => {
         const map = { Verified: 'badge-approved', Pending: 'badge-pending', Rejected: 'badge-rejected', 'Under Review': 'badge-pending' };
         return <span className={`badge ${map[s] || 'badge-gray'}`}>{s}</span>;
@@ -1135,7 +1234,7 @@ const ManagePartners = () => {
                     <table className="data-table">
                         <thead><tr><th>Company</th><th>Profile Name</th><th>Contact Person</th><th>Industry</th><th>Auth Email</th><th>Activity</th><th>Verification</th><th>Account</th><th className="account-actions-column">Actions</th></tr></thead>
                         <tbody>
-                            {filtered.map(p => (
+                             {displayedItems.map(p => (
                                 <tr key={p.id}>
                                     <td style={{ fontWeight: 600 }}><div style={{ display: 'flex', alignItems: 'center', gap: 8 }}><div style={{ width: 30, height: 30, borderRadius: 8, background: 'linear-gradient(135deg, #e0f2fe, #ede9fe)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 800, color: '#0ea5e9' }}>{p.companyName?.charAt(0)}</div><span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>{p.companyName}{p.verificationStatus === 'Verified' && <CheckCircle size={14} color="#0a66c2" title="Verified" />}</span></div></td>
                                     <td style={{ fontSize: 13, color: '#475569', fontWeight: 600 }}>{p.profileName || p.companyName || 'None'}</td>
@@ -1170,6 +1269,12 @@ const ManagePartners = () => {
                         </tbody>
                     </table>
                 </div>
+                <TablePagination 
+                    currentPage={currentPage} 
+                    totalItems={filtered.length} 
+                    pageSize={pageSize} 
+                    onPageChange={setCurrentPage} 
+                />
             </div>
             {viewPartner && (
                 <div className="modal-overlay" onClick={() => setViewPartner(null)}>
@@ -1249,8 +1354,14 @@ const OpportunitiesOversight = () => {
     const [filterStatus, setFilterStatus] = useState('All');
     const [filterType, setFilterType] = useState('All');
     const [openMenuId, setOpenMenuId] = useState(null);
+    const [currentPage, setCurrentPage] = useState(1);
+    const pageSize = 10;
 
     const toggleMenu = (id) => setOpenMenuId(openMenuId === id ? null : id);
+
+    useEffect(() => {
+        setCurrentPage(1);
+    }, [search, filterStatus, filterType]);
 
     useEffect(() => {
         if (!openMenuId) return;
@@ -1272,14 +1383,15 @@ const OpportunitiesOversight = () => {
         const q = search.toLowerCase();
         return (j.title.toLowerCase().includes(q) || j.companyName.toLowerCase().includes(q)) && (filterStatus === 'All' || j.status === filterStatus) && (filterType === 'All' || j.opportunityType === filterType);
     });
+    const displayedItems = filtered.slice((currentPage - 1) * pageSize, currentPage * pageSize);
+
     const statusBadge = (s) => {
         const map = { Open: 'badge-open', Closed: 'badge-closed', Filled: 'badge-filled' };
         return <span className={`badge ${map[s] || 'badge-gray'}`}>{s}</span>;
     };
     return (
         <div>
-            <div className="page-header">
-                <div><div className="page-title">Opportunities Oversight</div><div className="page-subtitle">Monitor all opportunity postings from industry partners</div></div>
+            <div className="page-header"><div><div className="page-title">Opportunities Oversight</div><div className="page-subtitle">Monitor all opportunity postings from industry partners</div></div>
                 <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                     {['All', 'Open', 'Closed', 'Filled'].map(s => (
                         <button key={s} className={`btn btn-${filterStatus === s ? 'primary' : 'outline'} btn-sm`} onClick={() => setFilterStatus(s)}>
@@ -1299,7 +1411,7 @@ const OpportunitiesOversight = () => {
                     <table className="data-table">
                         <thead><tr><th>Title</th><th>Company</th><th>Type</th><th>NC Level</th><th>Location</th><th>Date Posted</th><th>Status</th><th>Action</th></tr></thead>
                         <tbody>
-                            {filtered.map(j => (
+                            {displayedItems.map(j => (
                                 <tr key={j.id}>
                                     <td style={{ fontWeight: 600, color: '#1e3a5f' }}>{j.title}</td>
                                     <td style={{ fontSize: 13, color: '#64748b' }}><div style={{ display: 'flex', alignItems: 'center', gap: 6 }}><Building2 size={13} color="#94a3b8" />{j.companyName}</div></td>
@@ -1342,6 +1454,12 @@ const OpportunitiesOversight = () => {
                         </tbody>
                     </table>
                 </div>
+                <TablePagination 
+                    currentPage={currentPage} 
+                    totalItems={filtered.length} 
+                    pageSize={pageSize} 
+                    onPageChange={setCurrentPage} 
+                />
             </div>
         </div>
     );
@@ -1352,11 +1470,20 @@ const EmploymentTracking = () => {
     const { trainees, getEmploymentStats } = useApp();
     const stats = getEmploymentStats();
     const [search, setSearch] = useState('');
+    const [currentPage, setCurrentPage] = useState(1);
+    const pageSize = 10;
+
+    // Reset page when search changes
+    useEffect(() => {
+        setCurrentPage(1);
+    }, [search]);
     const [filterStatus, setFilterStatus] = useState('All');
     const filtered = trainees.filter(t => {
         const q = search.toLowerCase();
         return (t.name.toLowerCase().includes(q)) && (filterStatus === 'All' || t.employmentStatus === filterStatus);
     });
+    const displayedItems = filtered.slice((currentPage - 1) * pageSize, currentPage * pageSize);
+
     return (
         <div>
             <div className="page-header"><div><div className="page-title">Employment Tracking</div><div className="page-subtitle">Monitor trainee employment outcomes</div></div></div>
@@ -1381,7 +1508,7 @@ const EmploymentTracking = () => {
                     <table className="data-table">
                         <thead><tr><th>Name</th><th>Certifications</th><th>Status</th><th>Employer</th><th>Job Title</th><th>Date Hired</th></tr></thead>
                         <tbody>
-                            {filtered.map(t => (
+                            {displayedItems.map(t => (
                                 <tr key={t.id}>
                                     <td style={{ fontWeight: 600 }}>{t.name}</td>
                                     <td><div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>{t.certifications?.slice(0, 2).map((c, i) => <span key={i} className="badge badge-blue" style={{ fontSize: 10 }}>{typeof c === 'object' ? c.name : c}</span>)}</div></td>
@@ -1391,9 +1518,16 @@ const EmploymentTracking = () => {
                                     <td style={{ color: '#64748b', fontSize: 13 }}>{t.dateHired || 'â€”'}</td>
                                 </tr>
                             ))}
+                            {filtered.length === 0 && <tr><td colSpan={6} style={{ textAlign: 'center', padding: 32, color: '#94a3b8' }}>No trainees found.</td></tr>}
                         </tbody>
                     </table>
                 </div>
+                <TablePagination
+                    currentPage={currentPage}
+                    totalItems={filtered.length}
+                    pageSize={pageSize}
+                    onPageChange={setCurrentPage}
+                />
             </div>
         </div>
     );
@@ -1487,6 +1621,8 @@ const AccountManagement = () => {
     const [accountPendingDelete, setAccountPendingDelete] = useState(null);
     const [deletingAccountKey, setDeletingAccountKey] = useState('');
     const [activityNow, setActivityNow] = useState(Date.now());
+    const [currentPage, setCurrentPage] = useState(1);
+    const pageSize = 10;
     const reasonOptions = ['Policy Violation', 'Fraudulent Information', 'Duplicate Account', 'Requested Deactivation', 'Other'];
 
     useEffect(() => {
@@ -1495,6 +1631,10 @@ const AccountManagement = () => {
         }, 15000);
         return () => clearInterval(timerId);
     }, []);
+
+    useEffect(() => {
+        setCurrentPage(1);
+    }, [search, filterRole]);
 
     const allAccounts = [
         ...trainees.map(t => ({
@@ -1521,6 +1661,8 @@ const AccountManagement = () => {
         const q = search.toLowerCase();
         return (a.displayName.toLowerCase().includes(q) || a.displayEmail.toLowerCase().includes(q)) && (filterRole === 'All' || a.type === filterRole);
     });
+
+    const displayedItems = filtered.slice((currentPage - 1) * pageSize, currentPage * pageSize);
 
     const accountBadge = (s) => {
         const map = { Active: 'badge-green', Disabled: 'badge-red', Suspended: 'badge-yellow' };
@@ -1669,7 +1811,7 @@ const AccountManagement = () => {
                     <table className="data-table">
                         <thead><tr><th>Profile Name</th><th>Auth Email</th><th>Role</th><th>Activity</th><th>Account</th><th className="account-actions-column">Actions</th></tr></thead>
                         <tbody>
-                            {filtered.map((a, i) => (
+                            {displayedItems.map((a, i) => (
                                 <tr key={`${a.type}-${a.id}-${i}`}>
                                     <td style={{ fontWeight: 600 }}>{a.displayName}</td>
                                     <td style={{ fontSize: 13, color: '#64748b' }}>{a.displayEmail}</td>
@@ -1739,6 +1881,12 @@ const AccountManagement = () => {
                         </tbody>
                     </table>
                 </div>
+                <TablePagination
+                    currentPage={currentPage}
+                    totalItems={filtered.length}
+                    pageSize={pageSize}
+                    onPageChange={setCurrentPage}
+                />
             </div>
             {accountPendingDelete && (
                 <div className="modal-overlay" onClick={onModalOverlayClick}>
@@ -1775,10 +1923,18 @@ const SystemActivityLog = () => {
     const [viewEntry, setViewEntry] = useState(null);
     const actions = ['All', ...new Set(activityLog.map(l => l.action))];
     const modules = ['All', ...new Set(activityLog.map(l => l.module))];
+    const [currentPage, setCurrentPage] = useState(1);
+    const pageSize = 10;
+
+    // Reset page when search or filters change
+    useEffect(() => {
+        setCurrentPage(1);
+    }, [search, filterAction, filterModule]);
     const filtered = activityLog.filter(l => {
         const q = search.toLowerCase();
         return (l.user.toLowerCase().includes(q) || l.description.toLowerCase().includes(q)) && (filterAction === 'All' || l.action === filterAction) && (filterModule === 'All' || l.module === filterModule);
     });
+    const displayedItems = filtered.slice((currentPage - 1) * pageSize, currentPage * pageSize);
     const actionBadge = (a) => {
         const map = { Create: 'badge-green', Edit: 'badge-blue', Delete: 'badge-red', 'Status Change': 'badge-yellow' };
         return <span className={`badge ${map[a] || 'badge-gray'}`}>{a}</span>;
@@ -1802,7 +1958,7 @@ const SystemActivityLog = () => {
                     <table className="data-table">
                         <thead><tr><th>Timestamp</th><th>User</th><th>Action</th><th>Module</th><th>Description</th><th>Details</th></tr></thead>
                         <tbody>
-                            {filtered.map(l => (
+                            {displayedItems.map(l => (
                                 <tr key={l.id}>
                                     <td style={{ fontSize: 12, color: '#64748b', whiteSpace: 'nowrap' }}>{new Date(l.timestamp).toLocaleString()}</td>
                                     <td style={{ fontWeight: 600, fontSize: 13 }}>{l.user}</td>

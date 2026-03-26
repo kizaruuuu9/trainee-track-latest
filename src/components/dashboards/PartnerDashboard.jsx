@@ -6,8 +6,16 @@ import {
   MapPin, Send, Award, ChevronRight, Trash2, Menu, Lock,
   Upload, AlertTriangle, Clock, ShieldCheck, FileCheck,
   Bell, Home, Settings, TrendingUp, Bookmark, Target, Star,
-  Camera, MessageSquare, Edit, Loader, ExternalLink, EyeOff, MoreVertical
+  Camera, MessageSquare, Edit, Loader, ExternalLink, EyeOff, MoreVertical,
+  Calendar, ChevronLeft, Heart
 } from 'lucide-react';
+import EmptyState, { 
+  TrophyIllustration, 
+  BriefcaseIllustration, 
+  DocumentIllustration, 
+  StarIllustration, 
+  FolderIllustration 
+} from '../EmptyState';
 import { supabase } from '../../lib/supabase';
 import { Routes, Route, useNavigate, useLocation, Navigate, useParams } from 'react-router-dom';
 import ProfilePage from '../ProfilePage';
@@ -258,6 +266,7 @@ const PartnerTopNav = ({ activePage, setActivePage }) => {
     { id: 'profile', label: 'Company', icon: <Building2 size={20} /> },
     ...(!verified ? [{ id: 'verification', label: 'Verification', icon: <ShieldCheck size={20} /> }] : []),
     { id: 'post-job', label: 'Post Opportunities', icon: <Plus size={20} />, locked: !verified },
+    { id: 'calendar', label: 'Calendar', icon: <Calendar size={20} />, locked: !verified },
     { id: 'applicants', label: 'Recruit', icon: <Users size={20} />, locked: !verified },
   ];
 
@@ -417,7 +426,7 @@ const CompanySideCard = ({ partner, setActivePage }) => {
         </div>
         <h2 className="ln-profile-name" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
           {partner?.companyName}
-          {isVerified(partner) && <CheckCircle size={16} color="#0a66c2" title="Verified" style={{ flexShrink: 0 }} />}
+          {isVerified(partner) && <CheckCircle size={16} color="#059669" title="Verified" style={{ flexShrink: 0 }} />}
         </h2>
         <p className="ln-profile-headline">{partner?.industry} &bull; Industry Partner</p>
         {showSideAddress && partner?.address && (
@@ -454,6 +463,7 @@ const QuickActionsWidget = ({ setActivePage, verified }) => (
     <div className="ln-widget-header"><span>Quick Actions</span></div>
     {[
       { label: 'Post Opportunities', icon: <Plus size={16} />, page: 'post-job', locked: !verified },
+      { label: 'Calendar', icon: <Calendar size={16} />, page: 'calendar', locked: !verified },
       { label: 'Recruit', icon: <Users size={16} />, page: 'applicants', locked: !verified },
       ...(!verified ? [{ label: 'Verification', icon: <ShieldCheck size={16} />, page: 'verification', locked: false }] : []),
     ].map(link => (
@@ -474,10 +484,10 @@ const RecruitmentStatsWidget = ({ myJobs, myApplicants }) => (
   <div className="ln-card ln-widget">
     <div className="ln-widget-header"><span>Recruitment Overview</span></div>
     {[
-      { label: 'Open Positions', value: myJobs.filter(j => j.status === 'Open').length, color: '#0ea5e9' },
-      { label: 'Total Applicants', value: myApplicants.length, color: '#7c3aed' },
-      { label: 'Accepted', value: myApplicants.filter(a => a.status === 'Accepted').length, color: '#16a34a' },
-      { label: 'Pending Review', value: myApplicants.filter(a => a.status === 'Pending').length, color: '#d97706' },
+      { label: 'New Applicants', value: myApplicants.filter(a => ['pending', 'received', 'sent'].includes(String(a.status || '').toLowerCase())).length, color: '#10b981' },
+      { label: 'Interviews Scheduled', value: myApplicants.filter(a => String(a.status || '').toLowerCase() === 'interview scheduled').length, color: '#059669' },
+      { label: 'Pending Decisions', value: myApplicants.filter(a => ['under review', 'screened', 'shortlisted'].includes(String(a.status || '').toLowerCase())).length, color: '#047857' },
+      { label: 'Hired / Placed', value: myApplicants.filter(a => ['accepted', 'hired', 'offered'].includes(String(a.status || '').toLowerCase())).length, color: '#10b981' },
     ].map(stat => (
       <div key={stat.label} className="ln-suggested-item" style={{ cursor: 'default' }}>
         <div style={{
@@ -557,7 +567,11 @@ const PartnerHome = ({ setActivePage }) => {
   // Create Post state
   const [postContent, setPostContent] = useState('');
   const [isPosting, setIsPosting] = useState(false);
-  const [postType, setPostType] = useState('general');
+  const [postType, setPostType] = useState('announcement');
+  const [showPostModal, setShowPostModal] = useState(false);
+  const [postTitle, setPostTitle] = useState('');
+  const [postExpiryEnabled, setPostExpiryEnabled] = useState(false);
+  const [postExpiryDate, setPostExpiryDate] = useState('');
   const [editingPostId, setEditingPostId] = useState(null);
   const [editContent, setEditContent] = useState('');
   const [postMenuId, setPostMenuId] = useState(null);
@@ -753,17 +767,23 @@ const PartnerHome = ({ setActivePage }) => {
       }
 
       const res = await createPost({
+        title: postTitle || null,
         content: postContent,
         post_type: postType,
         media_url: media_url,
-        tags: [partner?.industry, 'Hiring', 'Announcement'].filter(Boolean)
+        expires_at: postExpiryEnabled && postExpiryDate ? new Date(postExpiryDate + 'T23:59:59').toISOString() : null,
+        tags: [partner?.industry, postType].filter(Boolean)
       });
 
       if (res.success) {
         setPostContent('');
-        setPostType('general');
+        setPostType('announcement');
+        setPostTitle('');
+        setPostExpiryEnabled(false);
+        setPostExpiryDate('');
         setSelectedFile(null);
         setFilePreview(null);
+        setShowPostModal(false);
       } else {
         alert(res.error || 'Failed to post');
       }
@@ -1141,90 +1161,92 @@ const PartnerHome = ({ setActivePage }) => {
           ))}
         </div>
 
-        {/* Create Post Card */}
-        <div className="ln-card" style={{ padding: '12px 16px', marginBottom: 16 }}>
-          <div style={{ display: 'flex', gap: 12 }}>
-            <div className="ln-nav-avatar pn-nav-avatar" style={{ flexShrink: 0 }}>
-              {initials}
-            </div>
-            <div style={{ flex: 1 }}>
-              <textarea
-                className="ln-search-input"
-                placeholder="Share a hiring update or company announcement..."
-                maxLength={500}
-                style={{
-                  width: '100%', minHeight: postContent ? 80 : 45, padding: '12px 16px',
-                  borderRadius: 24, border: '1px solid rgba(0,0,0,0.15)',
-                  resize: 'none', transition: 'all 0.2s', fontSize: 14,
-                  background: '#f9fafb'
-                }}
-                value={postContent}
-                onChange={e => setPostContent(e.target.value)}
-              />
-              {(postContent || selectedFile) && (
-                <div style={{ marginTop: 12 }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                      <select
-                        className="ln-filter-select"
-                        style={{ margin: 0, padding: '4px 8px', height: 32, fontSize: 12 }}
-                        value={postType}
-                        onChange={e => setPostType(e.target.value)}
-                      >
-                        <option value="general">General Update</option>
-                        <option value="announcement">Announcement</option>
-                        <option value="hiring_update">Hiring Update</option>
-                      </select>
-                      <input
-                        type="file"
-                        hidden
-                        ref={fileInputRef}
-                        onChange={handleFileChange}
-                        accept="image/*,.pdf,.doc,.docx"
-                      />
-                      <Camera
-                        size={20}
-                        color="#65676b"
-                        cursor="pointer"
-                        onClick={() => fileInputRef.current.click()}
-                      />
-                    </div>
-                    <button
-                      className="ln-btn-sm ln-btn-primary"
-                      style={{ borderRadius: 16, padding: '6px 16px' }}
-                      onClick={handleCreatePost}
-                      disabled={isPosting || (!postContent.trim() && !selectedFile)}
-                    >
-                      {isPosting ? 'Posting...' : 'Post'}
-                    </button>
-                  </div>
-
-                  {filePreview && (
-                    <div className="ln-media-frame ln-media-frame-preview" style={{ position: 'relative', marginTop: 12 }}>
-                      <img src={filePreview} alt="Preview" className="ln-media-image" />
-                      <button
-                        style={{ position: 'absolute', top: 4, right: 4, background: 'rgba(0,0,0,0.5)', color: '#fff', border: 'none', borderRadius: '50%', width: 20, height: 20, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-                        onClick={() => { setSelectedFile(null); setFilePreview(null); }}
-                      >
-                        <X size={12} />
-                      </button>
-                    </div>
-                  )}
-
-                  {selectedFile && !filePreview && (
-                    <div style={{ marginTop: 12, padding: '8px 12px', background: '#f8fafc', borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'space-between', border: '1px solid #e2e8f0' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                        <FileText size={16} color="#65676b" />
-                        <span style={{ fontSize: 12, fontWeight: 500 }}>{selectedFile.name}</span>
-                      </div>
-                      <X size={14} color="#65676b" cursor="pointer" onClick={() => setSelectedFile(null)} />
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
+        {/* Create Post Trigger */}
+        <div className="ln-card" style={{ padding: '12px 16px', marginBottom: 16, cursor: 'pointer' }} onClick={() => setShowPostModal(true)}>
+          <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+            <div className="ln-nav-avatar pn-nav-avatar" style={{ flexShrink: 0 }}>{initials}</div>
+            <div style={{ flex: 1, padding: '12px 16px', borderRadius: 24, border: '1px solid rgba(0,0,0,0.15)', background: '#f9fafb', color: 'rgba(0,0,0,0.5)', fontSize: 14 }}>Share a hiring update or company announcement...</div>
           </div>
         </div>
+
+        {/* Post Creator Modal */}
+        {showPostModal && (
+          <div className="modal-overlay" onClick={() => setShowPostModal(false)}>
+            <div className="ln-modal" style={{ maxWidth: 560 }} onClick={e => e.stopPropagation()}>
+              <div className="ln-modal-header">
+                <div>
+                  <h3 className="ln-modal-title">Create a Post</h3>
+                  <p style={{ fontSize: 13, color: 'rgba(0,0,0,0.5)', marginTop: 2 }}>Share with the community</p>
+                </div>
+                <button className="ln-btn-icon" onClick={() => setShowPostModal(false)}><X size={18} /></button>
+              </div>
+
+              <div style={{ marginBottom: 14 }}>
+                <label style={{ fontWeight: 700, fontSize: 13, marginBottom: 6, display: 'block', color: '#1e293b' }}>Title</label>
+                <input type="text" className="form-input" placeholder="e.g., Company Open House 2026" value={postTitle} onChange={e => setPostTitle(e.target.value)} maxLength={120} style={{ fontSize: 14, borderRadius: 10, padding: '10px 14px' }} />
+              </div>
+
+              <div style={{ marginBottom: 14 }}>
+                <label style={{ fontWeight: 700, fontSize: 13, marginBottom: 6, display: 'block', color: '#1e293b' }}>Post Type</label>
+                <select className="ln-filter-select" value={postType} onChange={e => setPostType(e.target.value)} style={{ width: '100%', padding: '10px 14px', borderRadius: 10, fontSize: 14, height: 42 }}>
+                  <option value="announcement">📢 Announcement</option>
+                  <option value="hiring_update">💼 Hiring Update</option>
+                  <option value="achievement">🏆 Achievement</option>
+                  <option value="general">📝 General</option>
+                </select>
+              </div>
+
+              <div style={{ marginBottom: 14 }}>
+                <label style={{ fontWeight: 700, fontSize: 13, marginBottom: 6, display: 'block', color: '#1e293b' }}>Description</label>
+                <textarea className="ln-search-input" placeholder="Write your message..." value={postContent} onChange={e => setPostContent(e.target.value)} maxLength={1000} style={{ width: '100%', minHeight: 120, resize: 'none', borderRadius: 10, padding: '12px 14px', fontSize: 14, border: '1px solid rgba(0,0,0,0.15)' }} />
+                <div style={{ fontSize: 12, color: '#94a3b8', textAlign: 'right', marginTop: 4 }}>{postContent.length}/1000</div>
+              </div>
+
+              <div style={{ marginBottom: 14 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
+                  <label style={{ fontWeight: 700, fontSize: 13, color: '#1e293b', margin: 0 }}>Set Expiry Date</label>
+                  <button type="button" onClick={() => setPostExpiryEnabled(!postExpiryEnabled)} style={{ width: 40, height: 22, borderRadius: 11, border: 'none', background: postExpiryEnabled ? '#0a66c2' : '#cbd5e1', position: 'relative', cursor: 'pointer', transition: 'background 0.2s' }}>
+                    <div style={{ width: 18, height: 18, borderRadius: '50%', background: '#fff', position: 'absolute', top: 2, transition: 'left 0.2s', left: postExpiryEnabled ? 20 : 2, boxShadow: '0 1px 3px rgba(0,0,0,0.2)' }} />
+                  </button>
+                </div>
+                {postExpiryEnabled && (
+                  <input type="date" className="form-input" value={postExpiryDate} onChange={e => setPostExpiryDate(e.target.value)} min={new Date().toISOString().slice(0, 10)} style={{ fontSize: 14, borderRadius: 10, padding: '10px 14px' }} />
+                )}
+              </div>
+
+              <div style={{ marginBottom: 14 }}>
+                <input type="file" hidden ref={fileInputRef} onChange={handleFileChange} accept="image/*,.pdf,.doc,.docx" />
+                <button type="button" onClick={() => fileInputRef.current.click()} className="ln-btn-sm ln-btn-outline" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <Camera size={16} /> Attach Media
+                </button>
+                {filePreview && (
+                  <div className="ln-media-frame ln-media-frame-preview" style={{ position: 'relative', marginTop: 12 }}>
+                    <img src={filePreview} alt="Preview" className="ln-media-image" />
+                    <button style={{ position: 'absolute', top: 4, right: 4, background: 'rgba(0,0,0,0.5)', color: '#fff', border: 'none', borderRadius: '50%', width: 20, height: 20, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }} onClick={() => { setSelectedFile(null); setFilePreview(null); }}>
+                      <X size={12} />
+                    </button>
+                  </div>
+                )}
+                {selectedFile && !filePreview && (
+                  <div style={{ marginTop: 12, padding: '8px 12px', background: '#f8fafc', borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'space-between', border: '1px solid #e2e8f0' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <FileText size={16} color="#65676b" />
+                      <span style={{ fontSize: 12, fontWeight: 500 }}>{selectedFile.name}</span>
+                    </div>
+                    <X size={14} color="#65676b" cursor="pointer" onClick={() => setSelectedFile(null)} />
+                  </div>
+                )}
+              </div>
+
+              <div className="ln-modal-footer">
+                <button className="ln-btn ln-btn-outline" onClick={() => setShowPostModal(false)}>Cancel</button>
+                <button className="ln-btn ln-btn-primary" onClick={handleCreatePost} disabled={isPosting || (!postContent.trim() && !selectedFile)}>
+                  {isPosting ? 'Publishing...' : 'Publish Post'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Unified Community Feed */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
@@ -1419,7 +1441,33 @@ const PartnerHome = ({ setActivePage }) => {
                           </button>
                           {isMe && <span className="ln-badge ln-badge-gray" style={{ fontSize: 10 }}>You</span>}
                           {item.post_type !== 'general' && (
-                            <span className="ln-badge ln-badge-blue" style={{ fontSize: 10 }}>
+                            <span 
+                              className="ln-badge" 
+                              style={{ 
+                                fontSize: 10, 
+                                padding: '2px 8px',
+                                background: item.post_type === 'announcement' ? '#fdf2f2' : 
+                                           item.post_type === 'hiring_update' ? '#f0f9ff' : 
+                                           item.post_type === 'achievement' ? '#fffbeb' : 
+                                           item.post_type === 'certification' ? '#f0fdf4' : 
+                                           item.post_type === 'project' ? '#faf5ff' : '#f1f5f9',
+                                color: item.post_type === 'announcement' ? '#991b1b' : 
+                                       item.post_type === 'hiring_update' ? '#075985' : 
+                                       item.post_type === 'achievement' ? '#92400e' : 
+                                       item.post_type === 'certification' ? '#166534' : 
+                                       item.post_type === 'project' ? '#6b21a8' : '#475569',
+                                border: `1px solid ${item.post_type === 'announcement' ? '#fecaca' : 
+                                                     item.post_type === 'hiring_update' ? '#bae6fd' : 
+                                                     item.post_type === 'achievement' ? '#fde68a' : 
+                                                     item.post_type === 'certification' ? '#bbf7d0' : 
+                                                     item.post_type === 'project' ? '#e9d5ff' : '#e2e8f0'}`
+                              }}
+                            >
+                              {item.post_type === 'announcement' ? '📢 ' : 
+                               item.post_type === 'hiring_update' ? '💼 ' : 
+                               item.post_type === 'achievement' ? '🏆 ' : 
+                               item.post_type === 'certification' ? '📜 ' : 
+                               item.post_type === 'project' ? '🚀 ' : ''}
                               {item.post_type.replace('_', ' ')}
                             </span>
                           )}
@@ -2581,7 +2629,7 @@ const PostJob = ({ setActivePage, opportunityType = 'Job' }) => {
   const [form, setForm] = useState({
     title: '', opportunityType, programId: firstProgram?.id || '', ncLevel: normalizeNcLevelValue(firstProgram?.ncLevel || firstProgram?.name || ''), description: '',
     employmentType: opportunityType === 'OJT' ? '' : 'Full-time', location: '', salaryRange: '', salaryCurrency: DEFAULT_SALARY_CURRENCY, salaryMin: '', salaryMax: '',
-    requiredCompetencies: [],
+    requiredCompetencies: firstProgram?.competencies || [],
     attachmentName: '', attachmentType: '', attachmentUrl: '',
   });
 
@@ -2591,7 +2639,7 @@ const PostJob = ({ setActivePage, opportunityType = 'Job' }) => {
         ...prev,
         programId: programOptions[0].id,
         ncLevel: normalizeNcLevelValue(programOptions[0].ncLevel || programOptions[0].name || ''),
-        requiredCompetencies: [],
+        requiredCompetencies: programOptions[0].competencies || [],
       }));
     }
   }, [form.ncLevel, programOptions]);
@@ -2854,7 +2902,7 @@ const PostJob = ({ setActivePage, opportunityType = 'Job' }) => {
                     ...form,
                     programId: selected?.id || '',
                     ncLevel: normalizeNcLevelValue(selected?.ncLevel || selected?.name || ''),
-                    requiredCompetencies: [],
+                    requiredCompetencies: selected?.competencies || [],
                   });
                 }}
               >
@@ -3071,11 +3119,9 @@ const PostJob = ({ setActivePage, opportunityType = 'Job' }) => {
 
 // ─── PAGE: VIEW APPLICANTS ────────────────────────────────────────
 const ViewApplicants = ({ setActivePage }) => {
-  const { currentUser, partners, getPartnerApplicants, updateApplicationStatus, sendRecruitMessage } = useApp();
+  const { currentUser, partners, getPartnerApplicants, updateApplicationStatus, sendRecruitMessage, getPartnerAvailability, interviewBookings } = useApp();
   const navigate = useNavigate();
   const livePartner = getLivePartner(currentUser, partners);
-
-
 
   const applicants = getPartnerApplicants(livePartner?.id);
   const [search, setSearch] = useState('');
@@ -3088,6 +3134,7 @@ const ViewApplicants = ({ setActivePage }) => {
   const [sendingRecruit, setSendingRecruit] = useState(false);
   const [openMenuId, setOpenMenuId] = useState(null);
   const [menuPos, setMenuPos] = useState({ top: 0, left: 0 });
+  const [inviteApp, setInviteApp] = useState(null);
   const recruitFileInputRef = useRef(null);
 
   if (!isVerified(livePartner)) {
@@ -3194,52 +3241,69 @@ const ViewApplicants = ({ setActivePage }) => {
         <div style={{ overflowX: 'auto' }}>
           <table className="ln-table">
             <thead>
-              <tr><th>Activity</th><th>Trainee</th><th>Opportunity</th><th>Date</th><th>Direction</th><th>Msg By</th><th>View</th><th>Attachment</th><th>Status</th><th>Actions</th></tr>
+              <tr><th>Trainee</th><th>Match %</th><th>Opportunity</th><th>Date</th><th>Status</th><th>Actions</th></tr>
             </thead>
             <tbody>
               {filtered.map(a => (
                 <tr key={a.rowKey || a.id}>
-                  <td><span className="ln-badge ln-badge-blue" style={{ fontSize: 11 }}>{a.activityType}</span></td>
-                  <td style={{ fontWeight: 600 }}>
-                    <button
-                      type="button"
-                      onClick={() => openProfile({ id: a.trainee?.id, type: 'trainee' })}
-                      style={{ background: 'none', border: 'none', padding: 0, cursor: a.trainee?.id ? 'pointer' : 'default', color: 'inherit', font: 'inherit' }}
-                      disabled={!a.trainee?.id}
-                    >
-                      {a.trainee?.name || '—'}
-                    </button>
-                  </td>
-                  <td style={{ fontSize: 13, color: 'rgba(0,0,0,0.55)' }}>{a.job?.title || 'Direct Contact'}</td>
-                  <td style={{ fontSize: 12.5, color: 'rgba(0,0,0,0.5)' }}>{a.eventDate || '—'}</td>
-                  <td style={{ fontSize: 12.5, color: 'rgba(0,0,0,0.65)' }}>{a.directionLabel}</td>
-                  <td>
-                    <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-                      {a.incomingMessage && <span className="ln-badge ln-badge-blue" style={{ fontSize: 10 }}>Student</span>}
-                      {a.outgoingMessage && <span className="ln-badge ln-badge-green" style={{ fontSize: 10 }}>You</span>}
-                      {!a.incomingMessage && !a.outgoingMessage && <span style={{ fontSize: 12.5, color: 'rgba(0,0,0,0.45)' }}>—</span>}
+                  <td style={{ fontWeight: 600, whiteSpace: 'nowrap' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                      <button
+                        type="button"
+                        onClick={() => openProfile({ id: a.trainee?.id, type: 'trainee' })}
+                        style={{
+                          width: 32, height: 32, borderRadius: '50%',
+                          background: `${(a.matchRate || 50) > 80 ? '#16a34a' : (a.matchRate || 50) > 60 ? '#d97706' : '#7c3aed'}15`,
+                          color: (a.matchRate || 50) > 80 ? '#16a34a' : (a.matchRate || 50) > 60 ? '#d97706' : '#7c3aed',
+                          display: 'flex', alignItems: 'center', justifyContent: 'center',
+                          fontSize: 12, fontWeight: 700, flexShrink: 0, border: 'none', padding: 0, cursor: 'pointer'
+                        }}
+                      >
+                        {a.trainee?.name?.charAt(0) || 'T'}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => openProfile({ id: a.trainee?.id, type: 'trainee' })}
+                        style={{ background: 'none', border: 'none', padding: 0, cursor: a.trainee?.id ? 'pointer' : 'default', color: 'inherit', font: 'inherit' }}
+                        disabled={!a.trainee?.id}
+                      >
+                        {a.trainee?.name || '—'}
+                      </button>
                     </div>
                   </td>
                   <td>
-                    {(a.incomingMessage || a.outgoingMessage) ? (
-                      <button type="button" className="ln-btn-sm ln-btn-outline" onClick={() => setMessageModal(a)}>
-                        <Eye size={12} />
-                      </button>
-                    ) : (
-                      <span style={{ fontSize: 12.5, color: 'rgba(0,0,0,0.45)' }}>—</span>
-                    )}
+                    <div style={{
+                      fontWeight: 800,
+                      color: (a.matchRate || 50) >= 90 ? '#16a34a' : (a.matchRate || 50) >= 70 ? '#d97706' : '#64748b',
+                      fontSize: 14
+                    }}>
+                      {a.matchRate ? `${Math.round(a.matchRate)}%` : '—'}
+                    </div>
+                  </td>
+                  <td style={{ fontSize: 13, color: 'rgba(0,0,0,0.55)' }}>{a.job?.title || 'Direct Contact'}</td>
+                  <td style={{ fontSize: 12.5, color: 'rgba(0,0,0,0.5)' }}>{a.eventDate || '—'}</td>
+                  <td>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 2, alignItems: 'flex-start' }}>
+                      <span className={`ln-badge ${a.status === 'Pending' ? 'ln-badge-yellow' : a.status === 'Accepted' ? 'ln-badge-green' : a.status === 'Rejected' ? 'ln-badge-red' : a.status === 'Interview Scheduled' ? 'ln-badge-purple' : 'ln-badge-blue'}`}>{a.status}</span>
+                      {a.interviewDate && (
+                        <div style={{ fontSize: 10, color: '#64748b', fontWeight: 600 }}>
+                          {new Date(a.interviewDate).toLocaleDateString()} @ {new Date(a.interviewDate).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                        </div>
+                      )}
+                    </div>
                   </td>
                   <td>
-                    {a.attachmentUrl ? (
-                      <a href={a.attachmentUrl} target="_blank" rel="noreferrer" className="ln-btn-sm ln-btn-outline"><Eye size={12} /> View</a>
-                    ) : a.attachmentName ? (
-                      <span style={{ fontSize: 12.5, color: 'rgba(0,0,0,0.55)' }}>{a.attachmentName}</span>
-                    ) : (
-                      <span style={{ fontSize: 12.5, color: 'rgba(0,0,0,0.45)' }}>—</span>
-                    )}
-                  </td>
-                  <td><span className={`ln-badge ${a.status === 'Pending' ? 'ln-badge-yellow' : a.status === 'Accepted' ? 'ln-badge-green' : a.status === 'Rejected' ? 'ln-badge-red' : 'ln-badge-blue'}`}>{a.status}</span></td>
-                  <td>
+                    <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                      {a.recordType === 'application' && (
+                        <button
+                          className="ln-btn-icon"
+                          title="Schedule Interview"
+                          onClick={() => setInviteApp(a)}
+                          style={{ color: '#7c3aed' }}
+                        >
+                          <Calendar size={16} />
+                        </button>
+                      )}
                     <div style={{ position: 'relative' }}>
                       <button 
                         className="ln-btn-icon" 
@@ -3279,7 +3343,7 @@ const ViewApplicants = ({ setActivePage }) => {
                               boxShadow: '0 8px 24px rgba(0,0,0,0.2)' 
                             }}
                           >
-                            {a.status === 'Pending' ? (
+                            {(a.status === 'Pending' || a.status === 'Interview Scheduled') && (
                               <>
                                 <button className="ln-dropdown-item" style={{ color: '#16a34a' }} onClick={() => { setOpenMenuId(null); updateApplicationStatus(a.id, 'Accepted', 'Approved by partner.'); }}>
                                   <CheckCircle size={14} /> Accept Trainee
@@ -3289,7 +3353,7 @@ const ViewApplicants = ({ setActivePage }) => {
                                 </button>
                                 <div className="ln-dropdown-divider" />
                               </>
-                            ) : null}
+                            )}
                             
                             <button className="ln-dropdown-item" onClick={() => { setOpenMenuId(null); openProfile({ id: a.trainee?.id, type: 'trainee' }); }}>
                               <Eye size={14} /> View Profile
@@ -3306,15 +3370,28 @@ const ViewApplicants = ({ setActivePage }) => {
                                 <Send size={14} /> {a.outgoingMessage ? 'Update Recruit' : 'Recruit'}
                               </button>
                             )}
+
+                            {(a.incomingMessage || a.outgoingMessage) && (
+                              <button className="ln-dropdown-item" onClick={() => { setOpenMenuId(null); setMessageModal(a); }}>
+                                <MessageSquare size={14} /> View Messages
+                              </button>
+                            )}
+
+                            {a.attachmentUrl && (
+                              <a href={a.attachmentUrl} target="_blank" rel="noreferrer" className="ln-dropdown-item" onClick={() => setOpenMenuId(null)} style={{ textDecoration: 'none', color: 'inherit' }}>
+                                <Download size={14} /> Download Resume
+                              </a>
+                            )}
                           </div>
                         </>
                       )}
+                    </div>
                     </div>
                   </td>
                 </tr>
               ))}
               {filtered.length === 0 && (
-                <tr><td colSpan={10} style={{ textAlign: 'center', padding: 40, color: 'rgba(0,0,0,0.4)' }}>No recruit activity found.</td></tr>
+                <tr><td colSpan={6} style={{ textAlign: 'center', padding: 40, color: 'rgba(0,0,0,0.4)' }}>No recruit activity found.</td></tr>
               )}
             </tbody>
           </table>
@@ -3512,7 +3589,7 @@ const ViewApplicants = ({ setActivePage }) => {
                 {viewApp.trainee?.certifications?.map(c => <span key={c} className="ln-cert-tag"><Award size={10} /> {c}</span>)}
               </div>
             </div>
-            {viewApp.status === 'Pending' && (
+            {(viewApp.status === 'Pending' || viewApp.status === 'Interview Scheduled') && (
               <div className="ln-modal-footer">
                 <button className="ln-btn" style={{ flex: 1, background: '#dc2626', color: 'white', border: 'none' }} onClick={() => { updateApplicationStatus(viewApp.id, 'Rejected', 'Not selected.'); setViewApp(null); }}>
                   <XCircle size={15} /> Reject
@@ -3594,6 +3671,49 @@ const ViewApplicants = ({ setActivePage }) => {
               <button className="ln-btn ln-btn-primary" disabled={sendingRecruit || !recruitMessage.trim()} onClick={handleSendRecruit}>
                 <Send size={15} /> {sendingRecruit ? 'Sending...' : 'Send Recruit Message'}
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Invite Interview Modal */}
+      {inviteApp && (
+        <div className="modal-overlay" onClick={() => setInviteApp(null)}>
+          <div className="ln-modal" style={{ maxWidth: 480 }} onClick={e => e.stopPropagation()}>
+            <div className="ln-modal-header">
+              <div>
+                <h3 className="ln-modal-title">Schedule Interview</h3>
+                <p style={{ fontSize: 13, color: 'rgba(0,0,0,0.5)', marginTop: 2 }}>Invite {inviteApp.trainee?.name} for an interview</p>
+              </div>
+              <button className="ln-btn-icon" onClick={() => setInviteApp(null)}><X size={18} /></button>
+            </div>
+
+            <div style={{ padding: '0 0 16px' }}>
+              <div style={{ padding: 16, background: '#f0f7ff', borderRadius: 12, marginBottom: 16 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <div style={{ width: 40, height: 40, borderRadius: '50%', background: '#dbeafe', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, color: '#1e40af', fontSize: 16 }}>
+                    {(inviteApp.trainee?.name || 'T').charAt(0).toUpperCase()}
+                  </div>
+                  <div>
+                    <div style={{ fontWeight: 700, fontSize: 15 }}>{inviteApp.trainee?.name || 'Trainee'}</div>
+                    <div style={{ fontSize: 13, color: '#64748b' }}>Applied for: {inviteApp.job?.title || 'Position'}</div>
+                  </div>
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                <button
+                  className="ln-btn ln-btn-primary" style={{ width: '100%', justifyContent: 'center', gap: 8 }}
+                  onClick={() => { updateApplicationStatus(inviteApp.id, 'interview scheduled', 'Interview booking link sent to trainee.'); setInviteApp(null); }}
+                >
+                  <Send size={16} /> Send Booking Link
+                </button>
+                <p style={{ fontSize: 12, color: '#64748b', textAlign: 'center', margin: 0 }}>The trainee will be able to pick an available slot from your Calendar.</p>
+              </div>
+            </div>
+
+            <div className="ln-modal-footer">
+              <button className="ln-btn ln-btn-outline" onClick={() => setInviteApp(null)}>Cancel</button>
             </div>
           </div>
         </div>
@@ -4044,7 +4164,12 @@ export const CompanyProfile = ({ viewedPartnerId = null, onBack = null }) => {
                 ))}
               </div>
             ) : (
-              <p style={{ fontSize: 14, color: '#94a3b8', textAlign: 'center', padding: 12 }}>No achievements listed yet.</p>
+                <EmptyState 
+                  illustration={TrophyIllustration}
+                  title="No achievements yet"
+                  description="Showcase your company's awards, recognitions, and major milestones to attract top talent."
+                  style={{ padding: '24px 20px' }}
+                />
             )}
           </div>
         </div>
@@ -4089,7 +4214,12 @@ export const CompanyProfile = ({ viewedPartnerId = null, onBack = null }) => {
                 ))}
               </div>
             ) : (
-              <p style={{ fontSize: 14, color: '#94a3b8', textAlign: 'center', padding: 12 }}>No benefits listed yet.</p>
+                <EmptyState 
+                  illustration={StarIllustration}
+                  title="No benefits listed"
+                  description="Detail the perks and benefits of working at your company to stand out to prospective trainees."
+                  style={{ padding: '24px 20px' }}
+                />
             )}
           </div>
         </div>
@@ -4138,10 +4268,12 @@ export const CompanyProfile = ({ viewedPartnerId = null, onBack = null }) => {
               </div>
             </div>
           )) : !showUploadForm && (
-            <div className="ln-empty-widget" style={{ padding: 20 }}>
-              <FileText size={28} style={{ opacity: 0.3 }} />
-              <p>No documents uploaded yet</p>
-            </div>
+            <EmptyState 
+              illustration={DocumentIllustration}
+              title="No documents yet"
+              description="Upload company brochures, policies, or registration documents for verification and profile completeness."
+              style={{ padding: '24px 20px' }}
+            />
           )}
         </div>
 
@@ -4170,10 +4302,12 @@ export const CompanyProfile = ({ viewedPartnerId = null, onBack = null }) => {
                 ))}
               </div>
             ) : (
-              <div style={{ textAlign: 'center', padding: '24px 0', color: '#64748b' }}>
-                <div style={{ marginBottom: 8 }}><Briefcase size={32} style={{ opacity: 0.2 }} /></div>
-                <p style={{ fontSize: 14 }}>No active openings at this time.</p>
-              </div>
+                <EmptyState 
+                  illustration={BriefcaseIllustration}
+                  title="No active openings"
+                  description="You haven't posted any job or OJT opportunities yet. Start posting to find the best trainees."
+                  style={{ padding: '24px 20px' }}
+                />
             )}
           </div>
         </div>
@@ -4214,6 +4348,214 @@ export const CompanyProfile = ({ viewedPartnerId = null, onBack = null }) => {
           </div>
         </div>
       )}
+
+    </div>
+  );
+};
+
+// ─── PAGE: INTERVIEW CALENDAR ─────────────────────────────────────
+const CalendarView = ({ setActivePage }) => {
+  const { currentUser, partners, availabilitySlots, interviewBookings, fetchAvailability, fetchBookings, saveAvailabilitySlot, deleteAvailabilitySlot, trainees, applications, jobPostings } = useApp();
+  const livePartner = getLivePartner(currentUser, partners);
+  const verified = isVerified(livePartner);
+
+  const [weekOffset, setWeekOffset] = useState(0);
+  const [saving, setSaving] = useState(false);
+
+  const dayLabels = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+  const hours = Array.from({ length: 11 }, (_, i) => i + 7); // 7 AM to 5 PM
+
+  useEffect(() => {
+    if (livePartner?.id) {
+      fetchAvailability(livePartner.id);
+      fetchBookings(livePartner.id);
+    }
+  }, [livePartner?.id]);
+
+  // Get monday of current displayed week
+  const getWeekStart = () => {
+    const now = new Date();
+    const day = now.getDay();
+    const diff = now.getDate() - day + (day === 0 ? -6 : 1) + weekOffset * 7;
+    const mon = new Date(now);
+    mon.setDate(diff);
+    mon.setHours(0, 0, 0, 0);
+    return mon;
+  };
+
+  const weekStart = getWeekStart();
+  const weekDates = Array.from({ length: 7 }, (_, i) => {
+    const d = new Date(weekStart);
+    d.setDate(weekStart.getDate() + i);
+    return d;
+  });
+
+  // Check if a slot is marked as available (day_of_week: 0=Sun .. 6=Sat  OR 0=Mon..6=Sun)
+  // The DB uses 0=Mon, 1=Tue ... 6=Sun for our schema
+  const isSlotAvailable = (dayIdx, hour) => {
+    return availabilitySlots.some(s => {
+      if (s.day_of_week !== dayIdx) return false;
+      const startH = parseInt(String(s.start_time).split(':')[0], 10);
+      const endH = parseInt(String(s.end_time).split(':')[0], 10);
+      return hour >= startH && hour < endH;
+    });
+  };
+
+  const toggleSlot = async (dayIdx, hour) => {
+    setSaving(true);
+    // Check if there's an existing slot covering this hour
+    const existing = availabilitySlots.find(s => {
+      if (s.day_of_week !== dayIdx) return false;
+      const startH = parseInt(String(s.start_time).split(':')[0], 10);
+      const endH = parseInt(String(s.end_time).split(':')[0], 10);
+      return hour >= startH && hour < endH;
+    });
+
+    if (existing) {
+      await deleteAvailabilitySlot(existing.id);
+    } else {
+      await saveAvailabilitySlot(livePartner.id, {
+        day_of_week: dayIdx,
+        start_time: `${String(hour).padStart(2, '0')}:00`,
+        end_time: `${String(hour + 1).padStart(2, '0')}:00`,
+      });
+    }
+    setSaving(false);
+  };
+
+  // Upcoming interviews today
+  const today = new Date();
+  const todayBookings = interviewBookings.filter(b => {
+    if (b.status === 'cancelled') return false;
+    const bDate = new Date(b.start_time);
+    return bDate.toDateString() === today.toDateString();
+  });
+
+  // Resolve trainee/job info for bookings
+  const resolveBookingInfo = (booking) => {
+    const trainee = trainees.find(t => String(t.id) === String(booking.trainee_id));
+    const app = applications.find(a => String(a.id) === String(booking.application_id));
+    const job = app ? jobPostings.find(j => String(j.id) === String(app.jobId)) : null;
+    return { trainee, job };
+  };
+
+  if (!verified) {
+    return (
+      <div className="ln-page-content">
+        <div className="ln-page-header"><div><h1 className="ln-page-title">Interview Calendar</h1><p className="ln-page-subtitle">Manage your interview schedule</p></div></div>
+        <div className="ln-card" style={{ textAlign: 'center', padding: '40px 20px' }}>
+          <AlertTriangle size={48} color="#d97706" style={{ margin: '0 auto 16px' }} />
+          <h3 style={{ fontSize: 18, fontWeight: 700, marginBottom: 8 }}>Account Verification Required</h3>
+          <p style={{ fontSize: 14, color: 'rgba(0,0,0,0.55)', maxWidth: 500, margin: '0 auto 24px' }}>Verify your account to access the interview calendar.</p>
+          <button className="ln-btn ln-btn-primary" onClick={() => setActivePage('verification')}>Go to Verification</button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="ln-page-content">
+      <div className="ln-page-header">
+        <div>
+          <h1 className="ln-page-title">Interview Calendar</h1>
+          <p className="ln-page-subtitle">Click time slots to mark your availability. Trainees will book from these slots.</p>
+        </div>
+      </div>
+
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 320px', gap: 20, alignItems: 'start' }}>
+        {/* Calendar Grid */}
+        <div className="ln-card" style={{ padding: 0, overflow: 'hidden' }}>
+          {/* Week Nav */}
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '14px 16px', borderBottom: '1px solid #e5e7eb' }}>
+            <button className="ln-btn-sm ln-btn-outline" onClick={() => setWeekOffset(w => w - 1)}><ChevronLeft size={16} /> Prev</button>
+            <div style={{ fontWeight: 700, fontSize: 15 }}>
+              {weekDates[0].toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} — {weekDates[6].toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+            </div>
+            <button className="ln-btn-sm ln-btn-outline" onClick={() => setWeekOffset(w => w + 1)}>Next <ChevronRight size={16} /></button>
+          </div>
+
+          <div style={{ overflowX: 'auto' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+              <thead>
+                <tr>
+                  <th style={{ padding: '8px 6px', borderRight: '1px solid #e5e7eb', background: '#f9fafb', width: 60, textAlign: 'center', fontWeight: 600, color: '#475569' }}>Time</th>
+                  {dayLabels.map((d, i) => {
+                    const date = weekDates[i];
+                    const isToday = date.toDateString() === today.toDateString();
+                    return (
+                      <th key={d} style={{ padding: '8px 4px', textAlign: 'center', background: isToday ? '#eff6ff' : '#f9fafb', borderRight: '1px solid #e5e7eb', fontWeight: 700, color: isToday ? '#0a66c2' : '#334155' }}>
+                        {d}<br/><span style={{ fontWeight: 400, fontSize: 11 }}>{date.getDate()}</span>
+                      </th>
+                    );
+                  })}
+                </tr>
+              </thead>
+              <tbody>
+                {hours.map(hour => (
+                  <tr key={hour}>
+                    <td style={{ padding: '6px', textAlign: 'center', borderRight: '1px solid #e5e7eb', borderTop: '1px solid #f1f5f9', color: '#64748b', fontWeight: 500, whiteSpace: 'nowrap' }}>
+                      {hour > 12 ? `${hour - 12} PM` : hour === 12 ? '12 PM' : `${hour} AM`}
+                    </td>
+                    {dayLabels.map((_, dayIdx) => {
+                      const avail = isSlotAvailable(dayIdx, hour);
+                      return (
+                        <td
+                          key={dayIdx}
+                          onClick={() => toggleSlot(dayIdx, hour)}
+                          style={{
+                            padding: 0, height: 36, textAlign: 'center',
+                            borderRight: '1px solid #e5e7eb', borderTop: '1px solid #f1f5f9',
+                            cursor: saving ? 'wait' : 'pointer',
+                            background: avail ? '#dcfce7' : 'transparent',
+                            transition: 'background 0.15s',
+                          }}
+                          onMouseEnter={e => { if (!avail) e.target.style.background = '#f0f9ff'; }}
+                          onMouseLeave={e => { if (!avail) e.target.style.background = 'transparent'; }}
+                          title={avail ? 'Click to remove availability' : 'Click to mark as available'}
+                        >
+                          {avail && <CheckCircle size={14} color="#16a34a" />}
+                        </td>
+                      );
+                    })}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          <div style={{ padding: '10px 16px', borderTop: '1px solid #e5e7eb', display: 'flex', gap: 16, fontSize: 12, color: '#64748b', alignItems: 'center' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}><div style={{ width: 14, height: 14, borderRadius: 4, background: '#dcfce7', border: '1px solid #86efac' }} /> Available</div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}><div style={{ width: 14, height: 14, borderRadius: 4, background: '#fff', border: '1px solid #e5e7eb' }} /> Unavailable</div>
+          </div>
+        </div>
+
+        {/* Sidebar: Today's Interviews */}
+        <div className="ln-card">
+          <div className="ln-widget-header"><span>Upcoming Interviews Today</span></div>
+          {todayBookings.length > 0 ? todayBookings.map(b => {
+            const { trainee, job } = resolveBookingInfo(b);
+            const bStart = new Date(b.start_time);
+            return (
+              <div key={b.id} style={{ padding: '10px 14px', borderBottom: '1px solid #f1f5f9', display: 'flex', gap: 10, alignItems: 'center' }}>
+                <div style={{ width: 36, height: 36, borderRadius: '50%', background: '#ede9fe', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#7c3aed', fontWeight: 700, flexShrink: 0 }}>
+                  {(trainee?.name || 'T').charAt(0).toUpperCase()}
+                </div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontWeight: 600, fontSize: 13, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{trainee?.name || 'Trainee'}</div>
+                  <div style={{ fontSize: 11, color: '#64748b' }}>{job?.title || 'Position'}</div>
+                  <div style={{ fontSize: 11, color: '#7c3aed', fontWeight: 600 }}>{bStart.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}</div>
+                </div>
+                <span className={`ln-badge ${b.status === 'scheduled' ? 'ln-badge-blue' : b.status === 'completed' ? 'ln-badge-green' : 'ln-badge-red'}`} style={{ fontSize: 10 }}>{b.status}</span>
+              </div>
+            );
+          }) : (
+            <div className="ln-empty-widget" style={{ padding: 24 }}>
+              <Calendar size={28} style={{ opacity: 0.3 }} />
+              <p style={{ fontSize: 13 }}>No interviews scheduled today</p>
+            </div>
+          )}
+        </div>
+      </div>
     </div>
   );
 };
@@ -4270,6 +4612,7 @@ export default function PartnerDashboard() {
       <Routes>
         <Route path="/" element={<PartnerHome setActivePage={setActivePage} />} />
         <Route path="/post-job" element={<PostJob setActivePage={setActivePage} />} />
+        <Route path="/calendar" element={<CalendarView setActivePage={setActivePage} />} />
         <Route path="/applicants" element={<ViewApplicants setActivePage={setActivePage} />} />
         <Route path="/profile" element={<CompanyProfile />} />
         <Route path="/verification" element={<VerificationPage />} />

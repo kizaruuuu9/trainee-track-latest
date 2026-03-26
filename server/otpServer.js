@@ -1400,32 +1400,41 @@ app.post('/api/documents/upload', uploadRateLimit, async (req, res) => {
     const allowedTypes = [
         'application/pdf',
         'application/msword',
-        'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+        'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        'image/png',
+        'image/jpeg',
+        'image/webp',
+        'link'
     ];
     if (!allowedTypes.includes(fileType)) {
-        return res.status(400).json({ error: 'Only PDF, DOC, and DOCX files are allowed.' });
+        return res.status(400).json({ error: 'Only PDF, DOC, DOCX files, or links are allowed.' });
     }
 
     try {
-        // Convert base64 to buffer
-        const buffer = Buffer.from(fileData, 'base64');
-        const timestamp = Date.now();
-        const storagePath = `documents/${traineeId}/${timestamp}_${fileName}`;
+        let fileUrl = fileData; // Default for links
 
-        // Upload to Supabase Storage
-        const { error: uploadErr } = await supabaseAdmin.storage
-            .from('registration-uploads')
-            .upload(storagePath, buffer, { contentType: fileType });
+        if (fileType !== 'link') {
+            // Convert base64 to buffer for actual files
+            const buffer = Buffer.from(fileData, 'base64');
+            const timestamp = Date.now();
+            const storagePath = `documents/${traineeId}/${timestamp}_${fileName}`;
 
-        if (uploadErr) {
-            console.error('Document upload error:', uploadErr);
-            return res.status(500).json({ error: 'Failed to upload file.' });
+            // Upload to Supabase Storage
+            const { error: uploadErr } = await supabaseAdmin.storage
+                .from('registration-uploads')
+                .upload(storagePath, buffer, { contentType: fileType });
+
+            if (uploadErr) {
+                console.error('Document upload error:', uploadErr);
+                return res.status(500).json({ error: 'Failed to upload file.' });
+            }
+
+            const { data: urlData } = supabaseAdmin.storage
+                .from('registration-uploads')
+                .getPublicUrl(storagePath);
+            fileUrl = urlData?.publicUrl || '';
         }
 
-        const { data: urlData } = supabaseAdmin.storage
-            .from('registration-uploads')
-            .getPublicUrl(storagePath);
-        const fileUrl = urlData?.publicUrl || '';
 
         if (label === 'Resume') {
             const { error: updateErr } = await supabaseAdmin

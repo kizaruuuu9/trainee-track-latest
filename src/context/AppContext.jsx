@@ -261,6 +261,112 @@ export const AppProvider = ({ children }) => {
     },
   ]);
 
+  // ─── INTERVIEW SCHEDULING ──────────────────────────────────────────────
+  const [availabilitySlots, setAvailabilitySlots] = useState([]);
+  const [interviewBookings, setInterviewBookings] = useState([]);
+
+  const fetchAvailability = async (partnerId) => {
+    try {
+      const { data, error } = await supabase
+        .from('partner_availability')
+        .select('*')
+        .eq('partner_id', partnerId)
+        .order('day_of_week', { ascending: true });
+      if (error) {
+        if (error.code === '42P01') { console.warn('partner_availability table not found.'); return; }
+        throw error;
+      }
+      setAvailabilitySlots(data || []);
+    } catch (err) { console.error('Error fetching availability:', err); }
+  };
+
+  const saveAvailabilitySlot = async (partnerId, slot) => {
+    try {
+      const payload = { partner_id: partnerId, day_of_week: slot.day_of_week, start_time: slot.start_time, end_time: slot.end_time };
+      const { data, error } = await supabase.from('partner_availability').insert([payload]).select().single();
+      if (error) {
+        if (error.code === '42P01') return { success: false, error: 'Table not found. Run the migration SQL.' };
+        throw error;
+      }
+      setAvailabilitySlots(prev => [...prev, data]);
+      return { success: true, data };
+    } catch (err) { console.error('Error saving availability:', err); return { success: false, error: err.message }; }
+  };
+
+  const deleteAvailabilitySlot = async (slotId) => {
+    try {
+      const { error } = await supabase.from('partner_availability').delete().eq('id', slotId);
+      if (error) throw error;
+      setAvailabilitySlots(prev => prev.filter(s => s.id !== slotId));
+      return { success: true };
+    } catch (err) { console.error('Error deleting availability:', err); return { success: false, error: err.message }; }
+  };
+
+  const fetchBookings = async (partnerId) => {
+    try {
+      const { data, error } = await supabase
+        .from('interview_bookings')
+        .select('*')
+        .eq('partner_id', partnerId)
+        .order('start_time', { ascending: true });
+      if (error) {
+        if (error.code === '42P01') { console.warn('interview_bookings table not found.'); return; }
+        throw error;
+      }
+      setInterviewBookings(data || []);
+    } catch (err) { console.error('Error fetching bookings:', err); }
+  };
+
+  const fetchTraineeBookings = async (traineeId) => {
+    try {
+      const { data, error } = await supabase
+        .from('interview_bookings')
+        .select('*')
+        .eq('trainee_id', traineeId)
+        .order('start_time', { ascending: true });
+      if (error) {
+        if (error.code === '42P01') { console.warn('interview_bookings table not found.'); return; }
+        throw error;
+      }
+      setInterviewBookings(data || []);
+    } catch (err) { console.error('Error fetching trainee bookings:', err); }
+  };
+
+  const saveInterviewBooking = async (bookingData) => {
+    try {
+      const payload = {
+        application_id: bookingData.application_id || bookingData.applicationId,
+        trainee_id: bookingData.trainee_id || bookingData.traineeId,
+        partner_id: bookingData.partner_id || bookingData.partnerId,
+        start_time: bookingData.start_time || bookingData.startTime,
+        end_time: bookingData.end_time || bookingData.endTime,
+        status: 'scheduled',
+      };
+      const { data, error } = await supabase.from('interview_bookings').insert([payload]).select().single();
+      if (error) {
+        if (error.code === '42P01') return { success: false, error: 'Table not found. Run the migration SQL.' };
+        throw error;
+      }
+      setInterviewBookings(prev => [...prev, data]);
+      return { success: true, data };
+    } catch (err) { console.error('Error creating booking:', err); return { success: false, error: err.message }; }
+  };
+
+  const getPartnerAvailability = async (partnerId) => {
+    try {
+      const { data, error } = await supabase
+        .from('partner_availability')
+        .select('*')
+        .eq('partner_id', partnerId)
+        .order('day_of_week', { ascending: true });
+      if (error) {
+        if (error.code === '42P01') return [];
+        throw error;
+      }
+      return data || [];
+    } catch (err) { console.error('Error fetching partner availability:', err); return []; }
+  };
+
   // ─── COMMUNITY POSTS ──────────────────────────────────────────────────
   const [posts, setPosts] = useState([]);
   const [postComments, setPostComments] = useState([]);
@@ -1306,6 +1412,7 @@ export const AppProvider = ({ children }) => {
     const raw = String(value || '').trim().toLowerCase();
     if (raw === 'accepted') return 'Accepted';
     if (raw === 'rejected') return 'Rejected';
+    if (raw === 'interview scheduled') return 'Interview Scheduled';
     return 'Pending';
   };
 
@@ -1333,9 +1440,6 @@ export const AppProvider = ({ children }) => {
     const resumeUrl = applicationData.resumeUrl || null;
     const resumeFileName = applicationData.resumeFileName || null;
 
-    if (!resumeUrl) {
-      return { success: false, error: 'Resume is required before submitting your application.' };
-    }
 
     const isSupabaseUser = typeof traineeId === 'string' && traineeId.includes('-');
 
@@ -1422,6 +1526,7 @@ export const AppProvider = ({ children }) => {
     const normalizeStatus = (s) => {
       const raw = String(s || '').trim().toLowerCase();
       if (!raw || raw === 'received') return 'Pending';
+      if (raw === 'interview scheduled') return 'Interview Scheduled';
       return raw.charAt(0).toUpperCase() + raw.slice(1);
     };
     const status = normalizeStatus(statusInput);
@@ -1546,6 +1651,7 @@ export const AppProvider = ({ children }) => {
       .map(a => {
         const job = jobPostings.find(j => String(j.id) === String(a.jobId));
         const partner = partners.find(p => String(p.id) === String(job?.partnerId));
+        const booking = interviewBookings.find(b => String(b.application_id) === String(a.id) && b.status !== 'cancelled');
 
         return {
           ...a,
@@ -1561,6 +1667,8 @@ export const AppProvider = ({ children }) => {
           attachmentName: a.resumeFileName || null,
           attachmentUrl: a.resumeUrl || null,
           attachmentKind: a.resumeUrl ? 'resume' : null,
+          matchRate: traineeId && job?.id ? getMatchRate(traineeId, job.id) : null,
+          interviewDate: booking?.start_time || null,
           sortAt: toTimestamp(a.appliedAt),
         };
       });
@@ -1585,9 +1693,10 @@ export const AppProvider = ({ children }) => {
           partner: partner || (job ? { id: job.partnerId, companyName: job.companyName || 'Industry Partner' } : { id: partnerId, companyName: 'Industry Partner' }),
           outgoingMessage: isOutgoing ? request.message : null,
           incomingMessage: isOutgoing ? null : request.message,
-          attachmentName: request.attachment_name || null,
+           attachmentName: request.attachment_name || null,
           attachmentUrl: request.attachment_url || null,
           attachmentKind: request.attachment_kind || null,
+          matchRate: traineeId && job?.id ? getMatchRate(traineeId, job.id) : null,
           sortAt: toTimestamp(request.created_at),
         };
       });
@@ -1610,6 +1719,7 @@ export const AppProvider = ({ children }) => {
         .filter(a => String(a.jobId) === String(job.id))
         .map(a => {
           const trainee = trainees.find(t => String(t.id) === String(a.traineeId));
+          const booking = interviewBookings.find(b => String(b.application_id) === String(a.id) && b.status !== 'cancelled');
 
           return {
             ...a,
@@ -1626,6 +1736,7 @@ export const AppProvider = ({ children }) => {
             attachmentUrl: a.resumeUrl || null,
             attachmentKind: a.resumeUrl ? 'resume' : null,
             matchRate: getMatchRate(a.traineeId, job.id),
+            interviewDate: booking?.start_time || null,
             sortAt: toTimestamp(a.appliedAt),
           };
         })
@@ -2270,6 +2381,7 @@ export const AppProvider = ({ children }) => {
         // Map dashboard field names to students table column names
         const dbUpdates = {};
         if (updates.name !== undefined) dbUpdates.full_name = updates.name;
+        // if (updates.bio !== undefined) dbUpdates.bio = updates.bio; // Column missing in DB
 
         if (updates.birthday !== undefined) dbUpdates.birthdate = updates.birthday;
         if (updates.gender !== undefined) {
@@ -2292,6 +2404,7 @@ export const AppProvider = ({ children }) => {
         if (updates.photo !== undefined) dbUpdates.profile_picture_url = updates.photo;
         if (updates.bannerUrl !== undefined) dbUpdates.banner_url = updates.bannerUrl;
         if (updates.certifications !== undefined) dbUpdates.certifications = updates.certifications;
+        if (updates.trainings !== undefined) dbUpdates.trainings = updates.trainings;
         if (updates.educHistory !== undefined) dbUpdates.educ_history = updates.educHistory;
         if (updates.workExperience !== undefined) dbUpdates.work_experience = updates.workExperience;
         if (updates.email !== undefined) dbUpdates.contact_email = updates.email;
@@ -2516,6 +2629,7 @@ export const AppProvider = ({ children }) => {
         graduationYear: student.graduation_year || '',
         trainingStatus: student.training_status || 'Student',
         certifications: student.certifications || [],
+        trainings: student.trainings || [],
         educHistory: student.educ_history || [],
         workExperience: student.work_experience || [],
         competencies: [],
@@ -2565,12 +2679,8 @@ export const AppProvider = ({ children }) => {
     const normalizedStatus = String(status || '').toLowerCase() === 'offline' ? 'Offline' : 'Online';
 
     try {
-      let accessToken = presenceAccessTokenRef.current;
-      if (!accessToken) {
-        const { data: sessionData } = await supabase.auth.getSession();
-        accessToken = sessionData?.session?.access_token || '';
-        presenceAccessTokenRef.current = accessToken;
-      }
+      const { data: sessionData } = await supabase.auth.getSession();
+      const accessToken = sessionData?.session?.access_token;
 
       if (accessToken) {
         const resp = await fetch('/api/presence/ping', {
@@ -3391,6 +3501,16 @@ export const AppProvider = ({ children }) => {
       updateJobPostingComment,
       deleteJobPostingComment,
       sendContactRequest,
+      // Interview Scheduling
+      availabilitySlots,
+      interviewBookings,
+      fetchAvailability,
+      saveAvailabilitySlot,
+      deleteAvailabilitySlot,
+      fetchBookings,
+      fetchTraineeBookings,
+      saveInterviewBooking,
+      getPartnerAvailability,
     }}>
       {children}
     </AppContext.Provider>

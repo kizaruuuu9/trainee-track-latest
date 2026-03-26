@@ -3,13 +3,20 @@ import { useApp } from '../../context/AppContext';
 import {
     User, Briefcase, FileText, CheckCircle, Bell, ChevronDown, Search, Filter, MapPin, Clock, Building2,
     Award, Send, CheckSquare, X, Eye, EyeOff, Plus, Menu, Home, Settings, LogOut, MessageSquare, Bookmark,
-    Trash2, Camera, Loader, GraduationCap, MoveRight, ExternalLink, ShieldCheck, Mail, Calendar, AlignLeft, Users, ChevronRight, Edit, Upload, Link
+    Trash2, Camera, Loader, GraduationCap, MoveRight, ExternalLink, ShieldCheck, Mail, Calendar, AlignLeft, Users, ChevronRight, ChevronLeft, Edit, Upload, Link, Star, Heart, MoreVertical, Info
 } from 'lucide-react';
+import EmptyState, {
+  TrophyIllustration,
+  BriefcaseIllustration,
+  DocumentIllustration,
+  StarIllustration,
+  FolderIllustration
+} from '../EmptyState';
 import { supabase } from '../../lib/supabase';
 import { Routes, Route, useNavigate, useLocation, Navigate, useParams } from 'react-router-dom';
 import { CompanyProfile } from './PartnerDashboard';
 
-/* ═══════════════════════════════════════════════════════════════════
+/* ════════════════════════════════════════════════════════════════════
    LINKEDIN-STYLE TRAINEE DASHBOARD
    ═══════════════════════════════════════════════════════════════ */
 
@@ -108,13 +115,17 @@ const normalizeTraineeProfile = (profile) => {
 
     const rawEmploymentStatus = String(profile.employmentStatus || profile.employment_status || '').toLowerCase();
     const employmentStatus = profile.employmentStatus
-        || (rawEmploymentStatus === 'employed'
+        || (rawEmploymentStatus === 'employed' || rawEmploymentStatus === 'hired'
             ? 'Employed'
-            : rawEmploymentStatus === 'seeking_employment'
+            : rawEmploymentStatus === 'seeking_employment' || rawEmploymentStatus === 'open_to_work' || rawEmploymentStatus === 'not_employed' || rawEmploymentStatus === 'unemployed'
                 ? 'Seeking Employment'
-                : rawEmploymentStatus === 'not_employed' || rawEmploymentStatus === 'unemployed'
-                    ? 'Unemployed'
-                    : 'Unemployed');
+                : rawEmploymentStatus === 'certified'
+                    ? 'Certified'
+                    : rawEmploymentStatus === 'seeking_ojt'
+                        ? 'Seeking OJT'
+                        : rawEmploymentStatus === 'ojt_in_progress'
+                            ? 'OJT In Progress'
+                            : 'Seeking Employment');
 
     return {
         ...profile,
@@ -333,7 +344,7 @@ const ProfileSideCard = ({ trainee, setActivePage }) => {
 
                 <div className="ln-profile-stats">
                     <div className="ln-profile-stat" onClick={() => setActivePage('profile')}>
-                        <span className="ln-profile-stat-num">{trainee?.certifications?.length || 0}</span>
+                        <span className="ln-profile-stat-num">{(trainee?.trainings || []).filter(t => t.status === 'Graduated').length}</span>
                         <span className="ln-profile-stat-label">Certifications</span>
                     </div>
                     <div className="ln-profile-stat-divider" />
@@ -344,8 +355,11 @@ const ProfileSideCard = ({ trainee, setActivePage }) => {
                 </div>
 
                 <div className="ln-profile-certs">
-                    {trainee?.certifications?.slice(0, 3).map((c, i) => (
-                        <span key={i} className="ln-cert-tag"><Award size={12} /> {typeof c === 'string' ? c : c.name}</span>
+                    {(trainee?.trainings || []).filter(t => t.status === 'Graduated').slice(0, 3).map((t, i) => (
+                        <span key={i} className="ln-cert-tag">
+                            {t.certUrl ? <ShieldCheck size={12} /> : <Award size={12} />}
+                            {' '}{t.program}
+                        </span>
                     ))}
                 </div>
 
@@ -422,10 +436,11 @@ const ProgressBar = ({ value, showLabel = true }) => {
 
 // ─── PAGE 1: DASHBOARD HOME (LinkedIn Feed-style) ───────────────
 const TraineeDashboardHome = ({ setActivePage }) => {
-    const { currentUser, trainees, applications, getTraineeRecommendedJobs, posts, createPost, updatePost, deletePost, partners, addPostComment, getPostComments, addJobPostingComment, getJobPostingComments, updateJobPostingComment, deleteJobPostingComment, sendContactRequest } = useApp();
+    const { currentUser, trainees, applications, getTraineeRecommendedJobs, posts, createPost, updatePost, deletePost, partners, addPostComment, getPostComments, addJobPostingComment, getJobPostingComments, updateJobPostingComment, deleteJobPostingComment, sendContactRequest, applyToJob, updateTrainee } = useApp();
     const navigate = useNavigate();
     const trainee = currentUser || trainees[0];
     const myApps = applications.filter(a => a.traineeId === trainee?.id);
+    const myAppJobIds = myApps.map(a => a.jobId);
     const recJobs = getTraineeRecommendedJobs(trainee?.id);
 
     // Edit/Delete post state
@@ -449,6 +464,13 @@ const TraineeDashboardHome = ({ setActivePage }) => {
     const [contactMessage, setContactMessage] = useState('');
     const [contactAttachment, setContactAttachment] = useState(null);
     const [contactSubmitting, setContactSubmitting] = useState(false);
+
+    // Apply modal state (replicates Opportunities page logic)
+    const [feedApplyJob, setFeedApplyJob] = useState(null);
+    const [feedApplicationMessage, setFeedApplicationMessage] = useState('');
+    const [feedResumeInfo, setFeedResumeInfo] = useState(null);
+    const [feedSubmittingApp, setFeedSubmittingApp] = useState(false);
+
     const [jobMediaModal, setJobMediaModal] = useState(null);
     const [jobMediaCommentsOnly, setJobMediaCommentsOnly] = useState(false);
     const [jobMediaCommentInput, setJobMediaCommentInput] = useState('');
@@ -469,17 +491,6 @@ const TraineeDashboardHome = ({ setActivePage }) => {
         navigate(`/trainee/profile-view/${profileType}/${target.id}`);
     };
 
-    const openJobMediaModal = (job, focusComment = false) => {
-        setJobMediaModal(job);
-        setJobMediaCommentsOnly(Boolean(focusComment));
-        setJobMediaCommentInput('');
-        setEditingJobMediaCommentId(null);
-        setJobMediaEditInput('');
-        setJobMediaCommentMenuId(null);
-        if (focusComment) {
-            setTimeout(() => jobMediaCommentInputRef.current?.focus(), 0);
-        }
-    };
 
     const closeJobMediaModal = () => {
         setJobMediaModal(null);
@@ -644,12 +655,74 @@ const TraineeDashboardHome = ({ setActivePage }) => {
 
     // Unified Feed logic: Mix Jobs and Posts, sort by date
     const unifiedFeed = [
-        ...posts.map(p => ({ ...p, feedType: 'post' })),
+        ...posts
+            .filter(p => !p.expires_at || new Date(p.expires_at) > new Date())
+            .map(p => ({ ...p, feedType: 'post' })),
         ...recJobs.map(j => ({ ...j, feedType: 'job' }))
     ].sort((a, b) => new Date(b.created_at || b.createdAt || b.datePosted) - new Date(a.created_at || a.createdAt || a.datePosted));
 
     const handleApply = () => {
         setActivePage('recommendations');
+    };
+
+    // ── Feed Apply Modal logic ──
+    const feedLoadResumeInfo = async () => {
+        if (!trainee?.id) return;
+        // setFeedLoadingResume(true); // Removed unused state setter
+        setFeedResumeInfo(null);
+        let resolvedResume = null;
+        const isSupabaseUser = typeof trainee.id === 'string' && trainee.id.includes('-');
+        if (isSupabaseUser) {
+            try {
+                const { data, error } = await supabase
+                    .from('student_documents')
+                    .select('file_url, file_name, label, uploaded_at')
+                    .eq('student_id', trainee.id)
+                    .ilike('label', '%resume%')
+                    .order('uploaded_at', { ascending: false })
+                    .limit(1);
+                if (!error && data?.length) {
+                    resolvedResume = { file_url: data[0].file_url, file_name: data[0].file_name || 'Resume' };
+                }
+            } catch (err) { console.warn('Resume fetch exception:', err); }
+        }
+        if (!resolvedResume && (trainee?.resumeUrl || trainee?.registrationResumeUrl)) {
+            resolvedResume = { file_url: trainee.resumeUrl || trainee.registrationResumeUrl, file_name: 'Resume' };
+        }
+        setFeedResumeInfo(resolvedResume);
+        // setFeedLoadingResume(false); // Removed unused state setter
+    };
+
+    const feedOpenApplyModal = async (job) => {
+        setFeedApplyJob(job);
+        setFeedApplicationMessage('');
+        await feedLoadResumeInfo();
+    };
+
+    const feedHandleSubmitApplication = async () => {
+        if (!feedApplyJob) return;
+        setFeedSubmittingApp(true);
+        const r = await applyToJob(trainee?.id, feedApplyJob.id, {
+            applicationMessage: feedApplicationMessage,
+            resumeUrl: feedResumeInfo?.file_url,
+            resumeFileName: feedResumeInfo?.file_name || 'Resume',
+        });
+        setFeedSubmittingApp(false);
+        if (!r.success) {
+            alert(r.error || 'Failed to submit application.');
+            return;
+        }
+        setFeedApplyJob(null);
+        setFeedApplicationMessage('');
+    };
+
+    // ── Bookmark (Save/Unsave) toggle ──
+    const toggleBookmark = async (jobId) => {
+        if (!trainee?.id) return;
+        const current = Array.isArray(trainee.savedOpportunities) ? trainee.savedOpportunities : [];
+        const isSaved = current.includes(jobId);
+        const updated = isSaved ? current.filter(id => id !== jobId) : [...current, jobId];
+        await updateTrainee(trainee.id, { savedOpportunities: updated });
     };
 
     const openContactModal = (target) => {
@@ -784,9 +857,10 @@ const TraineeDashboardHome = ({ setActivePage }) => {
     };
 
     const stats = [
-        { label: 'Applications', value: myApps.length, icon: <Send size={20} />, color: '#057642' },
-        { label: 'Status', value: trainee?.employmentStatus || 'Unemployed', icon: <Briefcase size={20} />, color: '#b24020' },
-        { label: 'Certifications', value: trainee?.certifications?.length || 0, icon: <Award size={20} />, color: '#7c3aed' },
+        { label: 'Job Applications', value: myApps.length, icon: <Send size={20} />, color: '#057642' },
+        { label: 'Active Interviews', value: myApps.filter(a => String(a.status).toLowerCase() === 'interview scheduled').length, icon: <Calendar size={20} />, color: '#7c3aed' },
+        { label: 'Offers Received', value: myApps.filter(a => ['accepted', 'offered'].includes(String(a.status).toLowerCase())).length, icon: <Award size={20} />, color: '#0a66c2' },
+        { label: 'Saved for Later', value: trainee?.savedOpportunities?.length || 0, icon: <Bookmark size={20} />, color: '#d97706' },
     ];
 
     const modalComments = commentModalPost ? getPostComments(commentModalPost.id) : [];
@@ -987,7 +1061,8 @@ const TraineeDashboardHome = ({ setActivePage }) => {
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
                     {unifiedFeed.map(item => {
                         if (item.feedType === 'job') {
-                            const applied = myApps.some(a => a.jobId === item.id);
+                            const applied = myAppJobIds.includes(item.id);
+                            const isSaved = Array.isArray(trainee?.savedOpportunities) && trainee.savedOpportunities.includes(item.id);
                             const jobComments = getJobPostingComments(item.id);
                             return (
                                 <div key={`job-${item.id}`} className="ln-card ln-feed-card" style={{ marginBottom: 0 }}>
@@ -1026,11 +1101,13 @@ const TraineeDashboardHome = ({ setActivePage }) => {
                                         <p style={{ fontSize: 13, color: 'rgba(0,0,0,0.6)', marginBottom: 8 }}>{item.description.substring(0, 150)}...</p>
                                         {item.attachmentUrl && isImageAttachment(item.attachmentUrl, item.attachmentType) && (
                                             <div style={{ display: 'block', marginBottom: 10 }}>
-                                                <img
-                                                    src={item.attachmentUrl}
-                                                    alt={item.attachmentName || 'Opportunity attachment'}
-                                                    style={{ width: '100%', maxHeight: 260, objectFit: 'cover', borderRadius: 10, border: '1px solid #e2e8f0' }}
-                                                />
+                                                <div className="ln-media-frame">
+                                                    <img
+                                                        src={item.attachmentUrl}
+                                                        alt={item.attachmentName || 'Opportunity attachment'}
+                                                        className="ln-media-image"
+                                                    />
+                                                </div>
                                             </div>
                                         )}
                                         {item.attachmentUrl && !isImageAttachment(item.attachmentUrl, item.attachmentType) && (
@@ -1056,7 +1133,22 @@ const TraineeDashboardHome = ({ setActivePage }) => {
                                             </div>
                                         )}
                                     </div>
-                                    <div className="ln-feed-actions" style={{ borderTop: '1px solid #f3f3f3', padding: '8px 12px' }}>
+                                    <div className="ln-feed-actions" style={{ borderTop: '1px solid #f3f3f3', padding: '8px 12px', display: 'flex', gap: 4 }}>
+                                        <button
+                                            className="ln-feed-action-btn"
+                                            disabled={applied || item.status !== 'Open'}
+                                            onClick={() => feedOpenApplyModal(item)}
+                                            style={applied ? { color: '#057642', fontWeight: 600 } : {}}
+                                        >
+                                            {applied ? <><CheckCircle size={14} /> Applied</> : <><Send size={14} /> Apply</>}
+                                        </button>
+                                        <button
+                                            className="ln-feed-action-btn"
+                                            onClick={() => toggleBookmark(item.id)}
+                                            style={isSaved ? { color: '#0a66c2', fontWeight: 600 } : {}}
+                                        >
+                                            <Bookmark size={14} fill={isSaved ? '#0a66c2' : 'none'} /> {isSaved ? 'Saved' : 'Save'}
+                                        </button>
                                         <button
                                             className="ln-feed-action-btn"
                                             onClick={() => openContactModal({
@@ -1067,10 +1159,7 @@ const TraineeDashboardHome = ({ setActivePage }) => {
                                                 sourceLabel: item.title,
                                             })}
                                         >
-                                            <MessageSquare size={14} /> {applied ? 'Contact Again' : 'Contact'}
-                                        </button>
-                                        <button className="ln-feed-action-btn" onClick={() => openJobMediaModal(item, true)}>
-                                            <MessageSquare size={14} /> Comment ({jobComments.length})
+                                            <Mail size={14} /> Inquire
                                         </button>
                                     </div>
                                 </div>
@@ -1116,12 +1205,38 @@ const TraineeDashboardHome = ({ setActivePage }) => {
                                                     <button
                                                         type="button"
                                                         onClick={() => openProfile({ id: item.author_id, type: authorProfileType })}
-                                                        style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', color: 'inherit', font: 'inherit', textAlign: 'left' }}
+                                                        style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', fontWeight: 700, color: 'inherit', fontSize: 'inherit', fontFamily: 'inherit' }}
                                                     >
                                                         {authorName}
                                                     </button>
                                                     {item.post_type !== 'general' && (
-                                                        <span className="ln-badge ln-badge-blue" style={{ fontSize: 10, padding: '2px 8px' }}>
+                                                        <span
+                                                            className="ln-badge"
+                                                            style={{
+                                                                fontSize: 10,
+                                                                padding: '2px 8px',
+                                                                background: item.post_type === 'announcement' ? '#fdf2f2' :
+                                                                    item.post_type === 'hiring_update' ? '#f0f9ff' :
+                                                                        item.post_type === 'achievement' ? '#fffbeb' :
+                                                                            item.post_type === 'certification' ? '#f0fdf4' :
+                                                                                item.post_type === 'project' ? '#faf5ff' : '#f1f5f9',
+                                                                color: item.post_type === 'announcement' ? '#991b1b' :
+                                                                    item.post_type === 'hiring_update' ? '#075985' :
+                                                                        item.post_type === 'achievement' ? '#92400e' :
+                                                                            item.post_type === 'certification' ? '#166534' :
+                                                                                item.post_type === 'project' ? '#6b21a8' : '#475569',
+                                                                border: `1px solid ${item.post_type === 'announcement' ? '#fecaca' :
+                                                                    item.post_type === 'hiring_update' ? '#bae6fd' :
+                                                                        item.post_type === 'achievement' ? '#fde68a' :
+                                                                            item.post_type === 'certification' ? '#bbf7d0' :
+                                                                                item.post_type === 'project' ? '#e9d5ff' : '#e2e8f0'}`
+                                                            }}
+                                                        >
+                                                            {item.post_type === 'announcement' ? '📢 ' :
+                                                                item.post_type === 'hiring_update' ? '💼 ' :
+                                                                    item.post_type === 'achievement' ? '🏆 ' :
+                                                                        item.post_type === 'certification' ? '📜 ' :
+                                                                            item.post_type === 'project' ? '🚀 ' : ''}
                                                             {item.post_type.replace('_', ' ')}
                                                         </span>
                                                     )}
@@ -1208,12 +1323,19 @@ const TraineeDashboardHome = ({ setActivePage }) => {
                                                 </div>
                                             </div>
                                         ) : (
-                                            <p style={{ whiteSpace: 'pre-wrap', fontSize: 14 }}>{item.content}</p>
+                                            <>
+                                                {item.title && (
+                                                    <h3 style={{ fontSize: 16, fontWeight: 700, marginBottom: 8, color: '#1e293b' }}>{item.title}</h3>
+                                                )}
+                                                <p style={{ whiteSpace: 'pre-wrap', fontSize: 14, color: '#334155' }}>{item.content}</p>
+                                            </>
                                         )}
                                         {item.media_url && (
                                             <div style={{ marginTop: 12 }}>
                                                 {item.media_url.match(/\.(jpg|jpeg|png|gif|webp)$/i) ? (
-                                                    <img src={item.media_url} alt="Post media" style={{ width: '100%', borderRadius: 8, border: '1px solid #f3f3f3' }} />
+                                                    <div className="ln-media-frame">
+                                                        <img src={item.media_url} alt="Post media" className="ln-media-image" />
+                                                    </div>
                                                 ) : (
                                                     <a
                                                         href={item.media_url}
@@ -1780,6 +1902,73 @@ const TraineeDashboardHome = ({ setActivePage }) => {
                     </div>
                 </div>
             )}
+
+            {/* Feed Apply Modal */}
+            {feedApplyJob && (
+                <div className="modal-overlay" onClick={() => setFeedApplyJob(null)}>
+                    <div className="ln-modal" onClick={e => e.stopPropagation()}>
+                        <div className="ln-modal-header">
+                            <div>
+                                <h3 className="ln-modal-title">Application Form</h3>
+                                <p style={{ fontSize: 14, color: 'rgba(0,0,0,0.6)', marginTop: 4 }}>
+                                    {feedApplyJob.title} •
+                                    <button
+                                        type="button"
+                                        onClick={() => openProfile({ id: feedApplyJob.partnerId, type: 'partner' })}
+                                        style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', color: '#0a66c2', font: 'inherit', marginLeft: 4 }}
+                                    >
+                                        {feedApplyJob.companyName}
+                                    </button>
+                                </p>
+                            </div>
+                            <button className="ln-btn-icon" onClick={() => setFeedApplyJob(null)}><X size={18} /></button>
+                        </div>
+                        <div className="ln-profile-summary-notice" style={{ background: '#f0f9ff', border: '1px solid #bae6fd', borderRadius: 10, padding: 12, marginBottom: 16 }}>
+                            <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
+                                <ShieldCheck size={18} color="#0369a1" style={{ marginTop: 2 }} />
+                                <div>
+                                    <div style={{ fontWeight: 700, fontSize: 13, color: '#0369a1' }}>Profile as Resume</div>
+                                    <p style={{ fontSize: 12, color: '#0c4a6e', margin: '4px 0 0' }}>
+                                        Your comprehensive profile (Education, Work Exp, Skills, and Certifications) will be shared with the recruiter as your official resume.
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+
+                        {feedResumeInfo?.file_url && (
+                            <div style={{ marginBottom: 12 }}>
+                                <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 6 }}>Attached Resume (Optional Backup)</div>
+                                <div style={{ border: '1px solid #e2e8f0', borderRadius: 8, padding: 10, display: 'flex', justifyContent: 'space-between', gap: 10, alignItems: 'center' }}>
+                                    <div style={{ minWidth: 0 }}>
+                                        <div style={{ fontSize: 13, fontWeight: 600, color: '#1e293b', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{feedResumeInfo.file_name || 'Resume'}</div>
+                                    </div>
+                                    <a href={feedResumeInfo.file_url} target="_blank" rel="noreferrer" className="ln-btn-sm ln-btn-outline"><Eye size={12} /> View</a>
+                                </div>
+                            </div>
+                        )}
+
+                        <div style={{ marginBottom: 14 }}>
+                            <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 6 }}>Application Message</div>
+                            <textarea
+                                className="ln-search-input"
+                                placeholder="Write a short message for the recruiter (optional)..."
+                                value={feedApplicationMessage}
+                                onChange={e => setFeedApplicationMessage(e.target.value)}
+                                maxLength={1000}
+                                style={{ width: '100%', minHeight: 110, resize: 'none', borderRadius: 10, padding: 12 }}
+                            />
+                            <div style={{ fontSize: 12, color: '#94a3b8', marginTop: 4, textAlign: 'right' }}>{feedApplicationMessage.length}/1000</div>
+                        </div>
+
+                        <div className="ln-modal-footer">
+                            <button className="ln-btn ln-btn-outline" onClick={() => setFeedApplyJob(null)}>Cancel</button>
+                            <button className="ln-btn ln-btn-primary" disabled={feedSubmittingApp} onClick={feedHandleSubmitApplication}>
+                                <Send size={15} /> {feedSubmittingApp ? 'Submitting...' : 'Submit Application'}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };
@@ -1800,12 +1989,45 @@ const ApplicationTimeline = ({ traineeId }) => {
     const { applications, jobPostings } = useApp();
     const myApps = applications.filter(a => String(a.traineeId) === String(traineeId));
 
+    const stages = [
+        { label: 'Applied', icon: <Send size={14} /> },
+        { label: 'Screened', icon: <ShieldCheck size={14} /> },
+        { label: 'Interview', icon: <Users size={14} /> },
+        { label: 'Offered', icon: <Award size={14} /> }
+    ];
+
     if (myApps.length === 0) {
         return (
-            <div className="ln-empty-state" style={{ padding: '40px 0' }}>
-                <FileText size={48} style={{ opacity: 0.2, marginBottom: 12 }} />
-                <h3>No applications yet</h3>
-                <p style={{ color: '#64748b', fontSize: 14 }}>Your job and OJT applications will appear here.</p>
+            <div style={{ padding: 20, background: 'white', borderRadius: 12, border: '1px solid #e2e8f0', opacity: 0.6 }}>
+                <div style={{ marginBottom: 16, textAlign: 'center' }}>
+                    <h4 style={{ margin: 0, fontSize: 14, fontWeight: 700, color: '#64748b' }}>Application Journey</h4>
+                    <p style={{ margin: '4px 0 0', fontSize: 12, color: '#94a3b8' }}>Start applying to track your progress</p>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', position: 'relative', padding: '0 4px', opacity: 0.3 }}>
+                    {stages.map((s, i) => (
+                        <React.Fragment key={i}>
+                            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8, zIndex: 1, flex: 1 }}>
+                                <div style={{
+                                    width: 32, height: 32, borderRadius: '50%',
+                                    background: '#f1f5f9',
+                                    color: '#94a3b8',
+                                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                }}>
+                                    {s.icon}
+                                </div>
+                                <span style={{ fontSize: 10, fontWeight: 700, color: '#94a3b8', textAlign: 'center' }}>{s.label}</span>
+                            </div>
+                            {i < 3 && (
+                                <div style={{
+                                    height: 2, flex: 1,
+                                    background: '#e2e8f0',
+                                    marginTop: -18,
+                                    zIndex: 0
+                                }} />
+                            )}
+                        </React.Fragment>
+                    ))}
+                </div>
             </div>
         );
     }
@@ -1882,8 +2104,9 @@ const ApplicationTimeline = ({ traineeId }) => {
     );
 };
 
-const SavedOpportunitiesView = ({ traineeId, savedIds }) => {
-    const { jobPostings, updateTrainee } = useApp();
+const SavedOpportunitiesView = ({ traineeId, savedIds, onApply }) => {
+    const { jobPostings, updateTrainee, applications } = useApp();
+    const myApps = applications.filter(a => a.traineeId === traineeId).map(a => a.jobId);
     const savedJobs = jobPostings.filter(j => savedIds.includes(j.id));
 
     const removeBookmark = async (jobId) => {
@@ -1928,7 +2151,15 @@ const SavedOpportunitiesView = ({ traineeId, savedIds }) => {
                     <div className="ln-job-card-footer" style={{ marginTop: 16, paddingTop: 16, borderTop: '1px solid #f1f5f9' }}>
                         <span style={{ fontSize: 13, color: '#64748b' }}>Posted by industry partner</span>
                         <div style={{ display: 'flex', gap: 10 }}>
-                            <button type="button" className="ln-btn-sm ln-btn-primary" style={{ padding: '8px 16px' }}>Apply Now</button>
+                            <button
+                                type="button"
+                                className="ln-btn-sm ln-btn-primary"
+                                style={{ padding: '8px 16px' }}
+                                disabled={myApps.includes(job.id) || job.status !== 'Open'}
+                                onClick={() => onApply(job)}
+                            >
+                                {myApps.includes(job.id) ? 'Applied' : 'Apply Now'}
+                            </button>
                         </div>
                     </div>
                 </div>
@@ -1939,8 +2170,9 @@ const SavedOpportunitiesView = ({ traineeId, savedIds }) => {
 
 // ─── PAGE 2: PROFILE ─────────────────────────────────────────────
 export const TraineeProfileContent = ({ viewedProfileId = null, onBack = null }) => {
-    const { currentUser, trainees, updateTrainee, getSkillInterestRecommendations, programs } = useApp();
+    const { currentUser, userRole, trainees, updateTrainee, getSkillInterestRecommendations, programs, getSkillsDemand, applyToJob } = useApp();
     const isOwnProfile = !viewedProfileId || String(viewedProfileId) === String(currentUser?.id);
+    const isEmployer = userRole === 'partner';
     const [viewedTrainee, setViewedTrainee] = useState(null);
     const [loadingViewedProfile, setLoadingViewedProfile] = useState(false);
     const trainee = isOwnProfile
@@ -1948,7 +2180,7 @@ export const TraineeProfileContent = ({ viewedProfileId = null, onBack = null })
         : (viewedTrainee || trainees.find(t => String(t.id) === String(viewedProfileId)));
     const [editing, setEditing] = useState(false);
     const [saving, setSaving] = useState(false);
-    const [activeTab, setActiveTab] = useState('About'); // About | Training | Applications | Saved
+    const [activeTab, setActiveTab] = useState('About'); // About | Training | Match Insights | Saved
     const [form, setForm] = useState({ ...trainee });
     const [personalInfoVisibility, setPersonalInfoVisibility] = useState(() => resolveTraineeVisibility(trainee));
     const initials = (trainee?.name || '').split(' ').filter(Boolean).map(n => n[0]).join('').slice(0, 2).toUpperCase() || 'T';
@@ -2006,7 +2238,9 @@ export const TraineeProfileContent = ({ viewedProfileId = null, onBack = null })
     // eslint-disable-next-line no-unused-vars
     const [editingEmployment, setEditingEmployment] = useState(false);
     const [empForm, setEmpForm] = useState({
-        employmentStatus: (trainee?.employmentStatus === 'Unemployed' ? 'Not Employed' : trainee?.employmentStatus) || 'Not Employed',
+        employmentStatus: (['Employed', 'Seeking Employment', 'Certified', 'Seeking OJT', 'OJT In Progress'].includes(trainee?.employmentStatus)
+            ? trainee.employmentStatus
+            : 'Seeking Employment'),
         employer: trainee?.employer || '',
         jobTitle: trainee?.jobTitle || '',
         dateHired: trainee?.dateHired || '',
@@ -2025,6 +2259,8 @@ export const TraineeProfileContent = ({ viewedProfileId = null, onBack = null })
     const [documents, setDocuments] = useState([]);
     const [docLabel, setDocLabel] = useState('');
     const [docFile, setDocFile] = useState(null);
+    const [linkTitle, setLinkTitle] = useState('');
+    const [docLinkUrl, setDocLinkUrl] = useState('');
     const [uploading, setUploading] = useState(false);
     const [showUploadForm, setShowUploadForm] = useState(false);
     const fileInputRef = useRef(null);
@@ -2038,6 +2274,10 @@ export const TraineeProfileContent = ({ viewedProfileId = null, onBack = null })
     const [resume, setResume] = useState(null);
     // eslint-disable-next-line no-unused-vars
     const [uploadingResume, setUploadingResume] = useState(false);
+    const [applyJob, setApplyJob] = useState(null);
+    const [applicationMessage, setApplicationMessage] = useState('');
+    const [resumeInfo, setResumeInfo] = useState(null);
+    const [submittingApplication, setSubmittingApplication] = useState(false);
 
     useEffect(() => {
         if (isOwnProfile || !viewedProfileId) {
@@ -2089,6 +2329,7 @@ export const TraineeProfileContent = ({ viewedProfileId = null, onBack = null })
         setEditing(false);
         setForm({ ...trainee });
         setInterestsList(trainee?.interests || []);
+        setDocuments(Array.isArray(trainee?.documents) ? trainee.documents : []);
         setEducHistory(trainee?.educHistory || []);
         setWorkExperience(trainee?.workExperience || []);
         setTrainingForm({
@@ -2112,7 +2353,9 @@ export const TraineeProfileContent = ({ viewedProfileId = null, onBack = null })
         setTrainings(initialTrainings);
 
         setEmpForm({
-            employmentStatus: (trainee?.employmentStatus === 'Unemployed' ? 'Not Employed' : trainee?.employmentStatus) || 'Not Employed',
+            employmentStatus: (['Employed', 'Seeking Employment', 'Certified', 'Seeking OJT', 'OJT In Progress'].includes(trainee?.employmentStatus)
+                ? trainee.employmentStatus
+                : 'Seeking Employment'),
             employer: trainee?.employer || '',
             jobTitle: trainee?.jobTitle || '',
             dateHired: trainee?.dateHired || '',
@@ -2165,6 +2408,34 @@ export const TraineeProfileContent = ({ viewedProfileId = null, onBack = null })
             const publicUrl = urlData?.publicUrl;
             if (publicUrl) {
                 await updateTrainee(trainee.id, { bannerUrl: publicUrl });
+
+                // Also record the banner in student_documents table for central tracking
+                try {
+                    const { data: existing } = await supabase
+                        .from('student_documents')
+                        .select('id')
+                        .eq('student_id', trainee.id)
+                        .eq('label', 'Profile Banner')
+                        .maybeSingle();
+
+                    const docData = {
+                        student_id: trainee.id,
+                        category: 'document',
+                        label: 'Profile Banner',
+                        file_url: publicUrl,
+                        file_name: file.name,
+                        file_type: file.type || 'image/jpeg',
+                        uploaded_at: new Date().toISOString()
+                    };
+
+                    if (existing?.id) {
+                        await supabase.from('student_documents').update(docData).eq('id', existing.id);
+                    } else {
+                        await supabase.from('student_documents').insert(docData);
+                    }
+                } catch (dbErr) {
+                    console.warn('Silent failure saving banner to documents table:', dbErr);
+                }
             }
         } catch (err) {
             console.error('Banner upload error:', err);
@@ -2202,7 +2473,7 @@ export const TraineeProfileContent = ({ viewedProfileId = null, onBack = null })
     };
 
     const updateEduc = (idx, field, val) => { const arr = [...educHistory]; arr[idx][field] = val; setEducHistory(arr); };
-    const addEducObj = () => setEducHistory(prev => [{ school: '', degree: '', from: '', to: '' }, ...prev]);
+    const addEducObj = () => setEducHistory(prev => [...prev, { school: '', degree: '', from: '', to: '' }]);
     const removeEducIdx = (idx) => { setEducHistory(prev => prev.filter((_, i) => i !== idx)); };
     // eslint-disable-next-line no-unused-vars
     const saveEduc = async () => { if (!isOwnProfile) return; setSavingEduc(true); await updateTrainee(trainee.id, { educHistory }); setSavingEduc(false); };
@@ -2212,6 +2483,49 @@ export const TraineeProfileContent = ({ viewedProfileId = null, onBack = null })
     const removeWorkIdx = (idx) => { setWorkExperience(prev => prev.filter((_, i) => i !== idx)); };
     // eslint-disable-next-line no-unused-vars
     const saveWork = async () => { if (!isOwnProfile) return; setSavingWork(true); await updateTrainee(trainee.id, { workExperience }); setSavingWork(false); };
+
+    const loadResumeInfo = async () => {
+        if (!trainee?.id) return;
+        try {
+            const res = await fetch(`/api/documents/${trainee.id}`);
+            const data = await res.json();
+            if (data.success) {
+                const r = data.documents.find(d => d.category === 'document' && d.label === 'Resume');
+                if (r) {
+                    setResumeInfo(r);
+                } else if (data.registrationResumeUrl) {
+                    setResumeInfo({ file_url: data.registrationResumeUrl, file_name: 'Resume' });
+                } else {
+                    setResumeInfo(null);
+                }
+            }
+        } catch (err) {
+            console.error('Error loading resume info:', err);
+        }
+    };
+
+    const openApplyModal = async (job) => {
+        setApplyJob(job);
+        setApplicationMessage('');
+        await loadResumeInfo();
+    };
+
+    const handleSubmitApplication = async () => {
+        if (!applyJob) return;
+        setSubmittingApplication(true);
+        const r = await applyToJob(trainee?.id, applyJob.id, {
+            applicationMessage,
+            resumeUrl: resumeInfo?.file_url,
+            resumeName: resumeInfo?.file_name || 'Resume'
+        });
+        setSubmittingApplication(false);
+        if (!r.success) {
+            alert(r.error || 'Failed to submit application.');
+            return;
+        }
+        setApplyJob(null);
+        setApplicationMessage('');
+    };
 
     // Fetch documents on mount
     useEffect(() => {
@@ -2229,7 +2543,8 @@ export const TraineeProfileContent = ({ viewedProfileId = null, onBack = null })
                         } else if (data.registrationResumeUrl) {
                             setResume({ file_url: data.registrationResumeUrl, file_name: 'Resume', label: 'Resume', category: 'document' });
                         }
-                        setDocuments(data.documents.filter(d => d.label !== 'Resume'));
+                        // Filter out both Resume and Profile Banner from the main documents list
+                        setDocuments((data.documents || []).filter(d => d.label !== 'Resume' && d.label !== 'Profile Banner'));
                     }
                 })
                 .catch(err => console.error('Fetch docs error:', err));
@@ -2401,7 +2716,7 @@ export const TraineeProfileContent = ({ viewedProfileId = null, onBack = null })
                 });
                 const result = await res.json();
                 if (result.success) {
-                    setDocuments(prev => [result.document, ...prev]);
+                    setDocuments(prev => Array.isArray(prev) ? [result.document, ...prev] : [result.document]);
                     setDocLabel('');
                     setDocFile(null);
                     setShowUploadForm(false);
@@ -2426,7 +2741,7 @@ export const TraineeProfileContent = ({ viewedProfileId = null, onBack = null })
             const res = await fetch(`/api/documents/${docId}`, { method: 'DELETE' });
             const result = await res.json();
             if (result.success) {
-                setDocuments(prev => prev.filter(d => d.id !== docId));
+                setDocuments(prev => Array.isArray(prev) ? prev.filter(d => d.id !== docId) : []);
                 alert('Document successfully deleted.');
             } else {
                 alert(`Delete failed: ${result.error}`);
@@ -2438,9 +2753,14 @@ export const TraineeProfileContent = ({ viewedProfileId = null, onBack = null })
     };
 
     const statusColors = {
-        'Employed': '#057642',
-        'Not Employed': '#cc1016',
-        'Seeking Employment': '#0a66c2'
+        'Employed': '#057642',          // 🟢 green
+        'Seeking Employment': '#0a66c2', // 🔵 blue
+        'Certified': '#7c3aed',          // 🟣 purple
+        'Seeking OJT': '#ea580c',        // 🟠 true orange
+        'OJT In Progress': '#ca8a04',    // 🟡 yellow
+        // Legacy fallbacks
+        'Not Employed': '#0a66c2',
+        'Unemployed': '#0a66c2',
     };
     const visiblePersonalInfo = new Set(resolveTraineeVisibility(trainee));
     const showHeaderName = isOwnProfile || visiblePersonalInfo.has('name');
@@ -2589,7 +2909,8 @@ export const TraineeProfileContent = ({ viewedProfileId = null, onBack = null })
                 {/* Banner Background with Upload */}
                 <div className="ln-profile-header-banner" style={{
                     height: 160,
-                    background: trainee?.bannerUrl ? `url(${trainee.bannerUrl})` : '#f3f2ef',
+                    backgroundImage: trainee?.bannerUrl ? `url(${trainee.bannerUrl})` : 'none',
+                    backgroundColor: trainee?.bannerUrl ? 'transparent' : '#f3f2ef',
                     backgroundSize: 'cover',
                     backgroundPosition: 'center',
                     borderBottom: '1px solid #e2e8f0',
@@ -2644,10 +2965,10 @@ export const TraineeProfileContent = ({ viewedProfileId = null, onBack = null })
                                     {showHeaderName ? trainee?.name : 'Trainee'}
                                     {trainee?.employmentStatus && (
                                         <span className="ln-badge" style={{
-                                            background: statusColors[trainee.employmentStatus === 'Not Employed' ? 'Not Employed' : trainee.employmentStatus] || '#0a66c2',
+                                            background: statusColors[trainee.employmentStatus] || '#0a66c2',
                                             color: 'white', fontSize: 11, padding: '2px 10px', borderRadius: 12, fontWeight: 700
                                         }}>
-                                            {trainee.employmentStatus === 'Not Employed' ? 'Seeking Employment' : trainee.employmentStatus}
+                                            {trainee.employmentStatus}
                                         </span>
                                     )}
                                 </h1>
@@ -2707,7 +3028,7 @@ export const TraineeProfileContent = ({ viewedProfileId = null, onBack = null })
             </div>
 
             <div className="ln-profile-tabs" style={{ display: 'flex', gap: 24, padding: '0 16px', marginBottom: 16, borderBottom: '1px solid #e2e8f0', background: 'white' }}>
-                {['About', 'Training', 'Applications', 'Saved'].map(tab => (
+                {(isEmployer ? ['About', 'Training'] : ['About', 'Training', 'Match Insights', 'Saved']).map(tab => (
                     <button
                         key={tab}
                         type="button"
@@ -2737,10 +3058,40 @@ export const TraineeProfileContent = ({ viewedProfileId = null, onBack = null })
                 ))}
             </div>
 
-            <div className="ln-profile-two-col">
+            <div className="ln-profile-single-col">
                 <div className="ln-profile-main">
-                    {activeTab === 'About' && (
+            {activeTab === 'About' && (
                         <React.Fragment>
+                            {/* Professional Summary / Bio */}
+                            <div className="ln-card">
+                                <div className="ln-section-header">
+                                    <h3>Professional Summary</h3>
+                                </div>
+                                <div style={{ padding: '0 20px 20px' }}>
+                                    {editing ? (
+                                        <textarea
+                                            className="form-input"
+                                            placeholder="Share a brief overview of your professional background, skills, and career goals..."
+                                            rows={4}
+                                            value={form.bio || ''}
+                                            onChange={e => setForm({ ...form, bio: e.target.value })}
+                                            style={{ resize: 'vertical', fontSize: 14 }}
+                                        />
+                                    ) : (
+                                        <div style={{
+                                            fontSize: 14.5,
+                                            color: trainee?.bio ? '#1e293b' : '#64748b',
+                                            lineHeight: 1.6,
+                                            whiteSpace: 'pre-wrap',
+                                            fontStyle: trainee?.bio ? 'normal' : 'italic'
+                                        }}>
+                                            {trainee?.bio || (isOwnProfile ? "No professional summary added yet. Click 'Edit Profile' to add one." : "No professional summary provided.")}
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+
+
                             {/* Personal Information Section */}
                             <div className="ln-card">
                                 <div className="ln-section-header"><h3>Personal Information</h3></div>
@@ -2792,19 +3143,23 @@ export const TraineeProfileContent = ({ viewedProfileId = null, onBack = null })
                                 </div>
                             </div>
 
-                            {/* Employment Status Section */}
+                            {/* Career Status Section */}
                             <div className="ln-card">
-                                <div className="ln-section-header"><h3>Employment Status</h3></div>
+                                <div className="ln-section-header"><h3>Career Status</h3></div>
                                 <div className="ln-info-grid">
                                     <div className="ln-info-item">
                                         <label className="ln-info-label">Status</label>
                                         {editing ? (
                                             <select className="form-select" value={empForm.employmentStatus} onChange={e => setEmpForm({ ...empForm, employmentStatus: e.target.value })}>
-                                                {['Employed', 'Not Employed', 'Seeking Employment'].map(s => <option key={s}>{s}</option>)}
+                                                <option value="Employed">🟢 Employed</option>
+                                                <option value="Seeking Employment">🔵 Seeking Employment</option>
+                                                <option value="Certified">🟣 Certified</option>
+                                                <option value="Seeking OJT">🟠 Seeking OJT</option>
+                                                <option value="OJT In Progress">🟡 OJT In Progress</option>
                                             </select>
                                         ) : (
-                                            <span className={`ln-badge ${statusColors[trainee?.employmentStatus] === '#057642' ? 'ln-badge-green' : statusColors[trainee?.employmentStatus] === '#cc1016' ? 'ln-badge-red' : 'ln-badge-blue'}`} style={{ fontSize: 13 }}>
-                                                {trainee?.employmentStatus || 'Unemployed'}
+                                            <span className="ln-badge" style={{ fontSize: 13, background: statusColors[trainee?.employmentStatus] || '#0a66c2', color: 'white' }}>
+                                                {trainee?.employmentStatus || 'Seeking Employment'}
                                             </span>
                                         )}
                                     </div>
@@ -2843,7 +3198,7 @@ export const TraineeProfileContent = ({ viewedProfileId = null, onBack = null })
                                                         <div style={{ width: 40, height: 40, borderRadius: 8, background: '#f8fafc', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1px solid #e2e8f0' }}>
                                                             <GraduationCap size={20} color="#64748b" />
                                                         </div>
-                                                        <h4 style={{ margin: 0, fontSize: 13, color: '#475569', fontWeight: 600 }}>{editing ? `Education Entry #${educHistory.length - i}` : 'Education Entry'}</h4>
+                                                        <h4 style={{ margin: 0, fontSize: 13, color: '#475569', fontWeight: 600 }}>{editing ? `Education Entry #${i + 1}` : 'Education Entry'}</h4>
                                                     </div>
                                                     {editing && <button type="button" className="ln-link-btn" style={{ color: '#cc1016', fontSize: 12, padding: 0 }} onClick={(e) => { e.preventDefault(); showConfirm('Are you sure you want to remove this educational history?', () => removeEducIdx(i)); }}><Trash2 size={13} /> Remove</button>}
                                                 </div>
@@ -2859,11 +3214,11 @@ export const TraineeProfileContent = ({ viewedProfileId = null, onBack = null })
                                                         </div>
                                                         <div className="ln-info-item">
                                                             <label className="ln-info-label" style={{ fontWeight: 700 }}>Year From{editing && <span style={{ color: '#cc1016', marginLeft: 4 }}>*</span>}</label>
-                                                            {editing ? <input type="number" min="1950" max="2099" required className="form-input" placeholder="YYYY" value={edu.from || ''} onChange={e => updateEduc(i, 'from', e.target.value)} /> : <div className="ln-info-value" style={{ fontSize: 13, color: '#64748b' }}>{edu.from ? `Started in ${edu.from}` : '—'}</div>}
+                                                            {editing ? <input type="number" min="1950" max="2099" required className="form-input" placeholder="YYYY" maxLength={4} onInput={e => { if (e.target.value.length > 4) e.target.value = e.target.value.slice(0, 4); }} value={edu.from || ''} onChange={e => updateEduc(i, 'from', e.target.value)} /> : <div className="ln-info-value" style={{ fontSize: 13, color: '#64748b' }}>{edu.from ? `Started in ${edu.from}` : '—'}</div>}
                                                         </div>
                                                         <div className="ln-info-item">
                                                             <label className="ln-info-label" style={{ fontWeight: 700 }}>Year To (or expected){editing && <span style={{ color: '#cc1016', marginLeft: 4 }}>*</span>}</label>
-                                                            {editing ? <input type="number" min="1950" max="2099" required className="form-input" placeholder="YYYY" value={edu.to || ''} onChange={e => updateEduc(i, 'to', e.target.value)} /> : <div className="ln-info-value" style={{ fontSize: 13, color: '#64748b' }}>{edu.to ? `Graduated in ${edu.to}` : '—'}</div>}
+                                                            {editing ? <input type="number" min="1950" max="2099" required className="form-input" placeholder="YYYY" maxLength={4} onInput={e => { if (e.target.value.length > 4) e.target.value = e.target.value.slice(0, 4); }} value={edu.to || ''} onChange={e => updateEduc(i, 'to', e.target.value)} /> : <div className="ln-info-value" style={{ fontSize: 13, color: '#64748b' }}>{edu.to ? `Graduated in ${edu.to}` : '—'}</div>}
                                                         </div>
                                                     </div>
                                                 </div>
@@ -2957,6 +3312,13 @@ export const TraineeProfileContent = ({ viewedProfileId = null, onBack = null })
                                             {showAllWork ? 'See Less' : `See More (${workExperience.length - 1} more)`}
                                         </button>
                                     )}
+                                    {!editing && workExperience.length === 0 && (
+                  <EmptyState 
+                    illustration={BriefcaseIllustration}
+                    title="No work experience yet"
+                    description="Adding your past roles and internships helps partners understand your professional background."
+                  />
+                )}
                                 </div>
                             </div>
 
@@ -3008,7 +3370,7 @@ export const TraineeProfileContent = ({ viewedProfileId = null, onBack = null })
                                                         </div>
                                                         <div>
                                                             <label style={{ fontSize: 11, fontWeight: 700, color: '#64748b', display: 'block', marginBottom: 4 }}>Year</label>
-                                                            <input type="number" className="form-input" placeholder="YYYY" value={t.year || ''} onChange={e => updateTraining(i, 'year', e.target.value)} />
+                                                            <input type="number" min="1950" max="2099" className="form-input" placeholder="YYYY" maxLength={4} onInput={e => { if (e.target.value.length > 4) e.target.value = e.target.value.slice(0, 4); }} value={t.year || ''} onChange={e => updateTraining(i, 'year', e.target.value)} />
                                                         </div>
                                                     </div>
 
@@ -3060,19 +3422,137 @@ export const TraineeProfileContent = ({ viewedProfileId = null, onBack = null })
                                         {editing && <button type="button" onClick={() => removeTrainingIdx(i)} style={{ marginLeft: 16, background: 'none', border: 'none', color: '#cc1016', cursor: 'pointer' }}><Trash2 size={16} /></button>}
                                     </div>
                                 ))}
-                                {!editing && trainings.length === 0 && <div className="ln-empty-widget" style={{ padding: 20 }}><Award size={28} style={{ opacity: 0.3 }} /><p>No training programs listed yet.</p></div>}
+                                {!editing && trainings.length === 0 && (
+                  <EmptyState 
+                    illustration={TrophyIllustration}
+                    title="No achievements yet"
+                    description="Start adding your TESDA trainings, certifications, and awards to showcase your expertise."
+                  />
+                )}
                             </div>
                         </div>
                     )}
 
-                    {/* Applications Tab */}
-                    {activeTab === 'Applications' && (
-                        <div className="ln-card">
-                            <div className="ln-section-header"><h3>Application Status Tracker</h3></div>
-                            <div style={{ padding: '0 24px 24px' }}>
-                                <ApplicationTimeline traineeId={trainee.id} />
+                    {/* Match Insights Tab */}
+                    {activeTab === 'Match Insights' && (
+                        <React.Fragment>
+                            {/* Profile Strength Score */}
+                            <div className="ln-card" style={{ marginBottom: 16 }}>
+                                <div className="ln-section-header"><h3>Profile Strength</h3></div>
+                                <div style={{ padding: '0 24px 24px' }}>
+                                    {(() => {
+                                        const checks = [
+                                            { label: 'Profile Photo', done: Boolean(trainee?.photo) },
+                                            { label: 'Bio / About Me', done: Boolean(trainee?.bio && trainee.bio.trim().length > 10) },
+                                            { label: 'Skills (3+)', done: (trainee?.skills || []).length >= 3 },
+                                            { label: 'Education History', done: (trainee?.educHistory || []).length > 0 },
+                                            { label: 'Work Experience', done: (trainee?.workExperience || []).length > 0 },
+                                            { label: 'Training / Program', done: Boolean(trainee?.program) },
+                                            { label: 'Contact Info (Email)', done: Boolean(trainee?.email) },
+                                            { label: 'Interests (2+)', done: (trainee?.interests || []).length >= 2 },
+                                        ];
+                                        const score = Math.round((checks.filter(c => c.done).length / checks.length) * 100);
+                                        const color = score >= 80 ? '#057642' : score >= 50 ? '#d97706' : '#dc2626';
+                                        const label = score >= 80 ? 'Strong' : score >= 50 ? 'Moderate' : 'Needs Improvement';
+                                        return (
+                                            <div>
+                                                <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 20 }}>
+                                                    <div style={{
+                                                        width: 80, height: 80, borderRadius: '50%',
+                                                        background: `conic-gradient(${color} ${score * 3.6}deg, #e2e8f0 0deg)`,
+                                                        display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0
+                                                    }}>
+                                                        <div style={{ width: 60, height: 60, borderRadius: '50%', background: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, fontSize: 20, color }}>
+                                                            {score}%
+                                                        </div>
+                                                    </div>
+                                                    <div>
+                                                        <div style={{ fontSize: 18, fontWeight: 700, color: '#0f172a' }}>{label}</div>
+                                                        <div style={{ fontSize: 13, color: '#64748b', marginTop: 2 }}>Complete your profile to improve your match rate with recruiters.</div>
+                                                    </div>
+                                                </div>
+                                                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                                                    {checks.map((c, i) => (
+                                                        <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 12px', borderRadius: 8, background: c.done ? '#f0fdf4' : '#fef2f2' }}>
+                                                            <CheckCircle size={16} color={c.done ? '#057642' : '#d1d5db'} />
+                                                            <span style={{ fontSize: 13, fontWeight: 500, color: c.done ? '#166534' : '#991b1b' }}>{c.label}</span>
+                                                            {!c.done && <span style={{ marginLeft: 'auto', fontSize: 11, color: '#dc2626', fontWeight: 600 }}>Missing</span>}
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        );
+                                    })()}
+                                </div>
                             </div>
-                        </div>
+
+                            {/* Skills vs. Demand */}
+                            <div className="ln-card">
+                                <div className="ln-section-header"><h3>Skills vs. Industry Demand</h3></div>
+                                <div style={{ padding: '0 24px 24px' }}>
+                                    <div style={{ fontSize: 13, color: '#64748b', marginBottom: 16 }}>
+                                        See how your skills compare to the most in-demand competencies from current job postings.
+                                    </div>
+                                    {(() => {
+                                        const mySkills = (trainee?.skills || []).map(s => String(s).toLowerCase().trim());
+                                        // Build demand from getSkillsDemand context function
+                                        const demandData = getSkillsDemand();
+                                        const demandMap = {};
+                                        demandData.forEach(d => {
+                                            demandMap[String(d.skill).toLowerCase().trim()] = d.count;
+                                        });
+                                        // Merge with trainee skills
+                                        mySkills.forEach(s => { if (!demandMap[s]) demandMap[s] = 0; });
+                                        const allSkills = Object.entries(demandMap)
+                                            .sort((a, b) => b[1] - a[1])
+                                            .slice(0, 12);
+                                        const maxCount = Math.max(1, ...allSkills.map(([, c]) => c));
+
+                                        if (allSkills.length === 0) {
+                                            return (
+                                                <div className="ln-empty-widget" style={{ padding: 24 }}>
+                                                    <Award size={32} style={{ opacity: 0.25 }} />
+                                                    <p>Add skills to your profile to see how they match with industry demand.</p>
+                                                </div>
+                                            );
+                                        }
+
+                                        return (
+                                            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                                                {allSkills.map(([skill, count]) => {
+                                                    const hasSkill = mySkills.includes(skill);
+                                                    const pct = Math.round((count / maxCount) * 100);
+                                                    return (
+                                                        <div key={skill}>
+                                                            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+                                                                <span style={{ fontSize: 13, fontWeight: 600, color: '#1e293b', textTransform: 'capitalize', display: 'flex', alignItems: 'center', gap: 6 }}>
+                                                                    {skill}
+                                                                    {hasSkill && <CheckCircle size={13} color="#057642" />}
+                                                                </span>
+                                                                <span style={{ fontSize: 11, color: '#64748b' }}>{count > 0 ? `${count} posting${count === 1 ? '' : 's'}` : 'Not in demand'}</span>
+                                                            </div>
+                                                            <div style={{ height: 8, background: '#e2e8f0', borderRadius: 4, overflow: 'hidden' }}>
+                                                                <div style={{
+                                                                    height: '100%',
+                                                                    width: `${pct}%`,
+                                                                    background: hasSkill ? 'linear-gradient(90deg, #0a66c2, #057642)' : '#94a3b8',
+                                                                    borderRadius: 4,
+                                                                    transition: 'width 0.5s ease'
+                                                                }} />
+                                                            </div>
+                                                        </div>
+                                                    );
+                                                })}
+                                                <div style={{ marginTop: 12, display: 'flex', gap: 16, fontSize: 12, color: '#64748b' }}>
+                                                    <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}><div style={{ width: 12, height: 8, borderRadius: 2, background: 'linear-gradient(90deg, #0a66c2, #057642)' }} /> Your Skill + In Demand</span>
+                                                    <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}><div style={{ width: 12, height: 8, borderRadius: 2, background: '#94a3b8' }} /> In Demand (not on your profile)</span>
+                                                </div>
+                                            </div>
+                                        );
+                                    })()}
+                                </div>
+                            </div>
+                        </React.Fragment>
                     )}
 
                     {/* Saved Tab */}
@@ -3080,228 +3560,369 @@ export const TraineeProfileContent = ({ viewedProfileId = null, onBack = null })
                         <div className="ln-card">
                             <div className="ln-section-header"><h3>Saved Opportunities</h3></div>
                             <div style={{ padding: '0 20px 20px' }}>
-                                <SavedOpportunitiesView traineeId={trainee.id} savedIds={trainee.savedOpportunities || []} />
+                                <SavedOpportunitiesView
+                                    traineeId={trainee.id}
+                                    savedIds={trainee.savedOpportunities || []}
+                                    onApply={openApplyModal}
+                                />
                             </div>
                         </div>
                     )}
                 </div> {/* ln-profile-main */}
-
-                <div className="ln-profile-sidebar">
-                    {/* Skills Section (editable) */}
-                    <div className="ln-card">
-                        <div className="ln-section-header"><h3>Skills</h3></div>
-                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 12, padding: '0 16px' }}>
-                            {(form.skills || []).length > 0 ? (form.skills || []).map((skill, i) => (
-                                <span key={i} style={{
-                                    display: 'inline-flex', alignItems: 'center', gap: 6,
-                                    padding: '6px 12px', background: '#dbeafe', color: '#1e3a5f',
-                                    borderRadius: 20, fontSize: 13, fontWeight: 600
-                                }}>
-                                    {typeof skill === 'string' ? skill : JSON.stringify(skill)}
-                                    {isOwnProfile && editing && <button type="button" onClick={() => removeSkill(skill)} style={{
-                                        background: 'none', border: 'none', cursor: 'pointer',
-                                        padding: 0, display: 'flex', color: '#64748b'
-                                    }}><X size={14} /></button>}
-                                </span>
-                            )) : <div className="ln-empty-widget" style={{ padding: 16, width: '100%' }}><p style={{ margin: 0 }}>No skills added yet</p></div>}
-                        </div>
-                        {isOwnProfile && editing && recommendationBubbles.skills.length > 0 && (
-                            <div style={{ padding: '0 16px 12px' }}>
-                                <div className="ln-info-label" style={{ marginBottom: 8 }}>Suggested Skills</div>
-                                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-                                    {recommendationBubbles.skills.map((item) => (
-                                        <button
-                                            key={`skill-suggestion-${item.label}`}
-                                            type="button"
-                                            className="ln-btn-sm ln-btn-outline"
-                                            onClick={() => addRecommendedSkill(item.label)}
-                                            title="Suggested as skill"
-                                        >
-                                            <Plus size={12} /> {item.label}
-                                        </button>
-                                    ))}
-                                </div>
-                            </div>
-                        )}
-                        {isOwnProfile && editing && (
-                            <div style={{ display: 'flex', gap: 8, padding: '0 16px 16px' }}>
-                                <input
-                                    type="text" className="form-input" placeholder="Add a skill..."
-                                    value={newSkill} onChange={e => setNewSkill(e.target.value)}
-                                    maxLength={30}
-                                    onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addSkill(); } }}
-                                    style={{ flex: 1, fontSize: 13 }}
-                                />
-                                <button type="button" className="ln-btn-sm ln-btn-primary" onClick={addSkill} disabled={!newSkill.trim()}>
-                                    <Plus size={14} />
-                                </button>
-                            </div>
-                        )}
-                    </div>
-
-                    {/* Interests Section (editable word cloud) */}
-                    <div className="ln-card">
-                        <div className="ln-section-header"><h3>Interests</h3></div>
-                        <div style={{
-                            display: 'flex', flexWrap: 'wrap', gap: 10, justifyContent: 'center', alignItems: 'center',
-                            padding: 20, margin: '0 16px 12px', background: '#f8fafc', borderRadius: 12, border: '1px solid #e2e8f0', minHeight: 80
-                        }}>
-                            {interestsList.length > 0 ? interestsList.map((interest, i) => {
-                                const sizes = [14, 17, 20, 15, 18];
-                                const colors = ['#0a66c2', '#7c3aed', '#057642', '#b24020', '#1e3a5f'];
-                                return (
-                                    <span key={i} className="ln-interest-word" onClick={() => { if (isOwnProfile && editing) removeInterest(interest); }} style={{
-                                        display: 'inline-flex', alignItems: 'center',
-                                        fontSize: sizes[i % sizes.length],
-                                        fontWeight: 600 + (i % 3) * 100,
-                                        color: colors[i % colors.length],
-                                        padding: '4px 10px',
-                                        cursor: (isOwnProfile && editing) ? 'pointer' : 'default',
-                                    }}>
-                                        {interest}
-                                    </span>
-                                );
-                            }) : <div className="ln-empty-widget" style={{ padding: 16, width: '100%' }}><p style={{ margin: 0 }}>No interests added yet</p></div>}
-                        </div>
-                        {isOwnProfile && editing && recommendationBubbles.interests.length > 0 && (
-                            <div style={{ padding: '0 16px 12px' }}>
-                                <div className="ln-info-label" style={{ marginBottom: 8 }}>Suggested Interests</div>
-                                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-                                    {recommendationBubbles.interests.map((item) => (
-                                        <button
-                                            key={`interest-suggestion-${item.label}`}
-                                            type="button"
-                                            className="ln-btn-sm ln-btn-outline"
-                                            onClick={() => addRecommendedInterest(item.label)}
-                                            title="Suggested as interest"
-                                        >
-                                            <Plus size={12} /> {item.label}
-                                        </button>
-                                    ))}
-                                </div>
-                            </div>
-                        )}
-                        {isOwnProfile && editing && (
-                            <div style={{ display: 'flex', gap: 8, padding: '0 16px 16px' }}>
-                                <input
-                                    type="text" className="form-input" placeholder="Add an interest..."
-                                    value={newInterest} onChange={e => setNewInterest(e.target.value)}
-                                    maxLength={30}
-                                    onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addInterest(); } }}
-                                    style={{ flex: 1, fontSize: 13 }}
-                                />
-                                <button type="button" className="ln-btn-sm ln-btn-primary" onClick={addInterest} disabled={!newInterest.trim()}>
-                                    <Plus size={14} />
-                                </button>
-                            </div>
-                        )}
-                    </div>
-
-                    {/* Documents Section (real uploads) */}
-                    <div className="ln-card">
-                        <div className="ln-section-header">
-                            <h3>Documents</h3>
-                            {isOwnProfile && editing && (
-                                <button type="button" className="ln-btn-sm ln-btn-primary" onClick={() => setShowUploadForm(!showUploadForm)}>
-                                    {showUploadForm ? <><X size={12} /> Cancel</> : <><Plus size={12} /> Add</>}
-                                </button>
-                            )}
+                {/* ── Section Group: More About Me ──────────────── */}
+                {activeTab === 'About' && (
+                    <React.Fragment>
+                        <div className="ln-section-group-divider">
+                            <span>More About Me</span>
                         </div>
 
-                        {isOwnProfile && editing && showUploadForm && (
-                            <div style={{ marginBottom: 16, padding: 16, background: '#f8fafc', borderRadius: 10, border: '1px solid #e2e8f0' }}>
-                                <div style={{ marginBottom: 10 }}>
-                                    <label className="ln-info-label" style={{ marginBottom: 4, display: 'block' }}>Document Label <span style={{ color: '#cc1016' }}>*</span></label>
-                                    <input type="text" required className="form-input" placeholder="e.g. Resume, Diploma, TOR..." maxLength={40} value={docLabel} onChange={e => setDocLabel(e.target.value)} style={{ fontSize: 13 }} />
+                        {/* Skills + Interests: 2-up side-by-side grid */}
+                        <div className="ln-skills-interests-row">
+                            {/* Skills */}
+                            <div className="ln-card">
+                                <div className="ln-section-header"><h3>Skills</h3></div>
+                                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 12, padding: '0 16px' }}>
+                                    {(form.skills || []).length > 0 ? (form.skills || []).map((skill, i) => (
+                                        <span key={i} style={{
+                                            display: 'inline-flex', alignItems: 'center', gap: 6,
+                                            padding: '6px 12px', background: '#dbeafe', color: '#1e3a5f',
+                                            borderRadius: 20, fontSize: 13, fontWeight: 600
+                                        }}>
+                                            {typeof skill === 'string' ? skill : JSON.stringify(skill)}
+                                            {isOwnProfile && editing && <button type="button" onClick={() => removeSkill(skill)} style={{
+                                                background: 'none', border: 'none', cursor: 'pointer',
+                                                padding: 0, display: 'flex', color: '#64748b'
+                                            }}><X size={14} /></button>}
+                                        </span>
+                                    )) : (
+                      <div style={{ width: '100%' }}>
+                        <EmptyState 
+                          illustration={StarIllustration}
+                          title="No skills added"
+                          description="List your technical and soft skills to help partners find the right match for their needs."
+                        />
+                      </div>
+                    )}
                                 </div>
-                                <div style={{ marginBottom: 10 }}>
-                                    <label className="ln-info-label" style={{ marginBottom: 4, display: 'block' }}>File (PDF, DOC, DOCX only) <span style={{ color: '#cc1016' }}>*</span></label>
-                                    <input
-                                        ref={fileInputRef}
-                                        type="file"
-                                        required accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-                                        onChange={e => setDocFile(e.target.files[0] || null)}
-                                        style={{ fontSize: 13 }}
-                                    />
-                                </div>
-                                <button type="button" className="ln-btn-sm ln-btn-success" onClick={handleDocUpload} disabled={uploading || !docFile || !docLabel.trim()} style={{ width: '100%' }}>
-                                    {uploading ? 'Uploading...' : <><Upload size={12} /> Upload Document</>}
-                                </button>
-                            </div>
-                        )}
-
-                        {documents.length > 0 ? documents.map(doc => (
-                            <div key={doc.id} className="ln-doc-item">
-                                <div className="ln-doc-info">
-                                    <FileText size={16} color="rgba(0,0,0,0.5)" />
-                                    <div>
-                                        <span style={{ fontWeight: 600, fontSize: 13 }}>{doc.label}</span>
-                                        <div style={{ fontSize: 11, color: 'rgba(0,0,0,0.4)' }}>{doc.file_name}</div>
+                                {isOwnProfile && editing && recommendationBubbles.skills.length > 0 && (
+                                    <div style={{ padding: '0 16px 12px' }}>
+                                        <div className="ln-info-label" style={{ marginBottom: 8 }}>Suggested Skills</div>
+                                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                                            {recommendationBubbles.skills.map((item) => (
+                                                <button key={`skill-suggestion-${item.label}`} type="button" className="ln-btn-sm ln-btn-outline" onClick={() => addRecommendedSkill(item.label)} title="Suggested as skill">
+                                                    <Plus size={12} /> {item.label}
+                                                </button>
+                                            ))}
+                                        </div>
                                     </div>
-                                </div>
-                                <div style={{ display: 'flex', gap: 6 }}>
-                                    <a href={doc.file_url} target="_blank" rel="noreferrer" className="ln-btn-sm ln-btn-outline">
-                                        {doc.category === 'link' ? <ExternalLink size={12} /> : <Eye size={12} />}
-                                        {doc.category === 'link' ? 'Open Link' : 'View'}
-                                    </a>
-                                    {isOwnProfile && editing && <button type="button" className="ln-btn-sm ln-btn-outline" onClick={(e) => { e.preventDefault(); showConfirm('Are you sure you want to delete this?', () => deleteDoc(doc.id)); }} style={{ color: '#cc1016' }}><Trash2 size={12} /></button>}
-                                </div>
+                                )}
+                                {isOwnProfile && editing && (
+                                    <div style={{ display: 'flex', gap: 8, padding: '0 16px 16px' }}>
+                                        <input type="text" className="form-input" placeholder="Add a skill..." value={newSkill} onChange={e => setNewSkill(e.target.value)} maxLength={30} onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addSkill(); } }} style={{ flex: 1, fontSize: 13 }} />
+                                        <button type="button" className="ln-btn-sm ln-btn-primary" onClick={addSkill} disabled={!newSkill.trim()}><Plus size={14} /></button>
+                                    </div>
+                                )}
                             </div>
-                        )) : !showUploadForm ? (
-                            <div className="ln-empty-widget" style={{ padding: 20 }}>
-                                <FileText size={28} style={{ opacity: 0.3 }} />
-                                <p>No documents or links added yet</p>
-                            </div>
-                        ) : null}
 
-                        {/* Link Addition Section */}
-                        {isOwnProfile && editing && (
-                            <div style={{ borderTop: '1px solid #e2e8f0', paddingTop: 16, marginTop: 8 }}>
-                                <div className="ln-info-label" style={{ marginBottom: 12, display: 'flex', alignItems: 'center', gap: 6 }}>
-                                    <Link size={14} /> Social & Portfolio Links
+                            {/* Interests */}
+                            <div className="ln-card">
+                                <div className="ln-section-header"><h3>Interests</h3></div>
+                                <div style={{
+                                    display: 'flex', flexWrap: 'wrap', gap: 10, justifyContent: 'center', alignItems: 'center',
+                                    padding: 20, margin: '0 16px 12px', background: '#f8fafc', borderRadius: 12, border: '1px solid #e2e8f0', minHeight: 80
+                                }}>
+                                    {interestsList.length > 0 ? interestsList.map((interest, i) => {
+                                        const sizes = [14, 17, 20, 15, 18];
+                                        const colors = ['#0a66c2', '#7c3aed', '#057642', '#b24020', '#1e3a5f'];
+                                        return (
+                                            <span key={i} className="ln-interest-word" onClick={() => { if (isOwnProfile && editing) removeInterest(interest); }} style={{
+                                                display: 'inline-flex', alignItems: 'center',
+                                                fontSize: sizes[i % sizes.length],
+                                                fontWeight: 600 + (i % 3) * 100,
+                                                color: colors[i % colors.length],
+                                                padding: '4px 10px',
+                                                cursor: (isOwnProfile && editing) ? 'pointer' : 'default',
+                                            }}>
+                                                {interest}
+                                            </span>
+                                        );
+                                    }) : (
+                      <div style={{ width: '100%' }}>
+                        <EmptyState 
+                          illustration={Heart}
+                          title="No interests listed"
+                          description="Share what drives you! Interests help partners see your passion and cultural fit."
+                        />
+                      </div>
+                    )}
                                 </div>
-                                <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
-                                    <input
-                                        type="text" className="form-input" placeholder="Title (e.g. Portfolio, GitHub...)"
-                                        value={docLabel} onChange={e => setDocLabel(e.target.value)}
-                                        style={{ fontSize: 13, flex: 1 }}
-                                    />
-                                    <input
-                                        type="url" className="form-input" placeholder="URL (https://...)"
-                                        onChange={e => setDocFile(e.target.value)}
-                                        style={{ fontSize: 13, flex: 2 }}
-                                    />
-                                    <button type="button" className="ln-btn-sm ln-btn-primary" onClick={async () => {
-                                        if (!docLabel.trim() || !docFile) return;
-                                        setUploading(true);
-                                        const res = await fetch(`/api/documents/upload`, {
-                                            method: 'POST',
-                                            headers: { 'Content-Type': 'application/json' },
-                                            body: JSON.stringify({
-                                                traineeId: trainee.id,
-                                                label: docLabel.trim(),
-                                                fileName: 'Link',
-                                                fileType: 'link',
-                                                fileData: docFile, // Use URL as fileData for links
-                                                category: 'link'
-                                            }),
-                                        });
-                                        const result = await res.json();
-                                        if (result.success) {
-                                            setDocuments(prev => [result.document, ...prev]);
-                                            setDocLabel('');
-                                            setDocFile(null);
-                                        }
-                                        setUploading(false);
-                                    }} disabled={uploading || !docLabel.trim() || !docFile}>
-                                        <Plus size={14} />
+                                {isOwnProfile && editing && recommendationBubbles.interests.length > 0 && (
+                                    <div style={{ padding: '0 16px 12px' }}>
+                                        <div className="ln-info-label" style={{ marginBottom: 8 }}>Suggested Interests</div>
+                                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                                            {recommendationBubbles.interests.map((item) => (
+                                                <button key={`interest-suggestion-${item.label}`} type="button" className="ln-btn-sm ln-btn-outline" onClick={() => addRecommendedInterest(item.label)} title="Suggested as interest">
+                                                    <Plus size={12} /> {item.label}
+                                                </button>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
+                                {isOwnProfile && editing && (
+                                    <div style={{ display: 'flex', gap: 8, padding: '0 16px 16px' }}>
+                                        <input type="text" className="form-input" placeholder="Add an interest..." value={newInterest} onChange={e => setNewInterest(e.target.value)} maxLength={30} onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addInterest(); } }} style={{ flex: 1, fontSize: 13 }} />
+                                        <button type="button" className="ln-btn-sm ln-btn-primary" onClick={addInterest} disabled={!newInterest.trim()}><Plus size={14} /></button>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+
+                        {/* Documents */}
+                        <div className="ln-card">
+                            <div className="ln-section-header">
+                                <h3>Documents</h3>
+                                {isOwnProfile && editing && (
+                                    <button type="button" className="ln-btn-sm ln-btn-primary" onClick={() => setShowUploadForm(!showUploadForm)}>
+                                        {showUploadForm ? <><X size={12} /> Cancel</> : <><Plus size={12} /> Add</>}
+                                    </button>
+                                )}
+                            </div>
+
+                            {isOwnProfile && editing && showUploadForm && (
+                                <div style={{ marginBottom: 16, padding: 16, background: '#f8fafc', borderRadius: 10, border: '1px solid #e2e8f0' }}>
+                                    <div style={{ marginBottom: 10 }}>
+                                        <label className="ln-info-label" style={{ marginBottom: 4, display: 'block' }}>Document Label <span style={{ color: '#cc1016' }}>*</span></label>
+                                        <input type="text" required className="form-input" placeholder="e.g. Resume, Diploma, TOR..." maxLength={40} value={docLabel} onChange={e => setDocLabel(e.target.value)} style={{ fontSize: 13 }} />
+                                    </div>
+                                    <div style={{ marginBottom: 10 }}>
+                                        <label className="ln-info-label" style={{ marginBottom: 4, display: 'block' }}>File (PDF, DOC, DOCX only) <span style={{ color: '#cc1016' }}>*</span></label>
+                                        <input ref={fileInputRef} type="file" required accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document" onChange={e => setDocFile(e.target.files[0] || null)} style={{ fontSize: 13 }} />
+                                    </div>
+                                    <button type="button" className="ln-btn-sm ln-btn-success" onClick={handleDocUpload} disabled={uploading || !docFile || !docLabel.trim()} style={{ width: '100%' }}>
+                                        {uploading ? 'Uploading...' : <><Upload size={12} /> Upload Document</>}
                                     </button>
                                 </div>
+                            )}
+
+                            {(function() {
+                                const fileDocs = (Array.isArray(documents) ? documents : []).filter(d => d.file_type !== 'link' && d.label !== 'Profile Banner');
+                                if (fileDocs.length > 0) {
+                                    return fileDocs.map(doc => (
+                                        <div key={doc.id} className="ln-doc-item">
+                                            <div className="ln-doc-info">
+                                                <div style={{ width: 32, height: 32, borderRadius: 6, background: 'rgba(0,0,0,0.03)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                                                    <FileText size={18} color="rgba(0,0,0,0.4)" />
+                                                </div>
+                                                <div className="ln-doc-text-wrap">
+                                                    <span className="ln-doc-label-text">{doc.label}</span>
+                                                    <span className="ln-doc-filename-text">{doc.file_name}</span>
+                                                </div>
+                                            </div>
+                                            <div className="ln-doc-actions">
+                                                <a href={doc.file_url} target="_blank" rel="noreferrer" className="ln-btn-sm ln-btn-outline" title="View Document">
+                                                    <Eye size={12} />
+                                                    <span style={{ marginLeft: 4 }}>View</span>
+                                                </a>
+                                                {isOwnProfile && editing && (
+                                                    <button
+                                                        type="button"
+                                                        className="ln-btn-sm ln-btn-outline"
+                                                        onClick={(e) => { e.preventDefault(); showConfirm('Are you sure you want to delete this document?', () => deleteDoc(doc.id)); }}
+                                                        style={{ color: '#cc1016', padding: '6px' }}
+                                                        title="Delete"
+                                                    >
+                                                        <Trash2 size={12} />
+                                                    </button>
+                                                )}
+                                            </div>
+                                        </div>
+                                    ));
+                                } else if (!showUploadForm) {
+                                    return (
+                                        <EmptyState
+                                            illustration={DocumentIllustration}
+                                            title="No documents yet"
+                                            description="Upload your certificates, resumes, or portfolios to provide more details about your work."
+                                        />
+                                    );
+                                }
+                                return null;
+                            })()}
+
+                            {/* Social & Portfolio Links — add form ONLY in edit mode */}
+                            {isOwnProfile && editing && (
+                                <div className="ln-social-links-edit">
+                                    <div className="ln-social-links-header">
+                                        <Link size={14} /> Social &amp; Portfolio Links
+                                    </div>
+                                    <div className="ln-social-links-row">
+                                        <div style={{ flex: 1, minWidth: 150 }}>
+                                            <input
+                                                type="text"
+                                                className="form-input"
+                                                placeholder="Title (e.g. Portfolio, GitHub...)"
+                                                value={linkTitle}
+                                                onChange={e => setLinkTitle(e.target.value)}
+                                                style={{ fontSize: 13 }}
+                                            />
+                                        </div>
+                                        <div className="ln-social-input-group">
+                                            <input
+                                                type="url"
+                                                className="form-input"
+                                                placeholder="URL (https://...)"
+                                                value={docLinkUrl}
+                                                onChange={e => setDocLinkUrl(e.target.value)}
+                                                style={{ fontSize: 13, flex: 1 }}
+                                            />
+                                            <button
+                                                type="button"
+                                                className="ln-btn-sm ln-btn-primary"
+                                                onClick={async () => {
+                                                    if (!linkTitle.trim() || !docLinkUrl.trim()) return;
+                                                    setUploading(true);
+                                                    try {
+                                                        const res = await fetch(`/api/documents/upload`, {
+                                                            method: 'POST',
+                                                            headers: { 'Content-Type': 'application/json' },
+                                                            body: JSON.stringify({
+                                                                traineeId: trainee.id,
+                                                                label: linkTitle.trim(),
+                                                                fileName: 'Link',
+                                                                fileType: 'link',
+                                                                fileData: docLinkUrl.trim(),
+                                                                category: 'link'
+                                                            }),
+                                                        });
+                                                        const result = await res.json();
+                                                        if (result.success) {
+                                                            setDocuments(prev => Array.isArray(prev) ? [result.document, ...prev] : [result.document]);
+                                                            setLinkTitle('');
+                                                            setDocLinkUrl('');
+                                                        } else {
+                                                            alert(result.error || 'Failed to add link');
+                                                        }
+                                                    } catch (err) {
+                                                        console.error('Link upload error:', err);
+                                                        alert('Error connecting to server');
+                                                    }
+                                                    setUploading(false);
+                                                }}
+                                                disabled={uploading || !linkTitle.trim() || !docLinkUrl.trim()}
+                                                style={{ width: 40, padding: 0, justifyContent: 'center' }}
+                                                title="Add Link"
+                                            >
+                                                <Plus size={18} />
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* Social & Portfolio Links list — always visible when links exist */}
+                            {(Array.isArray(documents) ? documents : []).filter(d => d.file_type === 'link').length > 0 && (
+                                <div className="ln-social-links-edit" style={editing ? {} : { borderTop: '1px solid #f1f5f9', marginTop: 12 }}>
+                                    {!editing && (
+                                        <div className="ln-social-links-header">
+                                            <Link size={14} /> Social &amp; Portfolio Links
+                                        </div>
+                                    )}
+                                    {(Array.isArray(documents) ? documents : []).filter(d => d.file_type === 'link').map(link => (
+                                        <div key={link.id} className="ln-doc-item" style={{ marginTop: 8 }}>
+                                            <div className="ln-doc-info">
+                                                <div style={{ width: 32, height: 32, borderRadius: 6, background: 'rgba(0,0,0,0.03)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                                                    <Link size={16} color="rgba(0,0,0,0.4)" />
+                                                </div>
+                                                <div className="ln-doc-text-wrap">
+                                                    <span className="ln-doc-label-text">{link.label}</span>
+                                                    <span className="ln-doc-filename-text" style={{ color: '#0a66c2', wordBreak: 'break-all' }}>{link.file_url}</span>
+                                                </div>
+                                            </div>
+                                            <div className="ln-doc-actions">
+                                                <a href={link.file_url} target="_blank" rel="noreferrer" className="ln-btn-sm ln-btn-outline" title="Open Link">
+                                                    <ExternalLink size={12} />
+                                                    <span style={{ marginLeft: 4 }}>Open</span>
+                                                </a>
+                                                {isOwnProfile && editing && (
+                                                    <button
+                                                        type="button"
+                                                        className="ln-btn-sm ln-btn-outline"
+                                                        onClick={(e) => { e.preventDefault(); showConfirm('Are you sure you want to delete this link?', () => deleteDoc(link.id)); }}
+                                                        style={{ color: '#cc1016', padding: '6px' }}
+                                                        title="Delete"
+                                                    >
+                                                        <Trash2 size={12} />
+                                                    </button>
+                                                )}
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
+                    </React.Fragment>
+                )}
+            </div>
+
+            {/* Application Modal for Saved tab */}
+            {applyJob && (
+                <div className="modal-overlay" onClick={() => setApplyJob(null)}>
+                    <div className="ln-modal" onClick={e => e.stopPropagation()}>
+                        <div className="ln-modal-header">
+                            <div>
+                                <h3 className="ln-modal-title">Application Form</h3>
+                                <p style={{ fontSize: 14, color: 'rgba(0,0,0,0.6)', marginTop: 4 }}>
+                                    {applyJob.title} • {applyJob.companyName}
+                                </p>
+                            </div>
+                            <button className="ln-btn-icon" onClick={() => setApplyJob(null)}><X size={18} /></button>
+                        </div>
+
+                        <div className="ln-profile-summary-notice" style={{ background: '#f0f9ff', border: '1px solid #bae6fd', borderRadius: 10, padding: 12, marginBottom: 16 }}>
+                            <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
+                                <Info size={18} color="#0369a1" style={{ marginTop: 2 }} />
+                                <div>
+                                    <div style={{ fontWeight: 700, fontSize: 13, color: '#0369a1' }}>Profile as Resume</div>
+                                    <p style={{ fontSize: 12, color: '#0c4a6e', margin: '4px 0 0' }}>
+                                        Your profile will be shared with the recruiter as your official resume.
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+
+                        {resumeInfo?.file_url && (
+                            <div style={{ marginBottom: 12 }}>
+                                <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 6 }}>Attached Resume (Optional Backup)</div>
+                                <div style={{ border: '1px solid #e2e8f0', borderRadius: 8, padding: 10, display: 'flex', justifyContent: 'space-between', gap: 10, alignItems: 'center' }}>
+                                    <div style={{ minWidth: 0 }}>
+                                        <div style={{ fontSize: 13, fontWeight: 600, color: '#1e293b', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{resumeInfo.file_name || 'Resume'}</div>
+                                    </div>
+                                    <a href={resumeInfo.file_url} target="_blank" rel="noreferrer" className="ln-btn-sm ln-btn-outline"><Eye size={12} /> View</a>
+                                </div>
                             </div>
                         )}
+
+                        <div style={{ marginBottom: 14 }}>
+                            <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 6 }}>Application Message</div>
+                            <textarea
+                                className="ln-search-input"
+                                placeholder="Write a short message for the recruiter (optional)..."
+                                value={applicationMessage}
+                                onChange={e => setApplicationMessage(e.target.value)}
+                                maxLength={1000}
+                                style={{ width: '100%', minHeight: 110, resize: 'none', borderRadius: 10, padding: 12 }}
+                            />
+                        </div>
+
+                        <div className="ln-modal-footer">
+                            <button className="ln-btn ln-btn-outline" onClick={() => setApplyJob(null)}>Cancel</button>
+                            <button className="ln-btn ln-btn-primary" disabled={submittingApplication} onClick={handleSubmitApplication}>
+                                <Send size={15} /> {submittingApplication ? 'Submitting...' : 'Submit Application'}
+                            </button>
+                        </div>
                     </div>
                 </div>
-            </div>
+            )}
         </form>
     );
 };
@@ -3329,8 +3950,16 @@ const Opportunities = () => {
     const [applyJob, setApplyJob] = useState(null);
     const [applicationMessage, setApplicationMessage] = useState('');
     const [resumeInfo, setResumeInfo] = useState(null);
-    const [loadingResume, setLoadingResume] = useState(false);
     const [submittingApplication, setSubmittingApplication] = useState(false);
+    const [currentPage, setCurrentPage] = useState(1);
+    const pageSize = 10;
+
+    // Reset page when filters change
+    useEffect(() => {
+        // Use a functional update or a slight delay to avoid cascading render warning in some linters
+        // though in this case we just want to reset to page 1.
+        setCurrentPage(prev => prev === 1 ? prev : 1);
+    }, [search, filterIndustry, filterType, filterLocation, filterOpType]);
     const openProfile = (target) => {
         if (!target?.id || !target?.type) return;
         const profileType = normalizeProfileType(target.type);
@@ -3354,9 +3983,12 @@ const Opportunities = () => {
         );
     });
 
+    const totalPages = Math.ceil(filtered.length / pageSize);
+    const displayedJobs = filtered.slice((currentPage - 1) * pageSize, currentPage * pageSize);
+
     const loadResumeInfo = async () => {
         if (!trainee?.id) return;
-        setLoadingResume(true);
+        // setLoadingResume(true); // Removed unused state setter
         setResumeInfo(null);
 
         let resolvedResume = null;
@@ -3395,7 +4027,7 @@ const Opportunities = () => {
         }
 
         setResumeInfo(resolvedResume);
-        setLoadingResume(false);
+        // setLoadingResume(false); // Removed unused state setter
     };
 
     const openApplyModal = async (job) => {
@@ -3406,16 +4038,11 @@ const Opportunities = () => {
 
     const handleSubmitApplication = async () => {
         if (!applyJob) return;
-        if (!resumeInfo?.file_url) {
-            alert('Resume is required before submitting your application.');
-            return;
-        }
-
         setSubmittingApplication(true);
         const r = await applyToJob(trainee?.id, applyJob.id, {
             applicationMessage,
-            resumeUrl: resumeInfo.file_url,
-            resumeFileName: resumeInfo.file_name || 'Resume',
+            resumeUrl: resumeInfo?.file_url,
+            resumeFileName: resumeInfo?.file_name || 'Resume',
         });
         setSubmittingApplication(false);
 
@@ -3460,7 +4087,7 @@ const Opportunities = () => {
 
             {/* Job Cards - LinkedIn Style */}
             <div className="ln-jobs-list">
-                {filtered.map(job => {
+                {displayedJobs.map(job => {
                     const applied = myApps.includes(job.id);
                     return (
                         <div key={job.id} className="ln-card ln-job-card-li">
@@ -3515,6 +4142,48 @@ const Opportunities = () => {
                     );
                 })}
             </div>
+
+            {/* Pagination Controls */}
+            {filtered.length > 0 && (
+                <div className="ln-pagination">
+                    <div className="ln-pagination-info">
+                        Showing <b>{Math.min(filtered.length, (currentPage - 1) * pageSize + 1)}</b> to <b>{Math.min(filtered.length, currentPage * pageSize)}</b> of <b>{filtered.length}</b> opportunities
+                    </div>
+                    <div className="ln-pagination-controls">
+                        <button
+                            className="ln-pagination-btn"
+                            disabled={currentPage === 1}
+                            onClick={() => { setCurrentPage(prev => prev - 1); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
+                        >
+                            <ChevronLeft size={16} /> Previous
+                        </button>
+
+                        <div className="ln-pagination-numbers">
+                            {Array.from({ length: totalPages }, (_, i) => i + 1)
+                                .filter(p => p === 1 || p === totalPages || (p >= currentPage - 1 && p <= currentPage + 1))
+                                .map((p, i, arr) => (
+                                    <React.Fragment key={p}>
+                                        {i > 0 && arr[i - 1] !== p - 1 && <span className="ln-pagination-ellipsis">...</span>}
+                                        <button
+                                            className={`ln-pagination-num ${currentPage === p ? 'active' : ''}`}
+                                            onClick={() => { setCurrentPage(p); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
+                                        >
+                                            {p}
+                                        </button>
+                                    </React.Fragment>
+                                ))}
+                        </div>
+
+                        <button
+                            className="ln-pagination-btn"
+                            disabled={currentPage === totalPages || totalPages === 0}
+                            onClick={() => { setCurrentPage(prev => prev + 1); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
+                        >
+                            Next <ChevronRight size={16} />
+                        </button>
+                    </div>
+                </div>
+            )}
 
             {filtered.length === 0 && (
                 <div className="ln-empty-state"><Briefcase size={48} /><h3>No opportunities found</h3><p>Try adjusting your filters.</p></div>
@@ -3617,25 +4286,29 @@ const Opportunities = () => {
                             </div>
                             <button className="ln-btn-icon" onClick={() => setApplyJob(null)}><X size={18} /></button>
                         </div>
+                        <div className="ln-profile-summary-notice" style={{ background: '#f0f9ff', border: '1px solid #bae6fd', borderRadius: 10, padding: 12, marginBottom: 16 }}>
+                            <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
+                                <Info size={18} color="#0369a1" style={{ marginTop: 2 }} />
+                                <div>
+                                    <div style={{ fontWeight: 700, fontSize: 13, color: '#0369a1' }}>Profile as Resume</div>
+                                    <p style={{ fontSize: 12, color: '#0c4a6e', margin: '4px 0 0' }}>
+                                        Your comprehensive profile (Education, Work Exp, Skills, and Certifications) will be shared with the recruiter as your official resume.
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
 
-                        <div style={{ marginBottom: 12 }}>
-                            <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 6 }}>Resume (Required)</div>
-                            {loadingResume ? (
-                                <div style={{ fontSize: 13, color: '#64748b' }}>Loading resume...</div>
-                            ) : resumeInfo?.file_url ? (
+                        {resumeInfo?.file_url && (
+                            <div style={{ marginBottom: 12 }}>
+                                <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 6 }}>Attached Resume (Optional Backup)</div>
                                 <div style={{ border: '1px solid #e2e8f0', borderRadius: 8, padding: 10, display: 'flex', justifyContent: 'space-between', gap: 10, alignItems: 'center' }}>
                                     <div style={{ minWidth: 0 }}>
                                         <div style={{ fontSize: 13, fontWeight: 600, color: '#1e293b', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{resumeInfo.file_name || 'Resume'}</div>
-                                        <div style={{ fontSize: 11.5, color: '#64748b' }}>This resume will be included in your application.</div>
                                     </div>
                                     <a href={resumeInfo.file_url} target="_blank" rel="noreferrer" className="ln-btn-sm ln-btn-outline"><Eye size={12} /> View</a>
                                 </div>
-                            ) : (
-                                <div style={{ border: '1px solid #fecaca', background: '#fef2f2', color: '#991b1b', borderRadius: 8, padding: 10, fontSize: 13 }}>
-                                    No resume found. Please upload your resume in Profile before applying.
-                                </div>
-                            )}
-                        </div>
+                            </div>
+                        )}
 
                         <div style={{ marginBottom: 14 }}>
                             <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 6 }}>Application Message</div>
@@ -3652,7 +4325,7 @@ const Opportunities = () => {
 
                         <div className="ln-modal-footer">
                             <button className="ln-btn ln-btn-outline" onClick={() => setApplyJob(null)}>Cancel</button>
-                            <button className="ln-btn ln-btn-primary" disabled={submittingApplication || !resumeInfo?.file_url} onClick={handleSubmitApplication}>
+                            <button className="ln-btn ln-btn-primary" disabled={submittingApplication} onClick={handleSubmitApplication}>
                                 <Send size={15} /> {submittingApplication ? 'Submitting...' : 'Submit Application'}
                             </button>
                         </div>
@@ -3666,12 +4339,14 @@ const Opportunities = () => {
 
 // ─── PAGE 5: MY APPLICATIONS ──────────────────────────────────────
 const MyApplications = () => {
-    const { currentUser, trainees, getTraineeApplications } = useApp();
+    const { currentUser, trainees, getTraineeApplications, saveInterviewBooking } = useApp();
     const navigate = useNavigate();
     const trainee = currentUser || trainees[0];
     const myApps = getTraineeApplications(trainee?.id);
     const [search, setSearch] = useState('');
     const [messageModal, setMessageModal] = useState(null);
+    const [bookingApp, setBookingApp] = useState(null);
+    const [actionMenuId, setActionMenuId] = useState(null);
     const openProfile = (target) => {
         if (!target?.id || !target?.type) return;
         const profileType = normalizeProfileType(target.type);
@@ -3699,12 +4374,14 @@ const MyApplications = () => {
             rejected: 'ln-badge-red',
             sent: 'ln-badge-blue',
             received: 'ln-badge-blue',
+            'interview scheduled': 'ln-badge-purple',
             // Keep capitalized versions for compatibility during transition
             Pending: 'ln-badge-yellow',
             Accepted: 'ln-badge-green',
             Rejected: 'ln-badge-red',
             Sent: 'ln-badge-blue',
             Received: 'ln-badge-blue',
+            'Interview Scheduled': 'ln-badge-purple',
         };
         const labelMap = {
             pending: 'Pending',
@@ -3712,6 +4389,7 @@ const MyApplications = () => {
             rejected: 'Rejected',
             sent: 'Sent',
             received: 'Received',
+            'interview scheduled': 'Interview Scheduled',
         };
         return <span className={`ln-badge ${map[s] || map[raw] || 'ln-badge-gray'}`}>{labelMap[raw] || s}</span>;
     };
@@ -3741,6 +4419,59 @@ const MyApplications = () => {
                 ))}
             </div>
 
+            {/* Status Pipeline Visualization - Improved Linear Design */}
+            {(() => {
+                const appRecords = myApps.filter(a => a.recordType === 'application');
+                const getPhase = (status) => {
+                    const s = String(status || '').toLowerCase();
+                    if (s === 'rejected') return 'rejected';
+                    if (s === 'accepted' || s === 'offered') return 'accepted';
+                    if (s === 'interview scheduled' || s === 'interviewscheduled' || s === 'interview') return 'interview';
+                    if (s === 'screened' || s === 'under review') return 'review';
+                    return 'received';
+                };
+                const phases = [
+                    { key: 'received', label: 'Received', icon: <Send size={16} />, color: '#0a66c2', count: appRecords.filter(a => getPhase(a.status) === 'received').length },
+                    { key: 'review', label: 'In Review', icon: <Eye size={16} />, color: '#d97706', count: appRecords.filter(a => getPhase(a.status) === 'review').length },
+                    { key: 'interview', label: 'Interviews', icon: <Calendar size={16} />, color: '#7c3aed', count: appRecords.filter(a => getPhase(a.status) === 'interview').length },
+                    { key: 'accepted', label: 'Accepted', icon: <CheckCircle size={16} />, color: '#057642', count: appRecords.filter(a => getPhase(a.status) === 'accepted').length },
+                ];
+
+                return appRecords.length > 0 ? (
+                    <div className="ln-card" style={{ marginBottom: 16, padding: '24px 16px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', position: 'relative' }}>
+                            {/* The Connecting Line Background */}
+                            <div style={{ position: 'absolute', top: 18, left: '10%', right: '10%', height: 2, background: '#f1f5f9', zIndex: 0 }} />
+
+                            {phases.map((p) => {
+                                const isActive = p.count > 0;
+                                return (
+                                    <div key={p.key} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', zIndex: 1, position: 'relative' }}>
+                                        {/* Node Icon */}
+                                        <div style={{
+                                            width: 36, height: 36, borderRadius: '50%',
+                                            background: isActive ? p.color : '#f8fafc',
+                                            color: isActive ? '#fff' : '#94a3b8',
+                                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                            border: isActive ? `2px solid #fff` : '2px solid #f1f5f9',
+                                            boxShadow: isActive ? `0 0 0 2px ${p.color}40` : 'none',
+                                            marginBottom: 8, transition: 'all 0.3s'
+                                        }}>
+                                            {p.icon}
+                                        </div>
+                                        {/* Count & Label */}
+                                        <div style={{ textAlign: 'center' }}>
+                                            <div style={{ fontSize: 20, fontWeight: 800, color: isActive ? '#1e293b' : '#cbd5e1', lineHeight: 1 }}>{p.count}</div>
+                                            <div style={{ fontSize: 11, fontWeight: 600, color: isActive ? '#64748b' : '#94a3b8', marginTop: 2, letterSpacing: -0.1 }}>{p.label}</div>
+                                        </div>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    </div>
+                ) : null;
+            })()}
+
             <div className="ln-card">
                 <div className="ln-section-header" style={{ marginBottom: 16 }}>
                     <h3>Applications and Contact Activity</h3>
@@ -3750,71 +4481,122 @@ const MyApplications = () => {
                     </div>
                 </div>
                 <div style={{ overflowX: 'auto' }}>
-                    <table className="ln-table">
+                    <table className="ln-table" style={{ tableLayout: 'fixed', width: '100%' }}>
                         <thead>
-                            <tr><th>Activity</th><th>Partner</th><th>Opportunity</th><th>Date</th><th>Direction</th><th>Msg By</th><th>View</th><th>Attachment</th><th>Status</th></tr>
+                            <tr>
+                                <th style={{ width: '220px' }}>Partner</th>
+                                <th style={{ width: '220px' }}>Opportunity</th>
+                                <th style={{ width: '120px' }}>Date</th>
+                                <th style={{ width: '100px' }}>Match %</th>
+                                <th style={{ width: '140px' }}>Status</th>
+                                <th style={{ width: '80px', textAlign: 'center' }}>Actions</th>
+                            </tr>
                         </thead>
                         <tbody>
-                            {filtered.map(a => (
-                                <tr key={a.rowKey || a.id}>
-                                    <td>
-                                        <span className="ln-badge ln-badge-blue" style={{ fontSize: 11 }}>{a.activityType}</span>
-                                    </td>
-                                    <td>
-                                        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                            {filtered.map(a => {
+                                const partner = a.partner || { companyName: a.job?.companyName || '—', id: a.job?.partnerId };
+                                const initials = (partner.companyName || 'P').charAt(0).toUpperCase();
+                                const rate = a.matchRate || 0;
+                                const getMatchColor = (rate) => {
+                                    if (rate >= 80) return '#057642';
+                                    if (rate >= 60) return '#ea580c';
+                                    return '#7c3aed';
+                                };
+
+                                return (
+                                    <tr key={a.rowKey || a.id}>
+                                        <td>
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                                                <div style={{
+                                                    width: 32, height: 32, borderRadius: 6, background: '#f8fafc',
+                                                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                                    fontSize: 13, fontWeight: 700, color: '#64748b', border: '1px solid #e2e8f0',
+                                                    flexShrink: 0
+                                                }}>
+                                                    {partner.company_logo_url ? <img src={partner.company_logo_url} alt="" style={{ width: '100%', height: '100%', borderRadius: 6, objectFit: 'cover' }} /> : initials}
+                                                </div>
+                                                <div style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => openProfile({ id: partner.id, type: 'partner' })}
+                                                        style={{ background: 'none', border: 'none', padding: 0, cursor: partner.id ? 'pointer' : 'default', color: '#1e293b', font: 'inherit', fontWeight: 600, textAlign: 'left' }}
+                                                        disabled={!partner.id}
+                                                    >
+                                                        {partner.companyName}
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        </td>
+                                        <td style={{ fontWeight: 600, color: '#0a66c2', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                            {a.job?.title || 'Direct Contact'}
+                                        </td>
+                                        <td style={{ color: '#64748b', fontSize: 13 }}>{a.eventDate || '—'}</td>
+                                        <td>
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                                                <div style={{ height: 6, flex: 1, background: '#f1f5f9', borderRadius: 3, overflow: 'hidden' }}>
+                                                    <div style={{ height: '100%', width: `${rate}%`, background: getMatchColor(rate) }} />
+                                                </div>
+                                                <span style={{ fontSize: 12, fontWeight: 700, color: getMatchColor(rate), minWidth: 28 }}>{rate}%</span>
+                                            </div>
+                                        </td>
+                                        <td>
+                                            <div style={{ display: 'flex', flexDirection: 'column', gap: 4, alignItems: 'flex-start' }}>
+                                                {statusBadge(a.status)}
+                                                {a.interviewDate && (
+                                                    <div style={{ fontSize: 10, color: '#64748b', fontWeight: 600 }}>
+                                                        {new Date(a.interviewDate).toLocaleDateString()} @ {new Date(a.interviewDate).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                                    </div>
+                                                )}
+                                            </div>
+                                        </td>
+                                        <td style={{ textAlign: 'center', position: 'relative' }}>
                                             <button
-                                                type="button"
-                                                onClick={() => openProfile({ id: a.partner?.id || a.job?.partnerId, type: 'partner' })}
-                                                style={{ background: 'none', border: 'none', padding: 0, cursor: (a.partner?.id || a.job?.partnerId) ? 'pointer' : 'default', color: 'rgba(0,0,0,0.4)', display: 'inline-flex', alignItems: 'center' }}
-                                                disabled={!(a.partner?.id || a.job?.partnerId)}
+                                                className="ln-btn-icon"
+                                                style={{ background: actionMenuId === (a.rowKey || a.id) ? '#f1f5f9' : 'transparent' }}
+                                                onClick={(e) => { e.stopPropagation(); setActionMenuId(actionMenuId === (a.rowKey || a.id) ? null : (a.rowKey || a.id)); }}
                                             >
-                                                <Building2 size={14} color="currentColor" />
+                                                <MoreVertical size={16} />
                                             </button>
-                                            <button
-                                                type="button"
-                                                onClick={() => openProfile({ id: a.partner?.id || a.job?.partnerId, type: 'partner' })}
-                                                style={{ background: 'none', border: 'none', padding: 0, cursor: (a.partner?.id || a.job?.partnerId) ? 'pointer' : 'default', color: 'inherit', font: 'inherit', textAlign: 'left' }}
-                                                disabled={!(a.partner?.id || a.job?.partnerId)}
-                                            >
-                                                {a.partner?.companyName || a.job?.companyName || '—'}
-                                            </button>
-                                        </div>
-                                    </td>
-                                    <td style={{ fontWeight: 600, color: '#0a66c2' }}>{a.job?.title || 'Direct Contact'}</td>
-                                    <td style={{ color: 'rgba(0,0,0,0.5)', fontSize: 13 }}>{a.eventDate || '—'}</td>
-                                    <td style={{ fontSize: 12.5, color: 'rgba(0,0,0,0.65)' }}>{a.directionLabel || '—'}</td>
-                                    {/* Removed Employment Status Card - Moved to Header */}
-                                    <td>
-                                        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-                                            {a.outgoingMessage && <span className="ln-badge ln-badge-blue" style={{ fontSize: 10 }}>You</span>}
-                                            {a.incomingMessage && <span className="ln-badge ln-badge-green" style={{ fontSize: 10 }}>Partner</span>}
-                                            {!a.outgoingMessage && !a.incomingMessage && <span style={{ fontSize: 12.5, color: 'rgba(0,0,0,0.45)' }}>—</span>}
-                                        </div>
-                                    </td>
-                                    <td>
-                                        {(a.outgoingMessage || a.incomingMessage) ? (
-                                            <button type="button" className="ln-btn-sm ln-btn-outline" onClick={() => setMessageModal(a)}>
-                                                <Eye size={12} />
-                                            </button>
-                                        ) : (
-                                            <span style={{ fontSize: 12.5, color: 'rgba(0,0,0,0.45)' }}>—</span>
-                                        )}
-                                    </td>
-                                    <td>
-                                        {a.attachmentUrl ? (
-                                            <a href={a.attachmentUrl} target="_blank" rel="noreferrer" className="ln-btn-sm ln-btn-outline"><Eye size={12} /> View</a>
-                                        ) : a.attachmentName ? (
-                                            <span style={{ fontSize: 12.5, color: 'rgba(0,0,0,0.55)' }}>{a.attachmentName}</span>
-                                        ) : (
-                                            <span style={{ fontSize: 12.5, color: 'rgba(0,0,0,0.45)' }}>—</span>
-                                        )}
-                                    </td>
-                                    <td>{statusBadge(a.status)}</td>
-                                </tr>
-                            ))}
-                            {filtered.length === 0 && (
-                                <tr><td colSpan={9} style={{ textAlign: 'center', padding: 40, color: 'rgba(0,0,0,0.4)' }}>No applications or contact activity yet.</td></tr>
-                            )}
+
+                                            {actionMenuId === (a.rowKey || a.id) && (
+                                                <React.Fragment>
+                                                    <div style={{ position: 'fixed', inset: 0, zIndex: 90 }} onClick={() => setActionMenuId(null)} />
+                                                    <div style={{
+                                                        position: 'absolute', right: '100%', top: 0, marginRight: 8,
+                                                        background: 'white', border: '1px solid #e2e8f0', borderRadius: 8,
+                                                        boxShadow: '0 4px 12px rgba(0,0,0,0.1)', zIndex: 100,
+                                                        width: 170, overflow: 'hidden'
+                                                    }}>
+                                                        <button className="ln-dropdown-item" onClick={() => { setActionMenuId(null); openProfile({ id: partner.id, type: 'partner' }); }} disabled={!partner.id}>
+                                                            <Building2 size={14} /> View Partner
+                                                        </button>
+                                                        {(a.outgoingMessage || a.incomingMessage) && (
+                                                            <button className="ln-dropdown-item" onClick={() => { setActionMenuId(null); setMessageModal(a); }}>
+                                                                <MessageSquare size={14} /> View Messages
+                                                            </button>
+                                                        )}
+                                                        {a.attachmentUrl && (
+                                                            <a href={a.attachmentUrl} target="_blank" rel="noreferrer" className="ln-dropdown-item" style={{ textDecoration: 'none' }} onClick={() => setActionMenuId(null)}>
+                                                                <Eye size={14} /> View Attachment
+                                                            </a>
+                                                        )}
+                                                        {!a.attachmentUrl && (
+                                                            <button className="ln-dropdown-item" onClick={() => { setActionMenuId(null); navigate('/trainee/profile'); }}>
+                                                                <User size={14} /> My Profile (Resume)
+                                                            </button>
+                                                        )}
+                                                        {String(a.status).toLowerCase() === 'interview scheduled' && (
+                                                            <button className="ln-dropdown-item" onClick={() => { setActionMenuId(null); setBookingApp(a); }} style={{ color: '#7c3aed' }}>
+                                                                <Calendar size={14} /> {a.interviewDate ? 'Reschedule' : 'Pick Time'}
+                                                            </button>
+                                                        )}
+                                                    </div>
+                                                </React.Fragment>
+                                            )}
+                                        </td>
+                                    </tr>
+                                );
+                            })}
                         </tbody>
                     </table>
                 </div>
@@ -3946,6 +4728,180 @@ const MyApplications = () => {
                     </div>
                 </div>
             )}
+
+            {bookingApp && (
+                <div className="modal-overlay" onClick={() => setBookingApp(null)}>
+                    <div className="ln-modal" style={{ maxWidth: 500 }} onClick={e => e.stopPropagation()}>
+                        <div className="ln-modal-header">
+                            <div>
+                                <h3 className="ln-modal-title">Schedule Interview</h3>
+                                <p style={{ fontSize: 13, color: 'rgba(0,0,0,0.5)', marginTop: 2 }}>{bookingApp.partner?.companyName || 'Partner'}</p>
+                            </div>
+                            <button className="ln-btn-icon" onClick={() => setBookingApp(null)}><X size={18} /></button>
+                        </div>
+                        <div style={{ padding: '0 0 16px' }}>
+                            <PickTime
+                                partnerId={bookingApp.partner?.id || bookingApp.job?.partnerId}
+                                onBook={async (slot) => {
+                                    await saveInterviewBooking({
+                                        application_id: bookingApp.id,
+                                        trainee_id: trainee.id,
+                                        partner_id: bookingApp.partner?.id || bookingApp.job?.partnerId,
+                                        start_time: slot.toISOString(),
+                                        end_time: new Date(slot.getTime() + 60 * 60 * 1000).toISOString(),
+                                    });
+                                    setBookingApp(null);
+                                    alert('Interview successfully booked!');
+                                }}
+                            />
+                        </div>
+                    </div>
+                </div>
+            )}
+        </div>
+    );
+};
+
+// ─── SUBCOMPONENT: PICK TIME ──────────────────────────────────────
+const PickTime = ({ partnerId, onBook }) => {
+    const { availabilitySlots, fetchAvailability, interviewBookings, fetchBookings } = useApp();
+    const [selectedSlot, setSelectedSlot] = useState(null);
+    const [weekOffset, setWeekOffset] = useState(0);
+    const [loading, setLoading] = useState(true);
+
+    useEffect(() => {
+        const load = async () => {
+            setLoading(true);
+            await Promise.all([
+                fetchAvailability(partnerId),
+                fetchBookings(partnerId)
+            ]);
+            setLoading(false);
+        };
+        load();
+    }, [partnerId]);
+
+    const dayLabels = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+
+    const getWeekStart = () => {
+        const now = new Date();
+        const day = now.getDay();
+        const diff = now.getDate() - day + (day === 0 ? -6 : 1) + (weekOffset * 7);
+        const mon = new Date(now);
+        mon.setDate(diff);
+        mon.setHours(0, 0, 0, 0);
+        return mon;
+    };
+
+    const weekStart = getWeekStart();
+    const weekDates = Array.from({ length: 7 }, (_, i) => {
+        const d = new Date(weekStart);
+        d.setDate(weekStart.getDate() + i);
+        return d;
+    });
+
+    // Check if slot is available and NOT already booked
+    const getSlotAvailability = (date, hour) => {
+        const dayIdx = (date.getDay() + 6) % 7; // Mon=0 .. Sun=6
+        const isPartnerAvailable = availabilitySlots.some(s => {
+            if (s.day_of_week !== dayIdx) return false;
+            const startH = parseInt(String(s.start_time).split(':')[0], 10);
+            return hour === startH;
+        });
+
+        if (!isPartnerAvailable) return 'unavailable';
+
+        const isBooked = interviewBookings.some(b => {
+            if (b.status === 'cancelled') return false;
+            const bStart = new Date(b.start_time);
+            return bStart.toDateString() === date.toDateString() && bStart.getHours() === hour;
+        });
+
+        if (isBooked) return 'booked';
+
+        // Prevent booking in the past
+        const slotTime = new Date(date);
+        slotTime.setHours(hour, 0, 0, 0);
+        if (slotTime < new Date()) return 'past';
+
+        return 'available';
+    };
+
+    if (loading) return <div style={{ padding: 40, textAlign: 'center' }}><Loader className="animate-spin" /></div>;
+
+    const hours = Array.from({ length: 11 }, (_, i) => i + 7); // 7 AM to 5 PM
+
+    return (
+        <div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+                <button className="ln-btn-icon" onClick={() => setWeekOffset(w => w - 1)}><ChevronLeft size={18} /></button>
+                <div style={{ fontWeight: 700 }}>
+                    {weekDates[0].toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} - {weekDates[6].toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                </div>
+                <button className="ln-btn-icon" onClick={() => setWeekOffset(w => w + 1)}><ChevronRight size={18} /></button>
+            </div>
+
+            <div style={{ overflowX: 'auto', maxHeight: 350, border: '1px solid #e2e8f0', borderRadius: 12 }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+                    <thead style={{ position: 'sticky', top: 0, zIndex: 1, background: '#f8fafc' }}>
+                        <tr>
+                            <th style={{ padding: 6, borderBottom: '1px solid #e2e8f0' }}>Time</th>
+                            {dayLabels.map((d, i) => (
+                                <th key={d} style={{ padding: 6, borderBottom: '1px solid #e2e8f0' }}>
+                                    {d}<br />{weekDates[i].getDate()}
+                                </th>
+                            ))}
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {hours.map(h => (
+                            <tr key={h}>
+                                <td style={{ padding: '6px 8px', borderBottom: '1px solid #f1f5f9', background: '#f8fafc', fontWeight: 600, whiteSpace: 'nowrap' }}>
+                                    {h > 12 ? `${h - 12} PM` : h === 12 ? '12 PM' : `${h} AM`}
+                                </td>
+                                {weekDates.map((date, i) => {
+                                    const status = getSlotAvailability(date, h);
+                                    const isSelected = selectedSlot && selectedSlot.toDateString() === date.toDateString() && selectedSlot.getHours() === h;
+
+                                    return (
+                                        <td key={i} style={{ padding: 2, borderBottom: '1px solid #f1f5f9' }}>
+                                            {status === 'available' ? (
+                                                <button
+                                                    onClick={() => {
+                                                        const s = new Date(date);
+                                                        s.setHours(h, 0, 0, 0);
+                                                        setSelectedSlot(s);
+                                                    }}
+                                                    style={{
+                                                        width: '100%', height: 32, border: 'none', borderRadius: 4,
+                                                        background: isSelected ? '#7c3aed' : '#f5f3ff',
+                                                        color: isSelected ? '#fff' : '#7c3aed',
+                                                        cursor: 'pointer', fontWeight: 600
+                                                    }}
+                                                >
+                                                    Select
+                                                </button>
+                                            ) : status === 'booked' ? (
+                                                <div style={{ fontSize: 10, color: '#94a3b8', textAlign: 'center' }}>Booked</div>
+                                            ) : null}
+                                        </td>
+                                    );
+                                })}
+                            </tr>
+                        ))}
+                    </tbody>
+                </table>
+            </div>
+
+            <div style={{ marginTop: 20, display: 'flex', justifyContent: 'flex-end' }}>
+                <button
+                    className="ln-btn ln-btn-primary"
+                    disabled={!selectedSlot}
+                    onClick={() => onBook(selectedSlot)}
+                >
+                    Confirm Appointment
+                </button>
+            </div>
         </div>
     );
 };

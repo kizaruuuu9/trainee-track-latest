@@ -31,6 +31,10 @@
 }
 
 /* ─── GLOBAL ─────────────────────────────────────────────────────── */
+html {
+  scrollbar-gutter: stable;
+}
+
 * {
   box-sizing: border-box;
   margin: 0;
@@ -2995,10 +2999,15 @@ a text and a able to upload documents but not needed
 }
 
 .ln-dropdown-item {
+  width: 100%;
+  border: none;
+  background: none;
+  text-align: left;
   display: flex;
   align-items: center;
   gap: 10px;
   padding: 10px 16px;
+  font-family: inherit;
   font-size: 14px;
   color: rgba(0, 0, 0, 0.7);
   cursor: pointer;
@@ -4267,18 +4276,53 @@ a text and a able to upload documents but not needed
   margin-top: 12px;
 }
 
-.ln-profile-two-col {
-  display: grid;
-  grid-template-columns: 1fr 320px;
+/* ─── SINGLE-COLUMN PROFILE LAYOUT ─────────────────────────────── */
+.ln-profile-single-col {
+  display: flex;
+  flex-direction: column;
   gap: 16px;
 }
 
 .ln-profile-main {
   min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
 }
 
-.ln-profile-sidebar {
-  min-width: 0;
+/* Skills + Interests: equal 2-up side-by-side row */
+.ln-skills-interests-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  align-items: start;
+}
+
+/* Section group divider (e.g. "More About Me") */
+.ln-section-group-divider {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 4px 0 0;
+  color: #64748b;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.ln-section-group-divider::before,
+.ln-section-group-divider::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: #e2e8f0;
+}
+
+@media (max-width: 640px) {
+  .ln-skills-interests-row {
+    grid-template-columns: 1fr;
+  }
 }
 
 /* ─── INFO GRID ───────────────────────────────────────────────────── */
@@ -4356,8 +4400,13 @@ a text and a able to upload documents but not needed
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 10px 16px;
+  padding: 12px 16px;
   border-bottom: 1px solid #f3f2ef;
+  transition: background-color 0.2s;
+}
+
+.ln-doc-item:hover {
+  background-color: #f8fafc;
 }
 
 .ln-doc-item:last-child {
@@ -4367,9 +4416,88 @@ a text and a able to upload documents but not needed
 .ln-doc-info {
   display: flex;
   align-items: center;
+  gap: 12px;
+  flex: 1;
+  min-width: 0;
+  margin-right: 16px;
+}
+
+.ln-doc-text-wrap {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.ln-doc-label-text {
+  font-weight: 600;
+  font-size: 13.5px;
+  color: rgba(0, 0, 0, 0.85);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: block;
+}
+
+.ln-doc-filename-text {
+  font-size: 11px;
+  color: rgba(0, 0, 0, 0.45);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: block;
+  margin-top: 1px;
+}
+
+.ln-doc-actions {
+  display: flex;
   gap: 8px;
-  font-size: 14px;
-  color: rgba(0, 0, 0, 0.75);
+  flex-shrink: 0;
+}
+
+/* ─── SOCIAL LINKS FORM ─────────────────────────────────────────── */
+.ln-social-links-edit {
+  border-top: 1px solid #eef2f6;
+  padding: 20px 16px;
+  margin-top: 8px;
+  background: #fbfbfc;
+  border-bottom-left-radius: 12px;
+  border-bottom-right-radius: 12px;
+}
+
+.ln-social-links-header {
+  margin-bottom: 12px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 700;
+  color: #475569;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.ln-social-links-row {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  flex-wrap: wrap;
+}
+
+.ln-social-input-group {
+  display: flex;
+  gap: 8px;
+  flex: 1;
+  min-width: 280px;
+}
+
+@media (max-width: 540px) {
+  .ln-social-links-row {
+    flex-direction: column;
+  }
+  .ln-social-input-group {
+    min-width: 100%;
+  }
 }
 
 /* ─── EMPLOYMENT STATUS HERO ──────────────────────────────────────── */
@@ -4450,6 +4578,200 @@ a text and a able to upload documents but not needed
   font-size: 14px;
 }
 
+
+/* ─── PAGINATION ─────────────────────────────────────────────────── */
+.ln-pagination {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  padding: 24px 0 40px;
+  border-top: 1px solid #e2e8f0;
+  margin-top: 16px;
+}
+
+.ln-pagination-info {
+  font-size: 13px;
+  color: #64748b;
+}
+
+.ln-pagination-info b {
+  color: #1e293b;
+}
+
+.ln-pagination-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.ln-pagination-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 36px;
+  padding: 0 16px;
+  border-radius: 18px;
+  border: 1px solid #cbd5e1;
+  background: white;
+  color: #475569;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.ln-pagination-btn:hover:not(:disabled) {
+  background: #f8fafc;
+  border-color: #94a3b8;
+  color: #1e293b;
+}
+
+.ln-pagination-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.ln-pagination-numbers {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.ln-pagination-num {
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  border: 1px solid transparent;
+  background: none;
+  color: #64748b;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.ln-pagination-num:hover:not(.active) {
+  background: #f1f5f9;
+  color: #1e293b;
+}
+
+.ln-pagination-num.active {
+  background: #0a66c2;
+  color: white;
+  border-color: #0a66c2;
+}
+
+.ln-pagination-ellipsis {
+  color: #94a3b8;
+  font-size: 13px;
+  padding: 0 4px;
+}
+
+@media (max-width: 640px) {
+  .ln-pagination-info {
+    text-align: center;
+  }
+  .ln-pagination-btn span {
+    display: none;
+  }
+}
+
+/* ─── ADMIN PAGINATION ────────────────────────────────────────────── */
+.admin-pagination {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px 20px;
+  background: #f8fafc;
+  border-top: 1px solid #e2e8f0;
+  border-bottom-left-radius: 12px;
+  border-bottom-right-radius: 12px;
+}
+
+.admin-pagination-info {
+  font-size: 13px;
+  color: #64748b;
+}
+
+.admin-pagination-info b {
+  color: #0f172a;
+}
+
+.admin-pagination-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.admin-pagination-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  border: 1px solid #e2e8f0;
+  background: white;
+  color: #64748b;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.admin-pagination-btn:hover:not(:disabled) {
+  background: #f1f5f9;
+  border-color: #cbd5e1;
+  color: #0f172a;
+}
+
+.admin-pagination-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.admin-pagination-numbers {
+  display: flex;
+  gap: 4px;
+}
+
+.admin-pagination-num {
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #64748b;
+  background: transparent;
+  border: 1px solid transparent;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.admin-pagination-num:hover:not(.active) {
+  background: #f1f5f9;
+  color: #0f172a;
+}
+
+.admin-pagination-num.active {
+  background: #7c3aed;
+  color: white;
+  border-color: #7c3aed;
+}
+
+@media (max-width: 640px) {
+  .admin-pagination {
+    flex-direction: column;
+    gap: 12px;
+    text-align: center;
+  }
+}
+
 /* ─── RESPONSIVE: TABLET ──────────────────────────────────────────── */
 @media (max-width: 1024px) {
   .ln-three-col {
@@ -4476,10 +4798,6 @@ a text and a able to upload documents but not needed
 
   .ln-stats-grid-4 {
     grid-template-columns: repeat(2, 1fr);
-  }
-
-  .ln-profile-two-col {
-    grid-template-columns: 1fr;
   }
 
   .ln-search-wrap {
@@ -4598,10 +4916,6 @@ a text and a able to upload documents but not needed
     flex-direction: column;
   }
 
-  .ln-profile-two-col {
-    grid-template-columns: 1fr;
-  }
-
   .ln-profile-header-banner {
     height: 100px;
   }
@@ -4640,10 +4954,6 @@ a text and a able to upload documents but not needed
 
   .ln-search-wrap:focus-within {
     width: 160px;
-  }
-
-  .ln-profile-two-col {
-    grid-template-columns: 1fr;
   }
 
   .ln-profile-header-body {
@@ -4767,67 +5077,94 @@ a text and a able to upload documents but not needed
    ═══════════════════════════════════════════════════════════════════ */
 
 .pn-logo-icon {
-  background: linear-gradient(135deg, #0ea5e9, #06b6d4) !important;
+  background: linear-gradient(135deg, #10b981, #059669) !important;
   border-radius: 8px !important;
 }
 
 .pn-nav-avatar {
-  background: linear-gradient(135deg, #0ea5e9, #06b6d4) !important;
+  background: linear-gradient(135deg, #10b981, #059669) !important;
 }
 
 .pn-dropdown-avatar {
-  background: linear-gradient(135deg, #0ea5e9, #06b6d4) !important;
+  background: linear-gradient(135deg, #10b981, #059669) !important;
 }
 
 .pn-profile-banner {
-  background: linear-gradient(135deg, #0c4a6e 0%, #0ea5e9 50%, #06b6d4 100%) !important;
+  background: linear-gradient(135deg, #064e3b 0%, #10b981 50%, #34d399 100%) !important;
   height: 70px;
 }
 
 .pn-header-banner {
-  background: linear-gradient(135deg, #0c4a6e 0%, #0ea5e9 50%, #06b6d4 100%) !important;
+  background: linear-gradient(135deg, #064e3b 0%, #10b981 50%, #34d399 100%) !important;
 }
 
 .pn-avatar-lg {
-  background: linear-gradient(135deg, #0ea5e9, #06b6d4) !important;
+  background: linear-gradient(135deg, #10b981, #059669) !important;
 }
 
 .pn-header-avatar {
-  background: linear-gradient(135deg, #0ea5e9, #06b6d4) !important;
+  background: linear-gradient(135deg, #10b981, #059669) !important;
 }
 
 .pn-feed-avatar {
-  background: linear-gradient(135deg, #0ea5e9, #06b6d4) !important;
+  background: linear-gradient(135deg, #10b981, #059669) !important;
 }
 
 .pn-stat-num {
-  color: #0ea5e9 !important;
+  color: #10b981 !important;
 }
 
 .pn-btn-profile {
-  color: #0ea5e9 !important;
-  border-color: #0ea5e9 !important;
+  color: #059669 !important;
+  border-color: #059669 !important;
 }
 
 .pn-btn-profile:hover {
-  background: #e0f2fe !important;
-  border-color: #0284c7 !important;
-  color: #0284c7 !important;
+  background: #ecfdf5 !important;
+  border-color: #047857 !important;
+  color: #047857 !important;
 }
 
 .pn-topnav .ln-nav-item.active::after {
-  background: #0ea5e9;
+  background: #10b981;
 }
 
 .pn-topnav .ln-dropdown-profile-btn {
-  color: #0ea5e9;
-  border-color: #0ea5e9;
+  color: #059669;
+  border-color: #059669;
 }
 
 .pn-topnav .ln-dropdown-profile-btn:hover {
-  background: #e0f2fe;
-  border-color: #0284c7;
-  color: #0284c7;
+  background: #ecfdf5;
+  border-color: #047857;
+  color: #047857;
+}
+
+/* Partner Role Selection Overrides */
+.role-card.pn-selected {
+  border-color: #10b981 !important;
+  background: #ecfdf5 !important;
+  box-shadow: 0 12px 24px rgba(16, 185, 129, 0.15) !important;
+}
+
+.pn-role-icon-wrap {
+  background: #ecfdf5 !important;
+  color: #10b981 !important;
+}
+
+.role-card:hover .pn-role-icon-wrap {
+  background: #10b981 !important;
+  color: white !important;
+}
+
+.pn-btn-primary {
+  background: #10b981 !important;
+  border-color: #10b981 !important;
+}
+
+.pn-btn-primary:hover {
+  background: #059669 !important;
+  border-color: #059669 !important;
 }
 
 /* ═══════════════════════════════════════════════════════════════════
@@ -5440,3 +5777,29 @@ body {
     max-width: calc(100vw - 16px);
   }
 }
+/*  EMPTY STATES  */
+.ln-empty-state {
+  animation: fadeIn 0.5s ease-out;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.ln-empty-state-illustration {
+  transition: transform 0.3s ease;
+}
+
+.ln-empty-state:hover .ln-empty-state-illustration {
+  transform: scale(1.05);
+}
+
+.ln-empty-state-title {
+  color: var(--gray-900);
+}
+
+.ln-empty-state-desc {
+  color: var(--gray-600);
+}
+

@@ -285,9 +285,9 @@ export default function RegistrationFlow({ onBackToLogin }) {
           <div className="role-title">Trainee</div>
           <p className="role-desc">For students and graduates looking for opportunities and competency analysis.</p>
         </div>
-        <div className={`role-card ${selectedRole === 'partner' ? 'selected' : ''}`} onClick={() => setSelectedRole('partner')}>
-          <div className="selection-check"><CheckCircle size={20} fill="#2563eb" color="white" /></div>
-          <div className="role-icon-wrap"><Building2 size={32} /></div>
+        <div className={`role-card ${selectedRole === 'partner' ? 'pn-selected' : ''}`} onClick={() => setSelectedRole('partner')}>
+          <div className="selection-check"><CheckCircle size={20} fill={selectedRole === 'partner' ? "#10b981" : "#2563eb"} color="white" /></div>
+          <div className="role-icon-wrap pn-role-icon-wrap"><Building2 size={32} /></div>
           <div className="role-title">Industry Partner</div>
           <p className="role-desc">For companies and organizations looking to hire or offer OJT slots to skilled trainees.</p>
         </div>
@@ -322,7 +322,7 @@ export default function RegistrationFlow({ onBackToLogin }) {
             </div>
           </div>
 
-          <div className="reg-full-width" style={{ fontWeight: 700, fontSize: 14, color: '#1e3a5f', borderBottom: '1px solid #e2e8f0', paddingBottom: 8, marginTop: 12, marginBottom: 16 }}>Account Security</div>
+          <div className="reg-full-width" style={{ fontWeight: 700, fontSize: 14, color: selectedRole === 'partner' ? '#064e3b' : '#1e3a5f', borderBottom: '1px solid #e2e8f0', paddingBottom: 8, marginTop: 12, marginBottom: 16 }}>Account Security</div>
 
           <div className="form-group reg-full-width">
             <label className="form-label">Email Address</label>
@@ -350,8 +350,8 @@ export default function RegistrationFlow({ onBackToLogin }) {
               </div>
               <button
                 type="button"
-                className={`btn ${otpVerified ? 'btn-success' : 'btn-primary'}`}
-                style={{ height: 42, width: 120 }}
+                className={`btn ${otpVerified ? 'btn-success' : (selectedRole === 'partner' ? 'pn-btn-primary' : 'btn-primary')}`}
+                style={{ height: 42, width: 120, ...(selectedRole === 'partner' && !otpVerified && !otpLoading && otpCooldown <= 0 ? { background: '#10b981', borderColor: '#10b981' } : {}) }}
                 onClick={handleSendOTP}
                 disabled={!partnerData.email || otpVerified || otpLoading || otpCooldown > 0}
               >
@@ -382,8 +382,8 @@ export default function RegistrationFlow({ onBackToLogin }) {
                   gap: 10,
                   animation: 'fadeSlideIn 0.3s ease',
                 }}>
-                  <Mail size={18} style={{ color: '#2563eb', flexShrink: 0 }} />
-                  <div style={{ fontSize: 13, color: '#1e40af' }}>
+                  <Mail size={18} style={{ color: selectedRole === 'partner' ? '#059669' : '#2563eb', flexShrink: 0 }} />
+                  <div style={{ fontSize: 13, color: selectedRole === 'partner' ? '#064e3b' : '#1e40af' }}>
                     A 6-digit OTP has been sent to <strong>{partnerData.email}</strong>
                   </div>
                 </div>
@@ -469,10 +469,14 @@ export default function RegistrationFlow({ onBackToLogin }) {
           <div style={{ textAlign: 'center', marginBottom: 28 }}>
             <div style={{
               width: 50, height: 50,
-              background: 'linear-gradient(135deg, #1e3a5f 0%, #2563eb 100%)',
+              background: selectedRole === 'partner' 
+                ? 'linear-gradient(135deg, #064e3b 0%, #10b981 100%)' 
+                : 'linear-gradient(135deg, #1e3a5f 0%, #2563eb 100%)',
               borderRadius: 14, display: 'flex', alignItems: 'center', justifyContent: 'center',
               margin: '0 auto 14px', fontSize: 18, fontWeight: 800, color: 'white',
-              boxShadow: '0 6px 16px rgba(37,99,235,0.35)'
+              boxShadow: selectedRole === 'partner'
+                ? '0 6px 16px rgba(16,185,129,0.35)'
+                : '0 6px 16px rgba(37,99,235,0.35)'
             }}>TT</div>
             <h2 style={{ fontSize: 22, fontWeight: 800, color: '#0f172a' }}>Registration</h2>
             <p style={{ fontSize: 13, color: '#94a3b8', marginTop: 4 }}>Complete the steps to join TraineeTrack</p>
