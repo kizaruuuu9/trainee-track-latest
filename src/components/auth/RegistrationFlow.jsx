@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { ArrowLeft, ArrowRight, CheckCircle, Loader, Users, Building2, ShieldCheck, Mail, MapPin, Building, Lock, Send, Eye, EyeOff } from 'lucide-react';
+import BrandLogo from '../common/BrandLogo';
 import Step1IDUpload from './Step1IDUpload';
 import Step2PersonalInfo from './Step2PersonalInfo';
 import { supabase } from '../../lib/supabase';
@@ -467,17 +468,20 @@ export default function RegistrationFlow({ onBackToLogin }) {
         {/* Header */}
         {!submitted && (
           <div style={{ textAlign: 'center', marginBottom: 28 }}>
-            <div style={{
-              width: 50, height: 50,
-              background: selectedRole === 'partner' 
-                ? 'linear-gradient(135deg, #064e3b 0%, #10b981 100%)' 
-                : 'linear-gradient(135deg, #1e3a5f 0%, #2563eb 100%)',
-              borderRadius: 14, display: 'flex', alignItems: 'center', justifyContent: 'center',
-              margin: '0 auto 14px', fontSize: 18, fontWeight: 800, color: 'white',
-              boxShadow: selectedRole === 'partner'
-                ? '0 6px 16px rgba(16,185,129,0.35)'
-                : '0 6px 16px rgba(37,99,235,0.35)'
-            }}>TT</div>
+            <BrandLogo 
+              size={50}
+              style={{ display: 'block', margin: '0 auto 14px' }}
+              fallbackStyle={{
+                width: 50, height: 50,
+                background: selectedRole === 'partner' 
+                  ? 'linear-gradient(135deg, #064e3b 0%, #10b981 100%)' 
+                  : 'linear-gradient(135deg, #1e3a5f 0%, #2563eb 100%)',
+                borderRadius: 14, margin: '0 auto 14px', fontSize: 18, color: 'white',
+                boxShadow: selectedRole === 'partner'
+                  ? '0 6px 16px rgba(16,185,129,0.35)'
+                  : '0 6px 16px rgba(37,99,235,0.35)'
+              }}
+            />
             <h2 style={{ fontSize: 22, fontWeight: 800, color: '#0f172a' }}>Registration</h2>
             <p style={{ fontSize: 13, color: '#94a3b8', marginTop: 4 }}>Complete the steps to join TraineeTrack</p>
           </div>

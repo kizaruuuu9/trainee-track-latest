@@ -190,6 +190,7 @@ export const AppProvider = ({ children }) => {
     appName: 'TraineeTrack',
     orgName: 'Philippine School for Technology Development and Innovation Inc.',
     logoText: 'TT',
+    logoUrl: '/src/assets/traineetrack_logo.svg',
     currentYear: new Date().getFullYear(),
   };
 
@@ -620,9 +621,11 @@ export const AppProvider = ({ children }) => {
     try {
       if (!currentUser) throw new Error('You must be logged in to post');
 
+      const authorType = userRole === 'partner' ? 'industry_partner' : 'student';
+
       const newPost = {
         author_id: currentUser.id,
-        author_type: userRole === 'partner' ? 'industry_partner' : 'student',
+        author_type: authorType,
         ...postData,
         tags: postData.tags || [],
         created_at: new Date().toISOString(),
@@ -676,6 +679,129 @@ export const AppProvider = ({ children }) => {
       console.error('Error deleting post:', err);
       return { success: false, error: err.message };
     }
+  };
+
+  // Admin-only: delete any post regardless of author (for bulletin management)
+  const adminDeletePost = async (postId) => {
+    try {
+      const { error } = await supabase.from('posts').delete().eq('id', postId);
+      if (error) throw error;
+      setPosts(prev => prev.filter(p => p.id !== postId));
+      logActivity('Delete', 'Bulletin', `Deleted bulletin post ${postId}`);
+      return { success: true };
+    } catch (err) {
+      console.error('Error deleting post (admin):', err);
+      return { success: false, error: err.message };
+    }
+  };
+
+  // Admin-only: update any post regardless of author
+  const adminUpdatePost = async (postId, updates) => {
+    try {
+      const { data, error } = await supabase
+        .from('posts')
+        .update({ ...updates, updated_at: new Date().toISOString() })
+        .eq('id', postId)
+        .select()
+        .single();
+      if (error) throw error;
+      setPosts(prev => prev.map(p => p.id === postId ? data : p));
+      logActivity('Edit', 'Bulletin', `Updated bulletin post: ${updates.title || postId}`);
+      return { success: true, data };
+    } catch (err) {
+      console.error('Error updating post (admin):', err);
+      return { success: false, error: err.message };
+    }
+  };
+
+  // ─── POST INTERACTIONS ────────────────────────────────────────────────────
+  const [postInteractions, setPostInteractions] = useState([]);
+
+  const fetchPostInteractions = async (postId = null) => {
+    try {
+      let query = supabase.from('post_interactions').select('*').order('created_at', { ascending: false });
+      if (postId) query = query.eq('post_id', postId);
+      const { data, error } = await query;
+      if (error) {
+        if (error.code === '42P01') { console.warn('post_interactions table not found. Run migrations.'); return; }
+        throw error;
+      }
+      setPostInteractions(data || []);
+    } catch (err) {
+      console.error('Error fetching post interactions:', err);
+    }
+  };
+
+  const createPostInteraction = async (postId, interactionType, details = {}) => {
+    try {
+      if (!currentUser) throw new Error('You must be logged in.');
+
+      // For 'save' interaction, check if it already exists to toggle it
+      if (interactionType === 'save') {
+        const existing = postInteractions.find(i => i.post_id === postId && i.user_id === currentUser.id && i.interaction_type === 'save');
+        if (existing) {
+          const { error } = await supabase.from('post_interactions').delete().eq('id', existing.id);
+          if (!error) {
+            setPostInteractions(prev => prev.filter(i => i.id !== existing.id));
+            return { success: true, action: 'removed' };
+          }
+          throw error;
+        }
+      }
+
+      const userName = currentUser.name || currentUser.companyName || (userRole === 'admin' ? 'Admin' : 'Unknown');
+      
+      const payload = {
+        post_id: postId,
+        user_id: currentUser.id,
+        user_type: userRole === 'partner' ? 'industry_partner' : 'student',
+        interaction_type: interactionType,
+        status: 'pending',
+        details: { ...details, user_name: userName },
+        created_at: new Date().toISOString(),
+      };
+      const { data, error } = await supabase.from('post_interactions').insert([payload]).select().single();
+      if (error) {
+        if (error.code === '42P01') return { success: false, error: 'post_interactions table not found. Run migrations.' };
+        throw error;
+      }
+      setPostInteractions(prev => [data, ...prev]);
+      return { success: true, data, action: 'added' };
+    } catch (err) {
+      console.error('Error creating post interaction:', err);
+      return { success: false, error: err.message };
+    }
+  };
+
+  const updatePostInteractionStatus = async (interactionId, status) => {
+    try {
+      const { data, error } = await supabase
+        .from('post_interactions')
+        .update({ status, updated_at: new Date().toISOString() })
+        .eq('id', interactionId)
+        .select()
+        .single();
+      if (error) throw error;
+      setPostInteractions(prev => prev.map(i => i.id === interactionId ? data : i));
+      logActivity('Status Change', 'Bulletin', `Interaction ${interactionId} set to ${status}`);
+      return { success: true, data };
+    } catch (err) {
+      console.error('Error updating interaction status:', err);
+      return { success: false, error: err.message };
+    }
+  };
+
+  const getPostInteractions = (postId, type = null) => {
+    return postInteractions.filter(i =>
+      i.post_id === postId && (type ? i.interaction_type === type : true)
+    );
+  };
+
+  const getUserPostInteraction = (postId, interactionType) => {
+    if (!currentUser) return null;
+    return postInteractions.find(i =>
+      i.post_id === postId && i.user_id === currentUser.id && i.interaction_type === interactionType
+    ) || null;
   };
 
   // ─── ADMIN ACCOUNT ────────────────────────────────────────────────────────
@@ -2247,7 +2373,7 @@ export const AppProvider = ({ children }) => {
         if (updates.contactPerson !== undefined) dbUpdates.contact_person = updates.contactPerson;
         if (updates.industry !== undefined) dbUpdates.business_type = updates.industry;
         if (updates.address !== undefined) {
-          dbUpdates.city = updates.address; // Mapping general address to city field for now
+          dbUpdates.detailed_address = updates.address;
         }
         if (updates.companySize !== undefined) dbUpdates.company_size = updates.companySize;
         if (updates.website !== undefined) dbUpdates.website = updates.website;
@@ -2255,6 +2381,18 @@ export const AppProvider = ({ children }) => {
         if (updates.achievements !== undefined) dbUpdates.achievements = updates.achievements;
         if (updates.benefits !== undefined) dbUpdates.benefits = updates.benefits;
         if (updates.companyInfoVisibility !== undefined) dbUpdates.company_info_visibility = updates.companyInfoVisibility;
+        if (updates.mission !== undefined) dbUpdates.mission = updates.mission;
+        if (updates.vision !== undefined) dbUpdates.vision = updates.vision;
+        if (updates.culture_tags !== undefined) dbUpdates.culture_tags = updates.culture_tags;
+        if (updates.perks_tags !== undefined) dbUpdates.perks_tags = updates.perks_tags;
+        if (updates.poc_name !== undefined) dbUpdates.poc_name = updates.poc_name;
+        if (updates.poc_title !== undefined) dbUpdates.poc_title = updates.poc_title;
+        if (updates.poc_photo_url !== undefined) dbUpdates.poc_photo_url = updates.poc_photo_url;
+        if (updates.office_location_url !== undefined) dbUpdates.office_location_url = updates.office_location_url;
+        if (updates.banner_url !== undefined) dbUpdates.banner_url = updates.banner_url;
+        if (updates.company_logo_url !== undefined) {
+          dbUpdates.company_logo_url = updates.company_logo_url;
+        }
 
         if (Object.keys(dbUpdates).length > 0) {
           const { error } = await supabase
@@ -2381,7 +2519,7 @@ export const AppProvider = ({ children }) => {
         // Map dashboard field names to students table column names
         const dbUpdates = {};
         if (updates.name !== undefined) dbUpdates.full_name = updates.name;
-        // if (updates.bio !== undefined) dbUpdates.bio = updates.bio; // Column missing in DB
+        if (updates.bio !== undefined) dbUpdates.bio = updates.bio;
 
         if (updates.birthday !== undefined) dbUpdates.birthdate = updates.birthday;
         if (updates.gender !== undefined) {
@@ -2635,6 +2773,7 @@ export const AppProvider = ({ children }) => {
         competencies: [],
         skills: student.skills || [],
         interests: student.interests || [],
+        bio: student.bio || '',
         employmentStatus: student.employment_status === 'employed' ? 'Employed'
           : student.employment_status === 'seeking_employment' ? 'Unemployed'
             : student.employment_status === 'not_employed' ? 'Unemployed' : 'Unemployed',
@@ -2936,6 +3075,17 @@ export const AppProvider = ({ children }) => {
             lastSeenAt: p.last_seen_at || null,
             achievements: p.achievements || [],
             benefits: p.benefits || [],
+            mission: p.mission || '',
+            vision: p.vision || '',
+            culture_tags: Array.isArray(p.culture_tags) ? p.culture_tags : [],
+            perks_tags: Array.isArray(p.perks_tags) ? p.perks_tags : [],
+            poc_name: p.poc_name || '',
+            poc_title: p.poc_title || '',
+            poc_photo_url: p.poc_photo_url || '',
+            office_location_url: p.office_location_url || '',
+            banner_url: p.banner_url || '',
+            company_logo_url: p.company_logo_url || p.photo || '',
+            photo: p.photo || p.company_logo_url || '',
             accountStatus: p.account_status || 'Active',
             companyInfoVisibility: resolveVisibilityFields(p.company_info_visibility, DEFAULT_PARTNER_PUBLIC_INFO_FIELDS),
           }));
@@ -3202,9 +3352,19 @@ export const AppProvider = ({ children }) => {
             contactPerson: partner.contact_person || previous.contactPerson || '',
             industry: partner.business_type || previous.industry || 'General',
             email: partner.contact_email || previous.email || '',
-            address: partner.city || previous.address || '',
+            address: partner.detailed_address || partner.city || previous.address || '',
             website: partner.website || previous.website || '',
-            company_logo_url: partner.company_logo_url || previous.company_logo_url || null,
+            company_logo_url: partner.company_logo_url || partner.photo || previous.company_logo_url || null,
+            photo: partner.photo || partner.company_logo_url || previous.photo || null,
+            banner_url: partner.banner_url || previous.banner_url || null,
+            mission: partner.mission || previous.mission || '',
+            vision: partner.vision || previous.vision || '',
+            culture_tags: Array.isArray(partner.culture_tags) ? partner.culture_tags : (previous.culture_tags || []),
+            perks_tags: Array.isArray(partner.perks_tags) ? partner.perks_tags : (previous.perks_tags || []),
+            poc_name: partner.poc_name || previous.poc_name || '',
+            poc_title: partner.poc_title || previous.poc_title || '',
+            poc_photo_url: partner.poc_photo_url || previous.poc_photo_url || '',
+            office_location_url: partner.office_location_url || previous.office_location_url || '',
             achievements: partner.achievements || previous.achievements || [],
             benefits: partner.benefits || previous.benefits || [],
             verificationStatus: partner.verification_status === 'verified'
@@ -3494,6 +3654,8 @@ export const AppProvider = ({ children }) => {
       createPost,
       updatePost,
       deletePost,
+      adminDeletePost,
+      adminUpdatePost,
       addPostComment,
       getPostComments,
       addJobPostingComment,
@@ -3501,6 +3663,13 @@ export const AppProvider = ({ children }) => {
       updateJobPostingComment,
       deleteJobPostingComment,
       sendContactRequest,
+      // Post Interactions (Bulletin)
+      postInteractions,
+      fetchPostInteractions,
+      createPostInteraction,
+      updatePostInteractionStatus,
+      getPostInteractions,
+      getUserPostInteraction,
       // Interview Scheduling
       availabilitySlots,
       interviewBookings,

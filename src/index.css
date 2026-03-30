@@ -291,9 +291,20 @@ body {
 }
 
 @keyframes pulse-green {
-  0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(22, 163, 74, 0.7); }
-  70% { transform: scale(1); box-shadow: 0 0 0 6px rgba(22, 163, 74, 0); }
-  100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(22, 163, 74, 0); }
+  0% {
+    transform: scale(0.95);
+    box-shadow: 0 0 0 0 rgba(22, 163, 74, 0.7);
+  }
+
+  70% {
+    transform: scale(1);
+    box-shadow: 0 0 0 6px rgba(22, 163, 74, 0);
+  }
+
+  100% {
+    transform: scale(0.95);
+    box-shadow: 0 0 0 0 rgba(22, 163, 74, 0);
+  }
 }
 
 .header-actions {
@@ -850,8 +861,8 @@ body {
   grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
   gap: 16px;
 }
-a text and a able to upload documents but not needed
-.two-col {
+
+a text and a able to upload documents but not needed .two-col {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 16px;
@@ -4495,6 +4506,7 @@ a text and a able to upload documents but not needed
   .ln-social-links-row {
     flex-direction: column;
   }
+
   .ln-social-input-group {
     min-width: 100%;
   }
@@ -4675,6 +4687,7 @@ a text and a able to upload documents but not needed
   .ln-pagination-info {
     text-align: center;
   }
+
   .ln-pagination-btn span {
     display: none;
   }
@@ -5086,28 +5099,29 @@ a text and a able to upload documents but not needed
 }
 
 .pn-dropdown-avatar {
-  background: linear-gradient(135deg, #10b981, #059669) !important;
+  background: linear-gradient(135deg, #10b981, #059669);
 }
 
 .pn-profile-banner {
-  background: linear-gradient(135deg, #064e3b 0%, #10b981 50%, #34d399 100%) !important;
+  background: linear-gradient(135deg, #064e3b 0%, #10b981 50%, #34d399 100%);
   height: 70px;
 }
 
 .pn-header-banner {
-  background: linear-gradient(135deg, #064e3b 0%, #10b981 50%, #34d399 100%) !important;
+  background: linear-gradient(135deg, #064e3b 0%, #10b981 50%, #34d399 100%);
+  position: relative;
 }
 
 .pn-avatar-lg {
-  background: linear-gradient(135deg, #10b981, #059669) !important;
+  background: linear-gradient(135deg, #10b981, #059669);
 }
 
 .pn-header-avatar {
-  background: linear-gradient(135deg, #10b981, #059669) !important;
+  background: linear-gradient(135deg, #10b981, #059669);
 }
 
 .pn-feed-avatar {
-  background: linear-gradient(135deg, #10b981, #059669) !important;
+  background: linear-gradient(135deg, #10b981, #059669);
 }
 
 .pn-stat-num {
@@ -5259,13 +5273,13 @@ body {
 }
 
 /* Prevent flex/grid children from blowing out layout */
-.stats-grid > *,
-.cards-grid > *,
-.two-col > *,
-.three-col > *,
-.ln-three-col > *,
-.ln-stats-grid-4 > *,
-.ln-stats-grid-3 > *,
+.stats-grid>*,
+.cards-grid>*,
+.two-col>*,
+.three-col>*,
+.ln-three-col>*,
+.ln-stats-grid-4>*,
+.ln-stats-grid-3>*,
 .ln-col-center,
 .ln-col-left,
 .ln-col-right,
@@ -5280,6 +5294,7 @@ body {
    prevents Safari from auto-zooming on focus
    ═══════════════════════════════════════════════════════════════════ */
 @media (max-width: 768px) {
+
   .form-input,
   .form-select,
   .form-textarea,
@@ -5294,6 +5309,7 @@ body {
    RESPONSIVE: SMALL TABLET / LARGE PHONE  (≤ 540px)
    ═══════════════════════════════════════════════════════════════════ */
 @media (max-width: 540px) {
+
   /* Admin dashboard header banner (inline-styled) */
   .header-title {
     font-size: 15px;
@@ -5323,6 +5339,7 @@ body {
     flex-wrap: nowrap;
     scrollbar-width: none;
   }
+
   .tabs::-webkit-scrollbar {
     display: none;
   }
@@ -5368,6 +5385,7 @@ body {
    RESPONSIVE: SMALL PHONE  (≤ 420px)
    ═══════════════════════════════════════════════════════════════════ */
 @media (max-width: 420px) {
+
   /* Login card */
   .login-card {
     padding: 20px 14px !important;
@@ -5562,6 +5580,7 @@ body {
    RESPONSIVE: MINIMUM SUPPORTED SIZE  (≤ 360px — iPhone SE, etc.)
    ═══════════════════════════════════════════════════════════════════ */
 @media (max-width: 360px) {
+
   /* Login */
   .login-card {
     padding: 16px 12px !important;
@@ -5777,14 +5796,22 @@ body {
     max-width: calc(100vw - 16px);
   }
 }
+
 /*  EMPTY STATES  */
 .ln-empty-state {
   animation: fadeIn 0.5s ease-out;
 }
 
 @keyframes fadeIn {
-  from { opacity: 0; transform: translateY(10px); }
-  to { opacity: 1; transform: translateY(0); }
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 .ln-empty-state-illustration {
@@ -5802,4 +5829,3 @@ body {
 .ln-empty-state-desc {
   color: var(--gray-600);
 }
-

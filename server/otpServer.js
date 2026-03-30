@@ -353,7 +353,7 @@ app.get('/api/public-profile/:profileType/:profileId', rateLimit, async (req, re
             const withProfileName = await supabaseAdmin
                 .from('students')
                 .select(`
-                    id, full_name, profile_name, profile_picture_url, banner_url, contact_email,
+                    id, full_name, profile_name, bio, profile_picture_url, banner_url, contact_email,
                     detailed_address, city, province, region, gender, birthdate,
                     graduation_year, training_status, employment_status, employment_work,
                     certifications, educ_history, work_experience, skills, interests, personal_info_visibility,
@@ -369,7 +369,7 @@ app.get('/api/public-profile/:profileType/:profileId', rateLimit, async (req, re
                 const fallback = await supabaseAdmin
                     .from('students')
                     .select(`
-                        id, full_name, profile_picture_url, banner_url, contact_email,
+                        id, full_name, profile_name, bio, profile_picture_url, banner_url, contact_email,
                         detailed_address, city, province, region, gender, birthdate,
                         graduation_year, training_status, employment_status, employment_work,
                         certifications, educ_history, work_experience, skills, interests,

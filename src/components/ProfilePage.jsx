@@ -114,21 +114,35 @@ const PartnerReadOnlyView = ({ profile }) => {
   const location = [profile.city, profile.province].filter(Boolean).join(', ') || profile.region || null;
   const achievements = Array.isArray(profile.achievements) ? profile.achievements : [];
   const benefits = Array.isArray(profile.benefits) ? profile.benefits : [];
+  const culture_tags = Array.isArray(profile.culture_tags) ? profile.culture_tags : [];
+  const perks_tags = Array.isArray(profile.perks_tags) ? profile.perks_tags : [];
 
   return (
-    <div style={{ padding: '16px 20px' }}>
-      <div style={{ display: 'flex', gap: 14, alignItems: 'flex-start', marginBottom: 16 }}>
-        <div style={{ width: 64, height: 64, borderRadius: 12, border: '2px solid #e2e8f0', flexShrink: 0, background: profile.company_logo_url ? 'transparent' : 'linear-gradient(135deg, #ede9fe, #dbeafe)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20, fontWeight: 800, color: '#7c3aed', overflow: 'hidden' }}>
-          {profile.company_logo_url ? <img src={profile.company_logo_url} alt={name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : initials}
+    <div>
+      <div style={{ position: 'relative', marginBottom: 44 }}>
+        <div style={{ height: 84, background: 'linear-gradient(135deg, #ecfdf5, #d1fae5)', overflow: 'hidden' }}>
+          {profile.banner_url && <img src={profile.banner_url} alt="banner" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />}
         </div>
-        <div>
-          <div style={{ fontWeight: 800, fontSize: 18, color: '#0f172a' }}>{name}</div>
-          {profile.business_type && <div style={{ fontSize: 13, color: '#64748b', marginTop: 2 }}>{profile.business_type}</div>}
-          {profile.verification_status === 'verified' && <span className="ln-badge ln-badge-green" style={{ marginTop: 6, display: 'inline-flex' }}>✓ Verified Partner</span>}
+        <div style={{
+          position: 'absolute', bottom: -28, left: 20,
+          width: 58, height: 58, borderRadius: 12, border: '3px solid white',
+          background: profile.company_logo_url ? 'transparent' : 'linear-gradient(135deg, #10b981, #059669)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18, fontWeight: 800,
+          color: 'white', overflow: 'hidden', flexShrink: 0
+        }}>
+          {profile.company_logo_url
+            ? <img src={profile.company_logo_url} alt={name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+            : initials}
         </div>
       </div>
 
-      <div className="ln-info-grid" style={{ marginBottom: 16 }}>
+      <div style={{ padding: '0 20px 16px' }}>
+        <div style={{ fontWeight: 800, fontSize: 18, color: '#0f172a' }}>{name}</div>
+        {profile.business_type && <div style={{ fontSize: 13, color: '#059669', fontWeight: 600, marginTop: 2 }}>{profile.business_type}</div>}
+        {profile.verification_status === 'verified' && <div style={{ marginTop: 6 }}><span className="ln-badge ln-badge-green">✓ Verified Partner</span></div>}
+      </div>
+
+      <div className="ln-info-grid" style={{ padding: '0 20px 16px' }}>
         {[
           location && ['Location', location],
           profile.contact_person && ['Contact Person', profile.contact_person],
@@ -144,15 +158,68 @@ const PartnerReadOnlyView = ({ profile }) => {
       </div>
 
       {profile.website && (
-        <div style={{ marginBottom: 14 }}>
+        <div style={{ padding: '0 20px 16px' }}>
           <a href={profile.website} target="_blank" rel="noreferrer" style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 13, color: '#0a66c2', textDecoration: 'none', fontWeight: 500 }}>
             <Globe size={13} /> {profile.website}
           </a>
         </div>
       )}
 
-      {benefits.length > 0 && <div style={{ marginBottom: 14 }}><div style={{ fontWeight: 700, fontSize: 13, color: '#1e293b', marginBottom: 8 }}>Benefits</div><div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>{benefits.map(b => <span key={b} style={{ fontSize: 12, padding: '3px 10px', borderRadius: 20, background: '#f0fdf4', color: '#15803d', fontWeight: 500 }}>{b}</span>)}</div></div>}
-      {achievements.length > 0 && <div style={{ marginBottom: 8 }}><div style={{ fontWeight: 700, fontSize: 13, color: '#1e293b', marginBottom: 8 }}>Achievements</div><div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>{achievements.map(a => <span key={a} style={{ fontSize: 12, padding: '3px 10px', borderRadius: 20, background: '#eff6ff', color: '#1d4ed8', fontWeight: 500 }}>{a}</span>)}</div></div>}
+      {(profile.mission || profile.vision) && (
+        <Section icon={<Star size={14} />} title="Company Focus">
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: 16 }}>
+            {profile.mission && (
+              <div>
+                <div style={{ fontSize: 11, fontWeight: 700, color: '#64748b', textTransform: 'uppercase', marginBottom: 4 }}>Mission</div>
+                <p style={{ fontSize: 13, color: '#334155', lineHeight: 1.5 }}>{profile.mission}</p>
+              </div>
+            )}
+            {profile.vision && (
+              <div>
+                <div style={{ fontSize: 11, fontWeight: 700, color: '#64748b', textTransform: 'uppercase', marginBottom: 4 }}>Vision</div>
+                <p style={{ fontSize: 13, color: '#334155', lineHeight: 1.5 }}>{profile.vision}</p>
+              </div>
+            )}
+          </div>
+        </Section>
+      )}
+
+      {(culture_tags.length > 0 || perks_tags.length > 0) && (
+        <Section icon={<Star size={14} />} title="Work Environment & Benefits">
+          {culture_tags.length > 0 && (
+            <div style={{ marginBottom: 12 }}>
+              <div style={{ fontSize: 11, fontWeight: 700, color: '#64748b', textTransform: 'uppercase', marginBottom: 6 }}>Work Culture</div>
+              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                {culture_tags.map(t => <span key={t} className="ln-cert-tag" style={{ fontSize: 11.5 }}>{t}</span>)}
+              </div>
+            </div>
+          )}
+          {perks_tags.length > 0 && (
+            <div>
+              <div style={{ fontSize: 11, fontWeight: 700, color: '#64748b', textTransform: 'uppercase', marginBottom: 6 }}>Perks & Benefits</div>
+              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                {perks_tags.map(t => <span key={t} style={{ fontSize: 11.5, padding: '3px 10px', borderRadius: 20, background: '#fdf2f2', color: '#991b1b', fontWeight: 500 }}>{t}</span>)}
+              </div>
+            </div>
+          )}
+        </Section>
+      )}
+
+      {profile.poc_name && (
+        <Section icon={<User size={14} />} title="Point of Contact">
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <div style={{ width: 48, height: 48, borderRadius: '50%', background: '#f1f5f9', overflow: 'hidden', flexShrink: 0, border: '1px solid #e2e8f0' }}>
+              {profile.poc_photo_url ? <img src={profile.poc_photo_url} alt="POC" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : <User size={24} style={{ margin: '12px auto', display: 'block', color: '#94a3b8' }} />}
+            </div>
+            <div>
+              <div style={{ fontWeight: 700, fontSize: 14, color: '#0f172a' }}>{profile.poc_name}</div>
+              <div style={{ fontSize: 12, color: '#64748b' }}>{profile.poc_title || 'Company Representative'}</div>
+            </div>
+          </div>
+        </Section>
+      )}
+
+      {achievements.length > 0 && <Section icon={<Award size={14} />} title="Achievements"><div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>{achievements.map(a => <span key={a} style={{ fontSize: 12, padding: '3px 10px', borderRadius: 20, background: '#eff6ff', color: '#1d4ed8', fontWeight: 500 }}>{a}</span>)}</div></Section>}
     </div>
   );
 };
@@ -203,7 +270,9 @@ const ProfilePage = ({ profileId, profileType, onBack }) => {
             .select(`
               id, company_name, company_logo_url, business_type, company_size,
               website, contact_person, contact_email, contact_phone,
-              city, province, region, achievements, benefits, verification_status
+              city, province, region, achievements, benefits, verification_status,
+              banner_url, mission, vision, culture_tags, perks_tags,
+              poc_name, poc_title, poc_photo_url, office_location_url
             `)
             .eq('id', profileId)
             .single();

@@ -3,6 +3,7 @@ import { useApp } from '../context/AppContext';
 import {
   Eye, EyeOff, AlertCircle, ChevronRight, BookOpen, Users, Briefcase, BarChart2, X, CheckCircle, XCircle, Loader
 } from 'lucide-react';
+import BrandLogo from './common/BrandLogo';
 
 const PASSWORD_RULES = [
   { id: 'length', label: 'At least 8 characters', test: (pw) => pw.length >= 8 },
@@ -117,13 +118,15 @@ export default function LoginScreen({ onShowRegistration }) {
         <div className="branding-section" style={{ color: 'white', padding: '0 20px' }}>
           {/* Logo */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 24 }}>
-            <div style={{
-              width: 60, height: 60,
-              background: 'linear-gradient(135deg, #3b82f6 0%, #0ea5e9 100%)',
-              borderRadius: 16, display: 'flex', alignItems: 'center', justifyContent: 'center',
-              fontSize: 22, fontWeight: 800, color: 'white',
-              boxShadow: '0 8px 24px rgba(59,130,246,0.5)'
-            }}>TT</div>
+            <BrandLogo 
+              size={60}
+              fallbackStyle={{
+                width: 60, height: 60,
+                background: 'linear-gradient(135deg, #3b82f6 0%, #0ea5e9 100%)',
+                borderRadius: 16, fontSize: 22, color: 'white',
+                boxShadow: '0 8px 24px rgba(59,130,246,0.5)'
+              }}
+            />
             <div>
               <div style={{ fontSize: 28, fontWeight: 800, letterSpacing: '-0.02em' }}>TraineeTrack</div>
               <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.5)', marginTop: 2 }}>Competency & Certification Platform</div>
@@ -160,13 +163,16 @@ export default function LoginScreen({ onShowRegistration }) {
         {/* Login Card */}
         <div className="login-card">
           <div style={{ textAlign: 'center', marginBottom: 16 }}>
-            <div style={{
-              width: 44, height: 44,
-              background: 'linear-gradient(135deg, #1e3a5f 0%, #2563eb 100%)',
-              borderRadius: 14, display: 'flex', alignItems: 'center', justifyContent: 'center',
-              margin: '0 auto 10px', fontSize: 16, fontWeight: 800, color: 'white',
-              boxShadow: '0 6px 16px rgba(37,99,235,0.35)'
-            }}>TT</div>
+            <BrandLogo 
+              size={44}
+              style={{ display: 'block', margin: '0 auto 10px' }}
+              fallbackStyle={{
+                width: 44, height: 44,
+                background: 'linear-gradient(135deg, #1e3a5f 0%, #2563eb 100%)',
+                borderRadius: 14, margin: '0 auto 10px', fontSize: 16, color: 'white',
+                boxShadow: '0 6px 16px rgba(37,99,235,0.35)'
+              }}
+            />
             <h2 style={{ fontSize: 18, fontWeight: 800, color: '#0f172a' }}>Welcome Back</h2>
             <p style={{ fontSize: 13, color: '#94a3b8', marginTop: 3 }}>Sign in to your TraineeTrack account</p>
           </div>

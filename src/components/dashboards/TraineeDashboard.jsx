@@ -1,10 +1,12 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useApp } from '../../context/AppContext';
+import SavedItemsView from './SavedItemsView';
 import {
     User, Briefcase, FileText, CheckCircle, Bell, ChevronDown, Search, Filter, MapPin, Clock, Building2,
     Award, Send, CheckSquare, X, Eye, EyeOff, Plus, Menu, Home, Settings, LogOut, MessageSquare, Bookmark,
     Trash2, Camera, Loader, GraduationCap, MoveRight, ExternalLink, ShieldCheck, Mail, Calendar, AlignLeft, Users, ChevronRight, ChevronLeft, Edit, Upload, Link, Star, Heart, MoreVertical, Info
 } from 'lucide-react';
+import ProfileActivityTab from './ProfileActivityTab';
 import EmptyState, {
   TrophyIllustration,
   BriefcaseIllustration,
@@ -12,6 +14,7 @@ import EmptyState, {
   StarIllustration,
   FolderIllustration
 } from '../EmptyState';
+import BrandLogo from '../common/BrandLogo';
 import { supabase } from '../../lib/supabase';
 import { Routes, Route, useNavigate, useLocation, Navigate, useParams } from 'react-router-dom';
 import { CompanyProfile } from './PartnerDashboard';
@@ -161,6 +164,15 @@ const normalizeTraineeProfile = (profile) => {
     };
 };
 
+
+const BULLETIN_TYPES = ['training_batch', 'exam_schedule', 'certification_assessment', 'announcement'];
+const BULLETIN_CONFIG = {
+    training_batch: { label: 'Training Batch', color: '#7c3aed', bg: '#ede9fe', emoji: '📚', traineeLabel: 'Apply', type: 'apply' },
+    exam_schedule: { label: 'Exam Schedule', color: '#0ea5e9', bg: '#e0f2fe', emoji: '📝', traineeLabel: 'Register', type: 'register' },
+    certification_assessment: { label: 'Certification Assessment', color: '#16a34a', bg: '#dcfce7', emoji: '🏆', traineeLabel: 'Register', type: 'register' },
+    announcement: { label: 'Announcement', color: '#d97706', bg: '#fef3c7', emoji: '📢', traineeLabel: 'Inquire', type: 'inquire' },
+};
+
 // ─── TOP NAVIGATION BAR (LinkedIn-style) ─────────────────────────
 const LinkedInTopNav = ({ activePage, setActivePage }) => {
     const { currentUser, logout } = useApp();
@@ -183,7 +195,7 @@ const LinkedInTopNav = ({ activePage, setActivePage }) => {
                 {/* Left: Logo + Search */}
                 <div className="ln-topnav-left">
                     <div className="ln-logo">
-                        <span className="ln-logo-icon">TT</span>
+                        <BrandLogo size={32} fallbackClassName="ln-logo-icon" />
                     </div>
                     <div className="ln-search-wrap">
                         <Search size={16} className="ln-search-icon" />
@@ -246,7 +258,11 @@ const LinkedInTopNav = ({ activePage, setActivePage }) => {
 
                     <div style={{ position: 'relative' }}>
                         <button className="ln-nav-item ln-profile-trigger" onClick={() => { setShowProfileMenu(!showProfileMenu); setShowNotif(false); }}>
-                            <div className="ln-nav-avatar">{initials}</div>
+                            <div className="ln-nav-avatar" style={{ overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                {currentUser?.photo ? (
+                                    <img src={currentUser.photo} alt="Profile" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                                ) : initials}
+                            </div>
                             <span className="ln-nav-label">
                                 Me <ChevronDown size={12} style={{ marginLeft: 2 }} />
                             </span>
@@ -254,7 +270,11 @@ const LinkedInTopNav = ({ activePage, setActivePage }) => {
                         {showProfileMenu && (
                             <div className="ln-dropdown" style={{ right: 0, minWidth: 260 }}>
                                 <div className="ln-dropdown-profile">
-                                    <div className="ln-dropdown-profile-avatar">{initials}</div>
+                                    <div className="ln-dropdown-profile-avatar" style={{ overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                        {currentUser?.photo ? (
+                                            <img src={currentUser.photo} alt="Profile" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                                        ) : initials}
+                                    </div>
                                     <div>
                                         <div className="ln-dropdown-profile-name">{currentUser?.name || 'Trainee'}</div>
                                         <div className="ln-dropdown-profile-role">TESDA Trainee</div>
@@ -436,7 +456,15 @@ const ProgressBar = ({ value, showLabel = true }) => {
 
 // ─── PAGE 1: DASHBOARD HOME (LinkedIn Feed-style) ───────────────
 const TraineeDashboardHome = ({ setActivePage }) => {
-    const { currentUser, trainees, applications, getTraineeRecommendedJobs, posts, createPost, updatePost, deletePost, partners, addPostComment, getPostComments, addJobPostingComment, getJobPostingComments, updateJobPostingComment, deleteJobPostingComment, sendContactRequest, applyToJob, updateTrainee } = useApp();
+    const {
+        currentUser, trainees, applications, getTraineeRecommendedJobs,
+        posts, jobPostings, createPost, updatePost, deletePost, partners,
+        addPostComment, getPostComments, addJobPostingComment,
+        getJobPostingComments, updateJobPostingComment,
+        deleteJobPostingComment, sendContactRequest, applyToJob,
+        updateTrainee, createPostInteraction, getUserPostInteraction,
+        fetchPostInteractions, postInteractions
+    } = useApp();
     const navigate = useNavigate();
     const trainee = currentUser || trainees[0];
     const myApps = applications.filter(a => a.traineeId === trainee?.id);
@@ -471,12 +499,58 @@ const TraineeDashboardHome = ({ setActivePage }) => {
     const [feedResumeInfo, setFeedResumeInfo] = useState(null);
     const [feedSubmittingApp, setFeedSubmittingApp] = useState(false);
 
+    const unifiedFeed = useMemo(() => {
+        return [
+            ...posts.map(p => ({ 
+                ...p, 
+                feedType: (BULLETIN_TYPES.includes(p.post_type) && p.author_type !== 'industry_partner') ? 'bulletin' : 'post' 
+            })),
+            ...jobPostings.map(j => ({ ...j, feedType: 'job' }))
+        ].sort((a, b) => new Date(b.created_at || b.createdAt || b.datePosted) - new Date(a.created_at || a.createdAt || a.datePosted));
+    }, [posts, jobPostings]);
+
+    // ── Bulletin interaction state (local to this component) ──
+    const [bulletinModal, setBulletinModal] = useState(null);
+    const [bulletinMessage, setBulletinMessage] = useState('');
+    const [bulletinSubmitting, setBulletinSubmitting] = useState(false);
+    const [bulletinToast, setBulletinToast] = useState('');
+
+    const showBulletinToast = (msg) => { setBulletinToast(msg); setTimeout(() => setBulletinToast(''), 3000); };
+
+    const openBulletinModal = (post, type) => {
+        setBulletinModal({ post, type });
+        setBulletinMessage('');
+    };
+
+    const handleBulletinInteraction = async () => {
+        if (!bulletinModal) return;
+        setBulletinSubmitting(true);
+        const details = { message: bulletinMessage, applied_at: new Date().toISOString() };
+        const res = await createPostInteraction(bulletinModal.post.id, bulletinModal.type, details);
+        setBulletinSubmitting(false);
+        if (res.success) {
+            setBulletinModal(null);
+            showBulletinToast(
+                bulletinModal.type === 'apply' ? 'Application submitted!' :
+                bulletinModal.type === 'register' ? 'Registered successfully!' :
+                'Inquiry sent!'
+            );
+            fetchPostInteractions();
+        } else {
+            alert(res.error || 'Failed to submit.');
+        }
+    };
+
     const [jobMediaModal, setJobMediaModal] = useState(null);
     const [jobMediaCommentsOnly, setJobMediaCommentsOnly] = useState(false);
     const [jobMediaCommentInput, setJobMediaCommentInput] = useState('');
     const [editingJobMediaCommentId, setEditingJobMediaCommentId] = useState(null);
     const [jobMediaEditInput, setJobMediaEditInput] = useState('');
     const [jobMediaCommentSaving, setJobMediaCommentSaving] = useState(false);
+
+    useEffect(() => {
+        fetchPostInteractions();
+    }, []);
     const [jobMediaCommentMenuId, setJobMediaCommentMenuId] = useState(null);
     const [isCompactCommentViewport, setIsCompactCommentViewport] = useState(() => (
         typeof window !== 'undefined' ? window.innerWidth <= 1024 : false
@@ -633,7 +707,7 @@ const TraineeDashboardHome = ({ setActivePage }) => {
                 content: postContent,
                 post_type: postType,
                 media_url: media_url,
-                tags: [trainee?.program, ...(trainee?.skills || [])].filter(Boolean)
+                tags: []
             });
 
             if (res.success) {
@@ -653,13 +727,13 @@ const TraineeDashboardHome = ({ setActivePage }) => {
         }
     };
 
-    // Unified Feed logic: Mix Jobs and Posts, sort by date
-    const unifiedFeed = [
-        ...posts
-            .filter(p => !p.expires_at || new Date(p.expires_at) > new Date())
-            .map(p => ({ ...p, feedType: 'post' })),
-        ...recJobs.map(j => ({ ...j, feedType: 'job' }))
-    ].sort((a, b) => new Date(b.created_at || b.createdAt || b.datePosted) - new Date(a.created_at || a.createdAt || a.datePosted));
+    const formatBulletinDate = (dateStr) => {
+        if (!dateStr) return '';
+        if (dateStr.includes('–') || (dateStr.includes('-') && dateStr.split('-').length !== 3)) return dateStr;
+        const date = new Date(dateStr);
+        if (isNaN(date.getTime())) return dateStr;
+        return date.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+    };
 
     const handleApply = () => {
         setActivePage('recommendations');
@@ -860,7 +934,7 @@ const TraineeDashboardHome = ({ setActivePage }) => {
         { label: 'Job Applications', value: myApps.length, icon: <Send size={20} />, color: '#057642' },
         { label: 'Active Interviews', value: myApps.filter(a => String(a.status).toLowerCase() === 'interview scheduled').length, icon: <Calendar size={20} />, color: '#7c3aed' },
         { label: 'Offers Received', value: myApps.filter(a => ['accepted', 'offered'].includes(String(a.status).toLowerCase())).length, icon: <Award size={20} />, color: '#0a66c2' },
-        { label: 'Saved for Later', value: trainee?.savedOpportunities?.length || 0, icon: <Bookmark size={20} />, color: '#d97706' },
+        { label: 'Saved for Later', value: (trainee?.savedOpportunities?.length || 0) + postInteractions.filter(i => i.user_id === currentUser?.id && i.interaction_type === 'save').length, icon: <Bookmark size={20} />, color: '#d97706' },
     ];
 
     const modalComments = commentModalPost ? getPostComments(commentModalPost.id) : [];
@@ -1060,7 +1134,147 @@ const TraineeDashboardHome = ({ setActivePage }) => {
                 {/* Unified Feed */}
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
                     {unifiedFeed.map(item => {
-                        if (item.feedType === 'job') {
+                        if (item.feedType === 'bulletin') {
+                            const cfg = BULLETIN_CONFIG[item.post_type] || BULLETIN_CONFIG.announcement;
+                            const alreadyInteracted = getUserPostInteraction(item.id, cfg.type);
+                            const statusColors = { Open: { bg: '#dcfce7', color: '#16a34a' }, Full: { bg: '#fef3c7', color: '#d97706' }, Closed: { bg: '#fee2e2', color: '#dc2626' } };
+                            const sc = statusColors[item.status] || statusColors.Open;
+                            const reqs = Array.isArray(item.requirements) ? item.requirements : [];
+                            return (
+                                <div key={`bulletin-${item.id}`} className="ln-card ln-feed-card" style={{ marginBottom: 0, borderLeft: `4px solid ${cfg.color}` }}>
+                                    {/* Header */}
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '14px 16px 10px' }}>
+                                        <div style={{ width: 40, height: 40, borderRadius: 10, background: cfg.bg, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18, flexShrink: 0 }}>{cfg.emoji}</div>
+                                        <div style={{ flex: 1 }}>
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                                <span style={{ fontWeight: 700, fontSize: 13, color: cfg.color }}>{cfg.label}</span>
+                                                <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 20, background: sc.bg, color: sc.color }}>{item.status || 'Open'}</span>
+                                            </div>
+                                            <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 2 }}>
+                                                {(function() {
+                                                  const authorId = String(item.author_id || '');
+                                                  const ADMIN_ID = 'de305d54-75b4-431b-adb2-eb6b9e546014';
+    
+                                                  if (item.author_type === 'admin' || authorId === ADMIN_ID) return 'PSTDII Admin';
+                                                  
+                                                  if (item.author_type === 'industry_partner' || item.author_type === 'partner') {
+                                                    const p = partners.find(p => String(p.id) === authorId);
+                                                    return p ? (p.companyName || p.profileName) : 'Industry Partner';
+                                                  }
+                                                  
+                                                  if (item.author_type === 'student' || item.author_type === 'trainee') {
+                                                    const t = trainees.find(t => String(t.id) === authorId);
+                                                    // If it's a generic 'Trainee' record or not found, it's likely an admin post saved as student
+                                                    if (!t || t.name === 'Trainee' || t.profileName === 'Trainee') return 'PSTDII Admin';
+                                                    return t.name || t.profileName;
+                                                  }
+                                                  
+                                                  return 'PSTDII Admin';
+                                                })()} • {timeAgo(item.created_at)}
+                                            </div>
+                                        </div>
+                                        {item.author_id === currentUser?.id && (
+                                          <div style={{ position: 'relative' }}>
+                                            <button
+                                              onClick={(e) => {
+                                                e.stopPropagation();
+                                                setPostMenuId(postMenuId === item.id ? null : item.id);
+                                              }}
+                                              style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 4, borderRadius: '50%', color: '#65676b' }}
+                                              title="More options"
+                                            >
+                                              <span style={{ fontSize: 20, fontWeight: 700, letterSpacing: 2, lineHeight: 1 }}>···</span>
+                                            </button>
+                                            {postMenuId === item.id && (
+                                              <div style={{
+                                                position: 'absolute', right: 0, top: 32, background: '#fff',
+                                                borderRadius: 8, boxShadow: '0 2px 12px rgba(0,0,0,0.15)',
+                                                border: '1px solid #e4e6eb', zIndex: 10, minWidth: 170, overflow: 'hidden'
+                                              }} onClick={e => e.stopPropagation()}>
+                                                <button
+                                                  onClick={() => {
+                                                    setEditingPostId(item.id);
+                                                    setEditContent(item.content);
+                                                    setPostMenuId(null);
+                                                  }}
+                                                  style={{
+                                                    display: 'flex', alignItems: 'center', gap: 10, width: '100%',
+                                                    padding: '10px 16px', border: 'none', background: 'none',
+                                                    cursor: 'pointer', fontSize: 14, color: '#1c1e21', textAlign: 'left'
+                                                  }}
+                                                  onMouseEnter={e => e.target.style.background = '#f2f3f5'}
+                                                  onMouseLeave={e => e.target.style.background = 'none'}
+                                                >
+                                                  <Edit size={16} /> Edit post
+                                                </button>
+                                                <button
+                                                  onClick={() => {
+                                                    if (window.confirm('Delete this post?')) {
+                                                      deletePost(item.id);
+                                                    }
+                                                    setPostMenuId(null);
+                                                  }}
+                                                  style={{
+                                                    display: 'flex', alignItems: 'center', gap: 10, width: '100%',
+                                                    padding: '10px 16px', border: 'none', background: 'none',
+                                                    cursor: 'pointer', fontSize: 14, color: '#dc3545', textAlign: 'left'
+                                                  }}
+                                                  onMouseEnter={e => e.target.style.background = '#f2f3f5'}
+                                                  onMouseLeave={e => e.target.style.background = 'none'}
+                                                >
+                                                  <Trash2 size={16} /> Delete post
+                                                </button>
+                                              </div>
+                                            )}
+                                          </div>
+                                        )}
+                                    </div>
+                                    {/* Body */}
+                                    <div style={{ padding: '0 16px 12px' }}>
+                                        <h4 style={{ fontSize: 15, fontWeight: 800, color: '#0f172a', marginBottom: 6 }}>{item.title}</h4>
+                                        <p style={{ fontSize: 13.5, color: '#475569', lineHeight: 1.6 }}>{item.content}</p>
+                                        {/* Details grid */}
+                                        {(item.schedule || item.time_range || item.slots) && (
+                                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))', gap: 8, marginTop: 10 }}>
+                                                {item.schedule && <div style={{ background: '#f8fafc', borderRadius: 8, padding: '8px 12px' }}><div style={{ fontSize: 10, color: '#94a3b8', fontWeight: 700, textTransform: 'uppercase' }}>Schedule</div><div style={{ fontSize: 12.5, fontWeight: 600, color: '#334155', marginTop: 2 }}>{formatBulletinDate(item.schedule)}</div></div>}
+                                                {item.time_range && <div style={{ background: '#f8fafc', borderRadius: 8, padding: '8px 12px' }}><div style={{ fontSize: 10, color: '#94a3b8', fontWeight: 700, textTransform: 'uppercase' }}>Time</div><div style={{ fontSize: 12.5, fontWeight: 600, color: '#334155', marginTop: 2 }}>{item.time_range}</div></div>}
+                                                {item.slots && <div style={{ background: '#f8fafc', borderRadius: 8, padding: '8px 12px' }}><div style={{ fontSize: 10, color: '#94a3b8', fontWeight: 700, textTransform: 'uppercase' }}>Slots</div><div style={{ fontSize: 15, fontWeight: 800, color: cfg.color, marginTop: 2 }}>{item.slots}</div></div>}
+                                            </div>
+                                        )}
+                                        {reqs.length > 0 && (
+                                            <div style={{ marginTop: 10 }}>
+                                                <div style={{ fontSize: 11, color: '#64748b', fontWeight: 700, marginBottom: 4 }}>REQUIREMENTS</div>
+                                                {reqs.map((r, i) => <div key={i} style={{ fontSize: 12.5, color: '#475569', display: 'flex', gap: 6, marginBottom: 3 }}><span style={{ color: cfg.color }}>•</span>{r}</div>)}
+                                            </div>
+                                        )}
+                                    </div>
+                                    {/* Actions */}
+                                    <div className="ln-feed-actions" style={{ borderTop: '1px solid #f3f3f3', padding: '8px 12px', display: 'flex', gap: 8 }}>
+                                        {cfg.type && (
+                                            <button
+                                                className="ln-feed-action-btn"
+                                                disabled={!!alreadyInteracted || item.status === 'Closed' || item.status === 'Full'}
+                                                onClick={() => openBulletinModal(item, cfg.type)}
+                                                style={alreadyInteracted ? { color: cfg.color, fontWeight: 700 } : {}}
+                                            >
+                                                {alreadyInteracted ? <><CheckCircle size={14} /> {cfg.traineeLabel.endsWith('y') ? cfg.traineeLabel.replace(/y$/, 'ied') : (cfg.traineeLabel.endsWith('e') ? cfg.traineeLabel + 'd' : cfg.traineeLabel + 'ed')}</> : <><Send size={14} /> {cfg.traineeLabel}</>}
+                                            </button>
+                                        )}
+                                        <button className="ln-feed-action-btn" onClick={() => openBulletinModal(item, 'inquire')}>
+                                            <MessageSquare size={14} /> Inquire
+                                        </button>
+                                        <button 
+                                            className="ln-feed-action-btn" 
+                                            onClick={() => createPostInteraction(item.id, 'save')}
+                                            style={getUserPostInteraction(item.id, 'save') ? { color: '#d97706', fontWeight: 700 } : {}}
+                                        >
+                                            <Bookmark size={14} fill={getUserPostInteraction(item.id, 'save') ? "currentColor" : "none"} /> 
+                                            {getUserPostInteraction(item.id, 'save') ? 'Saved' : 'Save'}
+                                        </button>
+                                    </div>
+                                </div>
+                            );
+                        } else if (item.feedType === 'job') {
                             const applied = myAppJobIds.includes(item.id);
                             const isSaved = Array.isArray(trainee?.savedOpportunities) && trainee.savedOpportunities.includes(item.id);
                             const jobComments = getJobPostingComments(item.id);
@@ -1413,6 +1627,58 @@ const TraineeDashboardHome = ({ setActivePage }) => {
                 <SuggestedOpportunities recJobs={recJobs} handleApply={handleApply} setActivePage={setActivePage} onViewProfile={openProfile} />
                 <QuickLinksWidget setActivePage={setActivePage} />
             </div>
+
+            {/* Bulletin Interaction Toast */}
+            {bulletinToast && (
+                <div style={{ position: 'fixed', top: 20, right: 20, zIndex: 9999, background: '#0f172a', color: '#fff', padding: '12px 20px', borderRadius: 10, fontWeight: 600, fontSize: 14, boxShadow: '0 4px 20px rgba(0,0,0,0.3)', display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <CheckCircle size={16} color="#4ade80" />{bulletinToast}
+                </div>
+            )}
+
+            {/* Bulletin Interaction Modal */}
+            {bulletinModal && (() => {
+                const cfg = BULLETIN_CONFIG[bulletinModal.post.post_type] || BULLETIN_CONFIG.announcement;
+                const isInquiry = bulletinModal.type === 'inquire';
+                const title = isInquiry ? 'Send Inquiry' : bulletinModal.type === 'apply' ? 'Apply to Training' : 'Register';
+                return (
+                    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
+                        <div style={{ background: '#fff', borderRadius: 16, width: '100%', maxWidth: 440, boxShadow: '0 20px 60px rgba(0,0,0,0.2)', overflow: 'hidden' }}>
+                            <div style={{ background: cfg.color, padding: '16px 20px', display: 'flex', alignItems: 'center', gap: 12 }}>
+                                <div style={{ fontSize: 20 }}>{cfg.emoji}</div>
+                                <div>
+                                    <div style={{ fontWeight: 700, color: '#fff', fontSize: 15 }}>{title}</div>
+                                    <div style={{ color: 'rgba(255,255,255,0.8)', fontSize: 12 }}>{bulletinModal.post.title}</div>
+                                </div>
+                                <button onClick={() => setBulletinModal(null)} style={{ marginLeft: 'auto', background: 'rgba(255,255,255,0.2)', border: 'none', borderRadius: 8, width: 28, height: 28, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                    <X size={14} color="#fff" />
+                                </button>
+                            </div>
+                            <div style={{ padding: '20px' }}>
+                                <label style={{ fontSize: 12, fontWeight: 700, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.05em', display: 'block', marginBottom: 8 }}>
+                                    {isInquiry ? 'Your Message *' : 'Message / Note (optional)'}
+                                </label>
+                                <textarea
+                                    value={bulletinMessage}
+                                    onChange={e => setBulletinMessage(e.target.value)}
+                                    placeholder={isInquiry ? 'Type your inquiry here...' : 'Add a note or cover letter...'}
+                                    rows={4}
+                                    style={{ width: '100%', padding: '10px 12px', borderRadius: 8, border: '1.5px solid #e2e8f0', fontSize: 14, outline: 'none', resize: 'none', boxSizing: 'border-box' }}
+                                />
+                                <div style={{ display: 'flex', gap: 10, marginTop: 14, justifyContent: 'flex-end' }}>
+                                    <button onClick={() => setBulletinModal(null)} style={{ padding: '10px 18px', borderRadius: 8, border: '1.5px solid #e2e8f0', background: '#fff', color: '#64748b', fontWeight: 600, cursor: 'pointer' }}>Cancel</button>
+                                    <button
+                                        onClick={handleBulletinInteraction}
+                                        disabled={bulletinSubmitting || (isInquiry && !bulletinMessage.trim())}
+                                        style={{ padding: '10px 20px', borderRadius: 8, border: 'none', background: cfg.color, color: '#fff', fontWeight: 700, cursor: 'pointer', opacity: bulletinSubmitting ? 0.6 : 1 }}
+                                    >
+                                        {bulletinSubmitting ? 'Submitting...' : isInquiry ? 'Send Inquiry' : 'Confirm'}
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                );
+            })()}
 
             {/* Delete Confirmation Dialog */}
             {confirmDeleteId && (
@@ -2104,72 +2370,10 @@ const ApplicationTimeline = ({ traineeId }) => {
     );
 };
 
-const SavedOpportunitiesView = ({ traineeId, savedIds, onApply }) => {
-    const { jobPostings, updateTrainee, applications } = useApp();
-    const myApps = applications.filter(a => a.traineeId === traineeId).map(a => a.jobId);
-    const savedJobs = jobPostings.filter(j => savedIds.includes(j.id));
-
-    const removeBookmark = async (jobId) => {
-        const newList = savedIds.filter(id => id !== jobId);
-        await updateTrainee(traineeId, { savedOpportunities: newList });
-    };
-
-    if (savedJobs.length === 0) {
-        return (
-            <div className="ln-empty-state" style={{ padding: '40px 0' }}>
-                <Bookmark size={48} style={{ opacity: 0.2, marginBottom: 12 }} />
-                <h3>No saved opportunities</h3>
-                <p style={{ color: '#64748b', fontSize: 14 }}>Opportunities you bookmark will appear here.</p>
-            </div>
-        );
-    }
-
-    return (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-            {savedJobs.map(job => (
-                <div key={job.id} className="ln-card ln-job-card-li" style={{ margin: 0, padding: 20 }}>
-                    <div className="ln-job-card-top" style={{ padding: 0, border: 'none' }}>
-                        <div className="ln-job-card-icon" style={{ width: 48, height: 48, background: '#f8fafc', borderRadius: 10 }}><Building2 size={24} color="#64748b" /></div>
-                        <div className="ln-job-card-info" style={{ marginLeft: 16 }}>
-                            <div className="ln-job-card-title" style={{ fontSize: 16, fontWeight: 700 }}>{job.title}</div>
-                            <div className="ln-job-card-company" style={{ fontSize: 14, color: '#0a66c2' }}>{job.companyName}</div>
-                            <div className="ln-job-card-meta" style={{ marginTop: 6 }}>
-                                <span><MapPin size={13} /> {job.location}</span>
-                                <span style={{ color: '#057642', fontWeight: 600 }}>Saved recently</span>
-                            </div>
-                        </div>
-                        <div className="ln-job-card-badges">
-                            <button
-                                type="button"
-                                onClick={() => removeBookmark(job.id)}
-                                style={{ background: '#fef2f2', border: 'none', color: '#cc1016', cursor: 'pointer', padding: 8, borderRadius: 8, display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, fontWeight: 600 }}
-                            >
-                                <Trash2 size={15} /> Remove
-                            </button>
-                        </div>
-                    </div>
-                    <div className="ln-job-card-footer" style={{ marginTop: 16, paddingTop: 16, borderTop: '1px solid #f1f5f9' }}>
-                        <span style={{ fontSize: 13, color: '#64748b' }}>Posted by industry partner</span>
-                        <div style={{ display: 'flex', gap: 10 }}>
-                            <button
-                                type="button"
-                                className="ln-btn-sm ln-btn-primary"
-                                style={{ padding: '8px 16px' }}
-                                disabled={myApps.includes(job.id) || job.status !== 'Open'}
-                                onClick={() => onApply(job)}
-                            >
-                                {myApps.includes(job.id) ? 'Applied' : 'Apply Now'}
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            ))}
-        </div>
-    );
-};
+// SavedItemsView is now a separate component in SavedItemsView.jsx
 
 // ─── PAGE 2: PROFILE ─────────────────────────────────────────────
-export const TraineeProfileContent = ({ viewedProfileId = null, onBack = null }) => {
+export const TraineeProfileContent = ({ viewedProfileId = null, onBack = null, openBulletinModal }) => {
     const { currentUser, userRole, trainees, updateTrainee, getSkillInterestRecommendations, programs, getSkillsDemand, applyToJob } = useApp();
     const isOwnProfile = !viewedProfileId || String(viewedProfileId) === String(currentUser?.id);
     const isEmployer = userRole === 'partner';
@@ -2327,9 +2531,11 @@ export const TraineeProfileContent = ({ viewedProfileId = null, onBack = null })
     useEffect(() => {
         if (!trainee) return;
         setEditing(false);
-        setForm({ ...trainee });
+        const { documents: _, ...traineeWithoutDocs } = trainee || {};
+        setForm({ ...traineeWithoutDocs });
         setInterestsList(trainee?.interests || []);
-        setDocuments(Array.isArray(trainee?.documents) ? trainee.documents : []);
+        // Documents are managed separately via the trainee.id useEffect below to avoid clobbering during profile saves.
+
         setEducHistory(trainee?.educHistory || []);
         setWorkExperience(trainee?.workExperience || []);
         setTrainingForm({
@@ -2530,6 +2736,8 @@ export const TraineeProfileContent = ({ viewedProfileId = null, onBack = null })
     // Fetch documents on mount
     useEffect(() => {
         if (trainee?.id) {
+            // Clear current documents to provide a fresh state when switching profiles
+            setDocuments([]); 
             fetch(`/api/documents/${trainee.id}`)
                 .then(r => {
                     if (!r.ok) throw new Error(`Server returned ${r.status}`);
@@ -3028,7 +3236,7 @@ export const TraineeProfileContent = ({ viewedProfileId = null, onBack = null })
             </div>
 
             <div className="ln-profile-tabs" style={{ display: 'flex', gap: 24, padding: '0 16px', marginBottom: 16, borderBottom: '1px solid #e2e8f0', background: 'white' }}>
-                {(isEmployer ? ['About', 'Training'] : ['About', 'Training', 'Match Insights', 'Saved']).map(tab => (
+                {(isEmployer ? ['About', 'Training'] : ['About', 'Training', 'Match Insights', 'Saved'].concat(isOwnProfile ? ['Activity'] : [])).map(tab => (
                     <button
                         key={tab}
                         type="button"
@@ -3555,15 +3763,20 @@ export const TraineeProfileContent = ({ viewedProfileId = null, onBack = null })
                         </React.Fragment>
                     )}
 
+                    {activeTab === 'Activity' && isOwnProfile && (
+                        <ProfileActivityTab profileId={trainee.id} profileType="trainee" isOwnProfile={isOwnProfile} />
+                    )}
+
                     {/* Saved Tab */}
                     {activeTab === 'Saved' && (
                         <div className="ln-card">
-                            <div className="ln-section-header"><h3>Saved Opportunities</h3></div>
+                            <div className="ln-section-header"><h3>Saved Items</h3></div>
                             <div style={{ padding: '0 20px 20px' }}>
-                                <SavedOpportunitiesView
-                                    traineeId={trainee.id}
-                                    savedIds={trainee.savedOpportunities || []}
+                                <SavedItemsView
+                                    userId={trainee.id}
+                                    userType="trainee"
                                     onApply={openApplyModal}
+                                    onOpenBulletin={(p) => openBulletinModal(p, 'inquire')}
                                 />
                             </div>
                         </div>
@@ -3927,9 +4140,9 @@ export const TraineeProfileContent = ({ viewedProfileId = null, onBack = null })
     );
 };
 
-const TraineeProfile = () => (
+const TraineeProfile = (props) => (
     <ErrorBoundary>
-        <TraineeProfileContent />
+        <TraineeProfileContent {...props} />
     </ErrorBoundary>
 );
 
@@ -4914,7 +5127,7 @@ const TraineeProfileViewRoute = () => {
     if (normalizedProfileType === 'trainee') {
         return (
             <ErrorBoundary>
-                <TraineeProfileContent viewedProfileId={profileId} onBack={() => navigate(-1)} />
+                <TraineeProfileContent viewedProfileId={profileId} onBack={() => navigate(-1)} openBulletinModal={openBulletinModal} />
             </ErrorBoundary>
         );
     }
@@ -4928,9 +5141,41 @@ const TraineeProfileViewRoute = () => {
 
 // ─── MAIN TRAINEE DASHBOARD ─────────────────────────────────────
 export default function TraineeDashboard() {
-    const { currentUser } = useApp();
+    const { currentUser, createPostInteraction, fetchPostInteractions } = useApp();
     const navigate = useNavigate();
     const location = useLocation();
+
+    // Lifted from TraineeDashboardHome to fix ReferenceError in Profile View
+    const [bulletinModal, setBulletinModal] = useState(null); // { post, type: 'apply'|'register'|'inquire' }
+    const [bulletinMessage, setBulletinMessage] = useState('');
+    const [bulletinSubmitting, setBulletinSubmitting] = useState(false);
+    const [bulletinToast, setBulletinToast] = useState('');
+
+    const showBulletinToast = (msg) => { setBulletinToast(msg); setTimeout(() => setBulletinToast(''), 3000); };
+
+    const openBulletinModal = (post, type) => {
+        setBulletinModal({ post, type });
+        setBulletinMessage('');
+    };
+
+    const handleBulletinInteraction = async () => {
+        if (!bulletinModal) return;
+        setBulletinSubmitting(true);
+        const details = { message: bulletinMessage, applied_at: new Date().toISOString() };
+        const res = await createPostInteraction(bulletinModal.post.id, bulletinModal.type, details);
+        setBulletinSubmitting(false);
+        if (res.success) {
+            setBulletinModal(null);
+            showBulletinToast(
+                bulletinModal.type === 'apply' ? 'Application submitted!' :
+                bulletinModal.type === 'register' ? 'Registered successfully!' :
+                'Inquiry sent!'
+            );
+            fetchPostInteractions();
+        } else {
+            alert(res.error || 'Failed to submit.');
+        }
+    };
 
     // Deduce active page from URL for visual consistency in child components
     const path = location.pathname.split('/').pop();
@@ -4950,13 +5195,66 @@ export default function TraineeDashboard() {
     return (
         <LinkedInLayout activePage={activePage} setActivePage={setActivePage}>
             <Routes>
-                <Route path="/" element={<TraineeDashboardHome setActivePage={setActivePage} />} />
-                <Route path="/profile" element={<TraineeProfile />} />
+                <Route path="/" element={<TraineeDashboardHome setActivePage={setActivePage} openBulletinModal={openBulletinModal} />} />
+                <Route path="/profile" element={<TraineeProfile openBulletinModal={openBulletinModal} />} />
                 <Route path="/recommendations" element={<Opportunities />} />
                 <Route path="/applications" element={<MyApplications />} />
-                <Route path="/profile-view/:profileType/:profileId" element={<TraineeProfileViewRoute />} />
+                <Route path="/profile-view/:profileType/:profileId" element={<TraineeProfileViewRoute openBulletinModal={openBulletinModal} />} />
                 <Route path="*" element={<Navigate to="/trainee" replace />} />
             </Routes>
+
+            {/* Lifted Bulletin UI Elements */}
+            {bulletinToast && (
+                <div style={{ position: 'fixed', top: 20, right: 20, zIndex: 9999, background: '#0f172a', color: '#fff', padding: '12px 20px', borderRadius: 10, fontWeight: 600, fontSize: 14, boxShadow: '0 4px 20px rgba(0,0,0,0.3)', display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <CheckCircle size={16} color="#4ade80" />{bulletinToast}
+                </div>
+            )}
+
+            {bulletinModal && (() => {
+                const cfg = BULLETIN_CONFIG[bulletinModal.post.post_type] || BULLETIN_CONFIG.announcement;
+                const isInquiry = bulletinModal.type === 'inquire';
+                const title = isInquiry ? 'Send Inquiry' : cfg.traineeLabel;
+                return (
+                    <div className="modal-overlay">
+                        <div className="ln-modal" style={{ width: '100%', maxWidth: 460 }}>
+                            <div style={{ background: cfg.color, padding: '16px 20px', display: 'flex', alignItems: 'center', gap: 12 }}>
+                                <div style={{ fontSize: 20 }}>{cfg.emoji}</div>
+                                <div style={{ flex: 1 }}>
+                                    <div style={{ fontWeight: 700, color: '#fff', fontSize: 15 }}>{title}</div>
+                                    <div style={{ color: 'rgba(255,255,255,0.8)', fontSize: 12 }}>{bulletinModal.post.title}</div>
+                                </div>
+                                <button onClick={() => setBulletinModal(null)} className="ln-close-btn" style={{ background: 'rgba(255,255,255,0.15)', color: '#fff' }}><X size={16} /></button>
+                            </div>
+                            <div style={{ padding: 20 }}>
+                                <div style={{ marginBottom: 14 }}>
+                                    <label style={{ fontSize: 12, fontWeight: 700, color: '#475569', textTransform: 'uppercase', display: 'block', marginBottom: 6 }}>
+                                        {isInquiry ? 'Your Message *' : 'Notes (optional)'}
+                                    </label>
+                                    <textarea
+                                        value={bulletinMessage}
+                                        onChange={e => setBulletinMessage(e.target.value)}
+                                        placeholder={isInquiry ? "Type your inquiry here..." : "Add a note..."}
+                                        rows={4}
+                                        className="form-input"
+                                        style={{ resize: 'none' }}
+                                    />
+                                </div>
+                                <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
+                                    <button onClick={() => setBulletinModal(null)} className="ln-btn ln-btn-outline">Cancel</button>
+                                    <button
+                                        onClick={handleBulletinInteraction}
+                                        disabled={bulletinSubmitting || (isInquiry && !bulletinMessage.trim())}
+                                        className="ln-btn"
+                                        style={{ background: cfg.color, color: '#fff' }}
+                                    >
+                                        {bulletinSubmitting ? 'Submitting...' : 'Confirm'}
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                );
+            })()}
         </LinkedInLayout>
     );
 }

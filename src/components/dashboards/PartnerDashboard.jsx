@@ -1,13 +1,15 @@
 import React, { useState, useRef, useEffect } from 'react'; 
 import { useApp } from '../../context/AppContext';
+import SavedItemsView from './SavedItemsView';
+import ProfileActivityTab from './ProfileActivityTab';
 import {
   LayoutDashboard, Briefcase, FileText, Users, Building2, LogOut,
   ChevronDown, Search, Plus, Eye, X, CheckCircle, XCircle,
   MapPin, Send, Award, ChevronRight, Trash2, Menu, Lock,
   Upload, AlertTriangle, Clock, ShieldCheck, FileCheck,
   Bell, Home, Settings, TrendingUp, Bookmark, Target, Star,
-  Camera, MessageSquare, Edit, Loader, ExternalLink, EyeOff, MoreVertical,
-  Calendar, ChevronLeft, Heart
+  Camera, MessageSquare, MessageCircle, Edit, Loader, ExternalLink, EyeOff, MoreVertical,
+  Calendar, ChevronLeft, Heart, Download, Navigation, User
 } from 'lucide-react';
 import EmptyState, { 
   TrophyIllustration, 
@@ -16,6 +18,7 @@ import EmptyState, {
   StarIllustration, 
   FolderIllustration 
 } from '../EmptyState';
+import BrandLogo from '../common/BrandLogo';
 import { supabase } from '../../lib/supabase';
 import { Routes, Route, useNavigate, useLocation, Navigate, useParams } from 'react-router-dom';
 import ProfilePage from '../ProfilePage';
@@ -222,6 +225,15 @@ const normalizePartnerProfile = (profile) => {
     industry: profile.industry || profile.business_type || 'General',
     achievements: Array.isArray(profile.achievements) ? profile.achievements : [],
     benefits: Array.isArray(profile.benefits) ? profile.benefits : [],
+    mission: profile.mission || '',
+    vision: profile.vision || '',
+    culture_tags: Array.isArray(profile.culture_tags) ? profile.culture_tags : [],
+    perks_tags: Array.isArray(profile.perks_tags) ? profile.perks_tags : [],
+    poc_name: profile.poc_name || '',
+    poc_title: profile.poc_title || '',
+    poc_photo_url: profile.poc_photo_url || '',
+    office_location_url: profile.office_location_url || '',
+    banner_url: profile.banner_url || '',
     photo: profile.photo || profile.company_logo_url || null,
     company_logo_url: profile.company_logo_url || profile.photo || null,
     companyInfoVisibility: resolvePartnerVisibility(profile),
@@ -264,7 +276,7 @@ const PartnerTopNav = ({ activePage, setActivePage }) => {
   const navItems = [
     { id: 'dashboard', label: 'Home', icon: <Home size={20} /> },
     { id: 'profile', label: 'Company', icon: <Building2 size={20} /> },
-    ...(!verified ? [{ id: 'verification', label: 'Verification', icon: <ShieldCheck size={20} /> }] : []),
+    { id: 'verification', label: 'Verification', icon: <ShieldCheck size={20} /> },
     { id: 'post-job', label: 'Post Opportunities', icon: <Plus size={20} />, locked: !verified },
     { id: 'calendar', label: 'Calendar', icon: <Calendar size={20} />, locked: !verified },
     { id: 'applicants', label: 'Recruit', icon: <Users size={20} />, locked: !verified },
@@ -276,7 +288,7 @@ const PartnerTopNav = ({ activePage, setActivePage }) => {
         {/* Left: Logo + Search */}
         <div className="ln-topnav-left">
           <div className="ln-logo">
-            <span className="ln-logo-icon pn-logo-icon">TT</span>
+            <BrandLogo size={32} fallbackClassName="ln-logo-icon pn-logo-icon" />
           </div>
           <div className="ln-search-wrap">
             <Search size={16} className="ln-search-icon" />
@@ -339,7 +351,11 @@ const PartnerTopNav = ({ activePage, setActivePage }) => {
 
           <div style={{ position: 'relative' }}>
             <button className="ln-nav-item ln-profile-trigger" onClick={() => { setShowProfileMenu(!showProfileMenu); setShowNotif(false); }}>
-              <div className="ln-nav-avatar pn-nav-avatar">{initials}</div>
+              <div className="ln-nav-avatar pn-nav-avatar" style={{ overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                {livePartner?.company_logo_url ? (
+                  <img src={livePartner.company_logo_url} alt="Logo" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                ) : initials}
+              </div>
               <span className="ln-nav-label">
                 Me <ChevronDown size={12} style={{ marginLeft: 2 }} />
               </span>
@@ -347,7 +363,11 @@ const PartnerTopNav = ({ activePage, setActivePage }) => {
             {showProfileMenu && (
               <div className="ln-dropdown" style={{ right: 0, minWidth: 260 }}>
                 <div className="ln-dropdown-profile">
-                  <div className="ln-dropdown-profile-avatar pn-dropdown-avatar">{initials}</div>
+                  <div className="ln-dropdown-profile-avatar pn-dropdown-avatar" style={{ overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    {livePartner?.company_logo_url ? (
+                      <img src={livePartner.company_logo_url} alt="Logo" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                    ) : initials}
+                  </div>
                   <div>
                     <div className="ln-dropdown-profile-name">{livePartner?.companyName || 'Partner'}</div>
                     <div className="ln-dropdown-profile-role">Industry Partner</div>
@@ -356,12 +376,10 @@ const PartnerTopNav = ({ activePage, setActivePage }) => {
                 <button className="ln-dropdown-profile-btn" onClick={() => { setActivePage('profile'); setShowProfileMenu(false); }}>
                   View Company Profile
                 </button>
-                {!verified && (<>
                   <div className="ln-dropdown-divider" />
                   <div className="ln-dropdown-item" onClick={() => { setActivePage('verification'); setShowProfileMenu(false); }}>
                     <ShieldCheck size={16} /> Verification
                   </div>
-                </>)}
                 <div className="ln-dropdown-divider" />
                 <div className="ln-dropdown-item ln-dropdown-danger" onClick={logout}>
                   <LogOut size={16} /> Sign Out
@@ -419,10 +437,17 @@ const CompanySideCard = ({ partner, setActivePage }) => {
   const showSideAddress = visibleCompanyInfo.has('address');
   return (
     <div className="ln-card ln-profile-card">
-      <div className="ln-profile-banner pn-profile-banner" />
+      <div 
+        className="ln-profile-banner pn-profile-banner" 
+        style={partner?.banner_url ? { backgroundImage: `url(${partner.banner_url})`, backgroundSize: 'cover', backgroundPosition: 'center' } : {}}
+      />
       <div className="ln-profile-card-body">
-        <div className="ln-profile-avatar-wrap">
-          <div className="ln-profile-avatar-lg pn-avatar-lg">{initials}</div>
+        <div className="ln-profile-avatar-wrap" style={{ overflow: 'hidden' }}>
+          <div className="ln-profile-avatar-lg pn-avatar-lg" style={{ overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            {partner?.company_logo_url ? (
+              <img src={partner.company_logo_url} alt="Logo" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+            ) : initials}
+          </div>
         </div>
         <h2 className="ln-profile-name" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
           {partner?.companyName}
@@ -465,7 +490,7 @@ const QuickActionsWidget = ({ setActivePage, verified }) => (
       { label: 'Post Opportunities', icon: <Plus size={16} />, page: 'post-job', locked: !verified },
       { label: 'Calendar', icon: <Calendar size={16} />, page: 'calendar', locked: !verified },
       { label: 'Recruit', icon: <Users size={16} />, page: 'applicants', locked: !verified },
-      ...(!verified ? [{ label: 'Verification', icon: <ShieldCheck size={16} />, page: 'verification', locked: false }] : []),
+      { label: 'Verification', icon: <ShieldCheck size={16} />, page: 'verification', locked: false },
     ].map(link => (
       <button
         key={link.page}
@@ -505,7 +530,7 @@ const RecruitmentStatsWidget = ({ myJobs, myApplicants }) => (
 
 // ─── PAGE 1: PARTNER DASHBOARD HOME ──────────────────────────────
 const PartnerHome = ({ setActivePage }) => {
-  const { currentUser, partners, jobPostings, programs, updatePartnerJobPosting, getPartnerApplicants, posts, createPost, updatePost, deletePost, deleteJobPosting, trainees, addPostComment, getPostComments, addJobPostingComment, getJobPostingComments, updateJobPostingComment, deleteJobPostingComment, sendContactRequest } = useApp();
+  const { currentUser, partners, jobPostings, programs, updatePartnerJobPosting, getPartnerApplicants, posts, createPost, updatePost, deletePost, deleteJobPosting, trainees, addPostComment, getPostComments, addJobPostingComment, getJobPostingComments, updateJobPostingComment, deleteJobPostingComment, sendContactRequest, createPostInteraction, getUserPostInteraction, fetchPostInteractions } = useApp();
   const navigate = useNavigate();
   const partner = getLivePartner(currentUser, partners);
   const verified = isVerified(partner);
@@ -772,7 +797,7 @@ const PartnerHome = ({ setActivePage }) => {
         post_type: postType,
         media_url: media_url,
         expires_at: postExpiryEnabled && postExpiryDate ? new Date(postExpiryDate + 'T23:59:59').toISOString() : null,
-        tags: [partner?.industry, postType].filter(Boolean)
+        tags: []
       });
 
       if (res.success) {
@@ -1087,11 +1112,72 @@ const PartnerHome = ({ setActivePage }) => {
 
   const myJobIds = new Set(myJobs.map(job => job.id));
 
-  // Unified Feed logic: Mix Jobs and Posts, sort by date
+  const formatBulletinDate = (dateStr) => {
+    if (!dateStr) return '';
+    if (dateStr.includes('–') || (dateStr.includes('-') && dateStr.split('-').length !== 3)) return dateStr;
+    const date = new Date(dateStr);
+    if (isNaN(date.getTime())) return dateStr;
+    return date.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+  };
+
+  // Unified Feed: tag bulletin posts, mix with jobs
+  const BULLETIN_TYPES = ['training_batch', 'exam_schedule', 'certification_assessment', 'announcement'];
   const unifiedFeed = [
-    ...posts.map(p => ({ ...p, feedType: 'post' })),
+    ...posts.map(p => ({ 
+      ...p, 
+      feedType: (BULLETIN_TYPES.includes(p.post_type) && p.author_type !== 'industry_partner') ? 'bulletin' : 'post' 
+    })),
     ...jobPostings.map(j => ({ ...j, feedType: 'job' }))
   ].sort((a, b) => new Date(b.created_at || b.createdAt || b.datePosted) - new Date(a.created_at || a.createdAt || a.datePosted));
+
+  // Bulletin interaction state
+  const [bulletinModal, setBulletinModal] = useState(null); // { post, type }
+  const [bulletinMsg, setBulletinMsg] = useState('');
+  const [bulletinSubmitting, setBulletinSubmitting] = useState(false);
+  const [bulletinToast, setBulletinToast] = useState('');
+
+  useEffect(() => {
+    fetchPostInteractions();
+  }, []);
+  // Referral form fields
+  const [referralName, setReferralName] = useState('');
+  const [referralContact, setReferralContact] = useState('');
+  const [referralNotes, setReferralNotes] = useState('');
+
+  const showBulletinToast = (msg) => { setBulletinToast(msg); setTimeout(() => setBulletinToast(''), 3000); };
+
+  const openBulletinModal = (post, type) => {
+    setBulletinModal({ post, type });
+    setBulletinMsg('');
+    setReferralName('');
+    setReferralContact('');
+    setReferralNotes('');
+  };
+
+  const handleBulletinSubmit = async () => {
+    if (!bulletinModal) return;
+    setBulletinSubmitting(true);
+    const isRefer = bulletinModal.type === 'refer';
+    const details = isRefer
+      ? { apprentice_name: referralName, apprentice_contact: referralContact, notes: referralNotes, company: partner?.companyName, referred_at: new Date().toISOString() }
+      : { message: bulletinMsg, submitted_at: new Date().toISOString() };
+    const res = await createPostInteraction(bulletinModal.post.id, bulletinModal.type, details);
+    setBulletinSubmitting(false);
+    if (res.success) {
+      setBulletinModal(null);
+      showBulletinToast(isRefer ? 'Referral submitted!' : bulletinModal.type === 'register' ? 'Registration submitted!' : 'Inquiry sent!');
+      fetchPostInteractions();
+    } else {
+      alert(res.error || 'Failed to submit.');
+    }
+  };
+
+  const BULLETIN_CONFIG = {
+    training_batch:          { label: 'Training Batch',          color: '#7c3aed', bg: '#ede9fe', emoji: '📚', partnerLabel: 'Refer Apprentice', type: 'refer' },
+    exam_schedule:           { label: 'Exam Schedule',           color: '#0ea5e9', bg: '#e0f2fe', emoji: '📝', partnerLabel: 'Register Apprentice', type: 'register' },
+    certification_assessment:{ label: 'Certification Assessment',color: '#16a34a', bg: '#dcfce7', emoji: '🏆', partnerLabel: 'Register Apprentice', type: 'register' },
+    announcement:            { label: 'Announcement',            color: '#d97706', bg: '#fef3c7', emoji: '📢', partnerLabel: null, type: null },
+  };
 
   const stats = [
     { label: 'Active Postings', value: myJobs.filter(j => j.status === 'Open').length, icon: <Briefcase size={20} />, color: '#0ea5e9' },
@@ -1254,7 +1340,147 @@ const PartnerHome = ({ setActivePage }) => {
             <h3 style={{ fontSize: 14, textTransform: 'uppercase', letterSpacing: '0.5px', color: 'rgba(0,0,0,0.6)' }}>Community Activity</h3>
           </div>
           {unifiedFeed.map(item => {
-            if (item.feedType === 'job') {
+            if (item.feedType === 'bulletin') {
+              let cfg = { ...(BULLETIN_CONFIG[item.post_type] || BULLETIN_CONFIG.announcement) };
+              if (item.post_type === 'announcement' && item.accept_referrals) {
+                cfg.type = 'refer';
+                cfg.partnerLabel = 'Refer Apprentice';
+              }
+              const alreadyInteracted = getUserPostInteraction(item.id, cfg.type);
+              const sc = { Open:{bg:'#dcfce7',color:'#16a34a'}, Full:{bg:'#fef3c7',color:'#d97706'}, Closed:{bg:'#fee2e2',color:'#dc2626'} }[item.status] || {bg:'#dcfce7',color:'#16a34a'};
+              const reqs = Array.isArray(item.requirements) ? item.requirements : [];
+              return (
+                <div key={`bulletin-${item.id}`} className="ln-card ln-feed-card" style={{ marginBottom: 0, borderLeft: `4px solid ${cfg.color}` }}>
+                  <div style={{ display:'flex', alignItems:'center', gap:10, padding:'14px 16px 10px' }}>
+                    <div style={{ width:40, height:40, borderRadius:10, background:cfg.bg, display:'flex', alignItems:'center', justifyContent:'center', fontSize:18, flexShrink:0 }}>{cfg.emoji}</div>
+                    <div style={{ flex:1 }}>
+                      <div style={{ display:'flex', alignItems:'center', gap:8 }}>
+                        <span style={{ fontWeight:700, fontSize:13, color:cfg.color }}>{cfg.label}</span>
+                        <span style={{ fontSize:10, fontWeight:700, padding:'2px 8px', borderRadius:20, background:sc.bg, color:sc.color }}>{item.status || 'Open'}</span>
+                        {item.accept_referrals && <span style={{ fontSize:10, padding:'2px 8px', borderRadius:20, background:'#ede9fe', color:'#7c3aed', fontWeight:600 }}>Accepts Referrals</span>}
+                      </div>
+                      <div style={{ fontSize:11, color:'#94a3b8', marginTop:2 }}>
+                        {(function() {
+                          const authorId = String(item.author_id || '');
+                          const ADMIN_ID = 'de305d54-75b4-431b-adb2-eb6b9e546014';
+                          
+                          if (item.author_type === 'admin' || authorId === ADMIN_ID) return 'PSTDII Admin';
+                          
+                          if (item.author_type === 'industry_partner' || item.author_type === 'partner') {
+                            const p = partners.find(p => String(p.id) === authorId);
+                            return p ? (p.companyName || p.profileName) : 'Industry Partner';
+                          }
+                          
+                          if (item.author_type === 'student' || item.author_type === 'trainee') {
+                            const t = trainees.find(t => String(t.id) === authorId);
+                            // If it's a generic 'Trainee' record or not found, it's likely an admin post saved as student
+                            if (!t || t.name === 'Trainee' || t.profileName === 'Trainee') return 'PSTDII Admin';
+                            return t.name || t.profileName;
+                          }
+                          
+                          return 'PSTDII Admin';
+                        })()} • {timeAgo(item.created_at)}
+                      </div>
+                    </div>
+                    {item.author_id === currentUser?.id && (
+                      <div style={{ position: 'relative' }}>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setPostMenuId(postMenuId === item.id ? null : item.id);
+                          }}
+                          style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 4, borderRadius: '50%', color: '#65676b' }}
+                          title="More options"
+                        >
+                          <span style={{ fontSize: 20, fontWeight: 700, letterSpacing: 2, lineHeight: 1 }}>···</span>
+                        </button>
+                        {postMenuId === item.id && (
+                          <div style={{
+                            position: 'absolute', right: 0, top: 32, background: '#fff',
+                            borderRadius: 8, boxShadow: '0 2px 12px rgba(0,0,0,0.15)',
+                            border: '1px solid #e4e6eb', zIndex: 10, minWidth: 170, overflow: 'hidden'
+                          }} onClick={e => e.stopPropagation()}>
+                            <button
+                              onClick={() => {
+                                setEditingPostId(item.id);
+                                setEditContent(item.content);
+                                setPostMenuId(null);
+                              }}
+                              style={{
+                                display: 'flex', alignItems: 'center', gap: 10, width: '100%',
+                                padding: '10px 16px', border: 'none', background: 'none',
+                                cursor: 'pointer', fontSize: 14, color: '#1c1e21', textAlign: 'left'
+                              }}
+                              onMouseEnter={e => e.target.style.background = '#f2f3f5'}
+                              onMouseLeave={e => e.target.style.background = 'none'}
+                            >
+                              <Edit size={16} /> Edit post
+                            </button>
+                            <button
+                              onClick={() => {
+                                if (window.confirm('Delete this post?')) {
+                                  deletePost(item.id);
+                                }
+                                setPostMenuId(null);
+                              }}
+                              style={{
+                                display: 'flex', alignItems: 'center', gap: 10, width: '100%',
+                                padding: '10px 16px', border: 'none', background: 'none',
+                                cursor: 'pointer', fontSize: 14, color: '#dc3545', textAlign: 'left'
+                              }}
+                              onMouseEnter={e => e.target.style.background = '#f2f3f5'}
+                              onMouseLeave={e => e.target.style.background = 'none'}
+                            >
+                              <Trash2 size={16} /> Delete post
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                  <div style={{ padding:'0 16px 12px' }}>
+                    <h4 style={{ fontSize:15, fontWeight:800, color:'#0f172a', marginBottom:6 }}>{item.title}</h4>
+                    <p style={{ fontSize:13.5, color:'#475569', lineHeight:1.6 }}>{item.content}</p>
+                    {(item.schedule || item.time_range || item.slots) && (
+                      <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill, minmax(140px, 1fr))', gap:8, marginTop:10 }}>
+                        {item.schedule && <div style={{ background:'#f8fafc', borderRadius:8, padding:'8px 12px' }}><div style={{ fontSize:10, color:'#94a3b8', fontWeight:700, textTransform:'uppercase' }}>Schedule</div><div style={{ fontSize:12.5, fontWeight:600, color:'#334155', marginTop:2 }}>{formatBulletinDate(item.schedule)}</div></div>}
+                        {item.time_range && <div style={{ background:'#f8fafc', borderRadius:8, padding:'8px 12px' }}><div style={{ fontSize:10, color:'#94a3b8', fontWeight:700, textTransform:'uppercase' }}>Time</div><div style={{ fontSize:12.5, fontWeight:600, color:'#334155', marginTop:2 }}>{item.time_range}</div></div>}
+                        {item.slots && <div style={{ background:'#f8fafc', borderRadius:8, padding:'8px 12px' }}><div style={{ fontSize:10, color:'#94a3b8', fontWeight:700, textTransform:'uppercase' }}>Slots</div><div style={{ fontSize:15, fontWeight:800, color:cfg.color, marginTop:2 }}>{item.slots}</div></div>}
+                      </div>
+                    )}
+                    {reqs.length > 0 && (
+                      <div style={{ marginTop:10 }}>
+                        <div style={{ fontSize:11, color:'#64748b', fontWeight:700, marginBottom:4 }}>REQUIREMENTS</div>
+                        {reqs.map((r,i) => <div key={i} style={{ fontSize:12.5, color:'#475569', display:'flex', gap:6, marginBottom:3 }}><span style={{ color:cfg.color }}>•</span>{r}</div>)}
+                      </div>
+                    )}
+                  </div>
+                  <div className="ln-feed-actions" style={{ borderTop:'1px solid #f3f3f3', padding:'8px 12px', display:'flex', gap:8 }}>
+                    {cfg.type && item.accept_referrals !== false && (
+                      <button
+                        className="ln-feed-action-btn"
+                        disabled={!!alreadyInteracted || item.status === 'Closed' || item.status === 'Full'}
+                        onClick={() => openBulletinModal(item, cfg.type)}
+                        style={alreadyInteracted ? { color:cfg.color, fontWeight:700 } : {}}
+                      >
+                        {alreadyInteracted ? <><CheckCircle size={14}/> Submitted</> : <><Users size={14}/> {cfg.partnerLabel}</>}
+                      </button>
+                    )}
+                    <button className="ln-feed-action-btn" onClick={() => openBulletinModal(item, 'inquire')}>
+                      <MessageSquare size={14}/> Inquire
+                    </button>
+                    <button 
+                      className="ln-feed-action-btn" 
+                      onClick={() => createPostInteraction(item.id, 'save')}
+                      style={getUserPostInteraction(item.id, 'save') ? { color: '#d97706', fontWeight: 700 } : {}}
+                    >
+                      <Bookmark size={14} fill={getUserPostInteraction(item.id, 'save') ? "currentColor" : "none"} /> 
+                      {getUserPostInteraction(item.id, 'save') ? 'Saved' : 'Save'}
+                    </button>
+                  </div>
+                </div>
+              );
+            } else if (item.feedType === 'job') {
               const myJob = item.partnerId === currentUser?.id;
               const jobComments = getJobPostingComments(item.id);
               return (
@@ -1640,7 +1866,77 @@ const PartnerHome = ({ setActivePage }) => {
         <RecruitmentStatsWidget myJobs={myJobs} myApplicants={myApplicants} />
       </div>
 
+
+      {/* Bulletin Toast */}
+      {bulletinToast && (
+        <div style={{ position:'fixed', top:20, right:20, zIndex:9999, background:'#0f172a', color:'#fff', padding:'12px 20px', borderRadius:10, fontWeight:600, fontSize:14, boxShadow:'0 4px 20px rgba(0,0,0,0.3)', display:'flex', alignItems:'center', gap:8 }}>
+          <CheckCircle size={16} color="#4ade80" />{bulletinToast}
+        </div>
+      )}
+
+      {/* Bulletin Interaction Modals */}
+      {bulletinModal && (() => {
+        const cfg = BULLETIN_CONFIG[bulletinModal.post.post_type] || BULLETIN_CONFIG.announcement;
+        const isRefer = bulletinModal.type === 'refer';
+        const isInquiry = bulletinModal.type === 'inquire';
+        const title = isRefer ? 'Refer an Apprentice' : isInquiry ? 'Send Inquiry' : 'Register Apprentice';
+        return (
+          <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.5)', zIndex:9999, display:'flex', alignItems:'center', justifyContent:'center', padding:20 }}>
+            <div style={{ background:'#fff', borderRadius:16, width:'100%', maxWidth:480, boxShadow:'0 20px 60px rgba(0,0,0,0.2)', overflow:'hidden' }}>
+              <div style={{ background:cfg.color, padding:'16px 20px', display:'flex', alignItems:'center', gap:12 }}>
+                <div style={{ fontSize:20 }}>{cfg.emoji}</div>
+                <div>
+                  <div style={{ fontWeight:700, color:'#fff', fontSize:15 }}>{title}</div>
+                  <div style={{ color:'rgba(255,255,255,0.8)', fontSize:12 }}>{bulletinModal.post.title}</div>
+                </div>
+                <button onClick={() => setBulletinModal(null)} style={{ marginLeft:'auto', background:'rgba(255,255,255,0.2)', border:'none', borderRadius:8, width:28, height:28, cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center' }}>
+                  <X size={14} color="#fff" />
+                </button>
+              </div>
+              <div style={{ padding:'20px' }}>
+                {isRefer ? (
+                  <>
+                    <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12, marginBottom:14 }}>
+                      <div>
+                        <label style={{ fontSize:12, fontWeight:700, color:'#475569', textTransform:'uppercase', letterSpacing:'0.05em', display:'block', marginBottom:6 }}>Apprentice Name *</label>
+                        <input value={referralName} onChange={e => setReferralName(e.target.value)} placeholder="Full name" style={{ width:'100%', padding:'10px 12px', borderRadius:8, border:'1.5px solid #e2e8f0', fontSize:13, outline:'none', boxSizing:'border-box' }} />
+                      </div>
+                      <div>
+                        <label style={{ fontSize:12, fontWeight:700, color:'#475569', textTransform:'uppercase', letterSpacing:'0.05em', display:'block', marginBottom:6 }}>Contact / Email</label>
+                        <input value={referralContact} onChange={e => setReferralContact(e.target.value)} placeholder="email or phone" style={{ width:'100%', padding:'10px 12px', borderRadius:8, border:'1.5px solid #e2e8f0', fontSize:13, outline:'none', boxSizing:'border-box' }} />
+                      </div>
+                    </div>
+                    <div style={{ marginBottom:14 }}>
+                      <label style={{ fontSize:12, fontWeight:700, color:'#475569', textTransform:'uppercase', letterSpacing:'0.05em', display:'block', marginBottom:6 }}>Notes (optional)</label>
+                      <textarea value={referralNotes} onChange={e => setReferralNotes(e.target.value)} placeholder="Add any relevant notes about the apprentice..." rows={3} style={{ width:'100%', padding:'10px 12px', borderRadius:8, border:'1.5px solid #e2e8f0', fontSize:13, outline:'none', resize:'none', boxSizing:'border-box' }} />
+                    </div>
+                  </>
+                ) : (
+                  <div style={{ marginBottom:14 }}>
+                    <label style={{ fontSize:12, fontWeight:700, color:'#475569', textTransform:'uppercase', letterSpacing:'0.05em', display:'block', marginBottom:6 }}>
+                      {isInquiry ? 'Your Inquiry *' : 'Message (optional)'}
+                    </label>
+                    <textarea value={bulletinMsg} onChange={e => setBulletinMsg(e.target.value)} placeholder={isInquiry ? 'Type your inquiry here...' : 'Add a note...'} rows={4} style={{ width:'100%', padding:'10px 12px', borderRadius:8, border:'1.5px solid #e2e8f0', fontSize:13, outline:'none', resize:'none', boxSizing:'border-box' }} />
+                  </div>
+                )}
+                <div style={{ display:'flex', gap:10, justifyContent:'flex-end' }}>
+                  <button onClick={() => setBulletinModal(null)} style={{ padding:'10px 18px', borderRadius:8, border:'1.5px solid #e2e8f0', background:'#fff', color:'#64748b', fontWeight:600, cursor:'pointer' }}>Cancel</button>
+                  <button
+                    onClick={handleBulletinSubmit}
+                    disabled={bulletinSubmitting || (isRefer && !referralName.trim()) || (isInquiry && !bulletinMsg.trim())}
+                    style={{ padding:'10px 20px', borderRadius:8, border:'none', background:cfg.color, color:'#fff', fontWeight:700, cursor:'pointer', opacity:bulletinSubmitting ? 0.6 : 1 }}
+                  >
+                    {bulletinSubmitting ? 'Submitting...' : isRefer ? 'Submit Referral' : isInquiry ? 'Send Inquiry' : 'Confirm'}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
       {editJobModal && (
+
         <div className="modal-overlay" onClick={closeEditJobModal}>
           <div className="ln-modal" onClick={e => e.stopPropagation()} style={{ width: '95%', maxWidth: 860, maxHeight: '92vh', overflow: 'hidden', padding: 0, background: '#fff' }}>
             <div style={{ padding: '16px 20px', borderBottom: '1px solid #e5e7eb', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
@@ -2278,7 +2574,7 @@ const PartnerHome = ({ setActivePage }) => {
 };
 
 // ─── PAGE: VERIFICATION ───────────────────────────────────────────
-const VerificationPage = () => {
+const VerificationPage = ({ setActivePage }) => {
   const { currentUser, partners, submitPartnerDocuments, withdrawPartnerSubmission } = useApp();
   const livePartner = getLivePartner(currentUser, partners);
   const status = livePartner?.verificationStatus || 'Pending';
@@ -2394,32 +2690,50 @@ const VerificationPage = () => {
         <StatusBadge status={status} />
       </div>
 
-      {/* Status Card */}
-      <div className="ln-card" style={{ marginBottom: 16 }}>
-        <div className="ln-section-header"><h3>Verification Status</h3></div>
-        <div style={{ padding: '0 16px 16px' }}>
-          <p style={{ fontSize: 14, color: 'rgba(0,0,0,0.6)', lineHeight: 1.6 }}>
-            {status === 'Verified'
-              ? 'Your account is fully verified. You can post jobs and OJT opportunities.'
-              : status === 'Under Review'
-                ? 'Your documents are being reviewed by our administrators. Please wait for approval.'
-                : status === 'Rejected'
-                  ? 'Your verification was rejected. You may re-upload documents and submit again.'
-                  : 'Upload your company verification documents below to begin the verification process.'}
-          </p>
-        </div>
-      </div>
-
+      {/* Premium Verified Success State */}
       {status === 'Verified' && (
-        <div className="ln-card" style={{ marginBottom: 16, borderLeft: '4px solid #16a34a', background: '#f0fdf4' }}>
-          <div style={{ padding: 16, display: 'flex', alignItems: 'flex-start', gap: 12 }}>
-            <CheckCircle size={22} color="#16a34a" style={{ marginTop: 2, flexShrink: 0 }} />
-            <div>
-              <div style={{ fontWeight: 700, fontSize: 15, color: '#166534', marginBottom: 4 }}>Your company is already verified</div>
-              <p style={{ fontSize: 13, color: '#166534', lineHeight: 1.6, margin: 0 }}>
-                Your verification has been approved by the administrators. You now have access to posting opportunities and handling trainee applicants.
-              </p>
-            </div>
+        <div className="ln-card" style={{ marginBottom: 24, padding: '40px 20px', textAlign: 'center', background: 'linear-gradient(135deg, #f0fdf4 0%, #ffffff 100%)', border: '1px solid #bbf7d0', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.05)' }}>
+          <div style={{
+            width: 84, height: 84, borderRadius: '50%', background: '#f0fdf4',
+            display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 24px',
+            border: '8px solid #ffffff', boxShadow: '0 0 0 1px #bbf7d0'
+          }}>
+            <ShieldCheck size={42} color="#16a34a" />
+          </div>
+          <h2 style={{ fontSize: 26, fontWeight: 800, color: '#166534', marginBottom: 12 }}>Your Company is Verified!</h2>
+          <p style={{ fontSize: 15, color: '#15803d', maxWidth: 540, margin: '0 auto 32px', lineHeight: 1.6 }}>
+            Congratulations! Your account has been reviewed and approved. You can now post job opportunities, access the interview calendar, and connect with top trainees.
+          </p>
+          
+          <div style={{ 
+            display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', 
+            gap: 16, maxWidth: 650, margin: '0 auto' 
+          }}>
+            <button className="ln-btn ln-btn-primary" onClick={() => setActivePage('post-job')} style={{ padding: '14px 20px', justifyContent: 'center', fontSize: 15 }}>
+              <Plus size={18} /> Post an Opportunity
+            </button>
+            <button className="ln-btn ln-btn-outline" onClick={() => setActivePage('calendar')} style={{ padding: '14px 20px', justifyContent: 'center', fontSize: 15, background: 'white' }}>
+              <Calendar size={18} /> Setup Interview Calendar
+            </button>
+            <button className="ln-btn ln-btn-outline" onClick={() => setActivePage('applicants')} style={{ padding: '14px 20px', justifyContent: 'center', fontSize: 15, background: 'white' }}>
+              <Users size={18} /> Recruitment Center
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Status Card (Only for non-verified or secondary info) */}
+      {status !== 'Verified' && (
+        <div className="ln-card" style={{ marginBottom: 16 }}>
+          <div className="ln-section-header"><h3>Verification Status</h3></div>
+          <div style={{ padding: '0 16px 16px' }}>
+            <p style={{ fontSize: 14, color: 'rgba(0,0,0,0.6)', lineHeight: 1.6 }}>
+              {status === 'Under Review'
+                  ? 'Your documents are being reviewed by our administrators. Please wait for approval.'
+                  : status === 'Rejected'
+                    ? 'Your verification was rejected. You may re-upload documents and submit again.'
+                    : 'Upload your company verification documents below to begin the verification process.'}
+            </p>
           </div>
         </div>
       )}
@@ -2466,37 +2780,36 @@ const VerificationPage = () => {
         </div>
       </div>
 
-      {/* Upload Section */}
-      {status !== 'Verified' && (
-        <div className="ln-card" style={{ marginBottom: 16 }}>
-          <div className="ln-section-header"><h3>Upload Verification Documents</h3></div>
-          <div style={{ padding: '0 16px 16px' }}>
+      {/* Upload/Verified Documents Section */}
+      <div className="ln-card" style={{ marginBottom: 16 }}>
+        <div className="ln-section-header"><h3>{status === 'Verified' ? 'Verified Documents' : 'Upload Verification Documents'}</h3></div>
+        <div style={{ padding: '0 16px 16px' }}>
 
-            {/* Uploaded docs list */}
-            {documents.length > 0 && (
-              <div style={{ marginBottom: 20 }}>
-                {documents.map(doc => (
-                  <div key={doc.id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 14px', background: '#f8fafc', borderRadius: 10, border: '1px solid #e2e8f0', marginBottom: 8 }}>
-                    <FileCheck size={18} color="#16a34a" style={{ flexShrink: 0 }} />
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontSize: 13, fontWeight: 700, color: '#1e293b' }}>{doc.label}</div>
-                      <div style={{ fontSize: 11, color: '#94a3b8', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{doc.file_name}</div>
-                    </div>
-                    <a href={doc.file_url} target="_blank" rel="noopener noreferrer" style={{ color: '#0ea5e9', flexShrink: 0 }} title="View">
-                      <Eye size={16} />
-                    </a>
-                    {!isSubmitted && (
-                      <button onClick={() => setConfirmDeleteId(doc.id)} style={{ padding: 4, color: '#dc2626', background: 'none', border: 'none', cursor: 'pointer', flexShrink: 0 }} title="Remove">
-                        <Trash2 size={16} />
-                      </button>
-                    )}
+          {/* Uploaded docs list */}
+          {documents.length > 0 && (
+            <div style={{ marginBottom: status === 'Verified' ? 0 : 20 }}>
+              {documents.map(doc => (
+                <div key={doc.id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 14px', background: '#f8fafc', borderRadius: 10, border: '1px solid #e2e8f0', marginBottom: 8 }}>
+                  <FileCheck size={18} color="#16a34a" style={{ flexShrink: 0 }} />
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 13, fontWeight: 700, color: '#1e293b' }}>{doc.label}</div>
+                    <div style={{ fontSize: 11, color: '#94a3b8', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{doc.file_name}</div>
                   </div>
-                ))}
-              </div>
-            )}
+                  <a href={doc.file_url} target="_blank" rel="noopener noreferrer" style={{ color: '#0ea5e9', flexShrink: 0 }} title="View">
+                    <Eye size={16} />
+                  </a>
+                  {!isSubmitted && (
+                    <button onClick={() => setConfirmDeleteId(doc.id)} style={{ padding: 4, color: '#dc2626', background: 'none', border: 'none', cursor: 'pointer', flexShrink: 0 }} title="Remove">
+                      <Trash2 size={16} />
+                    </button>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
 
-            {/* Add Document Row — only when not yet submitted */}
-            {!isSubmitted && (
+          {/* Add Document Row — only when not yet submitted */}
+          {!isSubmitted && (
               <div style={{ marginBottom: 20 }}>
                 <p style={{ fontSize: 12, color: '#64748b', marginBottom: 10 }}>
                   Type a label for the document first, then click <strong>Choose File</strong> to upload.
@@ -2562,9 +2875,8 @@ const VerificationPage = () => {
                 <Send size={16} /> Submit for Verification
               </button>
             )}
-          </div>
         </div>
-      )}
+      </div>
 
 
       {/* Benefits of Verified Account */}
@@ -3723,18 +4035,29 @@ const ViewApplicants = ({ setActivePage }) => {
 };
 
 // ─── PAGE: COMPANY PROFILE ────────────────────────────────────────
+const PREDEFINED_CULTURE_TAGS = [
+  'Hands-on Training', 'Mentorship-Focused', 'Fast-Paced',
+  'Team-Oriented', 'Independent Work', 'Output-Based'
+];
+
+const PREDEFINED_PERKS_TAGS = [
+  'Allowance Provided', 'Free Meals / Staff Meal', 'Uniform Subsidized',
+  'Flexible Hours', 'Remote / WFH Option', 'Shift-Based'
+];
+
 export const CompanyProfile = ({ viewedPartnerId = null, onBack = null }) => {
-  const { currentUser, partners, updatePartner, jobPostings } = useApp();
+  const { currentUser, partners, updatePartner, jobPostings, createPostInteraction, fetchPostInteractions } = useApp();
   const navigate = useNavigate();
   const isOwnProfile = !viewedPartnerId || String(viewedPartnerId) === String(currentUser?.id);
   const [viewedPartner, setViewedPartner] = useState(null);
   const [loadingViewedProfile, setLoadingViewedProfile] = useState(false);
   const partner = isOwnProfile
-    ? (partners.find(p => p.id === currentUser?.id) || currentUser)
+    ? (partners.find(p => String(p.id) === String(currentUser?.id)) || currentUser)
     : (viewedPartner || partners.find(p => String(p.id) === String(viewedPartnerId)));
 
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [activeTab, setActiveTab] = useState('About'); // About | Saved
   const [form, setForm] = useState({
     companyName: '',
     contactPerson: '',
@@ -3743,7 +4066,16 @@ export const CompanyProfile = ({ viewedPartnerId = null, onBack = null }) => {
     website: '',
     industry: '',
     achievements: [],
-    benefits: []
+    benefits: [],
+    mission: '',
+    vision: '',
+    culture_tags: [],
+    perks_tags: [],
+    poc_name: '',
+    poc_title: '',
+    poc_photo_url: '',
+    office_location_url: '',
+    banner_url: ''
   });
   const [companyInfoVisibility, setCompanyInfoVisibility] = useState(() => resolvePartnerVisibility(partner));
 
@@ -3755,6 +4087,28 @@ export const CompanyProfile = ({ viewedPartnerId = null, onBack = null }) => {
   const showConfirm = (message, onConfirm) => setConfirmDialog({ open: true, message, onConfirm });
   const closeConfirm = () => setConfirmDialog({ open: false, message: '', onConfirm: null });
 
+  // Bulletin modal state (for Saved tab View button)
+  const [bulletinModal, setBulletinModal] = useState(null);
+  const [bulletinMessage, setBulletinMessage] = useState('');
+  const [bulletinSubmitting, setBulletinSubmitting] = useState(false);
+  const [bulletinToast, setBulletinToast] = useState('');
+  const showBulletinToast = (msg) => { setBulletinToast(msg); setTimeout(() => setBulletinToast(''), 3000); };
+  const openBulletinModal = (post, type) => { setBulletinModal({ post, type }); setBulletinMessage(''); };
+  const handleBulletinInteraction = async () => {
+    if (!bulletinModal) return;
+    setBulletinSubmitting(true);
+    const details = { message: bulletinMessage, submitted_at: new Date().toISOString() };
+    const res = await createPostInteraction(bulletinModal.post.id, bulletinModal.type, details);
+    setBulletinSubmitting(false);
+    if (res.success) {
+      setBulletinModal(null);
+      showBulletinToast(bulletinModal.type === 'inquire' ? 'Inquiry sent!' : 'Submitted!');
+      fetchPostInteractions();
+    } else {
+      alert(res.error || 'Failed to submit.');
+    }
+  };
+
   // Documents state
   const [documents, setDocuments] = useState([]);
   const [docLabel, setDocLabel] = useState('');
@@ -3762,6 +4116,9 @@ export const CompanyProfile = ({ viewedPartnerId = null, onBack = null }) => {
   const [uploading, setUploading] = useState(false);
   const [showUploadForm, setShowUploadForm] = useState(false);
   const fileInputRef = useRef(null);
+  const bannerInputRef = useRef(null);
+  const logoInputRef = useRef(null);
+  const pocPhotoInputRef = useRef(null);
 
   // Email validation
   const isEmailValid = (email) => !email || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
@@ -3816,7 +4173,16 @@ export const CompanyProfile = ({ viewedPartnerId = null, onBack = null }) => {
         website: partner.website || '',
         industry: partner.industry || '',
         achievements: partner.achievements || [],
-        benefits: partner.benefits || []
+        benefits: partner.benefits || [],
+        mission: partner.mission || '',
+        vision: partner.vision || '',
+        culture_tags: Array.isArray(partner.culture_tags) ? partner.culture_tags : [],
+        perks_tags: Array.isArray(partner.perks_tags) ? partner.perks_tags : [],
+        poc_name: partner.poc_name || '',
+        poc_title: partner.poc_title || '',
+        poc_photo_url: partner.poc_photo_url || '',
+        office_location_url: partner.office_location_url || '',
+        banner_url: partner.banner_url || ''
       });
       setCompanyInfoVisibility(resolvePartnerVisibility(partner));
       setEditing(false);
@@ -3889,6 +4255,73 @@ export const CompanyProfile = ({ viewedPartnerId = null, onBack = null }) => {
     }
   };
 
+  const handleBannerUpload = async (e) => {
+    const file = e.target.files[0];
+    if (!file || !isOwnProfile) return;
+    setSaving(true);
+    try {
+      const path = `partner-banners/${partner.id}/${Date.now()}_${file.name}`;
+      const { error: uploadErr } = await supabase.storage
+        .from('registration-uploads')
+        .upload(path, file);
+      if (uploadErr) throw uploadErr;
+      const { data: { publicUrl } } = supabase.storage.from('registration-uploads').getPublicUrl(path);
+      await updatePartner(partner.id, { banner_url: publicUrl });
+      // Update form state if we are currently editing
+      setForm(prev => ({ ...prev, banner_url: publicUrl }));
+      showBulletinToast('Banner updated successfully!');
+    } catch (err) {
+      console.error('Banner upload error:', err);
+      alert('Failed to upload banner: ' + err.message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleLogoUpload = async (e) => {
+    const file = e.target.files[0];
+    if (!file || !isOwnProfile) return;
+    setSaving(true);
+    try {
+      const path = `partner-logos/${partner.id}/${Date.now()}_${file.name}`;
+      const { error: uploadErr } = await supabase.storage
+        .from('registration-uploads')
+        .upload(path, file);
+      if (uploadErr) throw uploadErr;
+      const { data: { publicUrl } } = supabase.storage.from('registration-uploads').getPublicUrl(path);
+      await updatePartner(partner.id, { company_logo_url: publicUrl });
+      // Update form state if we are currently editing
+      setForm(prev => ({ ...prev, company_logo_url: publicUrl }));
+      showBulletinToast('Logo updated successfully!');
+    } catch (err) {
+      console.error('Logo upload error:', err);
+      alert('Failed to upload logo: ' + err.message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handlePOCPhotoUpload = async (e) => {
+    const file = e.target.files[0];
+    if (!file || !isOwnProfile) return;
+    setSaving(true);
+    try {
+      const path = `partner-poc/${partner.id}/${Date.now()}_${file.name}`;
+      const { error: uploadErr } = await supabase.storage
+        .from('registration-uploads')
+        .upload(path, file);
+      if (uploadErr) throw uploadErr;
+      const { data: { publicUrl } } = supabase.storage.from('registration-uploads').getPublicUrl(path);
+      setForm(prev => ({ ...prev, poc_photo_url: publicUrl }));
+      showBulletinToast('POC photo updated!');
+    } catch (err) {
+      console.error('POC photo upload error:', err);
+      alert('Failed to upload photo: ' + err.message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
   if (loadingViewedProfile) {
     return (
       <div className="ln-page-content" style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: 240 }}>
@@ -3955,9 +4388,88 @@ export const CompanyProfile = ({ viewedPartnerId = null, onBack = null }) => {
       )}
       {/* Profile Header Card */}
       <div className="ln-card ln-profile-header-card">
-        <div className="ln-profile-header-banner pn-header-banner" />
+        <div 
+          className="ln-profile-header-banner pn-header-banner" 
+          style={{
+            height: 160,
+            backgroundImage: partner.banner_url ? `url(${partner.banner_url})` : 'none',
+            backgroundSize: 'cover', 
+            backgroundPosition: 'center',
+            backgroundColor: partner.banner_url ? 'transparent' : undefined
+          }}
+        >
+          {isOwnProfile && (
+            <div style={{ position: 'absolute', top: 12, right: 12 }}>
+              <input 
+                type="file" 
+                ref={bannerInputRef} 
+                onChange={handleBannerUpload} 
+                style={{ display: 'none' }} 
+                accept="image/*" 
+              />
+              <button 
+                type="button" 
+                onClick={() => bannerInputRef.current?.click()}
+                className="ln-btn-sm"
+                style={{ 
+                  background: 'rgba(255,255,255,0.9)', 
+                  border: 'none', 
+                  borderRadius: 8, 
+                  display: 'flex', 
+                  alignItems: 'center', 
+                  gap: 6,
+                  padding: '6px 12px',
+                  fontWeight: 600,
+                  boxShadow: '0 2px 8px rgba(0,0,0,0.2)'
+                }}
+              >
+                <Camera size={14} /> Change Banner
+              </button>
+            </div>
+          )}
+        </div>
         <div className="ln-profile-header-body">
-          <div className="ln-profile-header-avatar pn-header-avatar">{initials}</div>
+          <div style={{ position: 'relative' }}>
+            <div className="ln-profile-header-avatar pn-header-avatar" style={{ overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              {partner.company_logo_url ? (
+                <img src={partner.company_logo_url} alt="Logo" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+              ) : initials}
+            </div>
+            {isOwnProfile && (
+              <>
+                <input 
+                  type="file" 
+                  ref={logoInputRef} 
+                  onChange={handleLogoUpload} 
+                  style={{ display: 'none' }} 
+                  accept="image/*" 
+                />
+                <button 
+                  type="button"
+                  onClick={() => logoInputRef.current?.click()}
+                  style={{
+                    position: 'absolute',
+                    bottom: 0,
+                    right: 0,
+                    width: 28,
+                    height: 28,
+                    borderRadius: '50%',
+                    background: '#0a66c2',
+                    border: '2px solid white',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    cursor: 'pointer',
+                    boxShadow: '0 2px 4px rgba(0,0,0,0.2)',
+                    zIndex: 2
+                  }}
+                  title="Change Logo"
+                >
+                  <Camera size={14} color="white" />
+                </button>
+              </>
+            )}
+          </div>
           <div className="ln-profile-header-info">
             <div className="ln-profile-header-top">
               <div style={{ flex: 1 }}>
@@ -3992,13 +4504,22 @@ export const CompanyProfile = ({ viewedPartnerId = null, onBack = null }) => {
                         email: partner?.email || '',
                         address: partner?.address || '',
                         website: partner?.website || '',
-                        industry: partner?.industry || '',
-                        achievements: partner?.achievements || [],
-                        benefits: partner?.benefits || []
-                      });
-                      setCompanyInfoVisibility(resolvePartnerVisibility(partner));
-                      setEditing(true);
-                    }}
+                      industry: partner?.industry || '',
+                      achievements: partner?.achievements || [],
+                      benefits: partner?.benefits || [],
+                      mission: partner?.mission || '',
+                      vision: partner?.vision || '',
+                      culture_tags: Array.isArray(partner?.culture_tags) ? partner.culture_tags : [],
+                      perks_tags: Array.isArray(partner?.perks_tags) ? partner.perks_tags : [],
+                      poc_name: partner?.poc_name || '',
+                      poc_title: partner?.poc_title || '',
+                      poc_photo_url: partner?.poc_photo_url || '',
+                      office_location_url: partner?.office_location_url || '',
+                      banner_url: partner?.banner_url || ''
+                    });
+                    setCompanyInfoVisibility(resolvePartnerVisibility(partner));
+                    setEditing(true);
+                  }}
                     disabled={saving || (editing && form.email && !isEmailValid(form.email))}
                   >
                     {saving ? <><Loader size={15} style={{ animation: 'ocr-spin 0.8s linear infinite' }} /> Saving...</> : editing ? <><CheckCircle size={15} /> Save Changes</> : <><Edit size={15} /> Edit Profile</>}
@@ -4010,309 +4531,607 @@ export const CompanyProfile = ({ viewedPartnerId = null, onBack = null }) => {
         </div>
       </div>
 
-      <div className="ln-profile-two-col">
+      <div className="ln-profile-single-col">
         <div className="ln-profile-main">
-          {/* Verification Status Indicator */}
-          {isOwnProfile && !isVerified(partner) && (
-            <div className="ln-card" style={{ borderLeft: '4px solid #d97706', marginBottom: 16 }}>
-              <div style={{ padding: 16, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
-                <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
-                  <AlertTriangle size={20} color="#d97706" style={{ marginTop: 2, flexShrink: 0 }} />
-                  <div>
-                    <div style={{ fontWeight: 600, fontSize: 14, color: '#92400e', marginBottom: 2 }}>
-                      {partner.verificationStatus === 'Under Review' ? 'Verification In Progress' : 'Account Not Verified'}
+          {/* Tab Navigation Card */}
+          <div className="ln-card" style={{ marginBottom: 20, padding: '0 20px', borderRadius: 12 }}>
+            <div style={{ display: 'flex', gap: 24 }}>
+              {(isOwnProfile ? ['About', 'Saved', 'Activity'] : ['About']).map(tab => (
+                <button
+                  key={tab}
+                  type="button"
+                  onClick={() => setActiveTab(tab)}
+                  style={{
+                    padding: '14px 4px',
+                    background: 'none',
+                    border: 'none',
+                    borderBottom: activeTab === tab ? '2px solid #0a66c2' : '2px solid transparent',
+                    color: activeTab === tab ? '#0a66c2' : '#64748b',
+                    fontWeight: 600,
+                    fontSize: 14.5,
+                    cursor: 'pointer',
+                    transition: 'all 0.2s',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 8
+                  }}
+                >
+                  {tab === 'Saved' ? <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}><Bookmark size={14} /> Saved</div> : tab}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {activeTab === 'About' && (
+            <React.Fragment>
+              {/* Verification Status Indicator */}
+              {isOwnProfile && !isVerified(partner) && (
+                <div className="ln-card" style={{ borderLeft: '4px solid #d97706', marginBottom: 16 }}>
+                  <div style={{ padding: 16, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
+                    <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
+                      <AlertTriangle size={20} color="#d97706" style={{ marginTop: 2, flexShrink: 0 }} />
+                      <div>
+                        <div style={{ fontWeight: 600, fontSize: 14, color: '#92400e', marginBottom: 2 }}>
+                          {partner.verificationStatus === 'Under Review' ? 'Verification In Progress' : 'Account Not Verified'}
+                        </div>
+                        <div style={{ fontSize: 13, color: '#a16207' }}>
+                          {partner.verificationStatus === 'Under Review'
+                            ? 'Your documents are being reviewed. You will be notified once verified.'
+                            : 'Verify your account to unlock job & OJT posting features and get a verified badge.'}
+                        </div>
+                      </div>
                     </div>
-                    <div style={{ fontSize: 13, color: '#a16207' }}>
-                      {partner.verificationStatus === 'Under Review'
-                        ? 'Your documents are being reviewed. You will be notified once verified.'
-                        : 'Verify your account to unlock job & OJT posting features and get a verified badge.'}
+                    <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexShrink: 0 }}>
+                      <StatusBadge status={partner.verificationStatus} />
+                      <button className="ln-btn ln-btn-primary" style={{ fontSize: 13 }} onClick={() => navigate('/partner/verification')}>
+                        <ShieldCheck size={14} /> Go to Verification
+                      </button>
                     </div>
                   </div>
                 </div>
-                <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexShrink: 0 }}>
-                  <StatusBadge status={partner.verificationStatus} />
-                  <button className="ln-btn ln-btn-primary" style={{ fontSize: 13 }} onClick={() => navigate('/partner/verification')}>
-                    <ShieldCheck size={14} /> Go to Verification
-                  </button>
+              )}
+
+              {/* Company Information */}
+              <div className="ln-card">
+                <div className="ln-section-header">
+                  <h3>Company Information</h3>
+                  {isOwnProfile && editing && (
+                    <button
+                      className="ln-btn-sm ln-btn-outline"
+                      onClick={() => {
+                        setForm({
+                          companyName: partner?.companyName || '',
+                          contactPerson: partner?.contactPerson || '',
+                          email: partner?.email || '',
+                          address: partner?.address || '',
+                          website: partner?.website || '',
+                          industry: partner?.industry || '',
+                          achievements: partner?.achievements || [],
+                          benefits: partner?.benefits || [],
+                          mission: partner?.mission || '',
+                          vision: partner?.vision || '',
+                          culture_tags: Array.isArray(partner?.culture_tags) ? partner.culture_tags : [],
+                          perks_tags: Array.isArray(partner?.perks_tags) ? partner.perks_tags : [],
+                          poc_name: partner?.poc_name || '',
+                          poc_title: partner?.poc_title || '',
+                          poc_photo_url: partner?.poc_photo_url || '',
+                          office_location_url: partner?.office_location_url || '',
+                          banner_url: partner?.banner_url || ''
+                        });
+                        setCompanyInfoVisibility(resolvePartnerVisibility(partner));
+                        setEditing(false);
+                      }}
+                      disabled={saving}
+                    >
+                      Cancel
+                    </button>
+                  )}
+                </div>
+                <div className="ln-info-grid">
+                  {(() => {
+                    const visibleSet = new Set(resolvePartnerVisibility(partner));
+                    const fieldsToRender = companyInfoFields.filter(field => isOwnProfile || visibleSet.has(field.key));
+
+                    if (fieldsToRender.length === 0) {
+                      return <div style={{ gridColumn: '1 / -1', fontSize: 13, color: '#94a3b8' }}>This company chose to hide company information.</div>;
+                    }
+
+                    return fieldsToRender.map(field => {
+                      const isVisible = companyInfoVisibility.includes(field.key);
+                      const value = editing ? form[field.key] : partner[field.key];
+
+                      return (
+                        <div key={field.key} className="ln-info-item">
+                          <label className="ln-info-label">{field.label}</label>
+                          {editing ? (
+                            <input
+                              type={field.type}
+                              className="form-input"
+                              value={value || ''}
+                              maxLength={field.maxLength}
+                              placeholder={field.placeholder}
+                              onChange={e => setForm({ ...form, [field.key]: e.target.value })}
+                              style={field.key === 'email' && form.email && !isEmailValid(form.email) ? { borderColor: '#cc1016' } : undefined}
+                            />
+                          ) : field.key === 'website' ? (
+                            <div className="ln-info-value">
+                              {partner.website
+                                ? <a href={partner.website.startsWith('http') ? partner.website : `https://${partner.website}`} target="_blank" rel="noreferrer" style={{ color: '#0a66c2', display: 'flex', alignItems: 'center', gap: 4 }}>{partner.website} <ExternalLink size={12} /></a>
+                                : '—'}
+                            </div>
+                          ) : (
+                            <div className="ln-info-value">{value || '—'}</div>
+                          )}
+
+                          {isOwnProfile && editing && (
+                            <label style={{ marginTop: 8, display: 'inline-flex', alignItems: 'center', gap: 8, fontSize: 12, color: isVisible ? '#166534' : '#64748b', fontWeight: 600 }}>
+                              <input
+                                type="checkbox"
+                                checked={isVisible}
+                                onChange={() => toggleCompanyInfoVisibility(field.key)}
+                                style={{ width: 14, height: 14 }}
+                              />
+                              {isVisible ? 'Shown to others' : 'Hidden from others'}
+                            </label>
+                          )}
+                        </div>
+                      );
+                    });
+                  })()}
+
+                  {isOwnProfile && editing && form.email && !isEmailValid(form.email) && (
+                    <div style={{ gridColumn: '1 / -1', fontSize: 12, color: '#cc1016', marginTop: -8 }}>Please enter a valid email address</div>
+                  )}
                 </div>
               </div>
-            </div>
-          )}
 
-          {/* Company Information */}
-          <div className="ln-card">
-            <div className="ln-section-header">
-              <h3>Company Information</h3>
-              {isOwnProfile && editing && (
-                <button
-                  className="ln-btn-sm ln-btn-outline"
-                  onClick={() => {
-                    setForm({
-                      companyName: partner?.companyName || '',
-                      contactPerson: partner?.contactPerson || '',
-                      email: partner?.email || '',
-                      address: partner?.address || '',
-                      website: partner?.website || '',
-                      industry: partner?.industry || '',
-                      achievements: partner?.achievements || [],
-                      benefits: partner?.benefits || []
-                    });
-                    setCompanyInfoVisibility(resolvePartnerVisibility(partner));
-                    setEditing(false);
-                  }}
-                  disabled={saving}
-                >
-                  Cancel
-                </button>
-              )}
-            </div>
-            <div className="ln-info-grid">
-              {(() => {
-                const visibleSet = new Set(resolvePartnerVisibility(partner));
-                const fieldsToRender = companyInfoFields.filter(field => isOwnProfile || visibleSet.has(field.key));
+              {/* Mission & Vision Section */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20, marginTop: 20 }}>
+                <div className="ln-card" style={{ height: '100%' }}>
+                  <div className="ln-section-header">
+                    <h3>Our Mission</h3>
+                  </div>
+                  <div style={{ padding: '0 16px 16px' }}>
+                    {editing ? (
+                      <textarea 
+                        className="form-input" 
+                        style={{ minHeight: 120, resize: 'none' }}
+                        placeholder="Define your company's core mission..."
+                        value={form.mission}
+                        onChange={e => setForm({ ...form, mission: e.target.value })}
+                        maxLength={1000}
+                      />
+                    ) : (
+                      <p style={{ fontSize: 14, color: '#334155', lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>
+                        {partner.mission || 'No mission statement provided yet.'}
+                      </p>
+                    )}
+                  </div>
+                </div>
+                <div className="ln-card" style={{ height: '100%' }}>
+                  <div className="ln-section-header">
+                    <h3>Our Vision</h3>
+                  </div>
+                  <div style={{ padding: '0 16px 16px' }}>
+                    {editing ? (
+                      <textarea 
+                        className="form-input" 
+                        style={{ minHeight: 120, resize: 'none' }}
+                        placeholder="Share your long-term goal for the company..."
+                        value={form.vision}
+                        onChange={e => setForm({ ...form, vision: e.target.value })}
+                        maxLength={1000}
+                      />
+                    ) : (
+                      <p style={{ fontSize: 14, color: '#334155', lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>
+                        {partner.vision || 'No vision statement provided yet.'}
+                      </p>
+                    )}
+                  </div>
+                </div>
+              </div>
 
-                if (fieldsToRender.length === 0) {
-                  return <div style={{ gridColumn: '1 / -1', fontSize: 13, color: '#94a3b8' }}>This company chose to hide company information.</div>;
-                }
+              {/* Combined Tag System & POC Grid */}
+              <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) 300px', gap: 20, marginTop: 20 }}>
+                <div>
+                  {/* Unified Work Environment & Benefits Section */}
+                  <div className="ln-card">
+                    <div className="ln-section-header">
+                      <h3>Work Environment & Benefits</h3>
+                    </div>
+                    <div style={{ padding: '0 16px 16px' }}>
+                      {/* Culture Tags Subsection */}
+                      <div style={{ marginBottom: 16 }}>
+                        <div style={{ fontSize: 11, fontWeight: 700, color: '#64748b', textTransform: 'uppercase', marginBottom: 8, letterSpacing: '0.025em' }}>Work Culture</div>
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                          {PREDEFINED_CULTURE_TAGS.map(tag => {
+                            const isSelected = (editing ? form.culture_tags : partner.culture_tags)?.includes(tag);
+                            return (
+                              <button
+                                key={tag}
+                                type="button"
+                                onClick={() => {
+                                  if (!editing) return;
+                                  const current = form.culture_tags || [];
+                                  setForm({
+                                    ...form,
+                                    culture_tags: isSelected 
+                                      ? current.filter(t => t !== tag)
+                                      : [...current, tag]
+                                  });
+                                }}
+                                style={{
+                                  padding: '6px 14px',
+                                  background: isSelected ? '#eff6ff' : '#f8fafc',
+                                  border: '1px solid',
+                                  borderColor: isSelected ? '#3b82f6' : '#e2e8f0',
+                                  color: isSelected ? '#1d4ed8' : '#64748b',
+                                  borderRadius: 20,
+                                  fontSize: 12,
+                                  fontWeight: isSelected ? 600 : 500,
+                                  cursor: editing ? 'pointer' : 'default',
+                                  transition: 'all 0.2s'
+                                }}
+                              >
+                                {tag}
+                              </button>
+                            );
+                          })}
+                          {/* Custom Culture Tags */}
+                          {(editing ? form.culture_tags : partner.culture_tags)?.filter(t => !PREDEFINED_CULTURE_TAGS.includes(t)).map(tag => (
+                            <div key={tag} style={{ padding: '6px 14px', background: '#f0fdf4', border: '1px solid #bbf7d0', color: '#166534', borderRadius: 20, fontSize: 12, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6 }}>
+                              {tag}
+                              {editing && <X size={12} style={{ cursor: 'pointer' }} onClick={() => setForm({ ...form, culture_tags: form.culture_tags.filter(t => t !== tag) })} />}
+                            </div>
+                          ))}
+                        </div>
+                        {editing && (
+                          <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
+                            <input 
+                              className="form-input" 
+                              style={{ margin: 0, height: 32, fontSize: 12, maxWidth: 200 }} 
+                              placeholder="Add custom culture tag..." 
+                              id="custom-culture-tag"
+                              onKeyDown={e => {
+                                if (e.key === 'Enter' && e.target.value.trim()) {
+                                  const val = e.target.value.trim();
+                                  if (!form.culture_tags.includes(val)) {
+                                    setForm({ ...form, culture_tags: [...form.culture_tags, val] });
+                                  }
+                                  e.target.value = '';
+                                  e.preventDefault();
+                                }
+                              }}
+                            />
+                          </div>
+                        )}
+                      </div>
 
-                return fieldsToRender.map(field => {
-                  const isVisible = companyInfoVisibility.includes(field.key);
-                  const value = editing ? form[field.key] : partner[field.key];
+                      {/* Perks & Setup Subsection */}
+                      <div style={{ marginTop: 24 }}>
+                        <div style={{ fontSize: 11, fontWeight: 700, color: '#64748b', textTransform: 'uppercase', marginBottom: 8, letterSpacing: '0.025em' }}>Perks & Benefits</div>
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                          {PREDEFINED_PERKS_TAGS.map(tag => {
+                            const isSelected = (editing ? form.perks_tags : partner.perks_tags)?.includes(tag);
+                            return (
+                              <button
+                                key={tag}
+                                type="button"
+                                onClick={() => {
+                                  if (!editing) return;
+                                  const current = form.perks_tags || [];
+                                  setForm({
+                                    ...form,
+                                    perks_tags: isSelected 
+                                      ? current.filter(t => t !== tag)
+                                      : [...current, tag]
+                                  });
+                                }}
+                                style={{
+                                  padding: '6px 14px',
+                                  background: isSelected ? '#fdf2f2' : '#f8fafc',
+                                  border: '1px solid',
+                                  borderColor: isSelected ? '#fecaca' : '#e2e8f0',
+                                  color: isSelected ? '#991b1b' : '#64748b',
+                                  borderRadius: 20,
+                                  fontSize: 12,
+                                  fontWeight: isSelected ? 600 : 500,
+                                  cursor: editing ? 'pointer' : 'default',
+                                  transition: 'all 0.2s'
+                                }}
+                              >
+                                {tag}
+                              </button>
+                            );
+                          })}
+                          {/* Custom Perks Tags */}
+                          {(editing ? form.perks_tags : partner.perks_tags)?.filter(t => !PREDEFINED_PERKS_TAGS.includes(t)).map(tag => (
+                            <div key={tag} style={{ padding: '6px 14px', background: '#fdf2f8', border: '1px solid #fbcfe8', color: '#9d174d', borderRadius: 20, fontSize: 12, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6 }}>
+                              {tag}
+                              {editing && <X size={12} style={{ cursor: 'pointer' }} onClick={() => setForm({ ...form, perks_tags: form.perks_tags.filter(t => t !== tag) })} />}
+                            </div>
+                          ))}
+                        </div>
+                        {editing && (
+                          <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
+                            <input 
+                              className="form-input" 
+                              style={{ margin: 0, height: 32, fontSize: 12, maxWidth: 200 }} 
+                              placeholder="Add custom perk..." 
+                              id="custom-perk-tag"
+                              onKeyDown={e => {
+                                if (e.key === 'Enter' && e.target.value.trim()) {
+                                  const val = e.target.value.trim();
+                                  if (!form.perks_tags.includes(val)) {
+                                    setForm({ ...form, perks_tags: [...form.perks_tags, val] });
+                                  }
+                                  e.target.value = '';
+                                  e.preventDefault();
+                                }
+                              }}
+                            />
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                </div>
 
-                  return (
-                    <div key={field.key} className="ln-info-item">
-                      <label className="ln-info-label">{field.label}</label>
+                {/* Point of Contact Card */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+                  <div className="ln-card" style={{ height: 'fit-content' }}>
+                    <div className="ln-section-header">
+                      <h3>Point of Contact</h3>
+                    </div>
+                    <div style={{ padding: '0 16px 20px', textAlign: 'center' }}>
+                      <div style={{ position: 'relative', width: 100, height: 100, margin: '0 auto 16px' }}>
+                        <div style={{ 
+                          width: '100%', height: '100%', borderRadius: '50%', 
+                          background: '#f1f5f9', border: '1px solid #e2e8f0',
+                          display: 'flex', alignItems: 'center', justifyContent: 'center',
+                          overflow: 'hidden'
+                        }}>
+                          {(editing ? form.poc_photo_url : partner.poc_photo_url) ? (
+                            <img src={editing ? form.poc_photo_url : partner.poc_photo_url} alt="POC" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                          ) : (
+                            <User size={40} color="#94a3b8" />
+                          )}
+                        </div>
+                        {editing && (
+                          <button 
+                            onClick={() => pocPhotoInputRef.current?.click()}
+                            style={{ 
+                              position: 'absolute', bottom: 0, right: 0,
+                              background: '#fff', border: '1px solid #e2e8f0',
+                              borderRadius: '50%', width: 28, height: 28,
+                              display: 'flex', alignItems: 'center', justifyContent: 'center',
+                              cursor: 'pointer', boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
+                            }}
+                          >
+                            <Camera size={14} />
+                          </button>
+                        )}
+                        <input type="file" ref={pocPhotoInputRef} onChange={handlePOCPhotoUpload} style={{ display: 'none' }} accept="image/*" />
+                      </div>
+                      
                       {editing ? (
-                        <input
-                          type={field.type}
-                          className="form-input"
-                          value={value || ''}
-                          maxLength={field.maxLength}
-                          placeholder={field.placeholder}
-                          onChange={e => setForm({ ...form, [field.key]: e.target.value })}
-                          style={field.key === 'email' && form.email && !isEmailValid(form.email) ? { borderColor: '#cc1016' } : undefined}
-                        />
-                      ) : field.key === 'website' ? (
-                        <div className="ln-info-value">
-                          {partner.website
-                            ? <a href={partner.website.startsWith('http') ? partner.website : `https://${partner.website}`} target="_blank" rel="noreferrer" style={{ color: '#0a66c2', display: 'flex', alignItems: 'center', gap: 4 }}>{partner.website} <ExternalLink size={12} /></a>
-                            : '—'}
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                          <input 
+                            className="form-input" 
+                            style={{ textAlign: 'center', fontWeight: 700 }}
+                            placeholder="Full Name"
+                            value={form.poc_name}
+                            onChange={e => setForm({ ...form, poc_name: e.target.value })}
+                          />
+                          <input 
+                            className="form-input" 
+                            style={{ textAlign: 'center', fontSize: 13 }}
+                            placeholder="Designation / Title"
+                            value={form.poc_title}
+                            onChange={e => setForm({ ...form, poc_title: e.target.value })}
+                          />
                         </div>
                       ) : (
-                        <div className="ln-info-value">{value || '—'}</div>
+                        <div>
+                          <div style={{ fontWeight: 700, color: '#1e293b', fontSize: 15 }}>{partner.poc_name || 'Name not provided'}</div>
+                          <div style={{ color: '#64748b', fontSize: 13, marginTop: 2 }}>{partner.poc_title || 'Designation'}</div>
+                        </div>
                       )}
 
-                      {isOwnProfile && editing && (
-                        <label style={{ marginTop: 8, display: 'inline-flex', alignItems: 'center', gap: 8, fontSize: 12, color: isVisible ? '#166534' : '#64748b', fontWeight: 600 }}>
-                          <input
-                            type="checkbox"
-                            checked={isVisible}
-                            onChange={() => toggleCompanyInfoVisibility(field.key)}
-                            style={{ width: 14, height: 14 }}
-                          />
-                          {isVisible ? 'Shown to others' : 'Hidden from others'}
-                        </label>
+                    </div>
+                  </div>
+                  
+                  {/* Office Location Link */}
+                  <div className="ln-card">
+                    <div className="ln-section-header">
+                      <h3>Office Location</h3>
+                    </div>
+                    <div style={{ padding: '0 16px 16px' }}>
+                      {editing ? (
+                        <input 
+                          className="form-input" 
+                          placeholder="Google Maps URL..."
+                          value={form.office_location_url}
+                          onChange={e => setForm({ ...form, office_location_url: e.target.value })}
+                        />
+                      ) : (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                          <p style={{ fontSize: 13, color: '#64748b', display: 'flex', alignItems: 'center', gap: 6 }}>
+                             <MapPin size={14} /> {partner.address || 'Address not listed'}
+                          </p>
+                          {partner.office_location_url && (
+                            <a 
+                              href={partner.office_location_url} 
+                              target="_blank" 
+                              rel="noreferrer" 
+                              className="ln-btn ln-btn-primary" 
+                              style={{ width: '100%', textAlign: 'center', fontSize: 13, textDecoration: 'none' }}
+                            >
+                              <Navigation size={14} /> View on Map
+                            </a>
+                          )}
+                        </div>
                       )}
                     </div>
-                  );
-                });
-              })()}
-
-              {isOwnProfile && editing && form.email && !isEmailValid(form.email) && (
-                <div style={{ gridColumn: '1 / -1', fontSize: 12, color: '#cc1016', marginTop: -8 }}>Please enter a valid email address</div>
-              )}
-            </div>
-          </div>
-
-        {/* Company Achievements */}
-        <div className="ln-card" style={{ marginTop: 20 }}>
-          <div className="ln-section-header">
-            <h3>Company Achievements & Awards</h3>
-            {isOwnProfile && editing && (
-              <div style={{ display: 'flex', gap: 8 }}>
-                <input
-                  className="form-input"
-                  placeholder="Add award/achievement..."
-                  style={{ margin: 0, height: 32, fontSize: 12 }}
-                  maxLength={100}
-                  value={newAchievement}
-                  onChange={e => setNewAchievement(e.target.value)}
-                  onKeyDown={e => {
-                    if (e.key === 'Enter' && newAchievement.trim()) {
-                      setForm({ ...form, achievements: [...form.achievements, newAchievement.trim()] });
-                      setNewAchievement('');
-                    }
-                  }}
-                />
-                <button className="ln-btn-sm ln-btn-primary" onClick={() => {
-                  if (newAchievement.trim()) {
-                    setForm({ ...form, achievements: [...form.achievements, newAchievement.trim()] });
-                    setNewAchievement('');
-                  }
-                }}>Add</button>
-              </div>
-            )}
-          </div>
-          <div style={{ padding: '0 16px 16px' }}>
-            {(editing ? form.achievements : partner.achievements)?.length > 0 ? (
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-                {(editing ? form.achievements : partner.achievements).map((ach, idx) => (
-                  <div key={idx} style={{ padding: '6px 14px', background: '#fffbeb', border: '1px solid #fef3c7', color: '#92400e', borderRadius: 20, fontSize: 13, display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <Award size={14} /> {ach}
-                    {isOwnProfile && editing && <X size={12} style={{ cursor: 'pointer' }} onClick={() => showConfirm('Are you sure you want to remove this achievement?', () => setForm({ ...form, achievements: form.achievements.filter((_, i) => i !== idx) }))} />}
                   </div>
-                ))}
-              </div>
-            ) : (
-                <EmptyState 
-                  illustration={TrophyIllustration}
-                  title="No achievements yet"
-                  description="Showcase your company's awards, recognitions, and major milestones to attract top talent."
-                  style={{ padding: '24px 20px' }}
-                />
-            )}
-          </div>
-        </div>
-
-        {/* Company Benefits */}
-        <div className="ln-card" style={{ marginTop: 20 }}>
-          <div className="ln-section-header">
-            <h3>Company Benefits & Perks</h3>
-            {isOwnProfile && editing && (
-              <div style={{ display: 'flex', gap: 8 }}>
-                <input
-                  className="form-input"
-                  placeholder="Add benefit/perk..."
-                  style={{ margin: 0, height: 32, fontSize: 12 }}
-                  maxLength={100}
-                  value={newBenefit}
-                  onChange={e => setNewBenefit(e.target.value)}
-                  onKeyDown={e => {
-                    if (e.key === 'Enter' && newBenefit.trim()) {
-                      setForm({ ...form, benefits: [...form.benefits, newBenefit.trim()] });
-                      setNewBenefit('');
-                    }
-                  }}
-                />
-                <button className="ln-btn-sm ln-btn-primary" onClick={() => {
-                  if (newBenefit.trim()) {
-                    setForm({ ...form, benefits: [...form.benefits, newBenefit.trim()] });
-                    setNewBenefit('');
-                  }
-                }}>Add</button>
-              </div>
-            )}
-          </div>
-          <div style={{ padding: '0 16px 16px' }}>
-            {(editing ? form.benefits : partner.benefits)?.length > 0 ? (
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: 10 }}>
-                {(editing ? form.benefits : partner.benefits).map((benefit, idx) => (
-                  <div key={idx} style={{ padding: '10px 12px', background: '#f0fdf4', border: '1px solid #dcfce7', color: '#166534', borderRadius: 8, fontSize: 13, display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <CheckCircle size={14} /> {benefit}
-                    {isOwnProfile && editing && <X size={12} style={{ cursor: 'pointer', marginLeft: 'auto' }} onClick={() => showConfirm('Are you sure you want to remove this benefit?', () => setForm({ ...form, benefits: form.benefits.filter((_, i) => i !== idx) }))} />}
-                  </div>
-                ))}
-              </div>
-            ) : (
-                <EmptyState 
-                  illustration={StarIllustration}
-                  title="No benefits listed"
-                  description="Detail the perks and benefits of working at your company to stand out to prospective trainees."
-                  style={{ padding: '24px 20px' }}
-                />
-            )}
-          </div>
-        </div>
-      </div>
-
-      <div className="ln-profile-sidebar">
-        {/* Documents */}
-        <div className="ln-card">
-          <div className="ln-section-header">
-            <h3>Documents</h3>
-            {isOwnProfile && editing && (
-              <button className="ln-btn-sm ln-btn-primary" onClick={() => setShowUploadForm(!showUploadForm)}>
-                {showUploadForm ? <><X size={12} /> Cancel</> : <><Plus size={12} /> Add</>}
-              </button>
-            )}
-          </div>
-
-          {isOwnProfile && editing && showUploadForm && (
-            <div style={{ marginBottom: 16, padding: 16, background: '#f8fafc', borderRadius: 10, border: '1px solid #e2e8f0' }}>
-              <div style={{ marginBottom: 10 }}>
-                <label className="ln-info-label" style={{ marginBottom: 4, display: 'block' }}>Document Label <span style={{ color: '#cc1016' }}>*</span></label>
-                <input type="text" className="form-input" placeholder="e.g. Business Permit, SEC Registration..." maxLength={40} value={docLabel} onChange={e => setDocLabel(e.target.value)} style={{ fontSize: 13 }} />
-              </div>
-              <div style={{ marginBottom: 10 }}>
-                <label className="ln-info-label" style={{ marginBottom: 4, display: 'block' }}>File (PDF, DOC, DOCX only) <span style={{ color: '#cc1016' }}>*</span></label>
-                <input ref={fileInputRef} type="file" accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document" onChange={e => setDocFile(e.target.files[0] || null)} style={{ fontSize: 13 }} />
-              </div>
-              <button className="ln-btn-sm ln-btn-success" onClick={handleDocUpload} disabled={uploading || !docFile || !docLabel.trim()} style={{ width: '100%' }}>
-                {uploading ? 'Uploading...' : <><Upload size={12} /> Upload Document</>}
-              </button>
-            </div>
-          )}
-
-          {documents.length > 0 ? documents.map(doc => (
-            <div key={doc.id} className="ln-doc-item">
-              <div className="ln-doc-info">
-                <FileText size={16} color="rgba(0,0,0,0.5)" />
-                <div>
-                  <span style={{ fontWeight: 600, fontSize: 13 }}>{doc.label}</span>
-                  <div style={{ fontSize: 11, color: 'rgba(0,0,0,0.4)' }}>{doc.file_name}</div>
                 </div>
               </div>
-              <div style={{ display: 'flex', gap: 6 }}>
-                <a href={doc.file_url} target="_blank" rel="noreferrer" className="ln-btn-sm ln-btn-outline"><Eye size={12} /> View</a>
-                {isOwnProfile && editing && <button className="ln-btn-sm ln-btn-outline" onClick={() => showConfirm('Are you sure you want to delete this document?', () => deleteDoc(doc.id))} style={{ color: '#cc1016' }}><Trash2 size={12} /></button>}
-              </div>
-            </div>
-          )) : !showUploadForm && (
-            <EmptyState 
-              illustration={DocumentIllustration}
-              title="No documents yet"
-              description="Upload company brochures, policies, or registration documents for verification and profile completeness."
-              style={{ padding: '24px 20px' }}
-            />
-          )}
-        </div>
 
-        {/* Active Openings (Automatic) */}
-        <div className="ln-card" style={{ marginTop: 20 }}>
-          <div className="ln-section-header">
-            <h3>Active Openings</h3>
-            <span className="ln-badge ln-badge-blue">{activeJobs.length} Positions</span>
-          </div>
-          <div style={{ padding: '0 16px 16px' }}>
-            {activeJobs.length > 0 ? (
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: 12 }}>
-                {activeJobs.map(job => (
-                  <div key={job.id} style={{ padding: 12, border: '1px solid #e2e8f0', borderRadius: 8, background: '#f8fafc' }}>
-                    <div style={{ fontWeight: 700, fontSize: 14, color: '#1e293b', marginBottom: 4 }}>{job.title}</div>
-                    <div style={{ display: 'flex', gap: 6, marginBottom: 8 }}>
-                      <span style={{ fontSize: 10, padding: '2px 6px', background: job.opportunityType === 'Job' ? '#dcfce7' : '#fef9c3', color: job.opportunityType === 'Job' ? '#166534' : '#854d0e', borderRadius: 4, fontWeight: 600 }}>{job.opportunityType}</span>
-                      {job.opportunityType !== 'OJT' && job.employmentType && (
-                        <span style={{ fontSize: 10, padding: '2px 6px', background: '#f1f5f9', color: '#475569', borderRadius: 4 }}>{job.employmentType}</span>
-                      )}
+              {/* Company Achievements */}
+              <div className="ln-card" style={{ marginTop: 20 }}>
+                <div className="ln-section-header">
+                  <h3>Company Achievements & Awards</h3>
+                  {isOwnProfile && editing && (
+                    <div style={{ display: 'flex', gap: 8 }}>
+                      <input
+                        className="form-input"
+                        placeholder="Add award/achievement..."
+                        style={{ margin: 0, height: 32, fontSize: 12 }}
+                        maxLength={100}
+                        value={newAchievement}
+                        onChange={e => setNewAchievement(e.target.value)}
+                        onKeyDown={e => {
+                          if (e.key === 'Enter' && newAchievement.trim()) {
+                            setForm({ ...form, achievements: [...form.achievements, newAchievement.trim()] });
+                            setNewAchievement('');
+                          }
+                        }}
+                      />
+                      <button className="ln-btn-sm ln-btn-primary" onClick={() => {
+                        if (newAchievement.trim()) {
+                          setForm({ ...form, achievements: [...form.achievements, newAchievement.trim()] });
+                          setNewAchievement('');
+                        }
+                      }}>Add</button>
                     </div>
-                    <div style={{ fontSize: 12, color: '#64748b', display: 'flex', alignItems: 'center', gap: 4 }}>
-                      <MapPin size={12} /> {job.location || 'Philippines'}
+                  )}
+                </div>
+                <div style={{ padding: '0 16px 16px' }}>
+                  {(editing ? form.achievements : partner.achievements)?.length > 0 ? (
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                      {(editing ? form.achievements : partner.achievements).map((ach, idx) => (
+                        <div key={idx} style={{ padding: '6px 14px', background: '#fffbeb', border: '1px solid #fef3c7', color: '#92400e', borderRadius: 20, fontSize: 13, display: 'flex', alignItems: 'center', gap: 8 }}>
+                          <Award size={14} /> {ach}
+                          {isOwnProfile && editing && <X size={12} style={{ cursor: 'pointer' }} onClick={() => showConfirm('Are you sure you want to remove this achievement?', () => setForm({ ...form, achievements: form.achievements.filter((_, i) => i !== idx) }))} />}
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                      <EmptyState 
+                        illustration={TrophyIllustration}
+                        title="No achievements yet"
+                        description="Showcase your company's awards, recognitions, and major milestones to attract top talent."
+                        style={{ padding: '24px 20px' }}
+                      />
+                  )}
+                </div>
+              </div>
+
+              {/* Documents (Moved from Sidebar) */}
+              <div className="ln-card" style={{ marginTop: 20 }}>
+                <div className="ln-section-header">
+                  <h3>Documents</h3>
+                  {isOwnProfile && editing && (
+                    <button className="ln-btn-sm ln-btn-primary" onClick={() => setShowUploadForm(!showUploadForm)}>
+                      {showUploadForm ? <><X size={12} /> Cancel</> : <><Plus size={12} /> Add</>}
+                    </button>
+                  )}
+                </div>
+
+                {isOwnProfile && editing && showUploadForm && (
+                  <div style={{ marginBottom: 16, padding: 16, background: '#f8fafc', borderRadius: 10, border: '1px solid #e2e8f0' }}>
+                    <div style={{ marginBottom: 10 }}>
+                      <label className="ln-info-label" style={{ marginBottom: 4, display: 'block' }}>Document Label <span style={{ color: '#cc1016' }}>*</span></label>
+                      <input type="text" className="form-input" placeholder="e.g. Business Permit, SEC Registration..." maxLength={40} value={docLabel} onChange={e => setDocLabel(e.target.value)} style={{ fontSize: 13 }} />
+                    </div>
+                    <div style={{ marginBottom: 10 }}>
+                      <label className="ln-info-label" style={{ marginBottom: 4, display: 'block' }}>File (PDF, DOC, DOCX only) <span style={{ color: '#cc1016' }}>*</span></label>
+                      <input ref={fileInputRef} type="file" accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document" onChange={e => setDocFile(e.target.files[0] || null)} style={{ fontSize: 13 }} />
+                    </div>
+                    <button className="ln-btn-sm ln-btn-success" onClick={handleDocUpload} disabled={uploading || !docFile || !docLabel.trim()} style={{ width: '100%' }}>
+                      {uploading ? 'Uploading...' : <><Upload size={12} /> Upload Document</>}
+                    </button>
+                  </div>
+                )}
+
+                {documents.length > 0 ? documents.map(doc => (
+                  <div key={doc.id} className="ln-doc-item">
+                    <div className="ln-doc-info">
+                      <FileText size={16} color="rgba(0,0,0,0.5)" />
+                      <div>
+                        <span style={{ fontWeight: 600, fontSize: 13 }}>{doc.label}</span>
+                        <div style={{ fontSize: 11, color: 'rgba(0,0,0,0.4)' }}>{doc.file_name}</div>
+                      </div>
+                    </div>
+                    <div style={{ display: 'flex', gap: 6 }}>
+                      <a href={doc.file_url} target="_blank" rel="noreferrer" className="ln-btn-sm ln-btn-outline"><Eye size={12} /> View</a>
+                      {isOwnProfile && editing && <button className="ln-btn-sm ln-btn-outline" onClick={() => showConfirm('Are you sure you want to delete this document?', () => deleteDoc(doc.id))} style={{ color: '#cc1016' }}><Trash2 size={12} /></button>}
                     </div>
                   </div>
-                ))}
+                )) : !showUploadForm && (
+                  <EmptyState 
+                    illustration={DocumentIllustration}
+                    title="No documents yet"
+                    description="Upload company brochures, policies, or registration documents for verification and profile completeness."
+                    style={{ padding: '24px 20px' }}
+                  />
+                )}
               </div>
-            ) : (
-                <EmptyState 
-                  illustration={BriefcaseIllustration}
-                  title="No active openings"
-                  description="You haven't posted any job or OJT opportunities yet. Start posting to find the best trainees."
-                  style={{ padding: '24px 20px' }}
-                />
-            )}
-          </div>
-        </div>
-      </div>
 
+              {/* Active Openings (Moved from Sidebar) */}
+              <div className="ln-card" style={{ marginTop: 20 }}>
+                <div className="ln-section-header">
+                  <h3>Active Openings</h3>
+                  <span className="ln-badge ln-badge-blue">{activeJobs.length} Positions</span>
+                </div>
+                <div style={{ padding: '0 16px 16px' }}>
+                  {activeJobs.length > 0 ? (
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: 12 }}>
+                      {activeJobs.map(job => (
+                        <div key={job.id} style={{ padding: 12, border: '1px solid #e2e8f0', borderRadius: 8, background: '#f8fafc' }}>
+                          <div style={{ fontWeight: 700, fontSize: 14, color: '#1e293b', marginBottom: 4 }}>{job.title}</div>
+                          <div style={{ display: 'flex', gap: 6, marginBottom: 8 }}>
+                            <span style={{ fontSize: 10, padding: '2px 6px', background: job.opportunityType === 'Job' ? '#dcfce7' : '#fef9c3', color: job.opportunityType === 'Job' ? '#166534' : '#854d0e', borderRadius: 4, fontWeight: 600 }}>{job.opportunityType}</span>
+                            {job.opportunityType !== 'OJT' && job.employmentType && (
+                              <span style={{ fontSize: 10, padding: '2px 6px', background: '#f1f5f9', color: '#475569', borderRadius: 4 }}>{job.employmentType}</span>
+                            )}
+                          </div>
+                          <div style={{ fontSize: 12, color: '#64748b', display: 'flex', alignItems: 'center', gap: 4 }}>
+                            <MapPin size={12} /> {job.location || 'Philippines'}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                      <EmptyState 
+                        illustration={BriefcaseIllustration}
+                        title="No active openings"
+                        description="You haven't posted any job or OJT opportunities yet. Start posting to find the best trainees."
+                        style={{ padding: '24px 20px' }}
+                      />
+                  )}
+                </div>
+              </div>
+            </React.Fragment>
+          )}
+
+          {activeTab === 'Saved' && isOwnProfile && (
+            <div className="ln-card">
+              <div className="ln-section-header"><h3>Saved Items</h3></div>
+              <div style={{ padding: '0 20px 20px' }}>
+                <SavedItemsView
+                  userId={partner.id}
+                  userType="partner"
+                  onOpenBulletin={(p) => openBulletinModal(p, 'inquire')}
+                />
+              </div>
+            </div>
+          )}
+
+          {activeTab === 'Activity' && isOwnProfile && (
+            <ProfileActivityTab profileId={partner.id} profileType="partner" isOwnProfile={isOwnProfile} />
+          )}
+        </div>
       </div>
 
       {/* Confirm Dialog */}
@@ -4348,6 +5167,57 @@ export const CompanyProfile = ({ viewedPartnerId = null, onBack = null }) => {
           </div>
         </div>
       )}
+      {/* Bulletin Toast */}
+      {bulletinToast && (
+        <div style={{ position: 'fixed', top: 20, right: 20, zIndex: 9999, background: '#0f172a', color: '#fff', padding: '12px 20px', borderRadius: 10, fontWeight: 600, fontSize: 14, boxShadow: '0 4px 20px rgba(0,0,0,0.3)', display: 'flex', alignItems: 'center', gap: 8 }}>
+          <CheckCircle size={16} color="#4ade80" />{bulletinToast}
+        </div>
+      )}
+
+      {/* Bulletin Interaction Modal */}
+      {bulletinModal && (() => {
+        const BCFG = { training_batch: { color: '#7c3aed', emoji: '📚' }, exam_schedule: { color: '#0ea5e9', emoji: '📝' }, certification_assessment: { color: '#16a34a', emoji: '🏆' }, announcement: { color: '#d97706', emoji: '📢' } };
+        const cfg = BCFG[bulletinModal.post?.post_type] || BCFG.announcement;
+        const isInquiry = bulletinModal.type === 'inquire';
+        return (
+          <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
+            <div style={{ background: '#fff', borderRadius: 16, width: '100%', maxWidth: 440, boxShadow: '0 20px 60px rgba(0,0,0,0.2)', overflow: 'hidden' }}>
+              <div style={{ background: cfg.color, padding: '16px 20px', display: 'flex', alignItems: 'center', gap: 12 }}>
+                <div style={{ fontSize: 20 }}>{cfg.emoji}</div>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontWeight: 700, color: '#fff', fontSize: 15 }}>{isInquiry ? 'Send Inquiry' : 'Submit'}</div>
+                  <div style={{ color: 'rgba(255,255,255,0.8)', fontSize: 12 }}>{bulletinModal.post?.title}</div>
+                </div>
+                <button onClick={() => setBulletinModal(null)} style={{ background: 'rgba(255,255,255,0.2)', border: 'none', borderRadius: 8, width: 28, height: 28, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <X size={14} color="#fff" />
+                </button>
+              </div>
+              <div style={{ padding: 20 }}>
+                <label style={{ fontSize: 12, fontWeight: 700, color: '#475569', textTransform: 'uppercase', display: 'block', marginBottom: 8 }}>
+                  {isInquiry ? 'Your Message *' : 'Note (optional)'}
+                </label>
+                <textarea
+                  value={bulletinMessage}
+                  onChange={e => setBulletinMessage(e.target.value)}
+                  placeholder={isInquiry ? 'Type your inquiry...' : 'Add a note...'}
+                  rows={4}
+                  style={{ width: '100%', padding: '10px 12px', borderRadius: 8, border: '1.5px solid #e2e8f0', fontSize: 14, outline: 'none', resize: 'none', boxSizing: 'border-box' }}
+                />
+                <div style={{ display: 'flex', gap: 10, marginTop: 14, justifyContent: 'flex-end' }}>
+                  <button onClick={() => setBulletinModal(null)} style={{ padding: '10px 18px', borderRadius: 8, border: '1.5px solid #e2e8f0', background: '#fff', color: '#64748b', fontWeight: 600, cursor: 'pointer' }}>Cancel</button>
+                  <button
+                    onClick={handleBulletinInteraction}
+                    disabled={bulletinSubmitting || (isInquiry && !bulletinMessage.trim())}
+                    style={{ padding: '10px 20px', borderRadius: 8, border: 'none', background: cfg.color, color: '#fff', fontWeight: 700, cursor: 'pointer', opacity: bulletinSubmitting ? 0.6 : 1 }}
+                  >
+                    {bulletinSubmitting ? 'Submitting...' : isInquiry ? 'Send Inquiry' : 'Confirm'}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
 
     </div>
   );
@@ -4615,7 +5485,7 @@ export default function PartnerDashboard() {
         <Route path="/calendar" element={<CalendarView setActivePage={setActivePage} />} />
         <Route path="/applicants" element={<ViewApplicants setActivePage={setActivePage} />} />
         <Route path="/profile" element={<CompanyProfile />} />
-        <Route path="/verification" element={<VerificationPage />} />
+        <Route path="/verification" element={<VerificationPage setActivePage={setActivePage} />} />
         <Route path="/profile-view/:profileType/:profileId" element={<PartnerProfileViewRoute />} />
         <Route path="*" element={<Navigate to="/partner" replace />} />
       </Routes>

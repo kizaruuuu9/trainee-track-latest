@@ -6,13 +6,15 @@ import {
     Settings, LogOut, Bell, ChevronDown, Search, Eye, Edit, CheckCircle,
     XCircle, Download, Plus, X, AlertCircle, FileText, Award, Shield,
     UserCheck, Clock, MapPin, Star, Filter, Trash2, Menu, MoreVertical,
-    ChevronLeft, ChevronRight
+    ChevronLeft, ChevronRight, BookOpen
 } from 'lucide-react';
 import {
     BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid,
     Tooltip, Legend, ResponsiveContainer
 } from 'recharts';
 import { Routes, Route, useNavigate, useLocation, Navigate } from 'react-router-dom';
+import BrandLogo from '../common/BrandLogo';
+import TrainingBulletin from './TrainingBulletin';
 
 // ─── SHARED: TABLE PAGINATION ──────────────────────────────────────
 const TablePagination = ({ currentPage, totalItems, pageSize, onPageChange }) => {
@@ -168,6 +170,7 @@ const AdminSidebar = ({ activePage, setActivePage, mobileOpen, closeSidebar }) =
         { id: 'programs', label: 'TESDA Programs', icon: <Award size={17} /> },
         { id: 'partners', label: 'Industry Partners', icon: <Building2 size={17} /> },
         { id: 'accounts', label: 'Manage Accounts', icon: <UserCheck size={17} /> },
+        { id: 'bulletin', label: 'Training Bulletin', icon: <BookOpen size={17} /> },
         { id: 'jobs', label: 'Opportunities Oversight', icon: <Briefcase size={17} /> },
         { id: 'employment', label: 'Employment Tracking', icon: <TrendingUp size={17} /> },
         { id: 'activity-log', label: 'Activity Log', icon: <FileText size={17} /> },
@@ -177,7 +180,11 @@ const AdminSidebar = ({ activePage, setActivePage, mobileOpen, closeSidebar }) =
     return (
         <nav className={`sidebar ${mobileOpen ? 'open' : ''}`}>
             <div className="sidebar-brand">
-                <div className="sidebar-logo" style={{ background: 'linear-gradient(135deg, #7c3aed, #db2777)' }}>TT</div>
+                <BrandLogo 
+                    size={40} 
+                    fallbackClassName="sidebar-logo" 
+                    fallbackStyle={{ background: 'linear-gradient(135deg, #7c3aed, #db2777)' }} 
+                />
                 <div className="sidebar-brand-text">
                     <div className="sidebar-brand-name">TraineeTrack</div>
                     <div className="sidebar-brand-sub">Admin Panel</div>
@@ -2051,6 +2058,7 @@ export default function AdminDashboard() {
         trainees: { title: 'Manage Trainees', sub: 'View and manage all registered trainees' },
         programs: { title: 'TESDA Programs', sub: 'Manage TESDA programs and competencies' },
         partners: { title: 'Industry Partners', sub: 'Manage and verify partner accounts' },
+        bulletin: { title: 'Training Bulletin', sub: 'Manage training opportunities for trainees and partners' },
         jobs: { title: 'Opportunities Oversight', sub: 'Monitor all opportunity postings' },
         employment: { title: 'Employment Tracking', sub: 'Monitor trainee employment outcomes' },
         analytics: { title: 'Analytics Reports', sub: 'Comprehensive data analysis' },
@@ -2068,6 +2076,7 @@ export default function AdminDashboard() {
                 <Route path="/trainees" element={<ManageTrainees />} />
                 <Route path="/programs" element={<ManageTesdaPrograms />} />
                 <Route path="/partners" element={<ManagePartners />} />
+                <Route path="/bulletin" element={<TrainingBulletin />} />
                 <Route path="/jobs" element={<OpportunitiesOversight />} />
                 <Route path="/employment" element={<EmploymentTracking />} />
                 <Route path="/analytics" element={<Analytics />} />
