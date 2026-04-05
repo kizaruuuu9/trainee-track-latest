@@ -190,7 +190,7 @@ export const AppProvider = ({ children }) => {
     appName: 'TraineeTrack',
     orgName: 'Philippine School for Technology Development and Innovation Inc.',
     logoText: 'TT',
-    logoUrl: '/src/assets/traineetrack_logo.svg',
+    logoUrl: '/traineetrack_logo.svg',
     currentYear: new Date().getFullYear(),
   };
 

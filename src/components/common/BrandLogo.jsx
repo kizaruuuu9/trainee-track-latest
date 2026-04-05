@@ -16,7 +16,7 @@ export default function BrandLogo({
 }) {
   const { appMetadata } = useApp();
   const [error, setError] = useState(false);
-  const logoSrc = src || appMetadata?.logoUrl || '/src/assets/traineetrack_logo.svg';
+  const logoSrc = src || appMetadata?.logoUrl || '/traineetrack_logo.svg';
 
   if (error) {
     return (
