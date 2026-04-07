@@ -1,29 +1,29 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { 
-  Building2, MapPin, Clock, Briefcase, Users, CheckCircle, 
-  Target, ShieldCheck, Plus, X, Camera, FileText, 
+import {
+  Building2, MapPin, Clock, Briefcase, Users, CheckCircle,
+  Target, ShieldCheck, Plus, X, Camera, FileText,
   MessageSquare, Bookmark, Send, Trash2, Edit, Mail, Info, ChevronRight, Eye
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 
 // --- HELPERS (Copied from dashboards) ---
 export const timeAgo = (dateStr) => {
-    const raw = String(dateStr || '').trim();
-    if (!raw) return 'Just now';
-    const now = new Date();
-    const date = new Date(raw);
-    if (!Number.isFinite(date.getTime())) return 'Just now';
-    const seconds = Math.floor((now - date) / 1000);
-    if (seconds < 60) return 'Just now';
-    const minutes = Math.floor(seconds / 60);
-    if (minutes < 60) return `${minutes}m ago`;
-    const hours = Math.floor(minutes / 60);
-    if (hours < 24) return `${hours}h ago`;
-    const days = Math.floor(hours / 24);
-    if (days < 30) return `${days}d ago`;
-    const months = Math.floor(days / 30);
-    if (months < 12) return `${months}mo ago`;
-    return `${Math.floor(months / 12)}y ago`;
+  const raw = String(dateStr || '').trim();
+  if (!raw) return 'Just now';
+  const now = new Date();
+  const date = new Date(raw);
+  if (!Number.isFinite(date.getTime())) return 'Just now';
+  const seconds = Math.floor((now - date) / 1000);
+  if (seconds < 60) return 'Just now';
+  const minutes = Math.floor(seconds / 60);
+  if (minutes < 60) return `${minutes}m ago`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours}h ago`;
+  const days = Math.floor(hours / 24);
+  if (days < 30) return `${days}d ago`;
+  const months = Math.floor(days / 30);
+  if (months < 12) return `${months}mo ago`;
+  return `${Math.floor(months / 12)}y ago`;
 };
 
 export const isImageAttachment = (attachmentUrl, attachmentType) => {
@@ -53,15 +53,15 @@ const toProfileAuthorType = (authorType = '') => (isStudentAuthorType(authorType
 // --- SHARED COMPONENTS ---
 
 export const BULLETIN_CONFIG = {
-    training: { label: 'Training Program', color: '#7c3aed', bg: '#ede9fe', emoji: '📚', traineeLabel: 'Apply Now', type: 'apply' },
-    event: { label: 'Event', color: '#0ea5e9', bg: '#e0f2fe', emoji: '📅', traineeLabel: 'Register', type: 'register' },
-    workshop: { label: 'Workshop', color: '#0ea5e9', bg: '#e0f2fe', emoji: '🛠️', traineeLabel: 'Register', type: 'register' },
-    announcement: { label: 'Announcement', color: '#d97706', bg: '#fef3c7', emoji: '📢', traineeLabel: null, type: null },
-    scholarship: { label: 'Scholarship', color: '#16a34a', bg: '#dcfce7', emoji: '🎓', traineeLabel: 'Apply Now', type: 'apply' },
-    ojt_opportunity: { label: 'OJT Opportunity', color: '#ef4444', bg: '#fee2e2', emoji: '💼', traineeLabel: 'Apply Now', type: 'apply' },
-    training_batch: { label: 'Training Batch', color: '#7c3aed', bg: '#ede9fe', emoji: '📚', traineeLabel: 'Apply Now', type: 'apply' },
-    exam_schedule: { label: 'Exam Schedule', color: '#0ea5e9', bg: '#e0f2fe', emoji: '📝', traineeLabel: 'Register', type: 'register' },
-    certification_assessment: { label: 'Certification Assessment', color: '#16a34a', bg: '#dcfce7', emoji: '🏆', traineeLabel: 'Register', type: 'register' }
+  training: { label: 'Training Program', color: '#7c3aed', bg: '#ede9fe', emoji: '📚', traineeLabel: 'Apply Now', type: 'apply' },
+  event: { label: 'Event', color: '#0ea5e9', bg: '#e0f2fe', emoji: '📅', traineeLabel: 'Register', type: 'register' },
+  workshop: { label: 'Workshop', color: '#0ea5e9', bg: '#e0f2fe', emoji: '🛠️', traineeLabel: 'Register', type: 'register' },
+  announcement: { label: 'Announcement', color: '#d97706', bg: '#fef3c7', emoji: '📢', traineeLabel: null, type: null },
+  scholarship: { label: 'Scholarship', color: '#16a34a', bg: '#dcfce7', emoji: '🎓', traineeLabel: 'Apply Now', type: 'apply' },
+  ojt_opportunity: { label: 'OJT Opportunity', color: '#ef4444', bg: '#fee2e2', emoji: '💼', traineeLabel: 'Apply Now', type: 'apply' },
+  training_batch: { label: 'Training Batch', color: '#7c3aed', bg: '#ede9fe', emoji: '📚', traineeLabel: 'Apply Now', type: 'apply' },
+  exam_schedule: { label: 'Exam Schedule', color: '#0ea5e9', bg: '#e0f2fe', emoji: '📝', traineeLabel: 'Register', type: 'register' },
+  certification_assessment: { label: 'Certification Assessment', color: '#16a34a', bg: '#dcfce7', emoji: '🏆', traineeLabel: 'Register', type: 'register' }
 };
 
 /**
@@ -83,27 +83,27 @@ export const CreatePostTrigger = ({ onClick, userAvatar, placeholder }) => (
 // --- CONSTANTS ---
 
 export const TRAINEE_POST_TYPES = [
-    { value: 'general', label: 'Public', icon: '📝' },
-    { value: 'achievement', label: 'Achievement', icon: '🏆' },
-    { value: 'certification', label: 'Certification', icon: '📜' },
-    { value: 'project', label: 'Project', icon: '🚀' }
+  { value: 'general', label: 'Public', icon: '📝' },
+  { value: 'achievement', label: 'Achievement', icon: '🏆' },
+  { value: 'certification', label: 'Certification', icon: '📜' },
+  { value: 'project', label: 'Project', icon: '🚀' }
 ];
 
 export const PARTNER_POST_TYPES = [
-    { value: 'announcement', label: 'Announcement', icon: '📢' },
-    { value: 'hiring_update', label: 'Hiring Update', icon: '💼' },
-    { value: 'achievement', label: 'Achievement', icon: '🏆' },
-    { value: 'general', label: 'General', icon: '📝' }
+  { value: 'announcement', label: 'Announcement', icon: '📢' },
+  { value: 'hiring_update', label: 'Hiring Update', icon: '💼' },
+  { value: 'achievement', label: 'Achievement', icon: '🏆' },
+  { value: 'general', label: 'General', icon: '📝' }
 ];
 
 /**
  * UniversalPostModal: A robust modal for creating and editing posts
  */
-export const UniversalPostModal = ({ 
-  isOpen, 
-  onClose, 
-  onSave, 
-  editingPost = null, 
+export const UniversalPostModal = ({
+  isOpen,
+  onClose,
+  onSave,
+  editingPost = null,
   userType = 'trainee',
   currentUser
 }) => {
@@ -115,7 +115,7 @@ export const UniversalPostModal = ({
   const [selectedFile, setSelectedFile] = useState(null);
   const [filePreview, setFilePreview] = useState(null);
   const [isSaving, setIsSaving] = useState(false);
-  
+
   const fileInputRef = useRef(null);
   const postTypes = userType === 'partner' ? PARTNER_POST_TYPES : TRAINEE_POST_TYPES;
 
@@ -237,13 +237,13 @@ export const UniversalPostModal = ({
         )}
 
         {selectedFile && !filePreview && (
-            <div style={{ marginBottom: 20, padding: '12px', background: '#f0f2f5', borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                    <FileText size={20} color="#65676b" />
-                    <span style={{ fontSize: 14, fontWeight: 500 }}>{selectedFile.name}</span>
-                </div>
-                <X size={18} color="#65676b" cursor="pointer" onClick={() => setSelectedFile(null)} />
+          <div style={{ marginBottom: 20, padding: '12px', background: '#f0f2f5', borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <FileText size={20} color="#65676b" />
+              <span style={{ fontSize: 14, fontWeight: 500 }}>{selectedFile.name}</span>
             </div>
+            <X size={18} color="#65676b" cursor="pointer" onClick={() => setSelectedFile(null)} />
+          </div>
         )}
 
         <div style={{
@@ -282,7 +282,7 @@ export const UniversalPostModal = ({
       boxShadow: '0 12px 28px 0 rgba(0, 0, 0, 0.2), 0 2px 4px 0 rgba(0, 0, 0, 0.1)',
       overflow: 'hidden', animation: 'lnModalIn 0.2s ease-out'
     }} onClick={e => e.stopPropagation()}>
-      
+
       {/* Header - Left Aligned */}
       <div style={{ padding: '20px 24px 16px', borderBottom: '1px solid #f0f2f5', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
         <div>
@@ -300,13 +300,13 @@ export const UniversalPostModal = ({
       <div style={{ padding: '20px 24px', maxHeight: '75vh', overflowY: 'auto' }}>
         <div style={{ marginBottom: 16 }}>
           <label style={{ fontWeight: 700, fontSize: 13, marginBottom: 8, display: 'block', color: '#1e293b' }}>Title</label>
-          <input 
-             type="text" 
-             placeholder="e.g., Company Open House 2026" 
-             value={title} 
-             onChange={e => setTitle(e.target.value)}
-             className="form-input"
-             style={{ width: '100%', border: '1px solid rgba(0,0,0,0.1)', borderRadius: 10, padding: '10px 14px', fontSize: 14, outline: 'none' }}
+          <input
+            type="text"
+            placeholder="e.g., Company Open House 2026"
+            value={title}
+            onChange={e => setTitle(e.target.value)}
+            className="form-input"
+            style={{ width: '100%', border: '1px solid rgba(0,0,0,0.1)', borderRadius: 10, padding: '10px 14px', fontSize: 14, outline: 'none' }}
           />
         </div>
 
@@ -340,67 +340,67 @@ export const UniversalPostModal = ({
         </div>
 
         <div style={{ marginBottom: 16 }}>
-           <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
-              <label style={{ fontWeight: 700, fontSize: 13, color: '#1e293b', margin: 0 }}>Set Expiry Date</label>
-              <button 
-                type="button" 
-                onClick={() => setExpiryEnabled(!expiryEnabled)} 
-                style={{ 
-                    width: 40, height: 22, borderRadius: 11, border: 'none', 
-                    background: expiryEnabled ? '#0a66c2' : '#cbd5e1', 
-                    position: 'relative', cursor: 'pointer', transition: 'background 0.2s' 
-                }}
-              >
-                <div style={{ 
-                    width: 18, height: 18, borderRadius: '50%', background: '#fff', 
-                    position: 'absolute', top: 2, left: expiryEnabled ? 20 : 2, 
-                    transition: 'left 0.2s', boxShadow: '0 1px 3px rgba(0,0,0,0.2)' 
-                }} />
-              </button>
-            </div>
-            {expiryEnabled && (
-              <input 
-                type="date" 
-                className="form-input"
-                value={expiryDate} 
-                onChange={e => setExpiryDate(e.target.value)} 
-                min={new Date().toISOString().slice(0, 10)}
-                style={{ width: '100%', borderRadius: 10, padding: '10px 14px', fontSize: 14, border: '1px solid rgba(0,0,0,0.1)' }}
-              />
-            )}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
+            <label style={{ fontWeight: 700, fontSize: 13, color: '#1e293b', margin: 0 }}>Set Expiry Date</label>
+            <button
+              type="button"
+              onClick={() => setExpiryEnabled(!expiryEnabled)}
+              style={{
+                width: 40, height: 22, borderRadius: 11, border: 'none',
+                background: expiryEnabled ? '#0a66c2' : '#cbd5e1',
+                position: 'relative', cursor: 'pointer', transition: 'background 0.2s'
+              }}
+            >
+              <div style={{
+                width: 18, height: 18, borderRadius: '50%', background: '#fff',
+                position: 'absolute', top: 2, left: expiryEnabled ? 20 : 2,
+                transition: 'left 0.2s', boxShadow: '0 1px 3px rgba(0,0,0,0.2)'
+              }} />
+            </button>
+          </div>
+          {expiryEnabled && (
+            <input
+              type="date"
+              className="form-input"
+              value={expiryDate}
+              onChange={e => setExpiryDate(e.target.value)}
+              min={new Date().toISOString().slice(0, 10)}
+              style={{ width: '100%', borderRadius: 10, padding: '10px 14px', fontSize: 14, border: '1px solid rgba(0,0,0,0.1)' }}
+            />
+          )}
         </div>
 
         <div style={{ marginBottom: 16 }}>
           <input type="file" hidden ref={fileInputRef} onChange={handleFileChange} accept="image/*,.pdf,.doc,.docx" />
-          <button 
-              type="button" 
-              onClick={() => fileInputRef.current?.click()}
-              className="ln-btn-sm ln-btn-outline"
-              style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 16px', borderRadius: 8, fontSize: 13, fontWeight: 600 }}
+          <button
+            type="button"
+            onClick={() => fileInputRef.current?.click()}
+            className="ln-btn-sm ln-btn-outline"
+            style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 16px', borderRadius: 8, fontSize: 13, fontWeight: 600 }}
           >
-              <Camera size={16} /> Attach Media
+            <Camera size={16} /> Attach Media
           </button>
-          
+
           {filePreview && (
-              <div style={{ position: 'relative', marginTop: 16, borderRadius: 10, overflow: 'hidden', border: '1px solid #f0f2f5' }}>
-                  <img src={filePreview} alt="Preview" style={{ width: '100%', display: 'block' }} />
-                  <button
-                      style={{ position: 'absolute', top: 8, right: 8, background: 'rgba(0,0,0,0.5)', color: '#fff', border: 'none', borderRadius: '50%', width: 24, height: 24, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-                      onClick={() => { setSelectedFile(null); setFilePreview(null); }}
-                  >
-                      <X size={14} />
-                  </button>
-              </div>
+            <div style={{ position: 'relative', marginTop: 16, borderRadius: 10, overflow: 'hidden', border: '1px solid #f0f2f5' }}>
+              <img src={filePreview} alt="Preview" style={{ width: '100%', display: 'block' }} />
+              <button
+                style={{ position: 'absolute', top: 8, right: 8, background: 'rgba(0,0,0,0.5)', color: '#fff', border: 'none', borderRadius: '50%', width: 24, height: 24, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                onClick={() => { setSelectedFile(null); setFilePreview(null); }}
+              >
+                <X size={14} />
+              </button>
+            </div>
           )}
-          
+
           {selectedFile && !filePreview && (
-              <div style={{ marginTop: 12, padding: '8px 12px', background: '#f8fafc', borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'space-between', border: '1px solid #e2e8f0' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                      <FileText size={16} color="#65676b" />
-                      <span style={{ fontSize: 12, fontWeight: 500 }}>{selectedFile.name}</span>
-                  </div>
-                  <X size={14} color="#65676b" cursor="pointer" onClick={() => setSelectedFile(null)} />
+            <div style={{ marginTop: 12, padding: '8px 12px', background: '#f8fafc', borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'space-between', border: '1px solid #e2e8f0' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <FileText size={16} color="#65676b" />
+                <span style={{ fontSize: 12, fontWeight: 500 }}>{selectedFile.name}</span>
               </div>
+              <X size={14} color="#65676b" cursor="pointer" onClick={() => setSelectedFile(null)} />
+            </div>
           )}
         </div>
       </div>
@@ -425,7 +425,7 @@ export const UniversalPostModal = ({
       background: 'rgba(0, 0, 0, 0.4)', backdropFilter: 'blur(4px)',
       zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20
     }} onClick={onClose}>
-        {userType === 'partner' ? renderPartnerLayout() : renderTraineeLayout()}
+      {userType === 'partner' ? renderPartnerLayout() : renderTraineeLayout()}
     </div>
   );
 };
@@ -433,30 +433,126 @@ export const UniversalPostModal = ({
 /**
  * FeedItem: Unified card for rendering posts, jobs, and bulletins
  */
-export const FeedItem = ({ 
-  item, 
-  isOwnPost, 
-  onEdit, 
-  onDelete, 
-  onInquire, 
-  onSave, 
-  onApply, 
+export const FeedItem = ({
+  item,
+  isOwnPost,
+  onEdit,
+  onDelete,
+  onInquire,
+  onSave,
+  onApply,
   openProfile,
   onOpenMediaModal,
   postMenuId,
   setPostMenuId,
   onComment
 }) => {
-  const { currentUser, trainees, partners, getUserPostInteraction } = useApp();
+  const {
+    currentUser, trainees, partners, getUserPostInteraction,
+    getPostComments, getJobPostingComments, addPostComment, addJobPostingComment
+  } = useApp();
+
+  const [showComments, setShowComments] = useState(false);
+  const [newComment, setNewComment] = useState('');
+  const [isSubmittingComment, setIsSubmittingComment] = useState(false);
+
+  const isJob = item.feedType === 'job';
+  const comments = isJob ? getJobPostingComments(item.id) : getPostComments(item.id);
+  const commentCount = comments?.length || 0;
+
+  const handleToggleComments = () => {
+    if (onComment) onComment(item);
+    setShowComments(!showComments);
+  };
+
+  const handleSubmitComment = async () => {
+    if (!newComment.trim()) return;
+    setIsSubmittingComment(true);
+    let res;
+    if (isJob) {
+      res = await addJobPostingComment(item.id, newComment);
+    } else {
+      res = await addPostComment(item.id, newComment);
+    }
+    if (res?.success) {
+      setNewComment('');
+    } else {
+      alert(res?.error || 'Failed to post comment');
+    }
+    setIsSubmittingComment(false);
+  };
+
+  const renderCommentsSection = () => {
+    if (!showComments) return null;
+    return (
+      <div className="ln-comments-section" style={{ padding: '12px 16px', borderTop: '1px solid #f3f3f3', background: '#f9fafb' }}>
+        {comments.length === 0 ? (
+          <p style={{ fontSize: 13, color: '#65676b', textAlign: 'center', margin: '10px 0' }}>No comments yet. Be the first to comment!</p>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginBottom: 12, maxHeight: 300, overflowY: 'auto' }}>
+            {comments.map(c => {
+              let authorName = 'Unknown User';
+              let authorPhoto = null;
+              if (c.author_type === 'industry_partner') {
+                const p = partners.find(p => p.id === c.author_id);
+                authorName = p?.companyName || p?.profileName || 'Industry Partner';
+                authorPhoto = p?.company_logo_url || p?.photo;
+              } else {
+                const t = trainees.find(t => t.id === c.author_id);
+                authorName = t?.name || t?.profileName || 'Student';
+                authorPhoto = t?.photo;
+              }
+
+              return (
+                <div key={c.id} style={{ display: 'flex', gap: 8 }}>
+                  <div style={{ width: 32, height: 32, borderRadius: '50%', background: '#e4e6eb', flexShrink: 0, overflow: 'hidden' }}>
+                    {authorPhoto ? <img src={authorPhoto} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', fontSize: 14, fontWeight: 600 }}>{authorName.charAt(0)}</span>}
+                  </div>
+                  <div style={{ background: '#fff', padding: '8px 12px', borderRadius: 12, border: '1px solid #e4e6eb', flex: 1 }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                      <span style={{ fontWeight: 600, fontSize: 13, color: '#1c1e21' }}>{authorName}</span>
+                      <span style={{ fontSize: 11, color: '#65676b' }}>{timeAgo(c.created_at)}</span>
+                    </div>
+                    <p style={{ fontSize: 13, margin: '4px 0 0', color: '#1c1e21', whiteSpace: 'pre-wrap' }}>{c.content}</p>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+          <div style={{ width: 32, height: 32, borderRadius: '50%', background: '#e4e6eb', flexShrink: 0, overflow: 'hidden' }}>
+            {currentUser?.photo || currentUser?.company_logo_url ? <img src={currentUser?.photo || currentUser?.company_logo_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', fontSize: 14, fontWeight: 600 }}>{(currentUser?.name || currentUser?.companyName || 'U').charAt(0)}</span>}
+          </div>
+          <input
+            type="text"
+            placeholder="Write a comment..."
+            value={newComment}
+            onChange={e => setNewComment(e.target.value)}
+            onKeyDown={e => { if (e.key === 'Enter') handleSubmitComment(); }}
+            disabled={isSubmittingComment}
+            style={{ flex: 1, padding: '8px 16px', borderRadius: 20, border: '1px solid #e4e6eb', fontSize: 13, outline: 'none' }}
+          />
+          <button
+            onClick={handleSubmitComment}
+            disabled={!newComment.trim() || isSubmittingComment}
+            style={{ background: newComment.trim() ? '#0a66c2' : '#e4e6eb', color: newComment.trim() ? '#fff' : '#a5a7ab', border: 'none', borderRadius: 20, padding: '6px 16px', fontSize: 13, fontWeight: 600, cursor: newComment.trim() ? 'pointer' : 'default', transition: 'all 0.2s' }}
+          >
+            {isSubmittingComment ? '...' : 'Send'}
+          </button>
+        </div>
+      </div>
+    );
+  };
 
   // Render Bulletin
   if (item.feedType === 'bulletin') {
     const cfg = BULLETIN_CONFIG[item.post_type] || BULLETIN_CONFIG.announcement;
     const alreadyInteracted = getUserPostInteraction(item.id, cfg.type);
-    const statusColors = { 
-      Open: { bg: '#dcfce7', color: '#16a34a' }, 
-      Full: { bg: '#fef3c7', color: '#d97706' }, 
-      Closed: { bg: '#fee2e2', color: '#dc2626' } 
+    const statusColors = {
+      Open: { bg: '#dcfce7', color: '#16a34a' },
+      Full: { bg: '#fef3c7', color: '#d97706' },
+      Closed: { bg: '#fee2e2', color: '#dc2626' }
     };
     const sc = statusColors[item.status] || statusColors.Open;
     const reqs = Array.isArray(item.requirements) ? item.requirements : [];
@@ -519,18 +615,35 @@ export const FeedItem = ({
           <p style={{ fontSize: 13.5, color: '#475569', lineHeight: 1.6 }}>{item.content}</p>
         </div>
         <div className="ln-feed-actions" style={{ borderTop: '1px solid #f3f3f3', padding: '8px 12px', display: 'flex', gap: 8 }}>
-          {cfg.type && (
-            <button className="ln-feed-action-btn" disabled={!!alreadyInteracted || item.status === 'Closed' || item.status === 'Full'} onClick={() => onApply(item, cfg.type)}>
-              {alreadyInteracted ? <><CheckCircle size={14} /> Applied</> : <><Send size={14} /> {cfg.traineeLabel}</>}
-            </button>
+          {isOwnPost ? (
+            <>
+              <button className="ln-feed-action-btn" onClick={() => onApply?.(item, 'applicants')}>
+                <Users size={14} /> View Applicants
+              </button>
+              <button className="ln-feed-action-btn" onClick={handleToggleComments}>
+                <MessageSquare size={14} /> Comment ({commentCount})
+              </button>
+            </>
+          ) : (
+            <>
+              {cfg.type && (
+                <button className="ln-feed-action-btn" disabled={!!alreadyInteracted || item.status === 'Closed' || item.status === 'Full'} onClick={() => onApply(item, cfg.type)}>
+                  {alreadyInteracted ? <><CheckCircle size={14} /> Applied</> : <><Send size={14} /> {cfg.traineeLabel}</>}
+                </button>
+              )}
+              <button className="ln-feed-action-btn" onClick={() => onInquire(item)}>
+                <MessageSquare size={14} /> Inquire
+              </button>
+              <button className="ln-feed-action-btn" onClick={() => onSave(item.id)} style={getUserPostInteraction(item.id, 'save') ? { color: '#d97706', fontWeight: 700 } : {}}>
+                <Bookmark size={14} fill={getUserPostInteraction(item.id, 'save') ? "currentColor" : "none"} /> {getUserPostInteraction(item.id, 'save') ? 'Saved' : 'Save'}
+              </button>
+              <button className="ln-feed-action-btn" onClick={handleToggleComments}>
+                <MessageSquare size={14} /> Comment ({commentCount})
+              </button>
+            </>
           )}
-          <button className="ln-feed-action-btn" onClick={() => onInquire(item)}>
-            <MessageSquare size={14} /> Inquire
-          </button>
-          <button className="ln-feed-action-btn" onClick={() => onSave(item.id)} style={getUserPostInteraction(item.id, 'save') ? { color: '#d97706', fontWeight: 700 } : {}}>
-            <Bookmark size={14} fill={getUserPostInteraction(item.id, 'save') ? "currentColor" : "none"} /> {getUserPostInteraction(item.id, 'save') ? 'Saved' : 'Save'}
-          </button>
         </div>
+        {renderCommentsSection()}
       </div>
     );
   }
@@ -538,7 +651,6 @@ export const FeedItem = ({
   // Render Job
   if (item.feedType === 'job') {
     const isSaved = Array.isArray(currentUser?.savedOpportunities) && currentUser.savedOpportunities.includes(item.id);
-    const commentCount = partners.length % 5; // Placeholder
     return (
       <div className="ln-card ln-feed-card" style={{ marginBottom: 0 }}>
         <div className="ln-feed-card-header">
@@ -594,7 +706,7 @@ export const FeedItem = ({
               <button className="ln-feed-action-btn" onClick={() => onApply?.(item, 'applicants')}>
                 <Users size={14} /> View Applicants
               </button>
-              <button className="ln-feed-action-btn" onClick={() => onComment?.(item)}>
+              <button className="ln-feed-action-btn" onClick={handleToggleComments}>
                 <MessageSquare size={14} /> Comment ({commentCount})
               </button>
               <button className="ln-feed-action-btn" disabled style={{ opacity: 0.6, cursor: 'default' }}>
@@ -612,9 +724,13 @@ export const FeedItem = ({
               <button className="ln-feed-action-btn" onClick={() => onInquire(item)}>
                 <Mail size={14} /> Inquire
               </button>
+              <button className="ln-feed-action-btn" onClick={handleToggleComments}>
+                <MessageSquare size={14} /> Comment ({commentCount})
+              </button>
             </>
           )}
         </div>
+        {renderCommentsSection()}
       </div>
     );
   }
@@ -623,7 +739,6 @@ export const FeedItem = ({
   const author = isOwnPost ? currentUser : (isStudentAuthorType(item.author_type) ? trainees.find(t => t.id === item.author_id) : partners.find(p => p.id === item.author_id));
   const authorName = author?.name || author?.profileName || author?.companyName || 'Unknown User';
   const authorPhoto = author?.photo || author?.company_logo_url;
-  const commentCount = item.comments?.length || 0;
 
   return (
     <div className="ln-card ln-feed-card" style={{ marginBottom: 0 }}>
@@ -639,12 +754,12 @@ export const FeedItem = ({
           </div>
           <div className="ln-feed-meta">
             {item.post_type && (
-              <span className="ln-post-type-badge" style={{ 
-                background: '#f1f5f9', 
-                color: '#475569', 
-                padding: '2px 8px', 
-                borderRadius: 12, 
-                fontSize: 11, 
+              <span className="ln-post-type-badge" style={{
+                background: '#f1f5f9',
+                color: '#475569',
+                padding: '2px 8px',
+                borderRadius: 12,
+                fontSize: 11,
                 fontWeight: 700,
                 display: 'inline-flex',
                 alignItems: 'center',
@@ -693,20 +808,20 @@ export const FeedItem = ({
           </div>
         )}
       </div>
-        <div className="ln-feed-actions" style={{ borderTop: '1px solid #f3f3f3', padding: '4px 12px', display: 'flex', gap: 4 }}>
+      <div className="ln-feed-actions" style={{ borderTop: '1px solid #f3f3f3', padding: '4px 12px', display: 'flex', gap: 4 }}>
         {isOwnPost ? (
           <>
-             <button className="ln-feed-action-btn" disabled style={{ opacity: 0.6, cursor: 'default' }}>
-                <MessageSquare size={14} /> Your Post
-             </button>
-             <button className="ln-feed-action-btn" onClick={() => onComment?.(item)}>
-                <MessageSquare size={14} /> Comment ({commentCount})
-             </button>
+            <button className="ln-feed-action-btn" disabled style={{ opacity: 0.6, cursor: 'default' }}>
+              <MessageSquare size={14} /> Your Post
+            </button>
+            <button className="ln-feed-action-btn" onClick={handleToggleComments}>
+              <MessageSquare size={14} /> Comment ({commentCount})
+            </button>
           </>
         ) : (
           <>
-            <button className="ln-feed-action-btn" onClick={() => onComment?.(item)}>
-              <MessageSquare size={14} /> Comment
+            <button className="ln-feed-action-btn" onClick={handleToggleComments}>
+              <MessageSquare size={14} /> Comment ({commentCount})
             </button>
             <button className="ln-feed-action-btn">
               <Send size={14} /> Share
@@ -714,7 +829,7 @@ export const FeedItem = ({
           </>
         )}
       </div>
+      {renderCommentsSection()}
     </div>
   );
 };
-

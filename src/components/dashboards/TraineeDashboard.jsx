@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useApp } from '../../context/AppContext';
 import SavedItemsView from './SavedItemsView';
+import SettingsPage from './SettingsPage';
+import NotificationsPage from './NotificationsPage';
 import {
     User, Briefcase, FileText, CheckCircle, Bell, ChevronDown, Search, Filter, MapPin, Clock, Building2,
     Award, Send, CheckSquare, X, Eye, EyeOff, Plus, Menu, Home, Settings, LogOut, MessageSquare, Bookmark,
@@ -8,11 +10,11 @@ import {
 } from 'lucide-react';
 import ProfileActivityTab from './ProfileActivityTab';
 import EmptyState, {
-  TrophyIllustration,
-  BriefcaseIllustration,
-  DocumentIllustration,
-  StarIllustration,
-  FolderIllustration
+    TrophyIllustration,
+    BriefcaseIllustration,
+    DocumentIllustration,
+    StarIllustration,
+    FolderIllustration
 } from '../EmptyState';
 import BrandLogo from '../common/BrandLogo';
 import { supabase } from '../../lib/supabase';
@@ -175,7 +177,8 @@ const BULLETIN_CONFIG = {
 
 // ─── TOP NAVIGATION BAR (LinkedIn-style) ─────────────────────────
 const LinkedInTopNav = ({ activePage, setActivePage }) => {
-    const { currentUser, logout } = useApp();
+    const { currentUser, logout, notifications, markNotificationRead } = useApp();
+    const unreadCount = notifications?.filter(n => !n.read).length || 0;
     const [showProfileMenu, setShowProfileMenu] = useState(false);
     const [showNotif, setShowNotif] = useState(false);
     const [searchQuery, setSearchQuery] = useState('');
@@ -228,28 +231,44 @@ const LinkedInTopNav = ({ activePage, setActivePage }) => {
                     <div style={{ position: 'relative' }}>
                         <button className="ln-nav-item" onClick={() => { setShowNotif(!showNotif); setShowProfileMenu(false); }}>
                             <Bell size={20} />
-                            <span className="ln-notif-dot" />
+                            {unreadCount > 0 && (
+                                <span className="ln-notif-dot" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, fontWeight: 'bold', background: '#dc2626', color: 'white', width: 16, height: 16, borderRadius: '50%', position: 'absolute', top: 2, right: 10 }}>
+                                    {unreadCount}
+                                </span>
+                            )}
                             <span className="ln-nav-label">Alerts</span>
                         </button>
                         {showNotif && (
-                            <div className="ln-dropdown" style={{ right: 0, minWidth: 300 }}>
-                                <div className="ln-dropdown-header">Notifications</div>
-                                {[
-                                    { text: 'New opportunity match: Junior IT Technician', time: '2h ago' },
-                                    { text: 'Your application was reviewed by TechSolutions', time: '5h ago' },
-                                    { text: 'Profile viewed by 3 industry partners', time: '1d ago' },
-                                ].map((n, i) => (
-                                    <div key={i} className="ln-dropdown-item">
-                                        <div className="ln-notif-avatar">
-                                            <Building2 size={16} />
+                            <div className="ln-dropdown" style={{ right: 0, minWidth: 320, padding: 0, overflow: 'hidden' }}>
+                                <div className="ln-dropdown-header" style={{ padding: '12px 16px', borderBottom: '1px solid #e4e6eb', fontWeight: 600 }}>
+                                    Notifications
+                                </div>
+                                {(!notifications || notifications.length === 0) ? (
+                                    <div style={{ padding: '20px', textAlign: 'center', color: '#65676b', fontSize: 13 }}>No notifications</div>
+                                ) : (
+                                    notifications.slice(0, 4).map((n) => (
+                                        <div
+                                            key={n.id}
+                                            className="ln-dropdown-item hover:bg-slate-50"
+                                            style={{ background: n.read ? 'transparent' : '#f0f7ff', borderBottom: '1px solid #f3f3f3', alignItems: 'flex-start', padding: '12px 16px', cursor: 'pointer' }}
+                                            onClick={() => { markNotificationRead(n.id); setActivePage('notifications'); setShowNotif(false); }}
+                                        >
+                                            <div className="ln-notif-avatar" style={{ background: '#fff', border: '1px solid #e4e6eb', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', width: 32, height: 32, borderRadius: '50%' }}>
+                                                <Bell size={16} color="#0a66c2" />
+                                            </div>
+                                            <div style={{ flex: 1, marginLeft: 12 }}>
+                                                <div className="ln-notif-text" style={{ fontWeight: n.read ? 400 : 600, color: '#1c1e21', fontSize: 13, lineHeight: 1.4, whiteSpace: 'normal' }}>{n.text}</div>
+                                            </div>
                                         </div>
-                                        <div style={{ flex: 1 }}>
-                                            <div className="ln-notif-text">{n.text}</div>
-                                            <div className="ln-notif-time">{n.time}</div>
-                                        </div>
-                                    </div>
-                                ))}
-                                <div className="ln-dropdown-footer">View all notifications</div>
+                                    ))
+                                )}
+                                <div
+                                    className="ln-dropdown-footer hover:bg-slate-50"
+                                    style={{ textAlign: 'center', padding: '12px', borderTop: '1px solid #e4e6eb', color: '#0a66c2', fontWeight: 600, cursor: 'pointer' }}
+                                    onClick={() => { setActivePage('notifications'); setShowNotif(false); }}
+                                >
+                                    View all notifications
+                                </div>
                             </div>
                         )}
                     </div>
@@ -284,7 +303,7 @@ const LinkedInTopNav = ({ activePage, setActivePage }) => {
                                     View Profile
                                 </button>
                                 <div className="ln-dropdown-divider" />
-                                <div className="ln-dropdown-item" onClick={() => { setActivePage('profile'); setShowProfileMenu(false); }}>
+                                <div className="ln-dropdown-item" onClick={() => { setActivePage('settings'); setShowProfileMenu(false); }}>
                                     <Settings size={16} /> Settings
                                 </div>
                                 <div className="ln-dropdown-divider" />
@@ -501,9 +520,9 @@ const TraineeDashboardHome = ({ setActivePage }) => {
 
     const unifiedFeed = useMemo(() => {
         return [
-            ...posts.map(p => ({ 
-                ...p, 
-                feedType: (BULLETIN_TYPES.includes(p.post_type) && p.author_type !== 'industry_partner') ? 'bulletin' : 'post' 
+            ...posts.map(p => ({
+                ...p,
+                feedType: (BULLETIN_TYPES.includes(p.post_type) && p.author_type !== 'industry_partner') ? 'bulletin' : 'post'
             })),
             ...jobPostings.map(j => ({ ...j, feedType: 'job' }))
         ].sort((a, b) => new Date(b.created_at || b.createdAt || b.datePosted) - new Date(a.created_at || a.createdAt || a.datePosted));
@@ -532,8 +551,8 @@ const TraineeDashboardHome = ({ setActivePage }) => {
             setBulletinModal(null);
             showBulletinToast(
                 bulletinModal.type === 'apply' ? 'Application submitted!' :
-                bulletinModal.type === 'register' ? 'Registered successfully!' :
-                'Inquiry sent!'
+                    bulletinModal.type === 'register' ? 'Registered successfully!' :
+                        'Inquiry sent!'
             );
             fetchPostInteractions();
         } else {
@@ -1151,82 +1170,82 @@ const TraineeDashboardHome = ({ setActivePage }) => {
                                                 <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 20, background: sc.bg, color: sc.color }}>{item.status || 'Open'}</span>
                                             </div>
                                             <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 2 }}>
-                                                {(function() {
-                                                  const authorId = String(item.author_id || '');
-                                                  const ADMIN_ID = 'de305d54-75b4-431b-adb2-eb6b9e546014';
-    
-                                                  if (item.author_type === 'admin' || authorId === ADMIN_ID) return 'PSTDII Admin';
-                                                  
-                                                  if (item.author_type === 'industry_partner' || item.author_type === 'partner') {
-                                                    const p = partners.find(p => String(p.id) === authorId);
-                                                    return p ? (p.companyName || p.profileName) : 'Industry Partner';
-                                                  }
-                                                  
-                                                  if (item.author_type === 'student' || item.author_type === 'trainee') {
-                                                    const t = trainees.find(t => String(t.id) === authorId);
-                                                    // If it's a generic 'Trainee' record or not found, it's likely an admin post saved as student
-                                                    if (!t || t.name === 'Trainee' || t.profileName === 'Trainee') return 'PSTDII Admin';
-                                                    return t.name || t.profileName;
-                                                  }
-                                                  
-                                                  return 'PSTDII Admin';
+                                                {(function () {
+                                                    const authorId = String(item.author_id || '');
+                                                    const ADMIN_ID = 'de305d54-75b4-431b-adb2-eb6b9e546014';
+
+                                                    if (item.author_type === 'admin' || authorId === ADMIN_ID) return 'PSTDII Admin';
+
+                                                    if (item.author_type === 'industry_partner' || item.author_type === 'partner') {
+                                                        const p = partners.find(p => String(p.id) === authorId);
+                                                        return p ? (p.companyName || p.profileName) : 'Industry Partner';
+                                                    }
+
+                                                    if (item.author_type === 'student' || item.author_type === 'trainee') {
+                                                        const t = trainees.find(t => String(t.id) === authorId);
+                                                        // If it's a generic 'Trainee' record or not found, it's likely an admin post saved as student
+                                                        if (!t || t.name === 'Trainee' || t.profileName === 'Trainee') return 'PSTDII Admin';
+                                                        return t.name || t.profileName;
+                                                    }
+
+                                                    return 'PSTDII Admin';
                                                 })()} • {timeAgo(item.created_at)}
                                             </div>
                                         </div>
                                         {item.author_id === currentUser?.id && (
-                                          <div style={{ position: 'relative' }}>
-                                            <button
-                                              onClick={(e) => {
-                                                e.stopPropagation();
-                                                setPostMenuId(postMenuId === item.id ? null : item.id);
-                                              }}
-                                              style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 4, borderRadius: '50%', color: '#65676b' }}
-                                              title="More options"
-                                            >
-                                              <span style={{ fontSize: 20, fontWeight: 700, letterSpacing: 2, lineHeight: 1 }}>···</span>
-                                            </button>
-                                            {postMenuId === item.id && (
-                                              <div style={{
-                                                position: 'absolute', right: 0, top: 32, background: '#fff',
-                                                borderRadius: 8, boxShadow: '0 2px 12px rgba(0,0,0,0.15)',
-                                                border: '1px solid #e4e6eb', zIndex: 10, minWidth: 170, overflow: 'hidden'
-                                              }} onClick={e => e.stopPropagation()}>
+                                            <div style={{ position: 'relative' }}>
                                                 <button
-                                                  onClick={() => {
-                                                    setEditingPostId(item.id);
-                                                    setEditContent(item.content);
-                                                    setPostMenuId(null);
-                                                  }}
-                                                  style={{
-                                                    display: 'flex', alignItems: 'center', gap: 10, width: '100%',
-                                                    padding: '10px 16px', border: 'none', background: 'none',
-                                                    cursor: 'pointer', fontSize: 14, color: '#1c1e21', textAlign: 'left'
-                                                  }}
-                                                  onMouseEnter={e => e.target.style.background = '#f2f3f5'}
-                                                  onMouseLeave={e => e.target.style.background = 'none'}
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        setPostMenuId(postMenuId === item.id ? null : item.id);
+                                                    }}
+                                                    style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 4, borderRadius: '50%', color: '#65676b' }}
+                                                    title="More options"
                                                 >
-                                                  <Edit size={16} /> Edit post
+                                                    <span style={{ fontSize: 20, fontWeight: 700, letterSpacing: 2, lineHeight: 1 }}>···</span>
                                                 </button>
-                                                <button
-                                                  onClick={() => {
-                                                    if (window.confirm('Delete this post?')) {
-                                                      deletePost(item.id);
-                                                    }
-                                                    setPostMenuId(null);
-                                                  }}
-                                                  style={{
-                                                    display: 'flex', alignItems: 'center', gap: 10, width: '100%',
-                                                    padding: '10px 16px', border: 'none', background: 'none',
-                                                    cursor: 'pointer', fontSize: 14, color: '#dc3545', textAlign: 'left'
-                                                  }}
-                                                  onMouseEnter={e => e.target.style.background = '#f2f3f5'}
-                                                  onMouseLeave={e => e.target.style.background = 'none'}
-                                                >
-                                                  <Trash2 size={16} /> Delete post
-                                                </button>
-                                              </div>
-                                            )}
-                                          </div>
+                                                {postMenuId === item.id && (
+                                                    <div style={{
+                                                        position: 'absolute', right: 0, top: 32, background: '#fff',
+                                                        borderRadius: 8, boxShadow: '0 2px 12px rgba(0,0,0,0.15)',
+                                                        border: '1px solid #e4e6eb', zIndex: 10, minWidth: 170, overflow: 'hidden'
+                                                    }} onClick={e => e.stopPropagation()}>
+                                                        <button
+                                                            onClick={() => {
+                                                                setEditingPostId(item.id);
+                                                                setEditContent(item.content);
+                                                                setPostMenuId(null);
+                                                            }}
+                                                            style={{
+                                                                display: 'flex', alignItems: 'center', gap: 10, width: '100%',
+                                                                padding: '10px 16px', border: 'none', background: 'none',
+                                                                cursor: 'pointer', fontSize: 14, color: '#1c1e21', textAlign: 'left'
+                                                            }}
+                                                            onMouseEnter={e => e.target.style.background = '#f2f3f5'}
+                                                            onMouseLeave={e => e.target.style.background = 'none'}
+                                                        >
+                                                            <Edit size={16} /> Edit post
+                                                        </button>
+                                                        <button
+                                                            onClick={() => {
+                                                                if (window.confirm('Delete this post?')) {
+                                                                    deletePost(item.id);
+                                                                }
+                                                                setPostMenuId(null);
+                                                            }}
+                                                            style={{
+                                                                display: 'flex', alignItems: 'center', gap: 10, width: '100%',
+                                                                padding: '10px 16px', border: 'none', background: 'none',
+                                                                cursor: 'pointer', fontSize: 14, color: '#dc3545', textAlign: 'left'
+                                                            }}
+                                                            onMouseEnter={e => e.target.style.background = '#f2f3f5'}
+                                                            onMouseLeave={e => e.target.style.background = 'none'}
+                                                        >
+                                                            <Trash2 size={16} /> Delete post
+                                                        </button>
+                                                    </div>
+                                                )}
+                                            </div>
                                         )}
                                     </div>
                                     {/* Body */}
@@ -1263,12 +1282,12 @@ const TraineeDashboardHome = ({ setActivePage }) => {
                                         <button className="ln-feed-action-btn" onClick={() => openBulletinModal(item, 'inquire')}>
                                             <MessageSquare size={14} /> Inquire
                                         </button>
-                                        <button 
-                                            className="ln-feed-action-btn" 
+                                        <button
+                                            className="ln-feed-action-btn"
                                             onClick={() => createPostInteraction(item.id, 'save')}
                                             style={getUserPostInteraction(item.id, 'save') ? { color: '#d97706', fontWeight: 700 } : {}}
                                         >
-                                            <Bookmark size={14} fill={getUserPostInteraction(item.id, 'save') ? "currentColor" : "none"} /> 
+                                            <Bookmark size={14} fill={getUserPostInteraction(item.id, 'save') ? "currentColor" : "none"} />
                                             {getUserPostInteraction(item.id, 'save') ? 'Saved' : 'Save'}
                                         </button>
                                     </div>
@@ -2737,7 +2756,7 @@ export const TraineeProfileContent = ({ viewedProfileId = null, onBack = null, o
     useEffect(() => {
         if (trainee?.id) {
             // Clear current documents to provide a fresh state when switching profiles
-            setDocuments([]); 
+            setDocuments([]);
             fetch(`/api/documents/${trainee.id}`)
                 .then(r => {
                     if (!r.ok) throw new Error(`Server returned ${r.status}`);
@@ -3268,7 +3287,7 @@ export const TraineeProfileContent = ({ viewedProfileId = null, onBack = null, o
 
             <div className="ln-profile-single-col">
                 <div className="ln-profile-main">
-            {activeTab === 'About' && (
+                    {activeTab === 'About' && (
                         <React.Fragment>
                             {/* Professional Summary / Bio */}
                             <div className="ln-card">
@@ -3521,12 +3540,12 @@ export const TraineeProfileContent = ({ viewedProfileId = null, onBack = null, o
                                         </button>
                                     )}
                                     {!editing && workExperience.length === 0 && (
-                  <EmptyState 
-                    illustration={BriefcaseIllustration}
-                    title="No work experience yet"
-                    description="Adding your past roles and internships helps partners understand your professional background."
-                  />
-                )}
+                                        <EmptyState
+                                            illustration={BriefcaseIllustration}
+                                            title="No work experience yet"
+                                            description="Adding your past roles and internships helps partners understand your professional background."
+                                        />
+                                    )}
                                 </div>
                             </div>
 
@@ -3631,12 +3650,12 @@ export const TraineeProfileContent = ({ viewedProfileId = null, onBack = null, o
                                     </div>
                                 ))}
                                 {!editing && trainings.length === 0 && (
-                  <EmptyState 
-                    illustration={TrophyIllustration}
-                    title="No achievements yet"
-                    description="Start adding your TESDA trainings, certifications, and awards to showcase your expertise."
-                  />
-                )}
+                                    <EmptyState
+                                        illustration={TrophyIllustration}
+                                        title="No achievements yet"
+                                        description="Start adding your TESDA trainings, certifications, and awards to showcase your expertise."
+                                    />
+                                )}
                             </div>
                         </div>
                     )}
@@ -3808,14 +3827,14 @@ export const TraineeProfileContent = ({ viewedProfileId = null, onBack = null, o
                                             }}><X size={14} /></button>}
                                         </span>
                                     )) : (
-                      <div style={{ width: '100%' }}>
-                        <EmptyState 
-                          illustration={StarIllustration}
-                          title="No skills added"
-                          description="List your technical and soft skills to help partners find the right match for their needs."
-                        />
-                      </div>
-                    )}
+                                        <div style={{ width: '100%' }}>
+                                            <EmptyState
+                                                illustration={StarIllustration}
+                                                title="No skills added"
+                                                description="List your technical and soft skills to help partners find the right match for their needs."
+                                            />
+                                        </div>
+                                    )}
                                 </div>
                                 {isOwnProfile && editing && recommendationBubbles.skills.length > 0 && (
                                     <div style={{ padding: '0 16px 12px' }}>
@@ -3860,14 +3879,14 @@ export const TraineeProfileContent = ({ viewedProfileId = null, onBack = null, o
                                             </span>
                                         );
                                     }) : (
-                      <div style={{ width: '100%' }}>
-                        <EmptyState 
-                          illustration={Heart}
-                          title="No interests listed"
-                          description="Share what drives you! Interests help partners see your passion and cultural fit."
-                        />
-                      </div>
-                    )}
+                                        <div style={{ width: '100%' }}>
+                                            <EmptyState
+                                                illustration={Heart}
+                                                title="No interests listed"
+                                                description="Share what drives you! Interests help partners see your passion and cultural fit."
+                                            />
+                                        </div>
+                                    )}
                                 </div>
                                 {isOwnProfile && editing && recommendationBubbles.interests.length > 0 && (
                                     <div style={{ padding: '0 16px 12px' }}>
@@ -3917,7 +3936,7 @@ export const TraineeProfileContent = ({ viewedProfileId = null, onBack = null, o
                                 </div>
                             )}
 
-                            {(function() {
+                            {(function () {
                                 const fileDocs = (Array.isArray(documents) ? documents : []).filter(d => d.file_type !== 'link' && d.label !== 'Profile Banner');
                                 if (fileDocs.length > 0) {
                                     return fileDocs.map(doc => (
@@ -5168,8 +5187,8 @@ export default function TraineeDashboard() {
             setBulletinModal(null);
             showBulletinToast(
                 bulletinModal.type === 'apply' ? 'Application submitted!' :
-                bulletinModal.type === 'register' ? 'Registered successfully!' :
-                'Inquiry sent!'
+                    bulletinModal.type === 'register' ? 'Registered successfully!' :
+                        'Inquiry sent!'
             );
             fetchPostInteractions();
         } else {
@@ -5200,6 +5219,8 @@ export default function TraineeDashboard() {
                 <Route path="/recommendations" element={<Opportunities />} />
                 <Route path="/applications" element={<MyApplications />} />
                 <Route path="/profile-view/:profileType/:profileId" element={<TraineeProfileViewRoute openBulletinModal={openBulletinModal} />} />
+                <Route path="/settings" element={<SettingsPage />} />
+                <Route path="/notifications" element={<NotificationsPage />} />
                 <Route path="*" element={<Navigate to="/trainee" replace />} />
             </Routes>
 

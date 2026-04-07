@@ -22,7 +22,7 @@ const extractCompetenciesFromProgramDescription = (description = '') => {
   let parsedJson = null;
   try {
     parsedJson = JSON.parse(description);
-  } catch {  
+  } catch {
     parsedJson = null;
   }
 
@@ -261,6 +261,89 @@ export const AppProvider = ({ children }) => {
       recruitSentAt: null,
     },
   ]);
+
+  // ─── SETTINGS BACKEND LOGIC ───────────────────────────────────────────────
+
+  const [isDarkMode, setIsDarkMode] = useState(() => {
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem('theme') === 'dark';
+    }
+    return false;
+  });
+
+  useEffect(() => {
+    if (isDarkMode) {
+      document.documentElement.classList.add('dark');
+      localStorage.setItem('theme', 'dark');
+    } else {
+      document.documentElement.classList.remove('dark');
+      localStorage.setItem('theme', 'light');
+    }
+  }, [isDarkMode]);
+
+  const toggleDarkMode = () => setIsDarkMode(prev => !prev);
+
+  const resetPassword = async () => {
+    try {
+      if (!currentUser?.email) return { success: false, error: 'No email associated with account.' };
+      const { error } = await supabase.auth.resetPasswordForEmail(currentUser.email, {
+        redirectTo: `${window.location.origin}/reset-password`,
+      });
+      if (error) throw error;
+      return { success: true };
+    } catch (err) {
+      console.error('Password reset error:', err);
+      return { success: false, error: err.message };
+    }
+  };
+
+  const exportMyData = () => {
+    if (!currentUser) return;
+    const { password, token, ...safeData } = currentUser;
+    const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(safeData, null, 2));
+    const downloadAnchorNode = document.createElement('a');
+    downloadAnchorNode.setAttribute("href", dataStr);
+    downloadAnchorNode.setAttribute("download", `TraineeTrack_Data_${currentUser.id}.json`);
+    document.body.appendChild(downloadAnchorNode);
+    downloadAnchorNode.click();
+    downloadAnchorNode.remove();
+  };
+
+  const deleteMyAccount = async () => {
+    try {
+      if (!currentUser) return { success: false, error: 'Not logged in.' };
+      const { error } = await supabase.auth.admin.deleteUser(currentUser.id);
+      if (error) throw error;
+      await supabase.auth.signOut();
+      setCurrentUser(null);
+      setUserRole(null);
+      window.location.href = '/login';
+    } catch (err) {
+      console.error('Account deletion error:', err);
+      alert('Failed to delete account: ' + err.message);
+    }
+  };
+
+  // ─── NOTIFICATIONS LOGIC ──────────────────────────────────────────────────
+  const [notifications, setNotifications] = useState([
+    { id: 1, type: 'job', text: 'New opportunity match: Junior IT Technician', created_at: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(), read: false },
+    { id: 2, type: 'application', text: 'Your application was reviewed by TechSolutions', created_at: new Date(Date.now() - 5 * 60 * 60 * 1000).toISOString(), read: false },
+    { id: 3, type: 'view', text: 'Profile viewed by 3 industry partners', created_at: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(), read: true },
+    { id: 4, type: 'system', text: 'A new announcement was posted by PSTDII', created_at: new Date(Date.now() - 48 * 60 * 60 * 1000).toISOString(), read: true },
+    { id: 5, type: 'job', text: 'New opportunity match: Web Developer', created_at: new Date(Date.now() - 72 * 60 * 60 * 1000).toISOString(), read: true },
+    { id: 6, type: 'application', text: 'Interview scheduled for tomorrow at 10 AM', created_at: new Date(Date.now() - 96 * 60 * 60 * 1000).toISOString(), read: false },
+    { id: 7, type: 'system', text: 'Welcome to TraineeTrack!', created_at: new Date(Date.now() - 168 * 60 * 60 * 1000).toISOString(), read: true },
+    { id: 8, type: 'system', text: 'Please complete your profile to 100%.', created_at: new Date(Date.now() - 200 * 60 * 60 * 1000).toISOString(), read: true },
+    { id: 9, type: 'view', text: 'Your post received 15 new views.', created_at: new Date(Date.now() - 240 * 60 * 60 * 1000).toISOString(), read: true },
+    { id: 10, type: 'job', text: 'Opportunity closing soon: Software Engineer.', created_at: new Date(Date.now() - 400 * 60 * 60 * 1000).toISOString(), read: true },
+    { id: 11, type: 'system', text: 'Reminder: Upload your ID verification.', created_at: new Date(Date.now() - 500 * 60 * 60 * 1000).toISOString(), read: true },
+    { id: 12, type: 'application', text: 'Application rejected: Graphic Designer.', created_at: new Date(Date.now() - 600 * 60 * 60 * 1000).toISOString(), read: true },
+  ]);
+
+  const markNotificationRead = (id) => setNotifications(prev => prev.map(n => n.id === id ? { ...n, read: true } : n));
+  const markAllNotificationsRead = () => setNotifications(prev => prev.map(n => ({ ...n, read: true })));
+  const deleteNotification = (id) => setNotifications(prev => prev.filter(n => n.id !== id));
+  const clearAllNotifications = () => setNotifications([]);
 
   // ─── INTERVIEW SCHEDULING ──────────────────────────────────────────────
   const [availabilitySlots, setAvailabilitySlots] = useState([]);
@@ -750,7 +833,7 @@ export const AppProvider = ({ children }) => {
       }
 
       const userName = currentUser.name || currentUser.companyName || (userRole === 'admin' ? 'Admin' : 'Unknown');
-      
+
       const payload = {
         post_id: postId,
         user_id: currentUser.id,
@@ -1819,7 +1902,7 @@ export const AppProvider = ({ children }) => {
           partner: partner || (job ? { id: job.partnerId, companyName: job.companyName || 'Industry Partner' } : { id: partnerId, companyName: 'Industry Partner' }),
           outgoingMessage: isOutgoing ? request.message : null,
           incomingMessage: isOutgoing ? null : request.message,
-           attachmentName: request.attachment_name || null,
+          attachmentName: request.attachment_name || null,
           attachmentUrl: request.attachment_url || null,
           attachmentKind: request.attachment_kind || null,
           matchRate: traineeId && job?.id ? getMatchRate(traineeId, job.id) : null,
@@ -2436,7 +2519,7 @@ export const AppProvider = ({ children }) => {
         try {
           const errData = await res.json();
           if (errData?.error) message = errData.error;
-        } catch {  
+        } catch {
           // Default to generic message
         }
         throw new Error(message);
@@ -2469,7 +2552,7 @@ export const AppProvider = ({ children }) => {
         try {
           const errData = await res.json();
           if (errData?.error) message = errData.error;
-        } catch {  
+        } catch {
           // Default to generic message
         }
         throw new Error(message);
@@ -2875,7 +2958,7 @@ export const AppProvider = ({ children }) => {
         if (!disposed) {
           presenceAccessTokenRef.current = sessionData?.session?.access_token || '';
         }
-      } catch {  
+      } catch {
         // Handle error silently
       }
     };
@@ -2970,7 +3053,7 @@ export const AppProvider = ({ children }) => {
         window.removeEventListener('beforeunload', handlePageExit);
       }
     };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentUser?.id, userRole]);
 
   // ─── Data Hydration (Supabase) ──────────────────────────────────────────
@@ -3535,7 +3618,7 @@ export const AppProvider = ({ children }) => {
       supabase.removeChannel(adminRealtimeChannel);
       supabase.removeChannel(recruitmentSyncChannel);
     };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentUser?.id, userRole]);
 
   // ─── REGISTRATION DATA (multi-step persist) ──────────────────────────────
@@ -3680,6 +3763,18 @@ export const AppProvider = ({ children }) => {
       fetchTraineeBookings,
       saveInterviewBooking,
       getPartnerAvailability,
+      // Notifications
+      notifications,
+      markNotificationRead,
+      markAllNotificationsRead,
+      deleteNotification,
+      clearAllNotifications,
+      // Settings
+      isDarkMode,
+      toggleDarkMode,
+      resetPassword,
+      exportMyData,
+      deleteMyAccount,
     }}>
       {children}
     </AppContext.Provider>

@@ -4,9 +4,9 @@ import { FeedItem, CreatePostTrigger, BULLETIN_CONFIG, UniversalPostModal } from
 import { supabase } from '../../lib/supabase';
 
 const ProfileActivityTab = ({ profileId, profileType, isOwnProfile }) => {
-    const { 
-        posts, jobPostings, currentUser, 
-        createPost, updatePost, deletePost, 
+    const {
+        posts, jobPostings, currentUser,
+        createPost, updatePost, deletePost,
         updatePartnerJobPosting, deleteJobPosting
     } = useApp();
 
@@ -19,14 +19,14 @@ const ProfileActivityTab = ({ profileId, profileType, isOwnProfile }) => {
         // Filter community posts
         const myPosts = posts
             .filter(p => String(p.author_id) === String(profileId))
-            .map(p => ({ 
-                ...p, 
+            .map(p => ({
+                ...p,
                 // Only tag as bulletin if it's a bulletin type AND not an industry partner post
-                feedType: (Object.keys(BULLETIN_CONFIG).includes(p.post_type) && p.author_type !== 'industry_partner') ? 'bulletin' : 'post' 
+                feedType: (Object.keys(BULLETIN_CONFIG).includes(p.post_type) && p.author_type !== 'industry_partner') ? 'bulletin' : 'post'
             }));
 
         // Filter job postings (only for partners)
-        const myJobs = profileType === 'partner' 
+        const myJobs = profileType === 'partner'
             ? jobPostings
                 .filter(j => String(j.partnerId) === String(profileId))
                 .map(j => ({ ...j, feedType: 'job' }))
@@ -99,7 +99,7 @@ const ProfileActivityTab = ({ profileId, profileType, isOwnProfile }) => {
         } else {
             res = await deletePost(postId);
         }
-        
+
         if (!res.success) alert(res.error || 'Failed to delete post');
     };
 
@@ -108,8 +108,8 @@ const ProfileActivityTab = ({ profileId, profileType, isOwnProfile }) => {
     return (
         <div style={{ marginTop: 20 }}>
             {/* Create Post Input */}
-            <CreatePostTrigger 
-                onClick={handleOpenCreateModal} 
+            <CreatePostTrigger
+                onClick={handleOpenCreateModal}
                 userAvatar={currentUser?.photo || currentUser?.company_logo_url}
                 placeholder={profileType === 'partner' ? "Share an update or announcement..." : "What's on your mind?"}
             />
@@ -122,21 +122,21 @@ const ProfileActivityTab = ({ profileId, profileType, isOwnProfile }) => {
                     </div>
                 ) : (
                     profileActivityFeed.map(item => (
-                        <FeedItem 
+                        <FeedItem
                             key={`${item.feedType}-${item.id}`}
                             item={item}
-                            isOwnPost={true} 
+                            isOwnPost={true}
                             onEdit={handleOpenEditModal}
                             onDelete={handleDelete}
-                            onInquire={() => {}} 
-                            onSave={() => {}} 
+                            onInquire={() => { }}
+                            onSave={() => { }}
                             onApply={(job, type) => {
                                 if (type === 'applicants') {
                                     alert('Navigating to applicants view...');
                                 }
                             }}
-                            onComment={(i) => alert(`Opening comments for ${i.title || 'post'}...`)}
-                            openProfile={() => {}} 
+                            onComment={() => { }}
+                            openProfile={() => { }}
                             postMenuId={postMenuId}
                             setPostMenuId={setPostMenuId}
                         />
@@ -145,7 +145,7 @@ const ProfileActivityTab = ({ profileId, profileType, isOwnProfile }) => {
             </div>
 
             {/* Robust Universal Modal */}
-            <UniversalPostModal 
+            <UniversalPostModal
                 isOpen={showPostModal}
                 onClose={() => setShowPostModal(false)}
                 onSave={handleSavePost}

@@ -1,7 +1,9 @@
-import React, { useState, useRef, useEffect } from 'react'; 
+import React, { useState, useRef, useEffect } from 'react';
 import { useApp } from '../../context/AppContext';
 import SavedItemsView from './SavedItemsView';
 import ProfileActivityTab from './ProfileActivityTab';
+import SettingsPage from './SettingsPage';
+import NotificationsPage from './NotificationsPage';
 import {
   LayoutDashboard, Briefcase, FileText, Users, Building2, LogOut,
   ChevronDown, Search, Plus, Eye, X, CheckCircle, XCircle,
@@ -11,12 +13,12 @@ import {
   Camera, MessageSquare, MessageCircle, Edit, Loader, ExternalLink, EyeOff, MoreVertical,
   Calendar, ChevronLeft, Heart, Download, Navigation, User
 } from 'lucide-react';
-import EmptyState, { 
-  TrophyIllustration, 
-  BriefcaseIllustration, 
-  DocumentIllustration, 
-  StarIllustration, 
-  FolderIllustration 
+import EmptyState, {
+  TrophyIllustration,
+  BriefcaseIllustration,
+  DocumentIllustration,
+  StarIllustration,
+  FolderIllustration
 } from '../EmptyState';
 import BrandLogo from '../common/BrandLogo';
 import { supabase } from '../../lib/supabase';
@@ -39,39 +41,39 @@ const getLivePartner = (currentUser, partners = []) => {
 };
 
 const timeAgo = (dateStr) => {
-    const raw = String(dateStr || '').trim();
-    if (!raw) return 'Just now';
+  const raw = String(dateStr || '').trim();
+  if (!raw) return 'Just now';
 
-    const hasTimeInfo = raw.includes('T') || /\d{1,2}:\d{2}/.test(raw);
-    const now = new Date();
-    const date = new Date(raw);
-    if (!Number.isFinite(date.getTime())) return 'Just now';
+  const hasTimeInfo = raw.includes('T') || /\d{1,2}:\d{2}/.test(raw);
+  const now = new Date();
+  const date = new Date(raw);
+  if (!Number.isFinite(date.getTime())) return 'Just now';
 
-    if (!hasTimeInfo) {
-      const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-      const postDay = new Date(date.getFullYear(), date.getMonth(), date.getDate());
-      const dayDiff = Math.floor((today - postDay) / (24 * 60 * 60 * 1000));
-      if (dayDiff <= 0) return 'Today';
-      if (dayDiff === 1) return '1d ago';
-      if (dayDiff < 30) return `${dayDiff}d ago`;
-      const months = Math.floor(dayDiff / 30);
-      if (months < 12) return `${months}mo ago`;
-      const years = Math.floor(months / 12);
-      return `${years}y ago`;
-    }
-
-    const seconds = Math.floor((now - date) / 1000);
-    if (seconds < 60) return 'Just now';
-    const minutes = Math.floor(seconds / 60);
-    if (minutes < 60) return `${minutes}m ago`;
-    const hours = Math.floor(minutes / 60);
-    if (hours < 24) return `${hours}h ago`;
-    const days = Math.floor(hours / 24);
-    if (days < 30) return `${days}d ago`;
-    const months = Math.floor(days / 30);
+  if (!hasTimeInfo) {
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const postDay = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+    const dayDiff = Math.floor((today - postDay) / (24 * 60 * 60 * 1000));
+    if (dayDiff <= 0) return 'Today';
+    if (dayDiff === 1) return '1d ago';
+    if (dayDiff < 30) return `${dayDiff}d ago`;
+    const months = Math.floor(dayDiff / 30);
     if (months < 12) return `${months}mo ago`;
     const years = Math.floor(months / 12);
     return `${years}y ago`;
+  }
+
+  const seconds = Math.floor((now - date) / 1000);
+  if (seconds < 60) return 'Just now';
+  const minutes = Math.floor(seconds / 60);
+  if (minutes < 60) return `${minutes}m ago`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours}h ago`;
+  const days = Math.floor(hours / 24);
+  if (days < 30) return `${days}d ago`;
+  const months = Math.floor(days / 30);
+  if (months < 12) return `${months}mo ago`;
+  const years = Math.floor(months / 12);
+  return `${years}y ago`;
 };
 
 const isImageAttachment = (attachmentUrl, attachmentType) => {
@@ -264,7 +266,8 @@ const StatusBadge = ({ status }) => {
 
 // ─── TOP NAVIGATION BAR (LinkedIn-style for Partners) ─────────────
 const PartnerTopNav = ({ activePage, setActivePage }) => {
-  const { currentUser, partners, logout } = useApp();
+  const { currentUser, partners, logout, notifications, markNotificationRead } = useApp();
+  const unreadCount = notifications?.filter(n => !n.read).length || 0;
   const [showProfileMenu, setShowProfileMenu] = useState(false);
   const [showNotif, setShowNotif] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
@@ -323,26 +326,44 @@ const PartnerTopNav = ({ activePage, setActivePage }) => {
           <div style={{ position: 'relative' }}>
             <button className="ln-nav-item" onClick={() => { setShowNotif(!showNotif); setShowProfileMenu(false); }}>
               <Bell size={20} />
-              <span className="ln-notif-dot" />
+              {unreadCount > 0 && (
+                <span className="ln-notif-dot" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, fontWeight: 'bold', background: '#dc2626', color: 'white', width: 16, height: 16, borderRadius: '50%', position: 'absolute', top: 2, right: 10 }}>
+                  {unreadCount}
+                </span>
+              )}
               <span className="ln-nav-label">Alerts</span>
             </button>
             {showNotif && (
-              <div className="ln-dropdown" style={{ right: 0, minWidth: 300 }}>
-                <div className="ln-dropdown-header">Notifications</div>
-                {[
-                  { text: 'New application received for Web Developer Trainee', time: '1h ago' },
-                  { text: 'Your job posting was viewed 12 times today', time: '3h ago' },
-                  { text: 'Trainee Juan Dela Cruz matched 70% for your OJT posting', time: '1d ago' },
-                ].map((n, i) => (
-                  <div key={i} className="ln-dropdown-item">
-                    <div className="ln-notif-avatar"><Users size={16} /></div>
-                    <div style={{ flex: 1 }}>
-                      <div className="ln-notif-text">{n.text}</div>
-                      <div className="ln-notif-time">{n.time}</div>
+              <div className="ln-dropdown" style={{ right: 0, minWidth: 320, padding: 0, overflow: 'hidden' }}>
+                <div className="ln-dropdown-header" style={{ padding: '12px 16px', borderBottom: '1px solid #e4e6eb', fontWeight: 600 }}>
+                  Notifications
+                </div>
+                {(!notifications || notifications.length === 0) ? (
+                  <div style={{ padding: '20px', textAlign: 'center', color: '#65676b', fontSize: 13 }}>No notifications</div>
+                ) : (
+                  notifications.slice(0, 4).map((n) => (
+                    <div
+                      key={n.id}
+                      className="ln-dropdown-item hover:bg-slate-50"
+                      style={{ background: n.read ? 'transparent' : '#f0f7ff', borderBottom: '1px solid #f3f3f3', alignItems: 'flex-start', padding: '12px 16px', cursor: 'pointer' }}
+                      onClick={() => { markNotificationRead(n.id); setActivePage('notifications'); setShowNotif(false); }}
+                    >
+                      <div className="ln-notif-avatar" style={{ background: '#fff', border: '1px solid #e4e6eb', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', width: 32, height: 32, borderRadius: '50%' }}>
+                        <Users size={16} color="#0a66c2" />
+                      </div>
+                      <div style={{ flex: 1, marginLeft: 12 }}>
+                        <div className="ln-notif-text" style={{ fontWeight: n.read ? 400 : 600, color: '#1c1e21', fontSize: 13, lineHeight: 1.4, whiteSpace: 'normal' }}>{n.text}</div>
+                      </div>
                     </div>
-                  </div>
-                ))}
-                <div className="ln-dropdown-footer">View all notifications</div>
+                  ))
+                )}
+                <div
+                  className="ln-dropdown-footer hover:bg-slate-50"
+                  style={{ textAlign: 'center', padding: '12px', borderTop: '1px solid #e4e6eb', color: '#0a66c2', fontWeight: 600, cursor: 'pointer' }}
+                  onClick={() => { setActivePage('notifications'); setShowNotif(false); }}
+                >
+                  View all notifications
+                </div>
               </div>
             )}
           </div>
@@ -373,17 +394,21 @@ const PartnerTopNav = ({ activePage, setActivePage }) => {
                     <div className="ln-dropdown-profile-role">Industry Partner</div>
                   </div>
                 </div>
+
                 <button className="ln-dropdown-profile-btn" onClick={() => { setActivePage('profile'); setShowProfileMenu(false); }}>
                   View Company Profile
                 </button>
-                  <div className="ln-dropdown-divider" />
-                  <div className="ln-dropdown-item" onClick={() => { setActivePage('verification'); setShowProfileMenu(false); }}>
-                    <ShieldCheck size={16} /> Verification
-                  </div>
+                <div className="ln-dropdown-divider" />
+
+                <div className="ln-dropdown-item" onClick={() => { setActivePage('settings'); setShowProfileMenu(false); }}>
+                  <Settings size={16} /> Settings
+                </div>
+
                 <div className="ln-dropdown-divider" />
                 <div className="ln-dropdown-item ln-dropdown-danger" onClick={logout}>
                   <LogOut size={16} /> Sign Out
                 </div>
+
               </div>
             )}
           </div>
@@ -437,8 +462,8 @@ const CompanySideCard = ({ partner, setActivePage }) => {
   const showSideAddress = visibleCompanyInfo.has('address');
   return (
     <div className="ln-card ln-profile-card">
-      <div 
-        className="ln-profile-banner pn-profile-banner" 
+      <div
+        className="ln-profile-banner pn-profile-banner"
         style={partner?.banner_url ? { backgroundImage: `url(${partner.banner_url})`, backgroundSize: 'cover', backgroundPosition: 'center' } : {}}
       />
       <div className="ln-profile-card-body">
@@ -605,6 +630,7 @@ const PartnerHome = ({ setActivePage }) => {
   const [editJobForm, setEditJobForm] = useState(() => buildEditJobForm());
   const [editJobAttachmentFile, setEditJobAttachmentFile] = useState(null);
   const [editJobSaving, setEditJobSaving] = useState(false);
+  const [showAllEditComps, setShowAllEditComps] = useState(false);
   const [selectedFile, setSelectedFile] = useState(null);
   const [filePreview, setFilePreview] = useState(null);
   const [commentModalPost, setCommentModalPost] = useState(null);
@@ -1023,6 +1049,7 @@ const PartnerHome = ({ setActivePage }) => {
     setEditJobAttachmentFile(null);
     setEditJobForm(buildEditJobForm(job));
     setEditJobModal(job);
+    setShowAllEditComps(false);
   };
 
   const handleSaveEditedOpportunity = async (event) => {
@@ -1123,9 +1150,9 @@ const PartnerHome = ({ setActivePage }) => {
   // Unified Feed: tag bulletin posts, mix with jobs
   const BULLETIN_TYPES = ['training_batch', 'exam_schedule', 'certification_assessment', 'announcement'];
   const unifiedFeed = [
-    ...posts.map(p => ({ 
-      ...p, 
-      feedType: (BULLETIN_TYPES.includes(p.post_type) && p.author_type !== 'industry_partner') ? 'bulletin' : 'post' 
+    ...posts.map(p => ({
+      ...p,
+      feedType: (BULLETIN_TYPES.includes(p.post_type) && p.author_type !== 'industry_partner') ? 'bulletin' : 'post'
     })),
     ...jobPostings.map(j => ({ ...j, feedType: 'job' }))
   ].sort((a, b) => new Date(b.created_at || b.createdAt || b.datePosted) - new Date(a.created_at || a.createdAt || a.datePosted));
@@ -1173,10 +1200,10 @@ const PartnerHome = ({ setActivePage }) => {
   };
 
   const BULLETIN_CONFIG = {
-    training_batch:          { label: 'Training Batch',          color: '#7c3aed', bg: '#ede9fe', emoji: '📚', partnerLabel: 'Refer Apprentice', type: 'refer' },
-    exam_schedule:           { label: 'Exam Schedule',           color: '#0ea5e9', bg: '#e0f2fe', emoji: '📝', partnerLabel: 'Register Apprentice', type: 'register' },
-    certification_assessment:{ label: 'Certification Assessment',color: '#16a34a', bg: '#dcfce7', emoji: '🏆', partnerLabel: 'Register Apprentice', type: 'register' },
-    announcement:            { label: 'Announcement',            color: '#d97706', bg: '#fef3c7', emoji: '📢', partnerLabel: null, type: null },
+    training_batch: { label: 'Training Batch', color: '#7c3aed', bg: '#ede9fe', emoji: '📚', partnerLabel: 'Refer Apprentice', type: 'refer' },
+    exam_schedule: { label: 'Exam Schedule', color: '#0ea5e9', bg: '#e0f2fe', emoji: '📝', partnerLabel: 'Register Apprentice', type: 'register' },
+    certification_assessment: { label: 'Certification Assessment', color: '#16a34a', bg: '#dcfce7', emoji: '🏆', partnerLabel: 'Register Apprentice', type: 'register' },
+    announcement: { label: 'Announcement', color: '#d97706', bg: '#fef3c7', emoji: '📢', partnerLabel: null, type: null },
   };
 
   const stats = [
@@ -1189,10 +1216,10 @@ const PartnerHome = ({ setActivePage }) => {
   const modalComments = commentModalPost ? getPostComments(commentModalPost.id) : [];
   const modalAuthor = commentModalPost
     ? (commentModalPost.author_id === currentUser?.id
-        ? currentUser
-        : isStudentAuthorType(commentModalPost.author_type)
-          ? trainees.find(t => t.id === commentModalPost.author_id)
-          : partners.find(p => p.id === commentModalPost.author_id))
+      ? currentUser
+      : isStudentAuthorType(commentModalPost.author_type)
+        ? trainees.find(t => t.id === commentModalPost.author_id)
+        : partners.find(p => p.id === commentModalPost.author_id))
     : null;
   const modalAuthorName = modalAuthor?.name || modalAuthor?.profileName || modalAuthor?.companyName || 'Community User';
   const canContactModalAuthor = Boolean(commentModalPost && commentModalPost.author_id !== currentUser?.id);
@@ -1347,37 +1374,37 @@ const PartnerHome = ({ setActivePage }) => {
                 cfg.partnerLabel = 'Refer Apprentice';
               }
               const alreadyInteracted = getUserPostInteraction(item.id, cfg.type);
-              const sc = { Open:{bg:'#dcfce7',color:'#16a34a'}, Full:{bg:'#fef3c7',color:'#d97706'}, Closed:{bg:'#fee2e2',color:'#dc2626'} }[item.status] || {bg:'#dcfce7',color:'#16a34a'};
+              const sc = { Open: { bg: '#dcfce7', color: '#16a34a' }, Full: { bg: '#fef3c7', color: '#d97706' }, Closed: { bg: '#fee2e2', color: '#dc2626' } }[item.status] || { bg: '#dcfce7', color: '#16a34a' };
               const reqs = Array.isArray(item.requirements) ? item.requirements : [];
               return (
                 <div key={`bulletin-${item.id}`} className="ln-card ln-feed-card" style={{ marginBottom: 0, borderLeft: `4px solid ${cfg.color}` }}>
-                  <div style={{ display:'flex', alignItems:'center', gap:10, padding:'14px 16px 10px' }}>
-                    <div style={{ width:40, height:40, borderRadius:10, background:cfg.bg, display:'flex', alignItems:'center', justifyContent:'center', fontSize:18, flexShrink:0 }}>{cfg.emoji}</div>
-                    <div style={{ flex:1 }}>
-                      <div style={{ display:'flex', alignItems:'center', gap:8 }}>
-                        <span style={{ fontWeight:700, fontSize:13, color:cfg.color }}>{cfg.label}</span>
-                        <span style={{ fontSize:10, fontWeight:700, padding:'2px 8px', borderRadius:20, background:sc.bg, color:sc.color }}>{item.status || 'Open'}</span>
-                        {item.accept_referrals && <span style={{ fontSize:10, padding:'2px 8px', borderRadius:20, background:'#ede9fe', color:'#7c3aed', fontWeight:600 }}>Accepts Referrals</span>}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '14px 16px 10px' }}>
+                    <div style={{ width: 40, height: 40, borderRadius: 10, background: cfg.bg, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18, flexShrink: 0 }}>{cfg.emoji}</div>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <span style={{ fontWeight: 700, fontSize: 13, color: cfg.color }}>{cfg.label}</span>
+                        <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 20, background: sc.bg, color: sc.color }}>{item.status || 'Open'}</span>
+                        {item.accept_referrals && <span style={{ fontSize: 10, padding: '2px 8px', borderRadius: 20, background: '#ede9fe', color: '#7c3aed', fontWeight: 600 }}>Accepts Referrals</span>}
                       </div>
-                      <div style={{ fontSize:11, color:'#94a3b8', marginTop:2 }}>
-                        {(function() {
+                      <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 2 }}>
+                        {(function () {
                           const authorId = String(item.author_id || '');
                           const ADMIN_ID = 'de305d54-75b4-431b-adb2-eb6b9e546014';
-                          
+
                           if (item.author_type === 'admin' || authorId === ADMIN_ID) return 'PSTDII Admin';
-                          
+
                           if (item.author_type === 'industry_partner' || item.author_type === 'partner') {
                             const p = partners.find(p => String(p.id) === authorId);
                             return p ? (p.companyName || p.profileName) : 'Industry Partner';
                           }
-                          
+
                           if (item.author_type === 'student' || item.author_type === 'trainee') {
                             const t = trainees.find(t => String(t.id) === authorId);
                             // If it's a generic 'Trainee' record or not found, it's likely an admin post saved as student
                             if (!t || t.name === 'Trainee' || t.profileName === 'Trainee') return 'PSTDII Admin';
                             return t.name || t.profileName;
                           }
-                          
+
                           return 'PSTDII Admin';
                         })()} • {timeAgo(item.created_at)}
                       </div>
@@ -1438,43 +1465,43 @@ const PartnerHome = ({ setActivePage }) => {
                       </div>
                     )}
                   </div>
-                  <div style={{ padding:'0 16px 12px' }}>
-                    <h4 style={{ fontSize:15, fontWeight:800, color:'#0f172a', marginBottom:6 }}>{item.title}</h4>
-                    <p style={{ fontSize:13.5, color:'#475569', lineHeight:1.6 }}>{item.content}</p>
+                  <div style={{ padding: '0 16px 12px' }}>
+                    <h4 style={{ fontSize: 15, fontWeight: 800, color: '#0f172a', marginBottom: 6 }}>{item.title}</h4>
+                    <p style={{ fontSize: 13.5, color: '#475569', lineHeight: 1.6 }}>{item.content}</p>
                     {(item.schedule || item.time_range || item.slots) && (
-                      <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill, minmax(140px, 1fr))', gap:8, marginTop:10 }}>
-                        {item.schedule && <div style={{ background:'#f8fafc', borderRadius:8, padding:'8px 12px' }}><div style={{ fontSize:10, color:'#94a3b8', fontWeight:700, textTransform:'uppercase' }}>Schedule</div><div style={{ fontSize:12.5, fontWeight:600, color:'#334155', marginTop:2 }}>{formatBulletinDate(item.schedule)}</div></div>}
-                        {item.time_range && <div style={{ background:'#f8fafc', borderRadius:8, padding:'8px 12px' }}><div style={{ fontSize:10, color:'#94a3b8', fontWeight:700, textTransform:'uppercase' }}>Time</div><div style={{ fontSize:12.5, fontWeight:600, color:'#334155', marginTop:2 }}>{item.time_range}</div></div>}
-                        {item.slots && <div style={{ background:'#f8fafc', borderRadius:8, padding:'8px 12px' }}><div style={{ fontSize:10, color:'#94a3b8', fontWeight:700, textTransform:'uppercase' }}>Slots</div><div style={{ fontSize:15, fontWeight:800, color:cfg.color, marginTop:2 }}>{item.slots}</div></div>}
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))', gap: 8, marginTop: 10 }}>
+                        {item.schedule && <div style={{ background: '#f8fafc', borderRadius: 8, padding: '8px 12px' }}><div style={{ fontSize: 10, color: '#94a3b8', fontWeight: 700, textTransform: 'uppercase' }}>Schedule</div><div style={{ fontSize: 12.5, fontWeight: 600, color: '#334155', marginTop: 2 }}>{formatBulletinDate(item.schedule)}</div></div>}
+                        {item.time_range && <div style={{ background: '#f8fafc', borderRadius: 8, padding: '8px 12px' }}><div style={{ fontSize: 10, color: '#94a3b8', fontWeight: 700, textTransform: 'uppercase' }}>Time</div><div style={{ fontSize: 12.5, fontWeight: 600, color: '#334155', marginTop: 2 }}>{item.time_range}</div></div>}
+                        {item.slots && <div style={{ background: '#f8fafc', borderRadius: 8, padding: '8px 12px' }}><div style={{ fontSize: 10, color: '#94a3b8', fontWeight: 700, textTransform: 'uppercase' }}>Slots</div><div style={{ fontSize: 15, fontWeight: 800, color: cfg.color, marginTop: 2 }}>{item.slots}</div></div>}
                       </div>
                     )}
                     {reqs.length > 0 && (
-                      <div style={{ marginTop:10 }}>
-                        <div style={{ fontSize:11, color:'#64748b', fontWeight:700, marginBottom:4 }}>REQUIREMENTS</div>
-                        {reqs.map((r,i) => <div key={i} style={{ fontSize:12.5, color:'#475569', display:'flex', gap:6, marginBottom:3 }}><span style={{ color:cfg.color }}>•</span>{r}</div>)}
+                      <div style={{ marginTop: 10 }}>
+                        <div style={{ fontSize: 11, color: '#64748b', fontWeight: 700, marginBottom: 4 }}>REQUIREMENTS</div>
+                        {reqs.map((r, i) => <div key={i} style={{ fontSize: 12.5, color: '#475569', display: 'flex', gap: 6, marginBottom: 3 }}><span style={{ color: cfg.color }}>•</span>{r}</div>)}
                       </div>
                     )}
                   </div>
-                  <div className="ln-feed-actions" style={{ borderTop:'1px solid #f3f3f3', padding:'8px 12px', display:'flex', gap:8 }}>
+                  <div className="ln-feed-actions" style={{ borderTop: '1px solid #f3f3f3', padding: '8px 12px', display: 'flex', gap: 8 }}>
                     {cfg.type && item.accept_referrals !== false && (
                       <button
                         className="ln-feed-action-btn"
                         disabled={!!alreadyInteracted || item.status === 'Closed' || item.status === 'Full'}
                         onClick={() => openBulletinModal(item, cfg.type)}
-                        style={alreadyInteracted ? { color:cfg.color, fontWeight:700 } : {}}
+                        style={alreadyInteracted ? { color: cfg.color, fontWeight: 700 } : {}}
                       >
-                        {alreadyInteracted ? <><CheckCircle size={14}/> Submitted</> : <><Users size={14}/> {cfg.partnerLabel}</>}
+                        {alreadyInteracted ? <><CheckCircle size={14} /> Submitted</> : <><Users size={14} /> {cfg.partnerLabel}</>}
                       </button>
                     )}
                     <button className="ln-feed-action-btn" onClick={() => openBulletinModal(item, 'inquire')}>
-                      <MessageSquare size={14}/> Inquire
+                      <MessageSquare size={14} /> Inquire
                     </button>
-                    <button 
-                      className="ln-feed-action-btn" 
+                    <button
+                      className="ln-feed-action-btn"
                       onClick={() => createPostInteraction(item.id, 'save')}
                       style={getUserPostInteraction(item.id, 'save') ? { color: '#d97706', fontWeight: 700 } : {}}
                     >
-                      <Bookmark size={14} fill={getUserPostInteraction(item.id, 'save') ? "currentColor" : "none"} /> 
+                      <Bookmark size={14} fill={getUserPostInteraction(item.id, 'save') ? "currentColor" : "none"} />
                       {getUserPostInteraction(item.id, 'save') ? 'Saved' : 'Save'}
                     </button>
                   </div>
@@ -1513,10 +1540,10 @@ const PartnerHome = ({ setActivePage }) => {
                             item.location,
                             timeAgo(item.created_at || item.createdAt || item.datePosted),
                           ].filter(Boolean).join(' • ')}
+                        </div>
                       </div>
                     </div>
-                  </div>
-                  {myJob && (
+                    {myJob && (
                       <div style={{ position: 'relative' }}>
                         <button
                           onClick={() => setJobPostMenuId(jobPostMenuId === item.id ? null : item.id)}
@@ -1667,33 +1694,33 @@ const PartnerHome = ({ setActivePage }) => {
                           </button>
                           {isMe && <span className="ln-badge ln-badge-gray" style={{ fontSize: 10 }}>You</span>}
                           {item.post_type !== 'general' && (
-                            <span 
-                              className="ln-badge" 
-                              style={{ 
-                                fontSize: 10, 
+                            <span
+                              className="ln-badge"
+                              style={{
+                                fontSize: 10,
                                 padding: '2px 8px',
-                                background: item.post_type === 'announcement' ? '#fdf2f2' : 
-                                           item.post_type === 'hiring_update' ? '#f0f9ff' : 
-                                           item.post_type === 'achievement' ? '#fffbeb' : 
-                                           item.post_type === 'certification' ? '#f0fdf4' : 
-                                           item.post_type === 'project' ? '#faf5ff' : '#f1f5f9',
-                                color: item.post_type === 'announcement' ? '#991b1b' : 
-                                       item.post_type === 'hiring_update' ? '#075985' : 
-                                       item.post_type === 'achievement' ? '#92400e' : 
-                                       item.post_type === 'certification' ? '#166534' : 
-                                       item.post_type === 'project' ? '#6b21a8' : '#475569',
-                                border: `1px solid ${item.post_type === 'announcement' ? '#fecaca' : 
-                                                     item.post_type === 'hiring_update' ? '#bae6fd' : 
-                                                     item.post_type === 'achievement' ? '#fde68a' : 
-                                                     item.post_type === 'certification' ? '#bbf7d0' : 
-                                                     item.post_type === 'project' ? '#e9d5ff' : '#e2e8f0'}`
+                                background: item.post_type === 'announcement' ? '#fdf2f2' :
+                                  item.post_type === 'hiring_update' ? '#f0f9ff' :
+                                    item.post_type === 'achievement' ? '#fffbeb' :
+                                      item.post_type === 'certification' ? '#f0fdf4' :
+                                        item.post_type === 'project' ? '#faf5ff' : '#f1f5f9',
+                                color: item.post_type === 'announcement' ? '#991b1b' :
+                                  item.post_type === 'hiring_update' ? '#075985' :
+                                    item.post_type === 'achievement' ? '#92400e' :
+                                      item.post_type === 'certification' ? '#166534' :
+                                        item.post_type === 'project' ? '#6b21a8' : '#475569',
+                                border: `1px solid ${item.post_type === 'announcement' ? '#fecaca' :
+                                  item.post_type === 'hiring_update' ? '#bae6fd' :
+                                    item.post_type === 'achievement' ? '#fde68a' :
+                                      item.post_type === 'certification' ? '#bbf7d0' :
+                                        item.post_type === 'project' ? '#e9d5ff' : '#e2e8f0'}`
                               }}
                             >
-                              {item.post_type === 'announcement' ? '📢 ' : 
-                               item.post_type === 'hiring_update' ? '💼 ' : 
-                               item.post_type === 'achievement' ? '🏆 ' : 
-                               item.post_type === 'certification' ? '📜 ' : 
-                               item.post_type === 'project' ? '🚀 ' : ''}
+                              {item.post_type === 'announcement' ? '📢 ' :
+                                item.post_type === 'hiring_update' ? '💼 ' :
+                                  item.post_type === 'achievement' ? '🏆 ' :
+                                    item.post_type === 'certification' ? '📜 ' :
+                                      item.post_type === 'project' ? '🚀 ' : ''}
                               {item.post_type.replace('_', ' ')}
                             </span>
                           )}
@@ -1869,7 +1896,7 @@ const PartnerHome = ({ setActivePage }) => {
 
       {/* Bulletin Toast */}
       {bulletinToast && (
-        <div style={{ position:'fixed', top:20, right:20, zIndex:9999, background:'#0f172a', color:'#fff', padding:'12px 20px', borderRadius:10, fontWeight:600, fontSize:14, boxShadow:'0 4px 20px rgba(0,0,0,0.3)', display:'flex', alignItems:'center', gap:8 }}>
+        <div style={{ position: 'fixed', top: 20, right: 20, zIndex: 9999, background: '#0f172a', color: '#fff', padding: '12px 20px', borderRadius: 10, fontWeight: 600, fontSize: 14, boxShadow: '0 4px 20px rgba(0,0,0,0.3)', display: 'flex', alignItems: 'center', gap: 8 }}>
           <CheckCircle size={16} color="#4ade80" />{bulletinToast}
         </div>
       )}
@@ -1881,50 +1908,50 @@ const PartnerHome = ({ setActivePage }) => {
         const isInquiry = bulletinModal.type === 'inquire';
         const title = isRefer ? 'Refer an Apprentice' : isInquiry ? 'Send Inquiry' : 'Register Apprentice';
         return (
-          <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.5)', zIndex:9999, display:'flex', alignItems:'center', justifyContent:'center', padding:20 }}>
-            <div style={{ background:'#fff', borderRadius:16, width:'100%', maxWidth:480, boxShadow:'0 20px 60px rgba(0,0,0,0.2)', overflow:'hidden' }}>
-              <div style={{ background:cfg.color, padding:'16px 20px', display:'flex', alignItems:'center', gap:12 }}>
-                <div style={{ fontSize:20 }}>{cfg.emoji}</div>
+          <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
+            <div style={{ background: '#fff', borderRadius: 16, width: '100%', maxWidth: 480, boxShadow: '0 20px 60px rgba(0,0,0,0.2)', overflow: 'hidden' }}>
+              <div style={{ background: cfg.color, padding: '16px 20px', display: 'flex', alignItems: 'center', gap: 12 }}>
+                <div style={{ fontSize: 20 }}>{cfg.emoji}</div>
                 <div>
-                  <div style={{ fontWeight:700, color:'#fff', fontSize:15 }}>{title}</div>
-                  <div style={{ color:'rgba(255,255,255,0.8)', fontSize:12 }}>{bulletinModal.post.title}</div>
+                  <div style={{ fontWeight: 700, color: '#fff', fontSize: 15 }}>{title}</div>
+                  <div style={{ color: 'rgba(255,255,255,0.8)', fontSize: 12 }}>{bulletinModal.post.title}</div>
                 </div>
-                <button onClick={() => setBulletinModal(null)} style={{ marginLeft:'auto', background:'rgba(255,255,255,0.2)', border:'none', borderRadius:8, width:28, height:28, cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center' }}>
+                <button onClick={() => setBulletinModal(null)} style={{ marginLeft: 'auto', background: 'rgba(255,255,255,0.2)', border: 'none', borderRadius: 8, width: 28, height: 28, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                   <X size={14} color="#fff" />
                 </button>
               </div>
-              <div style={{ padding:'20px' }}>
+              <div style={{ padding: '20px' }}>
                 {isRefer ? (
                   <>
-                    <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12, marginBottom:14 }}>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 14 }}>
                       <div>
-                        <label style={{ fontSize:12, fontWeight:700, color:'#475569', textTransform:'uppercase', letterSpacing:'0.05em', display:'block', marginBottom:6 }}>Apprentice Name *</label>
-                        <input value={referralName} onChange={e => setReferralName(e.target.value)} placeholder="Full name" style={{ width:'100%', padding:'10px 12px', borderRadius:8, border:'1.5px solid #e2e8f0', fontSize:13, outline:'none', boxSizing:'border-box' }} />
+                        <label style={{ fontSize: 12, fontWeight: 700, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.05em', display: 'block', marginBottom: 6 }}>Apprentice Name *</label>
+                        <input value={referralName} onChange={e => setReferralName(e.target.value)} placeholder="Full name" style={{ width: '100%', padding: '10px 12px', borderRadius: 8, border: '1.5px solid #e2e8f0', fontSize: 13, outline: 'none', boxSizing: 'border-box' }} />
                       </div>
                       <div>
-                        <label style={{ fontSize:12, fontWeight:700, color:'#475569', textTransform:'uppercase', letterSpacing:'0.05em', display:'block', marginBottom:6 }}>Contact / Email</label>
-                        <input value={referralContact} onChange={e => setReferralContact(e.target.value)} placeholder="email or phone" style={{ width:'100%', padding:'10px 12px', borderRadius:8, border:'1.5px solid #e2e8f0', fontSize:13, outline:'none', boxSizing:'border-box' }} />
+                        <label style={{ fontSize: 12, fontWeight: 700, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.05em', display: 'block', marginBottom: 6 }}>Contact / Email</label>
+                        <input value={referralContact} onChange={e => setReferralContact(e.target.value)} placeholder="email or phone" style={{ width: '100%', padding: '10px 12px', borderRadius: 8, border: '1.5px solid #e2e8f0', fontSize: 13, outline: 'none', boxSizing: 'border-box' }} />
                       </div>
                     </div>
-                    <div style={{ marginBottom:14 }}>
-                      <label style={{ fontSize:12, fontWeight:700, color:'#475569', textTransform:'uppercase', letterSpacing:'0.05em', display:'block', marginBottom:6 }}>Notes (optional)</label>
-                      <textarea value={referralNotes} onChange={e => setReferralNotes(e.target.value)} placeholder="Add any relevant notes about the apprentice..." rows={3} style={{ width:'100%', padding:'10px 12px', borderRadius:8, border:'1.5px solid #e2e8f0', fontSize:13, outline:'none', resize:'none', boxSizing:'border-box' }} />
+                    <div style={{ marginBottom: 14 }}>
+                      <label style={{ fontSize: 12, fontWeight: 700, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.05em', display: 'block', marginBottom: 6 }}>Notes (optional)</label>
+                      <textarea value={referralNotes} onChange={e => setReferralNotes(e.target.value)} placeholder="Add any relevant notes about the apprentice..." rows={3} style={{ width: '100%', padding: '10px 12px', borderRadius: 8, border: '1.5px solid #e2e8f0', fontSize: 13, outline: 'none', resize: 'none', boxSizing: 'border-box' }} />
                     </div>
                   </>
                 ) : (
-                  <div style={{ marginBottom:14 }}>
-                    <label style={{ fontSize:12, fontWeight:700, color:'#475569', textTransform:'uppercase', letterSpacing:'0.05em', display:'block', marginBottom:6 }}>
+                  <div style={{ marginBottom: 14 }}>
+                    <label style={{ fontSize: 12, fontWeight: 700, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.05em', display: 'block', marginBottom: 6 }}>
                       {isInquiry ? 'Your Inquiry *' : 'Message (optional)'}
                     </label>
-                    <textarea value={bulletinMsg} onChange={e => setBulletinMsg(e.target.value)} placeholder={isInquiry ? 'Type your inquiry here...' : 'Add a note...'} rows={4} style={{ width:'100%', padding:'10px 12px', borderRadius:8, border:'1.5px solid #e2e8f0', fontSize:13, outline:'none', resize:'none', boxSizing:'border-box' }} />
+                    <textarea value={bulletinMsg} onChange={e => setBulletinMsg(e.target.value)} placeholder={isInquiry ? 'Type your inquiry here...' : 'Add a note...'} rows={4} style={{ width: '100%', padding: '10px 12px', borderRadius: 8, border: '1.5px solid #e2e8f0', fontSize: 13, outline: 'none', resize: 'none', boxSizing: 'border-box' }} />
                   </div>
                 )}
-                <div style={{ display:'flex', gap:10, justifyContent:'flex-end' }}>
-                  <button onClick={() => setBulletinModal(null)} style={{ padding:'10px 18px', borderRadius:8, border:'1.5px solid #e2e8f0', background:'#fff', color:'#64748b', fontWeight:600, cursor:'pointer' }}>Cancel</button>
+                <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
+                  <button onClick={() => setBulletinModal(null)} style={{ padding: '10px 18px', borderRadius: 8, border: '1.5px solid #e2e8f0', background: '#fff', color: '#64748b', fontWeight: 600, cursor: 'pointer' }}>Cancel</button>
                   <button
                     onClick={handleBulletinSubmit}
                     disabled={bulletinSubmitting || (isRefer && !referralName.trim()) || (isInquiry && !bulletinMsg.trim())}
-                    style={{ padding:'10px 20px', borderRadius:8, border:'none', background:cfg.color, color:'#fff', fontWeight:700, cursor:'pointer', opacity:bulletinSubmitting ? 0.6 : 1 }}
+                    style={{ padding: '10px 20px', borderRadius: 8, border: 'none', background: cfg.color, color: '#fff', fontWeight: 700, cursor: 'pointer', opacity: bulletinSubmitting ? 0.6 : 1 }}
                   >
                     {bulletinSubmitting ? 'Submitting...' : isRefer ? 'Submit Referral' : isInquiry ? 'Send Inquiry' : 'Confirm'}
                   </button>
@@ -2106,7 +2133,7 @@ const PartnerHome = ({ setActivePage }) => {
                     </div>
                   ) : (
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                      {editProgramCompetencies.map(competency => (
+                      {editProgramCompetencies.slice(0, showAllEditComps ? editProgramCompetencies.length : 3).map(competency => (
                         <label key={competency} style={{ display: 'flex', alignItems: 'flex-start', gap: 10, padding: '8px 10px', borderRadius: 10, border: `1.5px solid ${editJobForm.requiredCompetencies.includes(competency) ? '#3b82f6' : '#e8e8e8'}`, background: editJobForm.requiredCompetencies.includes(competency) ? '#dbeafe' : '#f8fafc', cursor: 'pointer' }}>
                           <input
                             type="checkbox"
@@ -2117,6 +2144,18 @@ const PartnerHome = ({ setActivePage }) => {
                           <span style={{ fontSize: 13.5, color: '#475569' }}>{competency}</span>
                         </label>
                       ))}
+                      {editProgramCompetencies.length > 3 && (
+                        <button
+                          type="button"
+                          onClick={() => setShowAllEditComps(!showAllEditComps)}
+                          style={{
+                            background: 'none', border: 'none', color: '#0a66c2', fontWeight: 600, fontSize: 13,
+                            cursor: 'pointer', textAlign: 'left', padding: '4px 0', display: 'inline-block', width: 'fit-content'
+                          }}
+                        >
+                          {showAllEditComps ? 'See Less' : `+ ${editProgramCompetencies.length - 3} more`}
+                        </button>
+                      )}
                     </div>
                   )}
                 </div>
@@ -2247,8 +2286,8 @@ const PartnerHome = ({ setActivePage }) => {
                   const commentAuthorName = comment.author_id === currentUser?.id
                     ? (partner?.companyName || currentUser?.companyName || currentUser?.name || 'You')
                     : isStudentAuthorType(comment.author_type)
-                        ? (trainees.find(t => t.id === comment.author_id)?.name || 'Trainee')
-                        : (partners.find(p => p.id === comment.author_id)?.companyName || 'Industry Partner');
+                      ? (trainees.find(t => t.id === comment.author_id)?.name || 'Trainee')
+                      : (partners.find(p => p.id === comment.author_id)?.companyName || 'Industry Partner');
                   const commentAuthorType = toProfileAuthorType(comment.author_type);
                   const isOwnComment = comment.author_id === currentUser?.id;
                   const isEditing = editingJobMediaCommentId === comment.id;
@@ -2496,8 +2535,8 @@ const PartnerHome = ({ setActivePage }) => {
                   const commentAuthorName = comment.author_id === currentUser?.id
                     ? (partner?.companyName || currentUser.companyName || currentUser.name || 'You')
                     : isStudentAuthorType(comment.author_type)
-                        ? (trainees.find(t => t.id === comment.author_id)?.name || 'Trainee')
-                        : (partners.find(p => p.id === comment.author_id)?.companyName || 'Industry Partner');
+                      ? (trainees.find(t => t.id === comment.author_id)?.name || 'Trainee')
+                      : (partners.find(p => p.id === comment.author_id)?.companyName || 'Industry Partner');
                   const commentAuthorType = toProfileAuthorType(comment.author_type);
 
                   return (
@@ -2510,28 +2549,28 @@ const PartnerHome = ({ setActivePage }) => {
                       >
                         {commentAuthorName?.charAt(0) || 'U'}
                       </button>
-                        <div style={{ background: '#f1f5f9', borderRadius: 14, padding: '8px 11px', flex: 1 }}>
+                      <div style={{ background: '#f1f5f9', borderRadius: 14, padding: '8px 11px', flex: 1 }}>
                         <button
                           type="button"
                           onClick={() => openProfile({ id: comment.author_id, type: commentAuthorType })}
-                            style={{ fontSize: 12, fontWeight: 700, color: '#1e293b', marginBottom: 2, background: 'none', border: 'none', padding: 0, cursor: 'pointer' }}
+                          style={{ fontSize: 12, fontWeight: 700, color: '#1e293b', marginBottom: 2, background: 'none', border: 'none', padding: 0, cursor: 'pointer' }}
                         >
                           {commentAuthorName}
                         </button>
-                          <div style={{ fontSize: 13.2, color: '#0f172a', whiteSpace: 'pre-wrap', lineHeight: 1.45 }}>{comment.content}</div>
+                        <div style={{ fontSize: 13.2, color: '#0f172a', whiteSpace: 'pre-wrap', lineHeight: 1.45 }}>{comment.content}</div>
                       </div>
                     </div>
                   );
                 }) : (
-                    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 10, color: '#64748b' }}>
-                      <FileText size={56} color="#94a3b8" />
-                      <div style={{ fontSize: 34, fontWeight: 700, color: '#334155' }}>No comments yet</div>
+                  <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 10, color: '#64748b' }}>
+                    <FileText size={56} color="#94a3b8" />
+                    <div style={{ fontSize: 34, fontWeight: 700, color: '#334155' }}>No comments yet</div>
                     <div style={{ fontSize: 17 }}>Be the first to comment.</div>
                   </div>
                 )}
               </div>
 
-                <div style={{ borderTop: '1px solid #e2e8f0', padding: '10px 12px', display: 'flex', flexDirection: 'column', gap: 8, background: '#ffffff' }}>
+              <div style={{ borderTop: '1px solid #e2e8f0', padding: '10px 12px', display: 'flex', flexDirection: 'column', gap: 8, background: '#ffffff' }}>
                 <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8 }}>
                   <div className="ln-feed-avatar" style={{ width: 32, height: 32, flexShrink: 0, fontSize: 13 }}>
                     {(partner?.company_logo_url || partner?.photo)
@@ -2539,16 +2578,16 @@ const PartnerHome = ({ setActivePage }) => {
                       : (partner?.companyName || currentUser?.companyName || currentUser?.name || 'P').charAt(0).toUpperCase()}
                   </div>
 
-                    <div style={{ flex: 1, background: '#f8fafc', borderRadius: 20, padding: '8px 12px', display: 'flex', flexDirection: 'column', gap: 6 }}>
+                  <div style={{ flex: 1, background: '#f8fafc', borderRadius: 20, padding: '8px 12px', display: 'flex', flexDirection: 'column', gap: 6 }}>
                     <textarea
                       placeholder={`Comment as ${partner?.companyName || currentUser?.companyName || currentUser?.name || 'Industry Partner'}`}
                       value={commentInput}
                       onChange={e => setCommentInput(e.target.value)}
                       maxLength={1000}
-                        style={{ width: '100%', minHeight: 24, maxHeight: 78, resize: 'none', border: 'none', outline: 'none', background: 'transparent', color: '#0f172a', fontSize: 16, lineHeight: 1.3, fontFamily: 'inherit' }}
+                      style={{ width: '100%', minHeight: 24, maxHeight: 78, resize: 'none', border: 'none', outline: 'none', background: 'transparent', color: '#0f172a', fontSize: 16, lineHeight: 1.3, fontFamily: 'inherit' }}
                     />
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                        <div style={{ display: 'inline-flex', alignItems: 'center', gap: 10, color: '#64748b' }}>
+                      <div style={{ display: 'inline-flex', alignItems: 'center', gap: 10, color: '#64748b' }}>
                         <MessageSquare size={14} />
                         <Camera size={14} />
                         <FileText size={14} />
@@ -2556,14 +2595,14 @@ const PartnerHome = ({ setActivePage }) => {
                       <button
                         onClick={handleSubmitComment}
                         disabled={commentSubmitting || !commentInput.trim()}
-                          style={{ background: 'transparent', border: 'none', color: (commentSubmitting || !commentInput.trim()) ? '#94a3b8' : '#2563eb', cursor: (commentSubmitting || !commentInput.trim()) ? 'not-allowed' : 'pointer', padding: 0, display: 'inline-flex', alignItems: 'center' }}
+                        style={{ background: 'transparent', border: 'none', color: (commentSubmitting || !commentInput.trim()) ? '#94a3b8' : '#2563eb', cursor: (commentSubmitting || !commentInput.trim()) ? 'not-allowed' : 'pointer', padding: 0, display: 'inline-flex', alignItems: 'center' }}
                       >
                         <Send size={18} />
                       </button>
                     </div>
                   </div>
                 </div>
-                  <div style={{ fontSize: 12, color: '#64748b', textAlign: 'left', marginLeft: 40 }}>{commentInput.length}/1000</div>
+                <div style={{ fontSize: 12, color: '#64748b', textAlign: 'left', marginLeft: 40 }}>{commentInput.length}/1000</div>
               </div>
             </div>
           </div>
@@ -2704,10 +2743,10 @@ const VerificationPage = ({ setActivePage }) => {
           <p style={{ fontSize: 15, color: '#15803d', maxWidth: 540, margin: '0 auto 32px', lineHeight: 1.6 }}>
             Congratulations! Your account has been reviewed and approved. You can now post job opportunities, access the interview calendar, and connect with top trainees.
           </p>
-          
-          <div style={{ 
-            display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', 
-            gap: 16, maxWidth: 650, margin: '0 auto' 
+
+          <div style={{
+            display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+            gap: 16, maxWidth: 650, margin: '0 auto'
           }}>
             <button className="ln-btn ln-btn-primary" onClick={() => setActivePage('post-job')} style={{ padding: '14px 20px', justifyContent: 'center', fontSize: 15 }}>
               <Plus size={18} /> Post an Opportunity
@@ -2729,10 +2768,10 @@ const VerificationPage = ({ setActivePage }) => {
           <div style={{ padding: '0 16px 16px' }}>
             <p style={{ fontSize: 14, color: 'rgba(0,0,0,0.6)', lineHeight: 1.6 }}>
               {status === 'Under Review'
-                  ? 'Your documents are being reviewed by our administrators. Please wait for approval.'
-                  : status === 'Rejected'
-                    ? 'Your verification was rejected. You may re-upload documents and submit again.'
-                    : 'Upload your company verification documents below to begin the verification process.'}
+                ? 'Your documents are being reviewed by our administrators. Please wait for approval.'
+                : status === 'Rejected'
+                  ? 'Your verification was rejected. You may re-upload documents and submit again.'
+                  : 'Upload your company verification documents below to begin the verification process.'}
             </p>
           </div>
         </div>
@@ -2810,71 +2849,71 @@ const VerificationPage = ({ setActivePage }) => {
 
           {/* Add Document Row — only when not yet submitted */}
           {!isSubmitted && (
-              <div style={{ marginBottom: 20 }}>
-                <p style={{ fontSize: 12, color: '#64748b', marginBottom: 10 }}>
-                  Type a label for the document first, then click <strong>Choose File</strong> to upload.
-                </p>
-                <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
-                  <input
-                    className="form-input"
-                    style={{ flex: 1, minWidth: 160 }}
-                    placeholder="Document label (e.g. Business Permit)"
-                    value={docLabel}
-                    onChange={e => setDocLabel(e.target.value)}
-                    disabled={uploading}
-                  />
-                  <button
-                    className="ln-btn ln-btn-outline"
-                    style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 16px', whiteSpace: 'nowrap', opacity: docLabel.trim() ? 1 : 0.45, cursor: docLabel.trim() ? 'pointer' : 'not-allowed' }}
-                    disabled={!docLabel.trim() || uploading}
-                    onClick={() => fileInputRef.current?.click()}
-                  >
-                    {uploading ? <Loader size={15} className="spin" /> : <Upload size={15} />}
-                    {uploading ? 'Uploading...' : 'Choose File'}
-                  </button>
-                </div>
-                {!docLabel.trim() && (
-                  <p style={{ fontSize: 11, color: '#f59e0b', marginTop: 6, display: 'flex', alignItems: 'center', gap: 4 }}>
-                    <AlertTriangle size={12} /> Enter a label before uploading a file.
-                  </p>
-                )}
-              </div>
-            )}
-
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept=".pdf,.jpg,.jpeg,.png"
-              style={{ display: 'none' }}
-              onChange={handleFileUpload}
-            />
-
-            {/* Submit / Edit Buttons */}
-            {status === 'Under Review' ? (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 10, padding: '8px 0' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px 16px', background: '#eff6ff', borderRadius: 10, border: '1px solid #bfdbfe' }}>
-                  <FileCheck size={20} color="#2563eb" style={{ flexShrink: 0 }} />
-                  <p style={{ fontSize: 13, color: '#1e40af', margin: 0 }}>Your documents are under review by the administrators.</p>
-                </div>
+            <div style={{ marginBottom: 20 }}>
+              <p style={{ fontSize: 12, color: '#64748b', marginBottom: 10 }}>
+                Type a label for the document first, then click <strong>Choose File</strong> to upload.
+              </p>
+              <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+                <input
+                  className="form-input"
+                  style={{ flex: 1, minWidth: 160 }}
+                  placeholder="Document label (e.g. Business Permit)"
+                  value={docLabel}
+                  onChange={e => setDocLabel(e.target.value)}
+                  disabled={uploading}
+                />
                 <button
-                  className="ln-btn"
-                  style={{ width: '100%', padding: '10px 20px', fontSize: 13, color: '#dc2626', border: '1px solid #fecaca', background: '#fef2f2', borderRadius: 10, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}
-                  onClick={handleWithdraw}
+                  className="ln-btn ln-btn-outline"
+                  style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 16px', whiteSpace: 'nowrap', opacity: docLabel.trim() ? 1 : 0.45, cursor: docLabel.trim() ? 'pointer' : 'not-allowed' }}
+                  disabled={!docLabel.trim() || uploading}
+                  onClick={() => fileInputRef.current?.click()}
                 >
-                  <XCircle size={15} /> Edit &amp; Resubmit (Undo Submission)
+                  {uploading ? <Loader size={15} className="spin" /> : <Upload size={15} />}
+                  {uploading ? 'Uploading...' : 'Choose File'}
                 </button>
-                <p style={{ fontSize: 11, color: '#94a3b8', textAlign: 'center', margin: 0 }}>This will let you remove or re-upload documents before submitting again.</p>
               </div>
-            ) : (
+              {!docLabel.trim() && (
+                <p style={{ fontSize: 11, color: '#f59e0b', marginTop: 6, display: 'flex', alignItems: 'center', gap: 4 }}>
+                  <AlertTriangle size={12} /> Enter a label before uploading a file.
+                </p>
+              )}
+            </div>
+          )}
+
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".pdf,.jpg,.jpeg,.png"
+            style={{ display: 'none' }}
+            onChange={handleFileUpload}
+          />
+
+          {/* Submit / Edit Buttons */}
+          {status === 'Under Review' ? (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10, padding: '8px 0' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px 16px', background: '#eff6ff', borderRadius: 10, border: '1px solid #bfdbfe' }}>
+                <FileCheck size={20} color="#2563eb" style={{ flexShrink: 0 }} />
+                <p style={{ fontSize: 13, color: '#1e40af', margin: 0 }}>Your documents are under review by the administrators.</p>
+              </div>
               <button
-                className="ln-btn ln-btn-primary"
-                style={{ width: '100%', padding: '10px 20px', fontSize: 14 }}
-                disabled={documents.length === 0}
-                onClick={handleSubmitForReview}
+                className="ln-btn"
+                style={{ width: '100%', padding: '10px 20px', fontSize: 13, color: '#dc2626', border: '1px solid #fecaca', background: '#fef2f2', borderRadius: 10, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}
+                onClick={handleWithdraw}
               >
-                <Send size={16} /> Submit for Verification
+                <XCircle size={15} /> Edit &amp; Resubmit (Undo Submission)
               </button>
-            )}
+              <p style={{ fontSize: 11, color: '#94a3b8', textAlign: 'center', margin: 0 }}>This will let you remove or re-upload documents before submitting again.</p>
+            </div>
+          ) : (
+            <button
+              className="ln-btn ln-btn-primary"
+              style={{ width: '100%', padding: '10px 20px', fontSize: 14 }}
+              disabled={documents.length === 0}
+              onClick={handleSubmitForReview}
+            >
+              <Send size={16} /> Submit for Verification
+            </button>
+          )}
         </div>
       </div>
 
@@ -2937,6 +2976,7 @@ const PostJob = ({ setActivePage, opportunityType = 'Job' }) => {
   ) || null;
   const isEditMode = Boolean(editingJob);
   const [posting, setPosting] = useState(false);
+  const [showAllComps, setShowAllComps] = useState(false);
   const [attachmentFile, setAttachmentFile] = useState(null);
   const [form, setForm] = useState({
     title: '', opportunityType, programId: firstProgram?.id || '', ncLevel: normalizeNcLevelValue(firstProgram?.ncLevel || firstProgram?.name || ''), description: '',
@@ -3324,12 +3364,24 @@ const PostJob = ({ setActivePage, opportunityType = 'Job' }) => {
             <h3 style={{ fontSize: 16, fontWeight: 600, color: 'rgba(0,0,0,0.9)', marginBottom: 16 }}>Required Competencies</h3>
             <p style={{ fontSize: 13, color: 'rgba(0,0,0,0.55)', marginBottom: 12 }}>Select the competencies required for <strong>{form.ncLevel}</strong>:</p>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-              {availableComps.map(comp => (
+              {availableComps.slice(0, showAllComps ? availableComps.length : 3).map(comp => (
                 <label key={comp} style={{ display: 'flex', alignItems: 'flex-start', gap: 10, padding: '10px 12px', background: form.requiredCompetencies.includes(comp) ? '#dbeafe' : '#f8fafc', borderRadius: 10, cursor: 'pointer', border: `1.5px solid ${form.requiredCompetencies.includes(comp) ? '#3b82f6' : '#e8e8e8'}`, transition: 'all 0.15s' }}>
                   <input type="checkbox" checked={form.requiredCompetencies.includes(comp)} onChange={() => toggleComp(comp)} style={{ marginTop: 2 }} />
                   <span style={{ fontSize: 13.5, color: '#475569' }}>{comp}</span>
                 </label>
               ))}
+              {availableComps.length > 3 && (
+                <button
+                  type="button"
+                  onClick={() => setShowAllComps(!showAllComps)}
+                  style={{
+                    background: 'none', border: 'none', color: '#0a66c2', fontWeight: 600, fontSize: 13,
+                    cursor: 'pointer', textAlign: 'left', padding: '4px 0', marginTop: '4px', display: 'inline-block', width: 'fit-content'
+                  }}
+                >
+                  {showAllComps ? 'See Less' : `+ ${availableComps.length - 3} more`}
+                </button>
+              )}
             </div>
             <div style={{ marginTop: 20 }}>
               <button type="submit" className="ln-btn ln-btn-primary" disabled={posting} style={{ width: '100%', padding: '10px 20px', fontSize: 14, opacity: posting ? 0.75 : 1, cursor: posting ? 'not-allowed' : 'pointer' }}>
@@ -3616,88 +3668,88 @@ const ViewApplicants = ({ setActivePage }) => {
                           <Calendar size={16} />
                         </button>
                       )}
-                    <div style={{ position: 'relative' }}>
-                      <button 
-                        className="ln-btn-icon" 
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          if (openMenuId === a.id) {
-                            setOpenMenuId(null);
-                          } else {
-                            const rect = e.currentTarget.getBoundingClientRect();
-                            setMenuPos({ 
-                              top: rect.bottom + 4, 
-                              left: rect.right - 180 // Align right edge of menu to right edge of button
-                            });
-                            setOpenMenuId(a.id);
-                          }
-                        }}
-                      >
-                        <MoreVertical size={16} />
-                      </button>
-                      
-                      {openMenuId === a.id && (
-                        <>
-                          <div 
-                            style={{ position: 'fixed', inset: 0, zIndex: 998 }} 
-                            onClick={() => setOpenMenuId(null)} 
-                          />
-                          <div 
-                            className="ln-dropdown" 
-                            style={{ 
-                              position: 'fixed', 
-                              top: menuPos.top, 
-                              left: menuPos.left, 
-                              zIndex: 9999, 
-                              minWidth: 180, 
-                              display: 'block', 
-                              margin: 0, 
-                              boxShadow: '0 8px 24px rgba(0,0,0,0.2)' 
-                            }}
-                          >
-                            {(a.status === 'Pending' || a.status === 'Interview Scheduled') && (
-                              <>
-                                <button className="ln-dropdown-item" style={{ color: '#16a34a' }} onClick={() => { setOpenMenuId(null); updateApplicationStatus(a.id, 'Accepted', 'Approved by partner.'); }}>
-                                  <CheckCircle size={14} /> Accept Trainee
-                                </button>
-                                <button className="ln-dropdown-item" style={{ color: '#dc2626' }} onClick={() => { setOpenMenuId(null); updateApplicationStatus(a.id, 'Rejected', 'Not selected.'); }}>
-                                  <XCircle size={14} /> Reject Trainee
-                                </button>
-                                <div className="ln-dropdown-divider" />
-                              </>
-                            )}
-                            
-                            <button className="ln-dropdown-item" onClick={() => { setOpenMenuId(null); openProfile({ id: a.trainee?.id, type: 'trainee' }); }}>
-                              <Eye size={14} /> View Profile
-                            </button>
-                            
-                            {a.recordType === 'application' && (
-                              <button className="ln-dropdown-item" onClick={() => { setOpenMenuId(null); setViewApp(a); }}>
-                                <Eye size={14} /> View Details
-                              </button>
-                            )}
-                            
-                            {a.recordType === 'application' && (
-                              <button className="ln-dropdown-item" onClick={() => { setOpenMenuId(null); openRecruitModal(a); }}>
-                                <Send size={14} /> {a.outgoingMessage ? 'Update Recruit' : 'Recruit'}
-                              </button>
-                            )}
+                      <div style={{ position: 'relative' }}>
+                        <button
+                          className="ln-btn-icon"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (openMenuId === a.id) {
+                              setOpenMenuId(null);
+                            } else {
+                              const rect = e.currentTarget.getBoundingClientRect();
+                              setMenuPos({
+                                top: rect.bottom + 4,
+                                left: rect.right - 180 // Align right edge of menu to right edge of button
+                              });
+                              setOpenMenuId(a.id);
+                            }
+                          }}
+                        >
+                          <MoreVertical size={16} />
+                        </button>
 
-                            {(a.incomingMessage || a.outgoingMessage) && (
-                              <button className="ln-dropdown-item" onClick={() => { setOpenMenuId(null); setMessageModal(a); }}>
-                                <MessageSquare size={14} /> View Messages
-                              </button>
-                            )}
+                        {openMenuId === a.id && (
+                          <>
+                            <div
+                              style={{ position: 'fixed', inset: 0, zIndex: 998 }}
+                              onClick={() => setOpenMenuId(null)}
+                            />
+                            <div
+                              className="ln-dropdown"
+                              style={{
+                                position: 'fixed',
+                                top: menuPos.top,
+                                left: menuPos.left,
+                                zIndex: 9999,
+                                minWidth: 180,
+                                display: 'block',
+                                margin: 0,
+                                boxShadow: '0 8px 24px rgba(0,0,0,0.2)'
+                              }}
+                            >
+                              {(a.status === 'Pending' || a.status === 'Interview Scheduled') && (
+                                <>
+                                  <button className="ln-dropdown-item" style={{ color: '#16a34a' }} onClick={() => { setOpenMenuId(null); updateApplicationStatus(a.id, 'Accepted', 'Approved by partner.'); }}>
+                                    <CheckCircle size={14} /> Accept Trainee
+                                  </button>
+                                  <button className="ln-dropdown-item" style={{ color: '#dc2626' }} onClick={() => { setOpenMenuId(null); updateApplicationStatus(a.id, 'Rejected', 'Not selected.'); }}>
+                                    <XCircle size={14} /> Reject Trainee
+                                  </button>
+                                  <div className="ln-dropdown-divider" />
+                                </>
+                              )}
 
-                            {a.attachmentUrl && (
-                              <a href={a.attachmentUrl} target="_blank" rel="noreferrer" className="ln-dropdown-item" onClick={() => setOpenMenuId(null)} style={{ textDecoration: 'none', color: 'inherit' }}>
-                                <Download size={14} /> Download Resume
-                              </a>
-                            )}
-                          </div>
-                        </>
-                      )}
-                    </div>
+                              <button className="ln-dropdown-item" onClick={() => { setOpenMenuId(null); openProfile({ id: a.trainee?.id, type: 'trainee' }); }}>
+                                <Eye size={14} /> View Profile
+                              </button>
+
+                              {a.recordType === 'application' && (
+                                <button className="ln-dropdown-item" onClick={() => { setOpenMenuId(null); setViewApp(a); }}>
+                                  <Eye size={14} /> View Details
+                                </button>
+                              )}
+
+                              {a.recordType === 'application' && (
+                                <button className="ln-dropdown-item" onClick={() => { setOpenMenuId(null); openRecruitModal(a); }}>
+                                  <Send size={14} /> {a.outgoingMessage ? 'Update Recruit' : 'Recruit'}
+                                </button>
+                              )}
+
+                              {(a.incomingMessage || a.outgoingMessage) && (
+                                <button className="ln-dropdown-item" onClick={() => { setOpenMenuId(null); setMessageModal(a); }}>
+                                  <MessageSquare size={14} /> View Messages
+                                </button>
+                              )}
+
+                              {a.attachmentUrl && (
+                                <a href={a.attachmentUrl} target="_blank" rel="noreferrer" className="ln-dropdown-item" onClick={() => setOpenMenuId(null)} style={{ textDecoration: 'none', color: 'inherit' }}>
+                                  <Download size={14} /> Download Resume
+                                </a>
+                              )}
+                            </div>
+                          </>
+                        )}
+                      </div>
                     </div>
                   </td>
                 </tr>
@@ -4388,35 +4440,35 @@ export const CompanyProfile = ({ viewedPartnerId = null, onBack = null }) => {
       )}
       {/* Profile Header Card */}
       <div className="ln-card ln-profile-header-card">
-        <div 
-          className="ln-profile-header-banner pn-header-banner" 
+        <div
+          className="ln-profile-header-banner pn-header-banner"
           style={{
             height: 160,
             backgroundImage: partner.banner_url ? `url(${partner.banner_url})` : 'none',
-            backgroundSize: 'cover', 
+            backgroundSize: 'cover',
             backgroundPosition: 'center',
             backgroundColor: partner.banner_url ? 'transparent' : undefined
           }}
         >
           {isOwnProfile && (
             <div style={{ position: 'absolute', top: 12, right: 12 }}>
-              <input 
-                type="file" 
-                ref={bannerInputRef} 
-                onChange={handleBannerUpload} 
-                style={{ display: 'none' }} 
-                accept="image/*" 
+              <input
+                type="file"
+                ref={bannerInputRef}
+                onChange={handleBannerUpload}
+                style={{ display: 'none' }}
+                accept="image/*"
               />
-              <button 
-                type="button" 
+              <button
+                type="button"
                 onClick={() => bannerInputRef.current?.click()}
                 className="ln-btn-sm"
-                style={{ 
-                  background: 'rgba(255,255,255,0.9)', 
-                  border: 'none', 
-                  borderRadius: 8, 
-                  display: 'flex', 
-                  alignItems: 'center', 
+                style={{
+                  background: 'rgba(255,255,255,0.9)',
+                  border: 'none',
+                  borderRadius: 8,
+                  display: 'flex',
+                  alignItems: 'center',
                   gap: 6,
                   padding: '6px 12px',
                   fontWeight: 600,
@@ -4437,14 +4489,14 @@ export const CompanyProfile = ({ viewedPartnerId = null, onBack = null }) => {
             </div>
             {isOwnProfile && (
               <>
-                <input 
-                  type="file" 
-                  ref={logoInputRef} 
-                  onChange={handleLogoUpload} 
-                  style={{ display: 'none' }} 
-                  accept="image/*" 
+                <input
+                  type="file"
+                  ref={logoInputRef}
+                  onChange={handleLogoUpload}
+                  style={{ display: 'none' }}
+                  accept="image/*"
                 />
-                <button 
+                <button
                   type="button"
                   onClick={() => logoInputRef.current?.click()}
                   style={{
@@ -4504,22 +4556,22 @@ export const CompanyProfile = ({ viewedPartnerId = null, onBack = null }) => {
                         email: partner?.email || '',
                         address: partner?.address || '',
                         website: partner?.website || '',
-                      industry: partner?.industry || '',
-                      achievements: partner?.achievements || [],
-                      benefits: partner?.benefits || [],
-                      mission: partner?.mission || '',
-                      vision: partner?.vision || '',
-                      culture_tags: Array.isArray(partner?.culture_tags) ? partner.culture_tags : [],
-                      perks_tags: Array.isArray(partner?.perks_tags) ? partner.perks_tags : [],
-                      poc_name: partner?.poc_name || '',
-                      poc_title: partner?.poc_title || '',
-                      poc_photo_url: partner?.poc_photo_url || '',
-                      office_location_url: partner?.office_location_url || '',
-                      banner_url: partner?.banner_url || ''
-                    });
-                    setCompanyInfoVisibility(resolvePartnerVisibility(partner));
-                    setEditing(true);
-                  }}
+                        industry: partner?.industry || '',
+                        achievements: partner?.achievements || [],
+                        benefits: partner?.benefits || [],
+                        mission: partner?.mission || '',
+                        vision: partner?.vision || '',
+                        culture_tags: Array.isArray(partner?.culture_tags) ? partner.culture_tags : [],
+                        perks_tags: Array.isArray(partner?.perks_tags) ? partner.perks_tags : [],
+                        poc_name: partner?.poc_name || '',
+                        poc_title: partner?.poc_title || '',
+                        poc_photo_url: partner?.poc_photo_url || '',
+                        office_location_url: partner?.office_location_url || '',
+                        banner_url: partner?.banner_url || ''
+                      });
+                      setCompanyInfoVisibility(resolvePartnerVisibility(partner));
+                      setEditing(true);
+                    }}
                     disabled={saving || (editing && form.email && !isEmailValid(form.email))}
                   >
                     {saving ? <><Loader size={15} style={{ animation: 'ocr-spin 0.8s linear infinite' }} /> Saving...</> : editing ? <><CheckCircle size={15} /> Save Changes</> : <><Edit size={15} /> Edit Profile</>}
@@ -4693,8 +4745,8 @@ export const CompanyProfile = ({ viewedPartnerId = null, onBack = null }) => {
                   </div>
                   <div style={{ padding: '0 16px 16px' }}>
                     {editing ? (
-                      <textarea 
-                        className="form-input" 
+                      <textarea
+                        className="form-input"
                         style={{ minHeight: 120, resize: 'none' }}
                         placeholder="Define your company's core mission..."
                         value={form.mission}
@@ -4714,8 +4766,8 @@ export const CompanyProfile = ({ viewedPartnerId = null, onBack = null }) => {
                   </div>
                   <div style={{ padding: '0 16px 16px' }}>
                     {editing ? (
-                      <textarea 
-                        className="form-input" 
+                      <textarea
+                        className="form-input"
                         style={{ minHeight: 120, resize: 'none' }}
                         placeholder="Share your long-term goal for the company..."
                         value={form.vision}
@@ -4755,7 +4807,7 @@ export const CompanyProfile = ({ viewedPartnerId = null, onBack = null }) => {
                                   const current = form.culture_tags || [];
                                   setForm({
                                     ...form,
-                                    culture_tags: isSelected 
+                                    culture_tags: isSelected
                                       ? current.filter(t => t !== tag)
                                       : [...current, tag]
                                   });
@@ -4787,10 +4839,10 @@ export const CompanyProfile = ({ viewedPartnerId = null, onBack = null }) => {
                         </div>
                         {editing && (
                           <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
-                            <input 
-                              className="form-input" 
-                              style={{ margin: 0, height: 32, fontSize: 12, maxWidth: 200 }} 
-                              placeholder="Add custom culture tag..." 
+                            <input
+                              className="form-input"
+                              style={{ margin: 0, height: 32, fontSize: 12, maxWidth: 200 }}
+                              placeholder="Add custom culture tag..."
                               id="custom-culture-tag"
                               onKeyDown={e => {
                                 if (e.key === 'Enter' && e.target.value.trim()) {
@@ -4822,7 +4874,7 @@ export const CompanyProfile = ({ viewedPartnerId = null, onBack = null }) => {
                                   const current = form.perks_tags || [];
                                   setForm({
                                     ...form,
-                                    perks_tags: isSelected 
+                                    perks_tags: isSelected
                                       ? current.filter(t => t !== tag)
                                       : [...current, tag]
                                   });
@@ -4854,10 +4906,10 @@ export const CompanyProfile = ({ viewedPartnerId = null, onBack = null }) => {
                         </div>
                         {editing && (
                           <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
-                            <input 
-                              className="form-input" 
-                              style={{ margin: 0, height: 32, fontSize: 12, maxWidth: 200 }} 
-                              placeholder="Add custom perk..." 
+                            <input
+                              className="form-input"
+                              style={{ margin: 0, height: 32, fontSize: 12, maxWidth: 200 }}
+                              placeholder="Add custom perk..."
                               id="custom-perk-tag"
                               onKeyDown={e => {
                                 if (e.key === 'Enter' && e.target.value.trim()) {
@@ -4885,8 +4937,8 @@ export const CompanyProfile = ({ viewedPartnerId = null, onBack = null }) => {
                     </div>
                     <div style={{ padding: '0 16px 20px', textAlign: 'center' }}>
                       <div style={{ position: 'relative', width: 100, height: 100, margin: '0 auto 16px' }}>
-                        <div style={{ 
-                          width: '100%', height: '100%', borderRadius: '50%', 
+                        <div style={{
+                          width: '100%', height: '100%', borderRadius: '50%',
                           background: '#f1f5f9', border: '1px solid #e2e8f0',
                           display: 'flex', alignItems: 'center', justifyContent: 'center',
                           overflow: 'hidden'
@@ -4898,9 +4950,9 @@ export const CompanyProfile = ({ viewedPartnerId = null, onBack = null }) => {
                           )}
                         </div>
                         {editing && (
-                          <button 
+                          <button
                             onClick={() => pocPhotoInputRef.current?.click()}
-                            style={{ 
+                            style={{
                               position: 'absolute', bottom: 0, right: 0,
                               background: '#fff', border: '1px solid #e2e8f0',
                               borderRadius: '50%', width: 28, height: 28,
@@ -4913,18 +4965,18 @@ export const CompanyProfile = ({ viewedPartnerId = null, onBack = null }) => {
                         )}
                         <input type="file" ref={pocPhotoInputRef} onChange={handlePOCPhotoUpload} style={{ display: 'none' }} accept="image/*" />
                       </div>
-                      
+
                       {editing ? (
                         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                          <input 
-                            className="form-input" 
+                          <input
+                            className="form-input"
                             style={{ textAlign: 'center', fontWeight: 700 }}
                             placeholder="Full Name"
                             value={form.poc_name}
                             onChange={e => setForm({ ...form, poc_name: e.target.value })}
                           />
-                          <input 
-                            className="form-input" 
+                          <input
+                            className="form-input"
                             style={{ textAlign: 'center', fontSize: 13 }}
                             placeholder="Designation / Title"
                             value={form.poc_title}
@@ -4940,7 +4992,7 @@ export const CompanyProfile = ({ viewedPartnerId = null, onBack = null }) => {
 
                     </div>
                   </div>
-                  
+
                   {/* Office Location Link */}
                   <div className="ln-card">
                     <div className="ln-section-header">
@@ -4948,8 +5000,8 @@ export const CompanyProfile = ({ viewedPartnerId = null, onBack = null }) => {
                     </div>
                     <div style={{ padding: '0 16px 16px' }}>
                       {editing ? (
-                        <input 
-                          className="form-input" 
+                        <input
+                          className="form-input"
                           placeholder="Google Maps URL..."
                           value={form.office_location_url}
                           onChange={e => setForm({ ...form, office_location_url: e.target.value })}
@@ -4957,14 +5009,14 @@ export const CompanyProfile = ({ viewedPartnerId = null, onBack = null }) => {
                       ) : (
                         <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
                           <p style={{ fontSize: 13, color: '#64748b', display: 'flex', alignItems: 'center', gap: 6 }}>
-                             <MapPin size={14} /> {partner.address || 'Address not listed'}
+                            <MapPin size={14} /> {partner.address || 'Address not listed'}
                           </p>
                           {partner.office_location_url && (
-                            <a 
-                              href={partner.office_location_url} 
-                              target="_blank" 
-                              rel="noreferrer" 
-                              className="ln-btn ln-btn-primary" 
+                            <a
+                              href={partner.office_location_url}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="ln-btn ln-btn-primary"
                               style={{ width: '100%', textAlign: 'center', fontSize: 13, textDecoration: 'none' }}
                             >
                               <Navigation size={14} /> View on Map
@@ -5017,12 +5069,12 @@ export const CompanyProfile = ({ viewedPartnerId = null, onBack = null }) => {
                       ))}
                     </div>
                   ) : (
-                      <EmptyState 
-                        illustration={TrophyIllustration}
-                        title="No achievements yet"
-                        description="Showcase your company's awards, recognitions, and major milestones to attract top talent."
-                        style={{ padding: '24px 20px' }}
-                      />
+                    <EmptyState
+                      illustration={TrophyIllustration}
+                      title="No achievements yet"
+                      description="Showcase your company's awards, recognitions, and major milestones to attract top talent."
+                      style={{ padding: '24px 20px' }}
+                    />
                   )}
                 </div>
               </div>
@@ -5069,7 +5121,7 @@ export const CompanyProfile = ({ viewedPartnerId = null, onBack = null }) => {
                     </div>
                   </div>
                 )) : !showUploadForm && (
-                  <EmptyState 
+                  <EmptyState
                     illustration={DocumentIllustration}
                     title="No documents yet"
                     description="Upload company brochures, policies, or registration documents for verification and profile completeness."
@@ -5103,12 +5155,12 @@ export const CompanyProfile = ({ viewedPartnerId = null, onBack = null }) => {
                       ))}
                     </div>
                   ) : (
-                      <EmptyState 
-                        illustration={BriefcaseIllustration}
-                        title="No active openings"
-                        description="You haven't posted any job or OJT opportunities yet. Start posting to find the best trainees."
-                        style={{ padding: '24px 20px' }}
-                      />
+                    <EmptyState
+                      illustration={BriefcaseIllustration}
+                      title="No active openings"
+                      description="You haven't posted any job or OJT opportunities yet. Start posting to find the best trainees."
+                      style={{ padding: '24px 20px' }}
+                    />
                   )}
                 </div>
               </div>
@@ -5354,7 +5406,7 @@ const CalendarView = ({ setActivePage }) => {
                     const isToday = date.toDateString() === today.toDateString();
                     return (
                       <th key={d} style={{ padding: '8px 4px', textAlign: 'center', background: isToday ? '#eff6ff' : '#f9fafb', borderRight: '1px solid #e5e7eb', fontWeight: 700, color: isToday ? '#0a66c2' : '#334155' }}>
-                        {d}<br/><span style={{ fontWeight: 400, fontSize: 11 }}>{date.getDate()}</span>
+                        {d}<br /><span style={{ fontWeight: 400, fontSize: 11 }}>{date.getDate()}</span>
                       </th>
                     );
                   })}
@@ -5486,6 +5538,8 @@ export default function PartnerDashboard() {
         <Route path="/applicants" element={<ViewApplicants setActivePage={setActivePage} />} />
         <Route path="/profile" element={<CompanyProfile />} />
         <Route path="/verification" element={<VerificationPage setActivePage={setActivePage} />} />
+        <Route path="/settings" element={<SettingsPage />} />
+        <Route path="/notifications" element={<NotificationsPage />} />
         <Route path="/profile-view/:profileType/:profileId" element={<PartnerProfileViewRoute />} />
         <Route path="*" element={<Navigate to="/partner" replace />} />
       </Routes>
