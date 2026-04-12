@@ -11,6 +11,7 @@ import {
   Upload, AlertTriangle, Clock, ShieldCheck, FileCheck,
   Bell, Home, Settings, TrendingUp, Bookmark, Target, Star,
   Camera, MessageSquare, MessageCircle, Edit, Loader, ExternalLink, EyeOff, MoreVertical,
+  RefreshCw, MousePointerClick, CheckCircle2, UserPlus, Info, Share2,
   Calendar, ChevronLeft, Heart, Download, Navigation, User
 } from 'lucide-react';
 import EmptyState, {
@@ -5277,12 +5278,20 @@ export const CompanyProfile = ({ viewedPartnerId = null, onBack = null }) => {
 
 // ─── PAGE: INTERVIEW CALENDAR ─────────────────────────────────────
 const CalendarView = ({ setActivePage }) => {
-  const { currentUser, partners, availabilitySlots, interviewBookings, fetchAvailability, fetchBookings, saveAvailabilitySlot, deleteAvailabilitySlot, trainees, applications, jobPostings } = useApp();
+  const { currentUser, partners, availabilitySlots, interviewBookings, fetchAvailability, fetchBookings, saveAvailabilitySlot, deleteAvailabilitySlot, trainees, applications, jobPostings, getMatchRate, sendContactRequest } = useApp();
   const livePartner = getLivePartner(currentUser, partners);
   const verified = isVerified(livePartner);
+  const navigate = useNavigate();
 
   const [weekOffset, setWeekOffset] = useState(0);
   const [saving, setSaving] = useState(false);
+
+  // Drag, Drop, and Invite State
+  const [draggedTrainee, setDraggedTrainee] = useState(null);
+  const [dropHoverSlot, setDropHoverSlot] = useState(null);
+  const [inviteModal, setInviteModal] = useState(null);
+  const [inviteMessage, setInviteMessage] = useState('');
+  const [sendingInvite, setSendingInvite] = useState(false);
 
   const dayLabels = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
   const hours = Array.from({ length: 11 }, (_, i) => i + 7); // 7 AM to 5 PM
@@ -5294,7 +5303,6 @@ const CalendarView = ({ setActivePage }) => {
     }
   }, [livePartner?.id]);
 
-  // Get monday of current displayed week
   const getWeekStart = () => {
     const now = new Date();
     const day = now.getDay();
@@ -5312,10 +5320,8 @@ const CalendarView = ({ setActivePage }) => {
     return d;
   });
 
-  // Check if a slot is marked as available (day_of_week: 0=Sun .. 6=Sat  OR 0=Mon..6=Sun)
-  // The DB uses 0=Mon, 1=Tue ... 6=Sun for our schema
-  const isSlotAvailable = (dayIdx, hour) => {
-    return availabilitySlots.some(s => {
+  const getAvailabilitySlot = (dayIdx, hour) => {
+    return availabilitySlots.find(s => {
       if (s.day_of_week !== dayIdx) return false;
       const startH = parseInt(String(s.start_time).split(':')[0], 10);
       const endH = parseInt(String(s.end_time).split(':')[0], 10);
@@ -5323,15 +5329,17 @@ const CalendarView = ({ setActivePage }) => {
     });
   };
 
-  const toggleSlot = async (dayIdx, hour) => {
+  const toggleSlot = async (dayIdx, hour, bookedCount) => {
+    if (draggedTrainee) return;
+
+    // Prevent deleting a slot if there are already bookings for it this week
+    if (bookedCount > 0) {
+      alert("You cannot remove availability for a slot that already has scheduled interviews. Please cancel the interviews first.");
+      return;
+    }
+
     setSaving(true);
-    // Check if there's an existing slot covering this hour
-    const existing = availabilitySlots.find(s => {
-      if (s.day_of_week !== dayIdx) return false;
-      const startH = parseInt(String(s.start_time).split(':')[0], 10);
-      const endH = parseInt(String(s.end_time).split(':')[0], 10);
-      return hour >= startH && hour < endH;
-    });
+    const existing = getAvailabilitySlot(dayIdx, hour);
 
     if (existing) {
       await deleteAvailabilitySlot(existing.id);
@@ -5340,12 +5348,12 @@ const CalendarView = ({ setActivePage }) => {
         day_of_week: dayIdx,
         start_time: `${String(hour).padStart(2, '0')}:00`,
         end_time: `${String(hour + 1).padStart(2, '0')}:00`,
+        // capacity: 1 // (Handled by DB default, but can be expanded later)
       });
     }
     setSaving(false);
   };
 
-  // Upcoming interviews today
   const today = new Date();
   const todayBookings = interviewBookings.filter(b => {
     if (b.status === 'cancelled') return false;
@@ -5353,12 +5361,134 @@ const CalendarView = ({ setActivePage }) => {
     return bDate.toDateString() === today.toDateString();
   });
 
-  // Resolve trainee/job info for bookings
   const resolveBookingInfo = (booking) => {
     const trainee = trainees.find(t => String(t.id) === String(booking.trainee_id));
     const app = applications.find(a => String(a.id) === String(booking.application_id));
     const job = app ? jobPostings.find(j => String(j.id) === String(app.jobId)) : null;
     return { trainee, job };
+  };
+
+  const currentMonthBookings = interviewBookings.filter(b => {
+    if (b.status === 'cancelled') return false;
+    const bDate = new Date(b.start_time);
+    return bDate.getMonth() === today.getMonth() && bDate.getFullYear() === today.getFullYear();
+  }).length;
+
+  const ojtAccepted = applications.filter(a => {
+    const job = jobPostings.find(j => j.id === a.jobId);
+    return job?.partnerId === livePartner?.id && job?.opportunityType === 'OJT' && a.status === 'Accepted';
+  }).length;
+
+  const totalActiveSlots = availabilitySlots.length;
+
+  const getTopMatches = () => {
+    if (!livePartner?.id) return [];
+    const myOpenJobs = jobPostings.filter(j => j.partnerId === livePartner.id && j.status === 'Open');
+    if (myOpenJobs.length === 0) return [];
+
+    let allMatches = [];
+    trainees.forEach(trainee => {
+      const theirApps = applications.filter(a => String(a.traineeId) === String(trainee.id));
+      const isHired = theirApps.some(a => a.status === 'Accepted');
+      if (isHired) return;
+
+      let bestMatchJob = null;
+      let bestMatchRate = 0;
+
+      myOpenJobs.forEach(job => {
+        if (theirApps.some(a => String(a.jobId) === String(job.id))) return;
+        const rate = getMatchRate(trainee.id, job.id);
+        if (rate > bestMatchRate) {
+          bestMatchRate = rate;
+          bestMatchJob = job;
+        }
+      });
+
+      if (bestMatchRate >= 65 && bestMatchJob) {
+        allMatches.push({ trainee, job: bestMatchJob, matchRate: bestMatchRate });
+      }
+    });
+
+    return allMatches.sort((a, b) => b.matchRate - a.matchRate).slice(0, 5);
+  };
+
+  const topMatches = getTopMatches();
+
+  // Drag and Drop Handlers
+  const handleDragStart = (e, match) => {
+    setDraggedTrainee(match);
+    e.dataTransfer.effectAllowed = 'copy';
+    setTimeout(() => { if (e.target) e.target.style.opacity = '0.5'; }, 0);
+  };
+
+  const handleDragEnd = (e) => {
+    setDraggedTrainee(null);
+    setDropHoverSlot(null);
+    if (e.target) e.target.style.opacity = '1';
+  };
+
+  const handleDragOver = (e, dayIdx, hour, isAvail, isFull) => {
+    e.preventDefault();
+    if (isAvail && !isFull) {
+      e.dataTransfer.dropEffect = 'copy';
+      setDropHoverSlot(`${dayIdx}-${hour}`);
+    } else {
+      e.dataTransfer.dropEffect = 'none';
+      setDropHoverSlot(null);
+    }
+  };
+
+  const handleDragLeave = () => setDropHoverSlot(null);
+
+  const handleDrop = (e, dayIdx, hour, isAvail, isFull) => {
+    e.preventDefault();
+    setDropHoverSlot(null);
+    if (!isAvail || isFull || !draggedTrainee) return;
+
+    const dropDate = new Date(weekDates[dayIdx]);
+    dropDate.setHours(hour, 0, 0, 0);
+
+    const timeString = hour > 12 ? `${hour - 12}:00 PM` : hour === 12 ? '12:00 PM' : `${hour}:00 AM`;
+
+    setInviteMessage(`Hi ${draggedTrainee.trainee.name},\n\nYour profile is a top match for our ${draggedTrainee.job.title} role! I'd love to invite you for an interview on ${dropDate.toLocaleDateString()} at ${timeString}.\n\nIf this time works, please let me know. Alternatively, you can book another available slot on my calendar.\n\nBest,\n${livePartner?.companyName}`);
+
+    setInviteModal({
+      trainee: draggedTrainee.trainee,
+      job: draggedTrainee.job,
+      date: dropDate,
+      hour,
+      isGeneral: false
+    });
+  };
+
+  const handleGeneralInvite = (match) => {
+    setInviteMessage(`Hi ${match.trainee.name},\n\nYour profile stood out to us for our ${match.job.title} role! We'd love to invite you to an interview.\n\nPlease check our calendar and book a time slot that works best for you.\n\nBest,\n${livePartner?.companyName}`);
+    setInviteModal({ trainee: match.trainee, job: match.job, isGeneral: true });
+  };
+
+  const submitInvite = async () => {
+    if (!inviteModal) return;
+    setSendingInvite(true);
+
+    const result = await sendContactRequest({
+      recipientId: inviteModal.trainee.id,
+      recipientType: 'student',
+      jobPostingId: inviteModal.job.id,
+      message: inviteMessage,
+    });
+
+    setSendingInvite(false);
+    if (result.success) {
+      alert(inviteModal.isGeneral ? 'Calendar link and invitation sent!' : 'Specific time invitation sent!');
+      setInviteModal(null);
+    } else {
+      alert(result.error || 'Failed to send invitation.');
+    }
+  };
+
+  const openProfile = (target) => {
+    if (!target?.id || !target?.type) return;
+    navigate(`/partner/profile-view/${target.type}/${target.id}`);
   };
 
   if (!verified) {
@@ -5377,14 +5507,81 @@ const CalendarView = ({ setActivePage }) => {
 
   return (
     <div className="ln-page-content">
-      <div className="ln-page-header">
+      {/* FOMO Banner */}
+      {topMatches.length > 0 && (
+        <div style={{
+          background: 'linear-gradient(90deg, #fffbeb 0%, #fef3c7 100%)',
+          border: '1px solid #fde68a',
+          borderRadius: 12,
+          padding: '12px 16px',
+          marginBottom: 20,
+          display: 'flex',
+          alignItems: 'center',
+          gap: 12,
+          boxShadow: '0 2px 8px rgba(245, 158, 11, 0.1)'
+        }}>
+          <div style={{ fontSize: 20 }}>🔥</div>
+          <div style={{ flex: 1 }}>
+            <span style={{ fontWeight: 700, color: '#92400e', fontSize: 14 }}>
+              {topMatches.length} highly-rated trainees are looking for opportunities in your field right now.
+            </span>
+            <span style={{ color: '#b45309', fontSize: 13, marginLeft: 6 }}>
+              Set your availability below to grab them!
+            </span>
+          </div>
+        </div>
+      )}
+
+      <div className="ln-page-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 16 }}>
         <div>
           <h1 className="ln-page-title">Interview Calendar</h1>
-          <p className="ln-page-subtitle">Click time slots to mark your availability. Trainees will book from these slots.</p>
+          <p className="ln-page-subtitle">Set your availability to let applicants book, or drag VIP candidates to propose specific times.</p>
+        </div>
+
+        <div style={{ display: 'flex', gap: 10 }}>
+          <button className="ln-btn ln-btn-outline" style={{ display: 'flex', alignItems: 'center', gap: 8, background: '#fff' }} onClick={() => alert("Calendar link copied to clipboard!")}>
+            <Share2 size={14} color="#475569" />
+            <span style={{ fontWeight: 600, color: '#475569' }}>Copy Booking Link</span>
+          </button>
+          <button className="ln-btn ln-btn-primary" style={{ display: 'flex', alignItems: 'center', gap: 8, background: '#0a66c2' }}>
+            <RefreshCw size={14} />
+            <span>Sync Outlook/Google</span>
+          </button>
         </div>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 320px', gap: 20, alignItems: 'start' }}>
+      {/* Smart Insights Row */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 16, marginBottom: 20 }}>
+        <div className="ln-card" style={{ padding: '16px', display: 'flex', alignItems: 'center', gap: 16, marginBottom: 0 }}>
+          <div style={{ width: 44, height: 44, borderRadius: 12, background: '#eff6ff', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#3b82f6' }}>
+            <Calendar size={20} />
+          </div>
+          <div>
+            <div style={{ fontSize: 20, fontWeight: 800, color: '#0f172a', lineHeight: 1.2 }}>{currentMonthBookings}</div>
+            <div style={{ fontSize: 12, color: '#64748b', fontWeight: 600, textTransform: 'uppercase' }}>Interviews This Month</div>
+          </div>
+        </div>
+        <div className="ln-card" style={{ padding: '16px', display: 'flex', alignItems: 'center', gap: 16, marginBottom: 0 }}>
+          <div style={{ width: 44, height: 44, borderRadius: 12, background: '#f0fdf4', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#16a34a' }}>
+            <CheckCircle2 size={20} />
+          </div>
+          <div>
+            <div style={{ fontSize: 20, fontWeight: 800, color: '#0f172a', lineHeight: 1.2 }}>{ojtAccepted}</div>
+            <div style={{ fontSize: 12, color: '#64748b', fontWeight: 600, textTransform: 'uppercase' }}>OJT Trainees Accepted</div>
+          </div>
+        </div>
+        <div className="ln-card" style={{ padding: '16px', display: 'flex', alignItems: 'center', gap: 16, marginBottom: 0 }}>
+          <div style={{ width: 44, height: 44, borderRadius: 12, background: '#fef2f2', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#dc2626' }}>
+            <Clock size={20} />
+          </div>
+          <div>
+            <div style={{ fontSize: 20, fontWeight: 800, color: '#0f172a', lineHeight: 1.2 }}>{totalActiveSlots}</div>
+            <div style={{ fontSize: 12, color: '#64748b', fontWeight: 600, textTransform: 'uppercase' }}>Active Available Slots</div>
+          </div>
+        </div>
+      </div>
+
+      <div className="ln-calendar-layout" style={{ display: 'grid', gridTemplateColumns: '1fr 340px', gap: 20, alignItems: 'start' }}>
         {/* Calendar Grid */}
         <div className="ln-card" style={{ padding: 0, overflow: 'hidden' }}>
           {/* Week Nav */}
@@ -5419,23 +5616,87 @@ const CalendarView = ({ setActivePage }) => {
                       {hour > 12 ? `${hour - 12} PM` : hour === 12 ? '12 PM' : `${hour} AM`}
                     </td>
                     {dayLabels.map((_, dayIdx) => {
-                      const avail = isSlotAvailable(dayIdx, hour);
+                      // 1. Check if the slot is marked as available by the partner
+                      const availSlot = getAvailabilitySlot(dayIdx, hour);
+                      const isAvail = !!availSlot;
+                      const capacity = availSlot?.capacity || 1; // Fallback to 1 if the DB column is empty
+
+                      // 2. Fetch specific bookings for this exact Date and Time
+                      const slotDate = new Date(weekDates[dayIdx]);
+                      slotDate.setHours(hour, 0, 0, 0);
+
+                      const slotBookings = interviewBookings.filter(b => {
+                        if (b.status === 'cancelled') return false;
+                        const bDate = new Date(b.start_time);
+                        return bDate.getFullYear() === slotDate.getFullYear() &&
+                          bDate.getMonth() === slotDate.getMonth() &&
+                          bDate.getDate() === slotDate.getDate() &&
+                          bDate.getHours() === hour;
+                      });
+
+                      const bookedCount = slotBookings.length;
+                      const isFull = isAvail && bookedCount >= capacity;
+                      const isHovered = dropHoverSlot === `${dayIdx}-${hour}`;
+
+                      // 3. Determine visual state
+                      let bg = 'transparent';
+                      let cursor = saving ? 'wait' : 'pointer';
+
+                      if (isHovered) {
+                        bg = isFull ? '#fee2e2' : '#bbf7d0'; // Red if full, Green if open
+                        cursor = isFull ? 'not-allowed' : 'copy';
+                      } else if (bookedCount > 0) {
+                        bg = isFull ? '#f1f5f9' : '#eff6ff'; // Grayish if full, Blue if partially booked
+                      } else if (isAvail) {
+                        bg = '#dcfce7'; // Green if empty and available
+                      }
+
                       return (
                         <td
                           key={dayIdx}
-                          onClick={() => toggleSlot(dayIdx, hour)}
+                          onClick={() => toggleSlot(dayIdx, hour, bookedCount)}
+                          onDragOver={(e) => handleDragOver(e, dayIdx, hour, isAvail, isFull)}
+                          onDragLeave={handleDragLeave}
+                          onDrop={(e) => handleDrop(e, dayIdx, hour, isAvail, isFull)}
                           style={{
-                            padding: 0, height: 36, textAlign: 'center',
+                            padding: '4px', height: 48, textAlign: 'center', verticalAlign: 'middle',
                             borderRight: '1px solid #e5e7eb', borderTop: '1px solid #f1f5f9',
-                            cursor: saving ? 'wait' : 'pointer',
-                            background: avail ? '#dcfce7' : 'transparent',
-                            transition: 'background 0.15s',
+                            cursor: cursor,
+                            background: bg,
+                            transition: 'all 0.2s',
+                            boxShadow: isHovered && !isFull ? 'inset 0 0 0 2px #22c55e' : (isHovered && isFull ? 'inset 0 0 0 2px #ef4444' : 'none')
                           }}
-                          onMouseEnter={e => { if (!avail) e.target.style.background = '#f0f9ff'; }}
-                          onMouseLeave={e => { if (!avail) e.target.style.background = 'transparent'; }}
-                          title={avail ? 'Click to remove availability' : 'Click to mark as available'}
+                          onMouseEnter={e => { if (!isAvail && !draggedTrainee) e.currentTarget.style.background = '#f0f9ff'; }}
+                          onMouseLeave={e => { if (!isAvail && !draggedTrainee) e.currentTarget.style.background = 'transparent'; }}
+                          title={isFull ? 'Slot is full' : (isAvail ? `Capacity: ${bookedCount}/${capacity}` : 'Click to mark as available')}
                         >
-                          {avail && <CheckCircle size={14} color="#16a34a" />}
+                          {/* Render Avatars if there are bookings */}
+                          {bookedCount > 0 ? (
+                            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
+                              <div style={{ display: 'flex', justifyContent: 'center', gap: -4 }}>
+                                {slotBookings.slice(0, 3).map((b, i) => {
+                                  const { trainee } = resolveBookingInfo(b);
+                                  return (
+                                    <div
+                                      key={i}
+                                      title={trainee?.name || 'Trainee'}
+                                      style={{ width: 22, height: 22, borderRadius: '50%', background: '#3b82f6', color: '#fff', fontSize: 10, display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold', border: '2px solid #fff', zIndex: 3 - i }}
+                                    >
+                                      {trainee?.photo ? <img src={trainee.photo} alt="" style={{ width: '100%', height: '100%', borderRadius: '50%', objectFit: 'cover' }} /> : (trainee?.name || 'T').charAt(0).toUpperCase()}
+                                    </div>
+                                  )
+                                })}
+                              </div>
+                              <span style={{ fontSize: 9, fontWeight: 700, color: isFull ? '#64748b' : '#3b82f6' }}>{bookedCount}/{capacity}</span>
+                            </div>
+                          ) : (
+                            /* Render normal availability UI */
+                            <>
+                              {isAvail && !isHovered && <CheckCircle size={14} color="#16a34a" style={{ margin: '0 auto' }} />}
+                              {isHovered && !isFull && <UserPlus size={16} color="#15803d" style={{ margin: '0 auto' }} />}
+                              {isHovered && isFull && <XCircle size={16} color="#dc2626" style={{ margin: '0 auto' }} />}
+                            </>
+                          )}
                         </td>
                       );
                     })}
@@ -5447,37 +5708,172 @@ const CalendarView = ({ setActivePage }) => {
 
           <div style={{ padding: '10px 16px', borderTop: '1px solid #e5e7eb', display: 'flex', gap: 16, fontSize: 12, color: '#64748b', alignItems: 'center' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}><div style={{ width: 14, height: 14, borderRadius: 4, background: '#dcfce7', border: '1px solid #86efac' }} /> Available</div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}><div style={{ width: 14, height: 14, borderRadius: 4, background: '#fff', border: '1px solid #e5e7eb' }} /> Unavailable</div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}><div style={{ width: 14, height: 14, borderRadius: 4, background: '#eff6ff', border: '1px solid #bfdbfe' }} /> Booked</div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}><div style={{ width: 14, height: 14, borderRadius: 4, background: '#f1f5f9', border: '1px solid #cbd5e1' }} /> Full</div>
           </div>
         </div>
 
-        {/* Sidebar: Today's Interviews */}
-        <div className="ln-card">
-          <div className="ln-widget-header"><span>Upcoming Interviews Today</span></div>
-          {todayBookings.length > 0 ? todayBookings.map(b => {
-            const { trainee, job } = resolveBookingInfo(b);
-            const bStart = new Date(b.start_time);
-            return (
-              <div key={b.id} style={{ padding: '10px 14px', borderBottom: '1px solid #f1f5f9', display: 'flex', gap: 10, alignItems: 'center' }}>
-                <div style={{ width: 36, height: 36, borderRadius: '50%', background: '#ede9fe', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#7c3aed', fontWeight: 700, flexShrink: 0 }}>
-                  {(trainee?.name || 'T').charAt(0).toUpperCase()}
-                </div>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontWeight: 600, fontSize: 13, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{trainee?.name || 'Trainee'}</div>
-                  <div style={{ fontSize: 11, color: '#64748b' }}>{job?.title || 'Position'}</div>
-                  <div style={{ fontSize: 11, color: '#7c3aed', fontWeight: 600 }}>{bStart.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}</div>
-                </div>
-                <span className={`ln-badge ${b.status === 'scheduled' ? 'ln-badge-blue' : b.status === 'completed' ? 'ln-badge-green' : 'ln-badge-red'}`} style={{ fontSize: 10 }}>{b.status}</span>
-              </div>
-            );
-          }) : (
-            <div className="ln-empty-widget" style={{ padding: 24 }}>
-              <Calendar size={28} style={{ opacity: 0.3 }} />
-              <p style={{ fontSize: 13 }}>No interviews scheduled today</p>
+        {/* Right Sidebar */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+
+          {/* Top Trainee Matches (Drag and Drop / Headhunting) */}
+          <div className="ln-card">
+            <div className="ln-widget-header" style={{ borderBottom: 'none', paddingBottom: 0 }}>
+              <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <Target size={16} color="#0a66c2" /> VIP Headhunting Matches
+              </span>
             </div>
-          )}
+
+            <div style={{ padding: '10px 16px 16px' }}>
+              <div style={{ fontSize: 12, color: '#64748b', marginBottom: 12, lineHeight: 1.4 }}>
+                Drag these top matches to an open slot to propose a specific time, or just click to send your calendar link.
+              </div>
+
+              {topMatches.length > 0 ? (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                  {topMatches.map((match) => (
+                    <div
+                      key={`match-${match.trainee.id}`}
+                      draggable
+                      onDragStart={(e) => handleDragStart(e, match)}
+                      onDragEnd={handleDragEnd}
+                      style={{
+                        border: '1px solid #e2e8f0',
+                        borderRadius: 10,
+                        padding: '10px',
+                        background: '#fff',
+                        cursor: 'grab',
+                        display: 'flex',
+                        gap: 10,
+                        alignItems: 'center',
+                        boxShadow: '0 1px 3px rgba(0,0,0,0.05)',
+                        transition: 'transform 0.1s, box-shadow 0.1s'
+                      }}
+                      onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-2px)'; e.currentTarget.style.boxShadow = '0 4px 6px rgba(0,0,0,0.05)'; }}
+                      onMouseLeave={e => { e.currentTarget.style.transform = 'none'; e.currentTarget.style.boxShadow = '0 1px 3px rgba(0,0,0,0.05)'; }}
+                    >
+                      <div
+                        style={{ width: 36, height: 36, borderRadius: '50%', background: '#f0fdf4', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#16a34a', fontWeight: 700, flexShrink: 0, overflow: 'hidden', cursor: 'pointer' }}
+                        onClick={() => openProfile({ id: match.trainee.id, type: 'trainee' })}
+                      >
+                        {match.trainee.photo ? <img src={match.trainee.photo} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : match.trainee.name.charAt(0).toUpperCase()}
+                      </div>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                          <div
+                            style={{ fontWeight: 700, fontSize: 13, color: '#0f172a', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', cursor: 'pointer' }}
+                            onClick={() => openProfile({ id: match.trainee.id, type: 'trainee' })}
+                          >
+                            {match.trainee.name}
+                          </div>
+                          <span style={{ fontSize: 11, fontWeight: 800, color: '#d97706', background: '#fef3c7', padding: '2px 6px', borderRadius: 4 }}>{match.matchRate}% Match</span>
+                        </div>
+                        <div style={{ fontSize: 11, color: '#64748b', marginTop: 2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{match.job.title}</div>
+                      </div>
+                      {/* Quick Invite Button */}
+                      <button
+                        onClick={() => handleGeneralInvite(match)}
+                        className="ln-btn-icon"
+                        style={{ color: '#0a66c2', background: '#f0f7ff', width: 28, height: 28 }}
+                        title="Send General Invite"
+                      >
+                        <Send size={14} />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div style={{ padding: '20px 10px', textAlign: 'center', background: '#f8fafc', borderRadius: 8, border: '1px dashed #cbd5e1' }}>
+                  <Info size={20} color="#94a3b8" style={{ margin: '0 auto 8px' }} />
+                  <div style={{ fontSize: 13, color: '#475569', fontWeight: 500 }}>No strong matches right now</div>
+                  <div style={{ fontSize: 12, color: '#94a3b8', marginTop: 4 }}>Post more opportunities or check back later.</div>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Today's Interviews Widget */}
+          <div className="ln-card">
+            <div className="ln-widget-header"><span>Upcoming Interviews Today</span></div>
+            {todayBookings.length > 0 ? todayBookings.map(b => {
+              const { trainee, job } = resolveBookingInfo(b);
+              const bStart = new Date(b.start_time);
+              return (
+                <div key={b.id} style={{ padding: '10px 14px', borderBottom: '1px solid #f1f5f9', display: 'flex', gap: 10, alignItems: 'center' }}>
+                  <div style={{ width: 36, height: 36, borderRadius: '50%', background: '#ede9fe', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#7c3aed', fontWeight: 700, flexShrink: 0 }}>
+                    {(trainee?.name || 'T').charAt(0).toUpperCase()}
+                  </div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div
+                      onClick={() => openProfile({ id: trainee?.id, type: 'trainee' })}
+                      style={{ fontWeight: 600, fontSize: 13, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', cursor: 'pointer' }}
+                    >
+                      {trainee?.name || 'Trainee'}
+                    </div>
+                    <div style={{ fontSize: 11, color: '#64748b' }}>{job?.title || 'Position'}</div>
+                    <div style={{ fontSize: 11, color: '#7c3aed', fontWeight: 600 }}>{bStart.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}</div>
+                  </div>
+                  <span className={`ln-badge ${b.status === 'scheduled' ? 'ln-badge-blue' : b.status === 'completed' ? 'ln-badge-green' : 'ln-badge-red'}`} style={{ fontSize: 10 }}>{b.status}</span>
+                </div>
+              );
+            }) : (
+              <div className="ln-empty-widget" style={{ padding: 24 }}>
+                <Calendar size={28} style={{ opacity: 0.3 }} />
+                <p style={{ fontSize: 13 }}>No interviews scheduled today</p>
+              </div>
+            )}
+          </div>
         </div>
       </div>
+
+      {/* Trainee Invite Modal */}
+      {inviteModal && (
+        <div className="modal-overlay" onClick={() => setInviteModal(null)}>
+          <div className="ln-modal" onClick={e => e.stopPropagation()} style={{ maxWidth: 500 }}>
+            <div className="ln-modal-header">
+              <div>
+                <h3 className="ln-modal-title">{inviteModal.isGeneral ? 'Send General Invite' : 'Propose Interview Time'}</h3>
+                <p style={{ fontSize: 13, color: 'rgba(0,0,0,0.5)', marginTop: 2 }}>
+                  {inviteModal.isGeneral
+                    ? `Invite ${inviteModal.trainee.name} to book an interview slot.`
+                    : `Propose ${inviteModal.date.toLocaleDateString()} at ${inviteModal.hour > 12 ? inviteModal.hour - 12 : (inviteModal.hour === 12 ? 12 : inviteModal.hour)}${inviteModal.hour >= 12 ? ' PM' : ' AM'}`}
+                </p>
+              </div>
+              <button className="ln-btn-icon" onClick={() => setInviteModal(null)}><X size={18} /></button>
+            </div>
+
+            <div style={{ padding: '0 0 16px' }}>
+              <div style={{ padding: 16, background: '#f0f7ff', borderRadius: 12, marginBottom: 16 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <div style={{ width: 40, height: 40, borderRadius: '50%', background: '#dbeafe', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, color: '#1e40af', fontSize: 16 }}>
+                    {(inviteModal.trainee?.name || 'T').charAt(0).toUpperCase()}
+                  </div>
+                  <div>
+                    <div style={{ fontWeight: 700, fontSize: 15 }}>{inviteModal.trainee?.name || 'Trainee'}</div>
+                    <div style={{ fontSize: 13, color: '#64748b' }}>Top Match for: {inviteModal.job?.title}</div>
+                  </div>
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 12 }}>
+                <label style={{ fontSize: 13, fontWeight: 700, color: '#334155' }}>Message</label>
+                <textarea
+                  value={inviteMessage}
+                  onChange={(e) => setInviteMessage(e.target.value)}
+                  style={{ width: '100%', minHeight: 140, padding: 12, borderRadius: 8, border: '1px solid #cbd5e1', fontSize: 13, resize: 'vertical' }}
+                />
+              </div>
+            </div>
+
+            <div className="ln-modal-footer">
+              <button className="ln-btn ln-btn-outline" onClick={() => setInviteModal(null)}>Cancel</button>
+              <button className="ln-btn ln-btn-primary" disabled={sendingInvite} onClick={submitInvite}>
+                <Send size={15} /> {sendingInvite ? 'Sending...' : 'Send Invite'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

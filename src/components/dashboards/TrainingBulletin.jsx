@@ -28,15 +28,6 @@ const POST_TYPES = [
         partnerActions: ['Register Apprentice', 'Inquire', 'Save'],
     },
     {
-        id: 'certification_assessment',
-        label: 'Certification Assessment',
-        icon: <FileText size={16} />,
-        color: '#16a34a',
-        bg: '#dcfce7',
-        traineeActions: ['Register', 'Inquire', 'Save'],
-        partnerActions: ['Register Apprentice', 'Inquire', 'Save'],
-    },
-    {
         id: 'announcement',
         label: 'General Announcement',
         icon: <Megaphone size={16} />,
@@ -78,20 +69,22 @@ const emptyForm = {
     requirements: '',
     status: 'Open',
     accept_referrals: true,
+    image: null,
+    imagePreview: null,
 };
 
 const formatBulletinDate = (dateStr) => {
     if (!dateStr) return '';
     // If it's already a nice format (not ISO date-only), return as is
     if (dateStr.includes('–') || dateStr.includes('-') && dateStr.split('-').length !== 3) return dateStr;
-    
+
     const date = new Date(dateStr);
     if (isNaN(date.getTime())) return dateStr;
-    
-    return date.toLocaleDateString('en-US', { 
-        month: 'long', 
-        day: 'numeric', 
-        year: 'numeric' 
+
+    return date.toLocaleDateString('en-US', {
+        month: 'long',
+        day: 'numeric',
+        year: 'numeric'
     });
 };
 
@@ -100,12 +93,12 @@ const PreviewCard = ({ form, viewAs }) => {
     const pt = getPostType(form.post_type);
     const isAnnouncement = form.post_type === 'announcement';
     let actions = viewAs === 'trainee' ? pt.traineeActions : pt.partnerActions;
-    
+
     // Dynamically add Refer Apprentice if enabled for announcements
     if (viewAs === 'partner' && form.accept_referrals && isAnnouncement && !actions.includes('Refer Apprentice')) {
         actions = ['Refer Apprentice', ...actions];
     }
-    
+
     const reqs = form.requirements ? form.requirements.split('\n').filter(Boolean) : [];
 
     const actionBtnStyle = (label) => {
@@ -141,11 +134,13 @@ const PreviewCard = ({ form, viewAs }) => {
 
             {/* Body */}
             <div style={{ padding: '16px' }}>
+                {form.imagePreview && (
+                    <div style={{ width: '100%', height: 180, marginBottom: 14, borderRadius: 8, overflow: 'hidden', border: '1px solid #e2e8f0' }}>
+                        <img src={form.imagePreview} alt="Post Cover" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                    </div>
+                )}
                 <div style={{ fontWeight: 800, fontSize: 16, color: '#0f172a', marginBottom: 4 }}>
                     {form.title || <span style={{ color: '#94a3b8' }}>Post Title</span>}
-                </div>
-                <div style={{ fontSize: 13.5, color: '#475569', lineHeight: 1.6, marginBottom: 12 }}>
-                    {form.content || <span style={{ color: '#cbd5e1' }}>Post description will appear here...</span>}
                 </div>
 
                 {!isAnnouncement && (
@@ -204,7 +199,7 @@ const PreviewCard = ({ form, viewAs }) => {
 };
 
 // ─── POST FORM MODAL ──────────────────────────────────────────────────────────
-const PostFormModal = ({ editPost, onClose, onSave, saving }) => {
+const PostFormModal = ({ editPost, onClose, onSave, saving, programs }) => {
     const [form, setForm] = useState(editPost ? {
         post_type: editPost.post_type || 'training_batch',
         title: editPost.title || '',
@@ -215,6 +210,8 @@ const PostFormModal = ({ editPost, onClose, onSave, saving }) => {
         requirements: Array.isArray(editPost.requirements) ? editPost.requirements.join('\n') : (editPost.requirements || ''),
         status: editPost.status || 'Open',
         accept_referrals: editPost.accept_referrals !== false,
+        image: null,
+        imagePreview: editPost.image_url || null,
     } : { ...emptyForm });
     const [previewAs, setPreviewAs] = useState('trainee');
     const [showPreview, setShowPreview] = useState(false);
@@ -277,15 +274,60 @@ const PostFormModal = ({ editPost, onClose, onSave, saving }) => {
                             </div>
                         </div>
 
-                        {/* Title */}
+                        {/* Title / Program Select */}
                         <div style={{ marginBottom: 14 }}>
-                            <label style={{ fontSize: 12, fontWeight: 700, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.05em', display: 'block', marginBottom: 6 }}>Title *</label>
+                            <label style={{ fontSize: 12, fontWeight: 700, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.05em', display: 'block', marginBottom: 6 }}>
+                                {isAnnouncement ? 'Title *' : 'Program *'}
+                            </label>
+                            {isAnnouncement ? (
+                                <input
+                                    value={form.title}
+                                    onChange={e => set('title', e.target.value)}
+                                    placeholder="e.g. Campus Holiday Closure"
+                                    style={{ width: '100%', padding: '10px 12px', borderRadius: 8, border: '1.5px solid #e2e8f0', fontSize: 14, outline: 'none', boxSizing: 'border-box' }}
+                                />
+                            ) : (
+                                <select
+                                    value={form.title}
+                                    onChange={e => set('title', e.target.value)}
+                                    style={{ width: '100%', padding: '10px 12px', borderRadius: 8, border: '1.5px solid #e2e8f0', fontSize: 14, outline: 'none', boxSizing: 'border-box', background: '#fff' }}
+                                >
+                                    <option value="" disabled>Select a Program</option>
+                                    {programs && programs.map(p => (
+                                        <option key={p.id} value={p.name}>
+                                            {p.name}{p.ncLevel ? ` - ${p.ncLevel}` : ''}
+                                        </option>
+                                    ))}
+                                </select>
+                            )}
+                        </div>
+
+                        {/* Image Upload */}
+                        <div style={{ marginBottom: 14 }}>
+                            <label style={{ fontSize: 12, fontWeight: 700, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.05em', display: 'block', marginBottom: 6 }}>Feature Image <span style={{ color: '#94a3b8', textTransform: 'none', fontWeight: 400 }}>(Optional)</span></label>
                             <input
-                                value={form.title}
-                                onChange={e => set('title', e.target.value)}
-                                placeholder="e.g. Computer Systems Servicing NC II"
-                                style={{ width: '100%', padding: '10px 12px', borderRadius: 8, border: '1.5px solid #e2e8f0', fontSize: 14, outline: 'none', boxSizing: 'border-box' }}
+                                type="file"
+                                accept="image/*"
+                                onChange={e => {
+                                    const file = e.target.files[0];
+                                    if (file) {
+                                        set('image', file);
+                                        set('imagePreview', URL.createObjectURL(file));
+                                    }
+                                }}
+                                style={{ width: '100%', padding: '8px', borderRadius: 8, border: '1.5px dashed #cbd5e1', fontSize: 13, outline: 'none', boxSizing: 'border-box', background: '#f8fafc', cursor: 'pointer' }}
                             />
+                            {form.imagePreview && (
+                                <div style={{ marginTop: 8, position: 'relative', width: '100%', height: 140, borderRadius: 8, overflow: 'hidden', border: '1px solid #e2e8f0' }}>
+                                    <img src={form.imagePreview} alt="Preview" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                                    <button
+                                        onClick={() => { set('image', null); set('imagePreview', null); }}
+                                        style={{ position: 'absolute', top: 6, right: 6, background: 'rgba(0,0,0,0.6)', color: '#fff', border: 'none', borderRadius: '50%', width: 24, height: 24, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}
+                                    >
+                                        <X size={14} />
+                                    </button>
+                                </div>
+                            )}
                         </div>
 
                         {/* Content */}
@@ -438,7 +480,7 @@ export default function TrainingBulletin() {
     const {
         posts, createPost, adminUpdatePost, adminDeletePost,
         postInteractions, fetchPostInteractions, updatePostInteractionStatus, getPostInteractions,
-        currentUser, fetchPosts, trainees, partners
+        currentUser, fetchPosts, trainees, partners, programs
     } = useApp();
 
     const [showForm, setShowForm] = useState(false);
@@ -468,7 +510,7 @@ export default function TrainingBulletin() {
 
     // Filter to only admin/bulletin posts
     const bulletinPosts = posts.filter(p =>
-        ['training_batch', 'exam_schedule', 'certification_assessment', 'announcement'].includes(p.post_type)
+        ['training_batch', 'exam_schedule', 'announcement'].includes(p.post_type)
     );
 
     const filtered = bulletinPosts.filter(p => {
@@ -492,6 +534,7 @@ export default function TrainingBulletin() {
             status: form.status || 'Open',
             accept_referrals: form.accept_referrals !== false,
             author_type: 'student',
+            image_url: form.imagePreview || null,
             tags: [],
         };
 
@@ -705,8 +748,8 @@ export default function TrainingBulletin() {
                     const allTabs = selectedPost.post_type === 'announcement'
                         ? (selectedPost.accept_referrals ? ['refer', 'inquire'] : ['inquire'])
                         : selectedPost.post_type === 'training_batch'
-                        ? ['apply', 'refer', 'inquire']
-                        : ['register', 'refer', 'inquire'];
+                            ? ['apply', 'refer', 'inquire']
+                            : ['register', 'refer', 'inquire'];
 
                     return (
                         <div style={{ background: '#fff', borderRadius: 12, border: `2px solid ${pt.color}`, overflow: 'hidden', alignSelf: 'flex-start', position: 'sticky', top: 20 }}>
@@ -757,8 +800,8 @@ export default function TrainingBulletin() {
                                 ) : (
                                     tabInteractions.map(interaction => {
                                         const d = interaction.details || {};
-                                        const userName = d.user_name || (interaction.user_type === 'student' 
-                                            ? trainees.find(t => t.id === interaction.user_id)?.full_name 
+                                        const userName = d.user_name || (interaction.user_type === 'student'
+                                            ? trainees.find(t => t.id === interaction.user_id)?.full_name
                                             : partners.find(p => p.id === interaction.user_id)?.company_name)
                                             || `User ${interaction.user_id?.slice(0, 8)}`;
 
@@ -833,6 +876,7 @@ export default function TrainingBulletin() {
                     onClose={() => { setShowForm(false); setEditPost(null); }}
                     onSave={handleSave}
                     saving={saving}
+                    programs={programs}
                 />
             )}
         </div>

@@ -10,7 +10,7 @@ import {
 } from 'lucide-react';
 import {
     BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid,
-    Tooltip, Legend, ResponsiveContainer
+    Tooltip, Legend, ResponsiveContainer, LineChart, Line
 } from 'recharts';
 import { Routes, Route, useNavigate, useLocation, Navigate } from 'react-router-dom';
 import BrandLogo from '../common/BrandLogo';
@@ -30,21 +30,21 @@ const TablePagination = ({ currentPage, totalItems, pageSize, onPageChange }) =>
                 Showing <b>{startIdx}</b> to <b>{endIdx}</b> of <b>{totalItems}</b> entries
             </div>
             <div className="admin-pagination-controls">
-                <button 
-                    className="admin-pagination-btn" 
+                <button
+                    className="admin-pagination-btn"
                     disabled={currentPage === 1}
                     onClick={() => onPageChange(currentPage - 1)}
                 >
                     <ChevronLeft size={16} />
                 </button>
-                
+
                 <div className="admin-pagination-numbers">
                     {Array.from({ length: totalPages }, (_, i) => i + 1)
                         .filter(p => p === 1 || p === totalPages || (p >= currentPage - 1 && p <= currentPage + 1))
                         .map((p, i, arr) => (
                             <React.Fragment key={p}>
                                 {i > 0 && arr[i - 1] !== p - 1 && <span className="admin-pagination-ellipsis" style={{ color: '#94a3b8', padding: '0 4px' }}>...</span>}
-                                <button 
+                                <button
                                     className={`admin-pagination-num ${currentPage === p ? 'active' : ''}`}
                                     onClick={() => onPageChange(p)}
                                 >
@@ -54,8 +54,8 @@ const TablePagination = ({ currentPage, totalItems, pageSize, onPageChange }) =>
                         ))}
                 </div>
 
-                <button 
-                    className="admin-pagination-btn" 
+                <button
+                    className="admin-pagination-btn"
                     disabled={currentPage === totalPages}
                     onClick={() => onPageChange(currentPage + 1)}
                 >
@@ -164,119 +164,347 @@ const AppLayout = ({ sidebar, children, pageTitle, pageSubtitle }) => {
 // — SIDEBAR —————————————————————————————————————————————————————————————————
 const AdminSidebar = ({ activePage, setActivePage, mobileOpen, closeSidebar }) => {
     const { logout } = useApp();
-    const navItems = [
-        { id: 'dashboard', label: 'Dashboard', icon: <LayoutDashboard size={17} /> },
-        { id: 'trainees', label: 'Manage Trainees', icon: <Users size={17} /> },
-        { id: 'programs', label: 'TESDA Programs', icon: <Award size={17} /> },
-        { id: 'partners', label: 'Industry Partners', icon: <Building2 size={17} /> },
-        { id: 'accounts', label: 'Manage Accounts', icon: <UserCheck size={17} /> },
-        { id: 'bulletin', label: 'Training Bulletin', icon: <BookOpen size={17} /> },
-        { id: 'jobs', label: 'Opportunities Oversight', icon: <Briefcase size={17} /> },
-        { id: 'employment', label: 'Employment Tracking', icon: <TrendingUp size={17} /> },
-        { id: 'activity-log', label: 'Activity Log', icon: <FileText size={17} /> },
-        { id: 'settings', label: 'System Settings', icon: <Settings size={17} /> },
+
+    // State to manage expanded/collapsed categories
+    const [expandedCategories, setExpandedCategories] = useState({
+        'Overview': true,
+        'User Management': true,
+        'Training & Employment': true,
+        'Content & Opportunities': true,
+        'System': true
+    });
+
+    const toggleCategory = (categoryTitle) => {
+        setExpandedCategories(prev => ({
+            ...prev,
+            [categoryTitle]: !prev[categoryTitle]
+        }));
+    };
+
+    // Categorized navigation structure
+    const navCategories = [
+        {
+            title: 'Overview',
+            items: [
+                { id: 'dashboard', label: 'Dashboard', icon: <LayoutDashboard size={17} /> },
+                { id: 'analytics', label: 'Analytics Reports', icon: <BarChart2 size={17} /> },
+            ]
+        },
+        {
+            title: 'User Management',
+            items: [
+                { id: 'accounts', label: 'Manage Accounts', icon: <UserCheck size={17} /> },
+                { id: 'trainees', label: 'Manage Trainees', icon: <Users size={17} /> },
+                { id: 'partners', label: 'Industry Partners', icon: <Building2 size={17} /> },
+            ]
+        },
+        {
+            title: 'Training & Employment',
+            items: [
+                { id: 'programs', label: 'TESDA Programs', icon: <Award size={17} /> },
+                { id: 'employment', label: 'Employment Tracking', icon: <TrendingUp size={17} /> },
+            ]
+        },
+        {
+            title: 'Content & Opportunities',
+            items: [
+                { id: 'bulletin', label: 'Training Bulletin', icon: <BookOpen size={17} /> },
+                { id: 'jobs', label: 'Opportunities Oversight', icon: <Briefcase size={17} /> },
+            ]
+        },
+        {
+            title: 'System',
+            items: [
+                { id: 'activity-log', label: 'Activity Log', icon: <FileText size={17} /> },
+                { id: 'settings', label: 'System Settings', icon: <Settings size={17} /> },
+            ]
+        }
     ];
-    const handleNav = (id) => { setActivePage(id); if (closeSidebar) closeSidebar(); };
+
+    const handleNav = (id) => {
+        setActivePage(id);
+        if (closeSidebar) closeSidebar();
+    };
+
     return (
-        <nav className={`sidebar ${mobileOpen ? 'open' : ''}`}>
-            <div className="sidebar-brand">
-                <BrandLogo 
-                    size={40} 
-                    fallbackClassName="sidebar-logo" 
-                    fallbackStyle={{ background: 'linear-gradient(135deg, #7c3aed, #db2777)' }} 
+        <nav className={`sidebar ${mobileOpen ? 'open' : ''}`} style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
+            <div className="sidebar-brand" style={{ paddingBottom: '20px', borderBottom: '1px solid #e2e8f0', marginBottom: '16px', flexShrink: 0 }}>
+                <BrandLogo
+                    size={40}
+                    fallbackClassName="sidebar-logo"
+                    fallbackStyle={{ background: 'linear-gradient(135deg, #7c3aed, #db2777)' }}
                 />
                 <div className="sidebar-brand-text">
-                    <div className="sidebar-brand-name">TraineeTrack</div>
-                    <div className="sidebar-brand-sub">Admin Panel</div>
+                    <div className="sidebar-brand-name" style={{ fontWeight: 800 }}>TraineeTrack</div>
+                    <div className="sidebar-brand-sub" style={{ color: '#64748b', fontSize: 12 }}>Admin Panel</div>
                 </div>
             </div>
-            <div className="sidebar-section-label">Management</div>
-            <div className="sidebar-nav">
-                {navItems.map(item => (
-                    <div key={item.id} className={`sidebar-item ${activePage === item.id ? 'active' : ''}`} onClick={() => handleNav(item.id)}>
-                        {item.icon} {item.label}
-                    </div>
-                ))}
+
+            <style>{`
+                .sidebar-nav::-webkit-scrollbar { width: 4px; }
+                .sidebar-nav::-webkit-scrollbar-track { background: transparent; }
+                .sidebar-nav::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.2); border-radius: 4px; }
+                .sidebar-nav:hover::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.3); }
+            `}</style>
+            <div className="sidebar-nav" style={{ flex: 1, paddingRight: '8px', overflowY: 'auto', overflowX: 'hidden', minHeight: 0 }}>
+                {navCategories.map((category) => {
+                    const isExpanded = expandedCategories[category.title];
+
+                    return (
+                        <div key={category.title} style={{ marginBottom: '12px' }}>
+                            {/* Category Header */}
+                            <div
+                                onClick={() => toggleCategory(category.title)}
+                                style={{
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'space-between',
+                                    padding: '8px 12px',
+                                    cursor: 'pointer',
+                                    color: '#94a3b8',
+                                    userSelect: 'none',
+                                    transition: 'color 0.2s'
+                                }}
+                                onMouseEnter={(e) => e.currentTarget.style.color = '#475569'}
+                                onMouseLeave={(e) => e.currentTarget.style.color = '#94a3b8'}
+                            >
+                                <span style={{
+                                    fontSize: '11px',
+                                    fontWeight: 700,
+                                    textTransform: 'uppercase',
+                                    letterSpacing: '0.05em'
+                                }}>
+                                    {category.title}
+                                </span>
+                                {isExpanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+                            </div>
+
+                            {/* Category Items (Collapsible) */}
+                            {isExpanded && (
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', marginTop: '4px' }}>
+                                    {category.items.map(item => (
+                                        <div
+                                            key={item.id}
+                                            className={`sidebar-item ${activePage === item.id ? 'active' : ''}`}
+                                            onClick={() => handleNav(item.id)}
+                                            style={{
+                                                paddingLeft: '16px',
+                                                margin: '0 8px',
+                                                borderRadius: '8px',
+                                                transition: 'all 0.2s'
+                                            }}
+                                        >
+                                            <span style={{
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                justifyContent: 'center',
+                                                color: activePage === item.id ? '#FFFFFF' : '#64748b'
+                                            }}>
+                                                {item.icon}
+                                            </span>
+                                            <span style={{
+                                                fontWeight: activePage === item.id ? 600 : 500,
+                                                color: activePage === item.id ? '#FFFFFF' : '#475569'
+                                            }}>
+                                                {item.label}
+                                            </span>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
+                    );
+                })}
             </div>
-            <div className="sidebar-footer">
-                <div className="sidebar-user">
+
+            <div className="sidebar-footer" style={{ borderTop: '1px solid #e2e8f0', marginTop: 'auto', paddingTop: '16px', flexShrink: 0 }}>
+                <div className="sidebar-user" style={{ marginBottom: '12px' }}>
                     <div className="sidebar-avatar" style={{ background: 'linear-gradient(135deg, #7c3aed, #db2777)' }}>AD</div>
                     <div className="sidebar-user-info">
-                        <div className="sidebar-user-name">PSTDII Admin</div>
-                        <div className="sidebar-user-role">Administrator</div>
+                        <div className="sidebar-user-name" style={{ fontWeight: 600 }}>PSTDII Admin</div>
+                        <div className="sidebar-user-role" style={{ fontSize: 12, color: '#64748b' }}>Administrator</div>
                     </div>
                 </div>
-                <div className="sidebar-item" onClick={logout} style={{ color: '#f87171' }}><LogOut size={16} /> Sign Out</div>
+                <div
+                    className="sidebar-item"
+                    onClick={logout}
+                    style={{
+                        color: '#ef4444',
+                        margin: '0 8px',
+                        padding: '10px 12px',
+                        borderRadius: '8px',
+                        cursor: 'pointer'
+                    }}
+                    onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#fee2e2'}
+                    onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+                >
+                    <LogOut size={16} /> <span style={{ fontWeight: 500 }}>Sign Out</span>
+                </div>
             </div>
         </nav>
     );
 };
 
 // — PAGE 1: ADMIN DASHBOARD —————————————————————————————————————————————————
+// ——— PAGE 1: ADMIN DASHBOARD (COMMAND CENTER) ——————————————————————————————
 const AdminHome = ({ setActivePage }) => {
-    const { trainees, partners, jobPostings, getEmploymentStats } = useApp();
+    const { trainees, partners, jobPostings, applications, getEmploymentStats, getSkillsDemand } = useApp();
     const stats = getEmploymentStats();
-     
-    const _skillsDemand = null;
-    const statCards = [
-        { label: 'Total Trainees', value: trainees.length, icon: <Users size={22} color="#7c3aed" />, bg: '#ede9fe', sub: `${stats.employed} employed` },
-        { label: 'Employment Rate', value: `${stats.employmentRate}%`, icon: <TrendingUp size={22} color="#16a34a" />, bg: '#dcfce7', sub: `${stats.unemployed} still unemployed` },
-        { label: 'Active Partners', value: partners.filter(p => p.verificationStatus === 'Verified').length, icon: <Building2 size={22} color="#0ea5e9" />, bg: '#e0f2fe', sub: `${partners.filter(p => p.verificationStatus === 'Pending').length} pending approval` },
-        { label: 'Active Opportunities', value: jobPostings.filter(j => j.status === 'Open').length, icon: <Briefcase size={22} color="#d97706" />, bg: '#fef3c7', sub: `${jobPostings.length} total postings` },
-    ];
-    const employmentChartData = [
-        { name: '🟦 Employed', value: stats.employed || 0, color: '#3b82f6' },
-        { name: '🟨 Seeking Employment', value: stats.seeking_employment || 0, color: '#eab308' },
-        { name: '🟥 Not Employed', value: stats.not_employed || 0, color: '#ef4444' },
-    ];
-    // Build cert data dynamically from all programs that trainees hold
-    const allCerts = [...new Set(trainees.flatMap(t => (t.certifications || []).map(c => typeof c === 'object' ? c.name : c)).filter(Boolean))];
-    const certData = allCerts.map(cert => ({
-        name: cert.length > 25 ? cert.replace(/\(.*?\)/g, '').trim().substring(0, 25) + '…' : cert,
-        fullName: cert,
-        trainees: trainees.filter(t => (t.certifications || []).some(c => (typeof c === 'object' ? c.name : c) === cert)).length,
-    })).filter(c => c.trainees > 0);
+
+    // Export Handlers (Mock)
+    const handleExportReport = () => alert("Compiling full platform report into PDF...");
+    const handleExportCSV = () => alert("Exporting table data to CSV...");
+    const handleExportChart = (chartName) => alert(`Exporting ${chartName} as PNG...`);
+
+    // KPI Calculations
+    const activePartners = partners.filter(p => p.verificationStatus === 'Verified').length;
+    const pendingMatches = applications.filter(a => a.status === 'Pending').length;
+
+    // Competency Supply vs Demand (Grouped Bar Chart)
+    const skillsDemand = getSkillsDemand();
+    const supplyDemandData = skillsDemand.map(d => {
+        const supply = trainees.filter(t =>
+            (t.skills || []).some(s => (typeof s === 'object' ? s.name : s).toLowerCase() === d.skill.toLowerCase()) ||
+            (t.competencies || []).some(c => c.toLowerCase() === d.skill.toLowerCase()) ||
+            (t.certifications || []).some(c => (typeof c === 'object' ? c.name : c).toLowerCase().includes(d.skill.toLowerCase()))
+        ).length;
+        return {
+            name: d.skill.length > 15 ? d.skill.substring(0, 15) + '...' : d.skill,
+            Demand: d.count,
+            Supply: supply
+        };
+    });
+
+    // Top Performing Sectors (Donut Chart)
+    const sectors = {};
+    jobPostings.forEach(j => {
+        const ind = j.industry || 'General';
+        sectors[ind] = (sectors[ind] || 0) + 1;
+    });
+    const sectorData = Object.keys(sectors).map(k => ({ name: k, value: sectors[k] })).sort((a, b) => b.value - a.value).slice(0, 5);
+    const COLORS = ['#7c3aed', '#0ea5e9', '#16a34a', '#d97706', '#db2777'];
+
+    // Normalized Date Formatter
+    const formatNormalizedDate = (dateStr) => {
+        if (!dateStr) return 'N/A';
+        const d = new Date(dateStr);
+        if (isNaN(d.getTime())) return dateStr;
+        return d.toLocaleString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', hour: 'numeric', minute: '2-digit' });
+    };
+
+    // Table Data Prep
+    const recentMatches = applications.slice().sort((a, b) => new Date(b.appliedAt) - new Date(a.appliedAt)).slice(0, 4).map(app => {
+        const trainee = trainees.find(t => t.id === app.traineeId);
+        const job = jobPostings.find(j => j.id === app.jobId);
+        return { ...app, traineeName: trainee?.name || 'Unknown Trainee', jobTitle: job?.title || 'Unknown Job', company: job?.companyName || 'Unknown Company' };
+    });
+
     return (
         <div>
-            <div style={{ background: 'linear-gradient(135deg, #4c1d95 0%, #7c3aed 60%, #db2777 100%)', borderRadius: 16, padding: '22px 28px', marginBottom: 24, color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12 }}>
+            {/* Header with Report Export */}
+            <div style={{ background: 'linear-gradient(135deg, #0f172a 0%, #1e293b 100%)', borderRadius: 16, padding: '22px 28px', marginBottom: 24, color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12 }}>
                 <div>
-                    <div style={{ fontSize: 20, fontWeight: 800 }}>Admin Dashboard</div>
-                    <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.7)', marginTop: 4 }}>Philippine School for Technology Development and Innovation Inc.</div>
+                    <div style={{ fontSize: 22, fontWeight: 800 }}>Command Center</div>
+                    <div style={{ fontSize: 13, color: '#94a3b8', marginTop: 4 }}>Real-time graduate employability & competency tracking</div>
                 </div>
-                <button className="btn" style={{ background: 'rgba(255,255,255,0.15)', color: 'white', border: '1px solid rgba(255,255,255,0.3)' }} onClick={() => setActivePage('analytics')}>
-                    <BarChart2 size={15} /> View Reports
+                <button className="btn btn-primary" style={{ background: '#7c3aed', border: 'none', gap: 8 }} onClick={handleExportReport}>
+                    <Download size={15} /> Generate Report (PDF)
                 </button>
             </div>
-            <div className="stats-grid">
-                {statCards.map((s, i) => (
-                    <div key={i} className="stat-card">
-                        <div className="stat-icon" style={{ background: s.bg }}>{s.icon}</div>
-                        <div className="stat-info"><div className="stat-label">{s.label}</div><div className="stat-value">{s.value}</div><div className="stat-sub">{s.sub}</div></div>
-                    </div>
-                ))}
+
+            {/* KPI Cards */}
+            <div className="stats-grid" style={{ marginBottom: 24 }}>
+                <div className="stat-card" style={{ borderLeft: '4px solid #7c3aed' }}>
+                    <div className="stat-info"><div className="stat-label">Total Active Partners</div><div className="stat-value" style={{ fontSize: 28 }}>{activePartners}</div><div className="stat-sub">Verified & recruiting</div></div>
+                </div>
+                <div className="stat-card" style={{ borderLeft: '4px solid #16a34a' }}>
+                    <div className="stat-info"><div className="stat-label">Placement Rate</div><div className="stat-value" style={{ fontSize: 28 }}>{stats.employmentRate}%</div><div className="stat-sub">{stats.employed} graduates hired</div></div>
+                </div>
+                <div className="stat-card" style={{ borderLeft: '4px solid #d97706' }}>
+                    <div className="stat-info"><div className="stat-label">Pending Job Matches</div><div className="stat-value" style={{ fontSize: 28 }}>{pendingMatches}</div><div className="stat-sub">Awaiting partner review</div></div>
+                </div>
+                <div className="stat-card" style={{ borderLeft: '4px solid #0ea5e9' }}>
+                    <div className="stat-info"><div className="stat-label">Active Opportunities</div><div className="stat-value" style={{ fontSize: 28 }}>{jobPostings.filter(j => j.status === 'Open').length}</div><div className="stat-sub">Open job postings</div></div>
+                </div>
             </div>
-            <div className="two-col" style={{ marginBottom: 20 }}>
-                <div className="chart-wrap">
-                    <div className="chart-title">Trainee Employment Status</div>
-                    <div className="chart-subtitle">Distribution across employment categories</div>
-                    <ResponsiveContainer width="100%" height={220}>
-                        <PieChart><Pie data={employmentChartData} cx="50%" cy="50%" innerRadius={55} outerRadius={90} paddingAngle={3} dataKey="value" label={({ name, value }) => value > 0 ? `${name}: ${value}` : null} labelLine={false}>
-                            {employmentChartData.map((entry, index) => <Cell key={index} fill={entry.color} />)}
-                        </Pie><Tooltip /><Legend /></PieChart>
+
+            {/* Charts Section */}
+            <div className="two-col" style={{ marginBottom: 24 }}>
+                <div className="chart-wrap" style={{ position: 'relative' }}>
+                    <button onClick={() => handleExportChart('Competency Chart')} style={{ position: 'absolute', top: 16, right: 16, background: 'transparent', border: 'none', cursor: 'pointer', color: '#94a3b8' }} title="Export Chart"><Download size={16} /></button>
+                    <div className="chart-title">Competency Supply vs. Demand</div>
+                    <div className="chart-subtitle">Market demand vs. actual certified graduates</div>
+                    <ResponsiveContainer width="100%" height={260}>
+                        <BarChart data={supplyDemandData} margin={{ top: 20, right: 10, left: -20, bottom: 5 }}>
+                            <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
+                            <XAxis dataKey="name" tick={{ fontSize: 10 }} interval={0} angle={-15} textAnchor="end" height={60} />
+                            <YAxis tick={{ fontSize: 11 }} allowDecimals={false} />
+                            <Tooltip cursor={{ fill: '#f8fafc' }} contentStyle={{ borderRadius: 8, border: 'none', boxShadow: '0 4px 15px rgba(0,0,0,0.1)' }} />
+                            <Legend wrapperStyle={{ fontSize: 12, paddingTop: 10 }} />
+                            <Bar dataKey="Demand" fill="#0ea5e9" radius={[4, 4, 0, 0]} barSize={20} />
+                            <Bar dataKey="Supply" fill="#7c3aed" radius={[4, 4, 0, 0]} barSize={20} />
+                        </BarChart>
                     </ResponsiveContainer>
                 </div>
-                <div className="chart-wrap">
-                    <div className="chart-title">Trainees by Certification</div>
-                    <div className="chart-subtitle">Number of trainees per TESDA qualification</div>
-                    <ResponsiveContainer width="100%" height={220}>
-                        <BarChart data={certData} margin={{ top: 5, right: 10, left: -20, bottom: 5 }}>
-                            <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" /><XAxis dataKey="name" tick={{ fontSize: 10 }} /><YAxis tick={{ fontSize: 11 }} allowDecimals={false} /><Tooltip />
-                            <Bar dataKey="trainees" fill="#7c3aed" radius={[4, 4, 0, 0]} />
-                        </BarChart>
+                <div className="chart-wrap" style={{ position: 'relative' }}>
+                    <button onClick={() => handleExportChart('Sectors Chart')} style={{ position: 'absolute', top: 16, right: 16, background: 'transparent', border: 'none', cursor: 'pointer', color: '#94a3b8' }} title="Export Chart"><Download size={16} /></button>
+                    <div className="chart-title">Top Hiring Sectors</div>
+                    <div className="chart-subtitle">Opportunities distributed by industry</div>
+                    <ResponsiveContainer width="100%" height={260}>
+                        <PieChart>
+                            <Pie data={sectorData} cx="50%" cy="50%" innerRadius={70} outerRadius={100} paddingAngle={4} dataKey="value" stroke="none">
+                                {sectorData.map((entry, index) => <Cell key={index} fill={COLORS[index % COLORS.length]} />)}
+                            </Pie>
+                            <Tooltip contentStyle={{ borderRadius: 8, border: 'none', boxShadow: '0 4px 15px rgba(0,0,0,0.1)' }} />
+                            <Legend layout="vertical" verticalAlign="middle" align="right" wrapperStyle={{ fontSize: 12 }} />
+                        </PieChart>
                     </ResponsiveContainer>
                 </div>
             </div>
 
+            {/* Actionable Data Table */}
+            <div className="card">
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+                    <div>
+                        <div style={{ fontWeight: 800, fontSize: 16, color: '#0f172a' }}>Recent Placement Pipeline Activity</div>
+                        <div style={{ fontSize: 13, color: '#64748b' }}>Latest applications and partner matches</div>
+                    </div>
+                    <button className="btn btn-outline btn-sm" onClick={handleExportCSV}><Download size={14} /> Export Data (CSV)</button>
+                </div>
+                <div style={{ overflowX: 'auto' }}>
+                    <table className="data-table">
+                        <thead>
+                            <tr>
+                                <th>Timestamp</th>
+                                <th>Trainee Candidate</th>
+                                <th>Matched Role</th>
+                                <th>Industry Partner</th>
+                                <th>Status</th>
+                                <th style={{ textAlign: 'right' }}>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {recentMatches.map((match, i) => (
+                                <tr key={i}>
+                                    <td style={{ fontSize: 12, color: '#64748b' }}>{formatNormalizedDate(match.appliedAt)}</td>
+                                    <td style={{ fontWeight: 600, color: '#0f172a' }}>{match.traineeName}</td>
+                                    <td style={{ fontSize: 13, color: '#475569' }}>{match.jobTitle}</td>
+                                    <td style={{ fontSize: 13, color: '#475569' }}><div style={{ display: 'flex', alignItems: 'center', gap: 6 }}><Building2 size={13} color="#94a3b8" />{match.company}</div></td>
+                                    <td>
+                                        <span className={`badge badge-${match.status.toLowerCase() === 'accepted' ? 'green' : match.status.toLowerCase() === 'rejected' ? 'red' : 'yellow'}`}>
+                                            {match.status}
+                                        </span>
+                                    </td>
+                                    <td style={{ textAlign: 'right' }}>
+                                        <button className="btn btn-ghost btn-icon" title="View Details"><MoreVertical size={16} color="#94a3b8" /></button>
+                                    </td>
+                                </tr>
+                            ))}
+                            {recentMatches.length === 0 && <tr><td colSpan={6} style={{ textAlign: 'center', padding: 20, color: '#94a3b8' }}>No recent matches found.</td></tr>}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
         </div>
     );
 };
@@ -404,11 +632,11 @@ const ManageTrainees = () => {
                         </tbody>
                     </table>
                 </div>
-                <TablePagination 
-                    currentPage={currentPage} 
-                    totalItems={filtered.length} 
-                    pageSize={pageSize} 
-                    onPageChange={setCurrentPage} 
+                <TablePagination
+                    currentPage={currentPage}
+                    totalItems={filtered.length}
+                    pageSize={pageSize}
+                    onPageChange={setCurrentPage}
                 />
             </div>
             {viewT && (
@@ -1010,11 +1238,11 @@ const ManageTesdaPrograms = () => {
                         </tbody>
                     </table>
                 </div>
-                <TablePagination 
-                    currentPage={currentPage} 
-                    totalItems={filteredPrograms.length} 
-                    pageSize={pageSize} 
-                    onPageChange={setCurrentPage} 
+                <TablePagination
+                    currentPage={currentPage}
+                    totalItems={filteredPrograms.length}
+                    pageSize={pageSize}
+                    onPageChange={setCurrentPage}
                 />
             </div>
 
@@ -1241,7 +1469,7 @@ const ManagePartners = () => {
                     <table className="data-table">
                         <thead><tr><th>Company</th><th>Profile Name</th><th>Contact Person</th><th>Industry</th><th>Auth Email</th><th>Activity</th><th>Verification</th><th>Account</th><th className="account-actions-column">Actions</th></tr></thead>
                         <tbody>
-                             {displayedItems.map(p => (
+                            {displayedItems.map(p => (
                                 <tr key={p.id}>
                                     <td style={{ fontWeight: 600 }}><div style={{ display: 'flex', alignItems: 'center', gap: 8 }}><div style={{ width: 30, height: 30, borderRadius: 8, background: 'linear-gradient(135deg, #e0f2fe, #ede9fe)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 800, color: '#0ea5e9' }}>{p.companyName?.charAt(0)}</div><span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>{p.companyName}{p.verificationStatus === 'Verified' && <CheckCircle size={14} color="#0a66c2" title="Verified" />}</span></div></td>
                                     <td style={{ fontSize: 13, color: '#475569', fontWeight: 600 }}>{p.profileName || p.companyName || 'None'}</td>
@@ -1276,11 +1504,11 @@ const ManagePartners = () => {
                         </tbody>
                     </table>
                 </div>
-                <TablePagination 
-                    currentPage={currentPage} 
-                    totalItems={filtered.length} 
-                    pageSize={pageSize} 
-                    onPageChange={setCurrentPage} 
+                <TablePagination
+                    currentPage={currentPage}
+                    totalItems={filtered.length}
+                    pageSize={pageSize}
+                    onPageChange={setCurrentPage}
                 />
             </div>
             {viewPartner && (
@@ -1461,11 +1689,11 @@ const OpportunitiesOversight = () => {
                         </tbody>
                     </table>
                 </div>
-                <TablePagination 
-                    currentPage={currentPage} 
-                    totalItems={filtered.length} 
-                    pageSize={pageSize} 
-                    onPageChange={setCurrentPage} 
+                <TablePagination
+                    currentPage={currentPage}
+                    totalItems={filtered.length}
+                    pageSize={pageSize}
+                    onPageChange={setCurrentPage}
                 />
             </div>
         </div>
@@ -1540,78 +1768,83 @@ const EmploymentTracking = () => {
     );
 };
 
-// â”€â”€â”€ PAGE 6: ANALYTICS â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ——— PAGE 6: ANALYTICS (DEEP DIVE REPORTS) ————————————————————————————————
 const Analytics = () => {
-    const { trainees, jobPostings, partners, applications, getEmploymentStats, getSkillsDemand } = useApp();
+    const { trainees, jobPostings, partners, applications, getEmploymentStats } = useApp();
     const stats = getEmploymentStats();
-    const skillsDemand = getSkillsDemand();
-    const empData = [
-        { name: '🟦 Employed', value: stats.employed, color: '#3b82f6' },
-        { name: '🟨 Seeking Employment', value: stats.seeking_employment, color: '#eab308' },
-        { name: '🟥 Not Employed', value: stats.not_employed, color: '#ef4444' },
+
+    const handleExportCSV = () => alert("Exporting metrics to CSV...");
+    const handleExportChart = (chartName) => alert(`Exporting ${chartName} as PNG...`);
+
+    // Placement Funnel Logic
+    const enrolled = trainees.length;
+    const certified = trainees.filter(t => t.certifications && t.certifications.length > 0).length;
+    const applied = new Set(applications.map(a => a.traineeId)).size;
+    const hired = stats.employed;
+
+    const funnelData = [
+        { stage: 'Enrolled Trainees', count: enrolled, fill: '#cbd5e1' },
+        { stage: 'NC Certified', count: certified, fill: '#0ea5e9' },
+        { stage: 'Matched / Applied', count: applied, fill: '#d97706' },
+        { stage: 'Successfully Hired', count: hired, fill: '#16a34a' }
     ];
-    const opTypeData = [
-        { type: 'Job', count: jobPostings.filter(j => j.opportunityType === 'Job').length },
-        { type: 'OJT', count: jobPostings.filter(j => j.opportunityType === 'OJT').length },
-        { type: 'Apprenticeship', count: jobPostings.filter(j => j.opportunityType === 'Apprenticeship').length },
-    ];
+
+    // Mock Partner Engagement Activity (Line Chart based on job postings over time)
+    // In a real DB, you'd group by month. Here we mock a 6-month trend ending in current month.
+    const monthNames = ["Nov", "Dec", "Jan", "Feb", "Mar", "Apr"];
+    const engagementData = monthNames.map((m, i) => ({
+        month: m,
+        postings: Math.floor(Math.random() * 15) + 5 + i, // Trending up mock
+        interactions: Math.floor(Math.random() * 40) + 20 + (i * 5)
+    }));
+
     return (
         <div>
-            <div className="page-header"><div><div className="page-title">Analytics Reports</div><div className="page-subtitle">Comprehensive data analysis and insights</div></div></div>
-            <div className="stats-grid" style={{ marginBottom: 20 }}>
-                {[
-                    { label: 'Total Trainees', value: trainees.length, icon: <Users size={22} color="#7c3aed" />, bg: '#ede9fe' },
-                    { label: 'Employment Rate', value: `${stats.employmentRate}%`, icon: <TrendingUp size={22} color="#16a34a" />, bg: '#dcfce7' },
-                    { label: 'Open Opportunities', value: jobPostings.filter(j => j.status === 'Open').length, icon: <Briefcase size={22} color="#d97706" />, bg: '#fef3c7' },
-                    { label: 'Active Partners', value: partners.filter(p => p.verificationStatus === 'Verified').length, icon: <Building2 size={22} color="#0ea5e9" />, bg: '#e0f2fe' },
-                ].map((s, i) => (
-                    <div key={i} className="stat-card"><div className="stat-icon" style={{ background: s.bg }}>{s.icon}</div><div className="stat-info"><div className="stat-label">{s.label}</div><div className="stat-value">{s.value}</div></div></div>
-                ))}
-            </div>
-            <div className="two-col" style={{ marginBottom: 20 }}>
-                <div className="chart-wrap">
-                    <div className="chart-title">Trainee Employment Distribution</div>
-                    <ResponsiveContainer width="100%" height={220}>
-                        <PieChart><Pie data={empData} cx="50%" cy="50%" innerRadius={50} outerRadius={85} paddingAngle={3} dataKey="value" label={({ name, value }) => value > 0 ? `${name}: ${value}` : null} labelLine={false}>
-                            {empData.map((e, i) => <Cell key={i} fill={e.color} />)}
-                        </Pie><Tooltip /><Legend /></PieChart>
-                    </ResponsiveContainer>
+            <div className="page-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div>
+                    <div className="page-title">Analytics & Reporting</div>
+                    <div className="page-subtitle">Deep dive into platform placement pipelines and engagement</div>
                 </div>
-                <div className="chart-wrap">
-                    <div className="chart-title">In-Demand Competencies</div>
-                    <ResponsiveContainer width="100%" height={220}>
-                        <BarChart data={skillsDemand} margin={{ top: 5, right: 10, left: -20, bottom: 5 }}>
-                            <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" /><XAxis dataKey="skill" tick={{ fontSize: 9 }} interval={0} angle={-15} /><YAxis tick={{ fontSize: 11 }} allowDecimals={false} /><Tooltip />
-                            <Bar dataKey="count" fill="#2563eb" radius={[4, 4, 0, 0]} />
+                <button className="btn btn-outline" onClick={handleExportCSV}><Download size={14} /> Export Raw Data</button>
+            </div>
+
+            <div className="two-col" style={{ marginBottom: 24 }}>
+                {/* Placement Funnel Chart */}
+                <div className="chart-wrap" style={{ position: 'relative' }}>
+                    <button onClick={() => handleExportChart('Pipeline Funnel')} style={{ position: 'absolute', top: 16, right: 16, background: 'transparent', border: 'none', cursor: 'pointer', color: '#94a3b8' }}><Download size={16} /></button>
+                    <div className="chart-title">Placement Pipeline Funnel</div>
+                    <div className="chart-subtitle">Trainee progression from enrollment to hire</div>
+                    <ResponsiveContainer width="100%" height={280}>
+                        <BarChart data={funnelData} layout="vertical" margin={{ top: 20, right: 30, left: 40, bottom: 5 }}>
+                            <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#f1f5f9" />
+                            <XAxis type="number" hide />
+                            <YAxis dataKey="stage" type="category" axisLine={false} tickLine={false} tick={{ fontSize: 12, fontWeight: 600, fill: '#475569' }} width={120} />
+                            <Tooltip cursor={{ fill: 'transparent' }} contentStyle={{ borderRadius: 8, border: 'none', boxShadow: '0 4px 15px rgba(0,0,0,0.1)' }} />
+                            <Bar dataKey="count" barSize={32} radius={[0, 6, 6, 0]} label={{ position: 'right', fill: '#0f172a', fontWeight: 800, fontSize: 14 }}>
+                                {funnelData.map((entry, index) => (
+                                    <Cell key={`cell-${index}`} fill={entry.fill} />
+                                ))}
+                            </Bar>
                         </BarChart>
                     </ResponsiveContainer>
                 </div>
-            </div>
-            <div className="two-col">
-                <div className="chart-wrap">
-                    <div className="chart-title">Opportunities by Type</div>
-                    <ResponsiveContainer width="100%" height={200}>
-                        <BarChart data={opTypeData} margin={{ top: 5, right: 10, left: -20, bottom: 5 }}>
-                            <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" /><XAxis dataKey="type" tick={{ fontSize: 12 }} /><YAxis allowDecimals={false} tick={{ fontSize: 11 }} /><Tooltip />
-                            <Bar dataKey="count" fill="#7c3aed" radius={[4, 4, 0, 0]} />
-                        </BarChart>
+
+                {/* Partner Engagement Line Chart */}
+                <div className="chart-wrap" style={{ position: 'relative' }}>
+                    <button onClick={() => handleExportChart('Partner Engagement')} style={{ position: 'absolute', top: 16, right: 16, background: 'transparent', border: 'none', cursor: 'pointer', color: '#94a3b8' }}><Download size={16} /></button>
+                    <div className="chart-title">Partner Engagement Trends</div>
+                    <div className="chart-subtitle">Job postings and platform interactions over time</div>
+                    <ResponsiveContainer width="100%" height={280}>
+                        <LineChart data={engagementData} margin={{ top: 20, right: 20, left: -20, bottom: 5 }}>
+                            <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
+                            <XAxis dataKey="month" tick={{ fontSize: 12 }} axisLine={false} tickLine={false} />
+                            <YAxis tick={{ fontSize: 12 }} axisLine={false} tickLine={false} />
+                            <Tooltip contentStyle={{ borderRadius: 8, border: 'none', boxShadow: '0 4px 15px rgba(0,0,0,0.1)' }} />
+                            <Legend wrapperStyle={{ fontSize: 12, paddingTop: 10 }} />
+                            <Line type="monotone" dataKey="interactions" name="Partner Interactions" stroke="#7c3aed" strokeWidth={3} dot={{ r: 4, strokeWidth: 2 }} activeDot={{ r: 6 }} />
+                            <Line type="monotone" dataKey="postings" name="Job Postings" stroke="#0ea5e9" strokeWidth={3} dot={{ r: 4, strokeWidth: 2 }} activeDot={{ r: 6 }} />
+                        </LineChart>
                     </ResponsiveContainer>
-                </div>
-                <div className="chart-wrap">
-                    <div className="chart-title">Summary</div>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 10, padding: '10px 0' }}>
-                        {[
-                            { label: 'Total applications', value: applications.length },
-                            { label: 'Accepted', value: applications.filter(a => a.status === 'Accepted').length },
-                            { label: 'Pending', value: applications.filter(a => a.status === 'Pending').length },
-                            { label: 'Rejected', value: applications.filter(a => a.status === 'Rejected').length },
-                            { label: 'Total opportunity postings', value: jobPostings.length },
-                        ].map((r, i) => (
-                            <div key={i} style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', borderBottom: '1px solid #f1f5f9', fontSize: 13.5 }}>
-                                <span style={{ color: '#64748b' }}>{r.label}</span><span style={{ fontWeight: 700, color: '#0f172a' }}>{r.value}</span>
-                            </div>
-                        ))}
-                    </div>
                 </div>
             </div>
         </div>

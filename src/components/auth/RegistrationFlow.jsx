@@ -451,6 +451,12 @@ export default function RegistrationFlow({ onBackToLogin }) {
 
   return (
     <div className="login-page">
+      {/* Animated Background Image and Overlay */}
+      <div className="animated-bg-container">
+        <img src="/school_bg.jpg" alt="PSTDII Background" className="animated-bg-image" />
+      </div>
+      <div className="bg-overlay" style={{ backgroundColor: 'rgba(15, 23, 42, 0.85)' }}></div>
+
       <div style={{
         position: 'absolute', top: '10%', left: '5%',
         width: 300, height: 300,
@@ -468,13 +474,13 @@ export default function RegistrationFlow({ onBackToLogin }) {
         {/* Header */}
         {!submitted && (
           <div style={{ textAlign: 'center', marginBottom: 28 }}>
-            <BrandLogo 
+            <BrandLogo
               size={50}
               style={{ display: 'block', margin: '0 auto 14px' }}
               fallbackStyle={{
                 width: 50, height: 50,
-                background: selectedRole === 'partner' 
-                  ? 'linear-gradient(135deg, #064e3b 0%, #10b981 100%)' 
+                background: selectedRole === 'partner'
+                  ? 'linear-gradient(135deg, #064e3b 0%, #10b981 100%)'
                   : 'linear-gradient(135deg, #1e3a5f 0%, #2563eb 100%)',
                 borderRadius: 14, margin: '0 auto 14px', fontSize: 18, color: 'white',
                 boxShadow: selectedRole === 'partner'

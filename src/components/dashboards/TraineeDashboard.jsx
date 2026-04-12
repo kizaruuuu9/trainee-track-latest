@@ -2404,6 +2404,7 @@ export const TraineeProfileContent = ({ viewedProfileId = null, onBack = null, o
     const [editing, setEditing] = useState(false);
     const [saving, setSaving] = useState(false);
     const [activeTab, setActiveTab] = useState('About'); // About | Training | Match Insights | Saved
+    const [previewImage, setPreviewImage] = useState(null);
     const [form, setForm] = useState({ ...trainee });
     const [personalInfoVisibility, setPersonalInfoVisibility] = useState(() => resolveTraineeVisibility(trainee));
     const initials = (trainee?.name || '').split(' ').filter(Boolean).map(n => n[0]).join('').slice(0, 2).toUpperCase() || 'T';
@@ -3562,8 +3563,8 @@ export const TraineeProfileContent = ({ viewedProfileId = null, onBack = null, o
                             <div style={{ padding: '0 20px 20px' }}>
                                 {/* Consolidated Programs List */}
                                 {trainings.map((t, i) => (
-                                    <div key={i} style={{ padding: '12px 16px', background: '#f8fafc', borderRadius: 10, border: '1px solid #e2e8f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, position: 'relative' }}>
-                                        <div style={{ flex: 1 }}>
+                                    <div key={i} style={{ padding: '12px 16px', background: '#f8fafc', borderRadius: 10, border: '1px solid #e2e8f0', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12, position: 'relative' }}>
+                                        <div style={{ flex: 1, width: '100%' }}>
                                             {editing ? (
                                                 <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
                                                     <div style={{ display: 'grid', gridTemplateColumns: 'minmax(160px, 2fr) 100px 130px 90px', gap: 12 }}>
@@ -3601,30 +3602,49 @@ export const TraineeProfileContent = ({ viewedProfileId = null, onBack = null, o
                                                         </div>
                                                     </div>
 
+                                                    {/* NEW: Combined 13-Digit Code & Upload Section for Graduates */}
                                                     {t.status === 'Graduated' && (
-                                                        <div style={{ padding: '10px 14px', background: '#fff', borderRadius: 8, border: '1px dashed #cbd5e1', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                                                            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                                                                <Award size={16} color="#0a66c2" />
-                                                                <span style={{ fontSize: 12, fontWeight: 600, color: '#475569' }}>Certificate Proof</span>
+                                                        <div style={{ padding: '14px', background: '#fff', borderRadius: 8, border: '1px dashed #cbd5e1', display: 'flex', flexDirection: 'column', gap: 12, marginTop: 4 }}>
+
+                                                            {/* 13-Digit Code Input */}
+                                                            <div>
+                                                                <label style={{ fontSize: 11, fontWeight: 700, color: '#64748b', display: 'block', marginBottom: 4 }}>13-Digit Certificate Number (Optional)</label>
+                                                                <input
+                                                                    type="text"
+                                                                    maxLength="13"
+                                                                    className="form-input"
+                                                                    placeholder="e.g. 1234567890123"
+                                                                    value={t.certNumber || ''}
+                                                                    onChange={e => updateTraining(i, 'certNumber', e.target.value.replace(/\D/g, ''))}
+                                                                    style={{ fontFamily: 'monospace', letterSpacing: '1px' }}
+                                                                />
                                                             </div>
-                                                            {t.certUrl ? (
-                                                                <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                                                                    <a href={t.certUrl} target="_blank" rel="noreferrer" style={{ fontSize: 12, color: '#0a66c2', fontWeight: 700, textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 5 }}>
-                                                                        <FileText size={14} /> View Document
-                                                                    </a>
-                                                                    <button type="button" className="ln-link-btn" style={{ color: '#cc1016', padding: 0 }} onClick={() => updateTraining(i, 'certUrl', '')}><Trash2 size={13} /></button>
+
+                                                            {/* Proof Upload Area */}
+                                                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingTop: 10, borderTop: '1px solid #f1f5f9' }}>
+                                                                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                                                                    <Award size={16} color="#0a66c2" />
+                                                                    <span style={{ fontSize: 12, fontWeight: 600, color: '#475569' }}>Certificate Proof (QR/Image)</span>
                                                                 </div>
-                                                            ) : (
-                                                                <button type="button" className="ln-btn-sm ln-btn-outline" disabled={uploadingCert && uploadingIdx === i} onClick={() => { setUploadingIdx(i); certInputRef.current?.click(); }} style={{ padding: '4px 12px', fontSize: 11 }}>
-                                                                    {uploadingCert && uploadingIdx === i ? ' Uploading...' : ' Upload Proof'}
-                                                                </button>
-                                                            )}
+                                                                {t.certUrl ? (
+                                                                    <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                                                                        <a href={t.certUrl} target="_blank" rel="noreferrer" style={{ fontSize: 12, color: '#0a66c2', fontWeight: 700, textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 5 }}>
+                                                                            <FileText size={14} /> View Document
+                                                                        </a>
+                                                                        <button type="button" className="ln-link-btn" style={{ color: '#cc1016', padding: 0 }} onClick={() => updateTraining(i, 'certUrl', '')}><Trash2 size={13} /></button>
+                                                                    </div>
+                                                                ) : (
+                                                                    <button type="button" className="ln-btn-sm ln-btn-outline" disabled={uploadingCert && uploadingIdx === i} onClick={() => { setUploadingIdx(i); certInputRef.current?.click(); }} style={{ padding: '4px 12px', fontSize: 11 }}>
+                                                                        {uploadingCert && uploadingIdx === i ? ' Uploading...' : ' Upload Proof'}
+                                                                    </button>
+                                                                )}
+                                                            </div>
                                                         </div>
                                                     )}
                                                 </div>
                                             ) : (
-                                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16, gap: 16 }}>
-                                                    <div style={{ flex: 1, minWidth: 0 }}>
+                                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 16 }}>
+                                                    <div style={{ flex: 1, minWidth: 0, paddingBottom: (t.status === 'Graduated' && (t.certUrl || t.certNumber)) ? '36px' : '0' }}>
                                                         <div style={{ fontWeight: 700, color: '#1e293b', fontSize: 16, marginBottom: 4 }}>{t.program}</div>
                                                         <div style={{ fontSize: 13, color: '#64748b', display: 'flex', alignItems: 'center', gap: 6 }}>
                                                             <Award size={14} /> {t.ncLevel}
@@ -3636,17 +3656,27 @@ export const TraineeProfileContent = ({ viewedProfileId = null, onBack = null, o
                                                         </span>
                                                         <div style={{ fontWeight: 600, fontSize: 13, color: '#475569' }}>{t.year || '—'}</div>
                                                     </div>
-                                                    {t.status === 'Graduated' && t.certUrl && (
-                                                        <div style={{ position: 'absolute', bottom: 12, right: 16 }}>
-                                                            <a href={t.certUrl} target="_blank" rel="noreferrer" style={{ fontSize: 12, color: '#0a66c2', fontWeight: 600, textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 4, background: '#f0f9ff', padding: '4px 10px', borderRadius: 6, border: '1px solid #bae6fd' }}>
-                                                                <ShieldCheck size={14} /> View Certificate Proof
-                                                            </a>
+
+                                                    {/* Read-Only View for 13-Digit Code & Document Link */}
+                                                    {t.status === 'Graduated' && (t.certUrl || t.certNumber) && (
+                                                        <div style={{ position: 'absolute', bottom: 12, left: 16, display: 'flex', gap: 10, alignItems: 'center' }}>
+                                                            {t.certNumber && (
+                                                                <div style={{ fontSize: 12, color: '#16a34a', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 4, background: '#f0fdf4', padding: '4px 10px', borderRadius: 6, border: '1px solid #bbf7d0', fontFamily: 'monospace' }}>
+                                                                    <ShieldCheck size={14} />
+                                                                    {t.certNumber.replace(/(\d{3})(\d{4})(\d{6})/, '$1-$2-$3')}
+                                                                </div>
+                                                            )}
+                                                            {t.certUrl && (
+                                                                <button type="button" onClick={() => setPreviewImage(t.certUrl)} style={{ fontSize: 12, color: '#0a66c2', fontWeight: 600, border: '1px solid #bae6fd', background: '#f0f9ff', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4, padding: '4px 10px', borderRadius: 6 }}>
+                                                                    <FileText size={14} /> View Certificate Proof (QR)
+                                                                </button>
+                                                            )}
                                                         </div>
                                                     )}
                                                 </div>
                                             )}
                                         </div>
-                                        {editing && <button type="button" onClick={() => removeTrainingIdx(i)} style={{ marginLeft: 16, background: 'none', border: 'none', color: '#cc1016', cursor: 'pointer' }}><Trash2 size={16} /></button>}
+                                        {editing && <button type="button" onClick={() => removeTrainingIdx(i)} style={{ marginLeft: 16, background: 'none', border: 'none', color: '#cc1016', cursor: 'pointer', marginTop: 4 }}><Trash2 size={16} /></button>}
                                     </div>
                                 ))}
                                 {!editing && trainings.length === 0 && (
@@ -4107,7 +4137,7 @@ export const TraineeProfileContent = ({ viewedProfileId = null, onBack = null, o
                                     {applyJob.title} • {applyJob.companyName}
                                 </p>
                             </div>
-                            <button className="ln-btn-icon" onClick={() => setApplyJob(null)}><X size={18} /></button>
+                            <button type="button" className="ln-btn-icon" onClick={() => setApplyJob(null)}><X size={18} /></button>
                         </div>
 
                         <div className="ln-profile-summary-notice" style={{ background: '#f0f9ff', border: '1px solid #bae6fd', borderRadius: 10, padding: 12, marginBottom: 16 }}>
@@ -4147,10 +4177,64 @@ export const TraineeProfileContent = ({ viewedProfileId = null, onBack = null, o
                         </div>
 
                         <div className="ln-modal-footer">
-                            <button className="ln-btn ln-btn-outline" onClick={() => setApplyJob(null)}>Cancel</button>
-                            <button className="ln-btn ln-btn-primary" disabled={submittingApplication} onClick={handleSubmitApplication}>
+                            <button type="button" className="ln-btn ln-btn-outline" onClick={() => setApplyJob(null)}>Cancel</button>
+                            <button type="button" className="ln-btn ln-btn-primary" disabled={submittingApplication} onClick={handleSubmitApplication}>
                                 <Send size={15} /> {submittingApplication ? 'Submitting...' : 'Submit Application'}
                             </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* NEW: Certificate Proof Preview Modal */}
+            {previewImage && (
+                <div
+                    className="fixed inset-0 z-[9999] flex items-center justify-center bg-black bg-opacity-75 p-4 transition-opacity"
+                    onClick={() => setPreviewImage(null)}
+                    style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0 }}
+                >
+                    {/* Modal Container - Prevents closing when clicking inside the white box */}
+                    <div
+                        className="relative bg-white rounded-xl shadow-2xl max-w-2xl w-full flex flex-col overflow-hidden"
+                        onClick={e => e.stopPropagation()}
+                        style={{ maxHeight: '90vh' }}
+                    >
+                        {/* Header */}
+                        <div className="flex justify-between items-center p-4 border-b border-gray-100 bg-gray-50" style={{ borderBottom: '1px solid #f1f5f9', background: '#f8fafc', padding: '16px' }}>
+                            <h3 className="font-bold text-gray-800 flex items-center gap-2" style={{ margin: 0, fontSize: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                <ShieldCheck size={20} color="#0284c7" />
+                                Official Certificate Proof
+                            </h3>
+                            <button type="button" onClick={() => setPreviewImage(null)} style={{ background: '#e2e8f0', border: 'none', borderRadius: '50%', padding: '4px', cursor: 'pointer', display: 'flex' }}>
+                                <X size={20} color="#64748b" />
+                            </button>
+                        </div>
+
+                        {/* Image Body */}
+                        <div className="p-6 bg-gray-100 flex-1 overflow-auto flex items-center justify-center" style={{ padding: '24px', background: '#f1f5f9', minHeight: '300px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                            {previewImage.toLowerCase().endsWith('.pdf') ? (
+                                <div className="text-center" style={{ textAlign: 'center' }}>
+                                    <FileText size={64} color="#94a3b8" style={{ margin: '0 auto 12px' }} />
+                                    <p style={{ color: '#475569', fontWeight: 500, marginBottom: '12px' }}>This proof is a PDF document.</p>
+                                    <a href={previewImage} target="_blank" rel="noreferrer" style={{ background: '#0284c7', color: '#fff', padding: '8px 16px', borderRadius: '6px', textDecoration: 'none', fontWeight: 600, display: 'inline-block' }}>
+                                        Open PDF to View
+                                    </a>
+                                </div>
+                            ) : (
+                                <img
+                                    src={previewImage}
+                                    alt="Certificate Proof"
+                                    style={{ maxWidth: '100%', maxHeight: '65vh', objectFit: 'contain', borderRadius: '6px', boxShadow: '0 1px 3px rgba(0,0,0,0.1)', background: '#fff' }}
+                                />
+                            )}
+                        </div>
+
+                        {/* Footer */}
+                        <div className="p-4 bg-white border-t border-gray-100 flex justify-between items-center" style={{ padding: '16px', background: '#fff', borderTop: '1px solid #f1f5f9', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <p style={{ fontSize: '13px', color: '#64748b', margin: 0, fontWeight: 500 }}>Industry Partners can scan this directly.</p>
+                            <a href={previewImage} download target="_blank" rel="noreferrer" style={{ fontSize: '13px', color: '#0284c7', textDecoration: 'none', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                <ExternalLink size={14} /> Open Original
+                            </a>
                         </div>
                     </div>
                 </div>
@@ -5164,8 +5248,8 @@ export default function TraineeDashboard() {
     const navigate = useNavigate();
     const location = useLocation();
 
-    // Lifted from TraineeDashboardHome to fix ReferenceError in Profile View
-    const [bulletinModal, setBulletinModal] = useState(null); // { post, type: 'apply'|'register'|'inquire' }
+    // Lifted from TraineeDashboardHome
+    const [bulletinModal, setBulletinModal] = useState(null);
     const [bulletinMessage, setBulletinMessage] = useState('');
     const [bulletinSubmitting, setBulletinSubmitting] = useState(false);
     const [bulletinToast, setBulletinToast] = useState('');

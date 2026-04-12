@@ -269,6 +269,51 @@ body {
   margin-top: 1px;
 }
 
+/* BG Animation zoom in-out */
+
+@keyframes smoothZoom {
+  0% {
+    transform: scale(1);
+  }
+
+  50% {
+    transform: scale(1.08);
+  }
+
+  100% {
+    transform: scale(1);
+  }
+}
+
+.animated-bg-container {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  overflow: hidden;
+  z-index: -2;
+  /* Keeps it behind everything */
+}
+
+.animated-bg-image {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  animation: smoothZoom 20s ease-in-out infinite;
+}
+
+.bg-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  /* Dark slate overlay at 75% opacity for crisp legibility */
+  background-color: rgba(15, 23, 42, 0.75);
+  z-index: -1;
+}
+
 /* ─── PULSE ANIMATION ─────────────────────────────────────────────── */
 .pulse-container {
   display: inline-flex;
@@ -980,7 +1025,7 @@ a text and a able to upload documents but not needed .two-col {
 /* ─── LOGIN ───────────────────────────────────────────────────────── */
 .login-page {
   min-height: 100vh;
-  background: linear-gradient(135deg, #0f2744 0%, #1e3a5f 40%, #1e4080 100%);
+  background: transparent !important;
   display: flex;
   align-items: center;
   justify-content: center;

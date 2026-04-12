@@ -98,6 +98,13 @@ export default function LoginScreen({ onShowRegistration }) {
 
   return (
     <div className="login-page">
+      {/* Animated Background Image and Overlay */}
+      <div className="animated-bg-container">
+        <img src="/school_bg.jpg" alt="PSTDII Background" className="animated-bg-image" />
+      </div>
+      {/* Darkened overlay for better text contrast */}
+      <div className="bg-overlay" style={{ backgroundColor: 'rgba(15, 23, 42, 0.85)' }}></div>
+
       {/* Decorative background elements */}
       <div style={{
         position: 'absolute', top: '10%', left: '5%',
@@ -118,8 +125,10 @@ export default function LoginScreen({ onShowRegistration }) {
         <div className="branding-section" style={{ color: 'white', padding: '0 20px' }}>
           {/* Logo */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 24 }}>
-            <BrandLogo 
+            <BrandLogo
               size={60}
+              className="logo-lift"
+              fallbackClassName="logo-lift"
               fallbackStyle={{
                 width: 60, height: 60,
                 background: 'linear-gradient(135deg, #3b82f6 0%, #0ea5e9 100%)',
@@ -128,32 +137,32 @@ export default function LoginScreen({ onShowRegistration }) {
               }}
             />
             <div>
-              <div style={{ fontSize: 28, fontWeight: 800, letterSpacing: '-0.02em' }}>TraineeTrack</div>
-              <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.5)', marginTop: 2 }}>Competency & Certification Platform</div>
+              <div style={{ fontSize: 28, fontWeight: 800, letterSpacing: '-0.02em', textShadow: '0 2px 4px rgba(0,0,0,0.3)' }}>TraineeTrack</div>
+              <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.8)', marginTop: 2, fontWeight: 500 }}>Competency & Placement Hub</div>
             </div>
           </div>
 
-          <h1 style={{ fontSize: 34, fontWeight: 800, lineHeight: 1.15, marginBottom: 12, letterSpacing: '-0.02em' }}>
+          <h1 style={{ fontSize: 34, fontWeight: 800, lineHeight: 1.15, marginBottom: 12, letterSpacing: '-0.02em', textShadow: '0 4px 12px rgba(0,0,0,0.5)' }}>
             Connecting<br />
-            <span style={{ background: 'linear-gradient(90deg, #60a5fa, #38bdf8)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
+            <span style={{ background: 'linear-gradient(90deg, #60a5fa, #38bdf8)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.3))' }}>
               Trainees
             </span>{' '}to<br />Opportunity
           </h1>
 
-          <p style={{ fontSize: 14, color: 'rgba(255,255,255,0.55)', lineHeight: 1.6, marginBottom: 24, maxWidth: 400 }}>
+          <p style={{ fontSize: 15, color: 'rgba(255,255,255,0.85)', lineHeight: 1.6, marginBottom: 24, maxWidth: 400, fontWeight: 500, textShadow: '0 2px 8px rgba(0,0,0,0.4)' }}>
             A web-based analytics and competency-based matching platform for {appMetadata.orgName}
           </p>
 
           {/* Feature highlights */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
             {[
-              { icon: <BarChart2 size={16} />, text: 'Employment analytics & tracking' },
-              { icon: <Briefcase size={16} />, text: 'Competency-based opportunity matching' },
-              { icon: <Users size={16} />, text: 'Direct industry partner connections' },
-              { icon: <BookOpen size={16} />, text: 'Certification progress & gap analysis' },
+              { icon: <BarChart2 size={18} />, text: 'Employment analytics & tracking' },
+              { icon: <Briefcase size={18} />, text: 'Competency-based opportunity matching' },
+              { icon: <Users size={18} />, text: 'Direct industry partner connections' },
+              { icon: <BookOpen size={18} />, text: 'Certification progress & gap analysis' },
             ].map((f, i) => (
-              <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 10, color: 'rgba(255,255,255,0.65)', fontSize: 14 }}>
-                <div style={{ color: '#60a5fa' }}>{f.icon}</div>
+              <div key={i} className="feature-item" style={{ display: 'flex', alignItems: 'center', gap: 12, color: 'rgba(255,255,255,0.85)', fontSize: 14.5, fontWeight: 500, padding: '4px 0', textShadow: '0 1px 3px rgba(0,0,0,0.3)' }}>
+                <div className="feature-icon" style={{ color: '#60a5fa' }}>{f.icon}</div>
                 {f.text}
               </div>
             ))}
@@ -163,7 +172,7 @@ export default function LoginScreen({ onShowRegistration }) {
         {/* Login Card */}
         <div className="login-card">
           <div style={{ textAlign: 'center', marginBottom: 16 }}>
-            <BrandLogo 
+            <BrandLogo
               size={44}
               style={{ display: 'block', margin: '0 auto 10px' }}
               fallbackStyle={{
@@ -293,8 +302,36 @@ export default function LoginScreen({ onShowRegistration }) {
         </div>
       )}
 
+      {/* Custom Styles for Micro-interactions */}
       <style>{`
         @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+        
+        /* Feature Item Interactions */
+        .feature-item {
+          transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+          cursor: default;
+        }
+        .feature-item:hover {
+          color: #ffffff !important;
+          transform: translateX(6px);
+        }
+        .feature-icon {
+          transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        .feature-item:hover .feature-icon {
+          color: #38bdf8 !important;
+          transform: scale(1.15);
+        }
+
+        /* Logo Lift Interaction */
+        .logo-lift {
+          transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+          cursor: pointer;
+        }
+        .logo-lift:hover {
+          transform: translateY(-4px) scale(1.02);
+          filter: drop-shadow(0 12px 20px rgba(56, 189, 248, 0.35)) !important;
+        }
       `}</style>
     </div>
   );
