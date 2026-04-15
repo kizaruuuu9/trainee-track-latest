@@ -4755,8 +4755,8 @@ a text and a able to upload documents but not needed .two-col {
 
 /* ΓöÇΓöÇΓöÇ JOB CARD LIST ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ */
 .ln-jobs-list {
-  display: flex;
-  flex-direction: column;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
   gap: 16px;
 }
 
@@ -4765,7 +4765,7 @@ a text and a able to upload documents but not needed .two-col {
   transition: box-shadow 0.15s;
   display: flex;
   flex-direction: column;
-  justify-content: space-between;
+  height: 100%;
 }
 
 .ln-job-card-li:hover {
@@ -4774,14 +4774,14 @@ a text and a able to upload documents but not needed .two-col {
 
 .ln-job-card-top {
   display: flex;
-  gap: 16px;
-  align-items: center;
+  gap: 14px;
+  align-items: flex-start;
   flex: 1;
 }
 
 .ln-job-card-icon {
-  width: 56px;
-  height: 56px;
+  width: 48px;
+  height: 48px;
   border-radius: 8px;
   background: #eef3f8;
   display: flex;
@@ -4797,7 +4797,7 @@ a text and a able to upload documents but not needed .two-col {
 }
 
 .ln-job-card-title {
-  font-size: 16px;
+  font-size: 15px;
   font-weight: 600;
   color: rgba(0, 0, 0, 0.9);
   word-break: break-word;
@@ -4807,13 +4807,12 @@ a text and a able to upload documents but not needed .two-col {
   font-size: 14px;
   color: rgba(0, 0, 0, 0.55);
   word-break: break-word;
-  margin-top: 2px;
 }
 
 .ln-job-card-meta {
   display: flex;
-  gap: 16px;
-  margin-top: 6px;
+  gap: 12px;
+  margin-top: 4px;
   font-size: 13px;
   color: rgba(0, 0, 0, 0.55);
   flex-wrap: wrap;
@@ -4827,21 +4826,10 @@ a text and a able to upload documents but not needed .two-col {
 
 .ln-job-card-badges {
   display: flex;
-  flex-direction: row;
-  gap: 8px;
-  align-items: center;
+  flex-direction: column;
+  gap: 4px;
+  align-items: flex-end;
   flex-shrink: 0;
-}
-
-@media (max-width: 600px) {
-  .ln-job-card-top {
-    flex-direction: column;
-    align-items: flex-start;
-  }
-  .ln-job-card-meta {
-    flex-direction: column;
-    gap: 4px;
-  }
 }
 
 .ln-job-card-footer {
