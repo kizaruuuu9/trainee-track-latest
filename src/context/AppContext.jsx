@@ -198,19 +198,20 @@ export const AppProvider = ({ children }) => {
   const [userRole, setUserRole] = useState(null); // 'admin' | 'trainee' | 'partner'
   const presenceAccessTokenRef = useRef('');
 
-  // ─── TRAINEES ────────────────────────────────────────────────────────────
+  // ΓöÇΓöÇΓöÇ TRAINEES ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
   const [trainees, setTrainees] = useState([]);
 
-  // ─── INDUSTRY PARTNERS ──────────────────────────────────────────────────────
+  // ΓöÇΓöÇΓöÇ INDUSTRY PARTNERS ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
   const [partners, setPartners] = useState([]);
 
-  // ─── TESDA PROGRAMS (DB-DRIVEN) ─────────────────────────────────────────────
+  // ΓöÇΓöÇΓöÇ TESDA PROGRAMS (DB-DRIVEN) ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
   const [programs, setPrograms] = useState([]);
 
-  // ─── JOB / OPPORTUNITY POSTINGS ──────────────────────────────────────────
+  // ΓöÇΓöÇΓöÇ JOB / OPPORTUNITY POSTINGS ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
   const [jobPostings, setJobPostings] = useState([]);
+  const [feedLimit, setFeedLimit] = useState(10);
 
-  // ─── APPLICATIONS ─────────────────────────────────────────────────────────
+  // ΓöÇΓöÇΓöÇ APPLICATIONS ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
   const [applications, setApplications] = useState([
     {
       id: 1,
@@ -262,7 +263,7 @@ export const AppProvider = ({ children }) => {
     },
   ]);
 
-  // ─── SETTINGS BACKEND LOGIC ───────────────────────────────────────────────
+  // ΓöÇΓöÇΓöÇ SETTINGS BACKEND LOGIC ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
 
   const [isDarkMode, setIsDarkMode] = useState(() => {
     if (typeof window !== 'undefined') {
@@ -324,7 +325,7 @@ export const AppProvider = ({ children }) => {
     }
   };
 
-  // ─── NOTIFICATIONS LOGIC ──────────────────────────────────────────────────
+  // ΓöÇΓöÇΓöÇ NOTIFICATIONS LOGIC ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
   const [notifications, setNotifications] = useState([
     { id: 1, type: 'job', text: 'New opportunity match: Junior IT Technician', created_at: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(), read: false },
     { id: 2, type: 'application', text: 'Your application was reviewed by TechSolutions', created_at: new Date(Date.now() - 5 * 60 * 60 * 1000).toISOString(), read: false },
@@ -345,7 +346,7 @@ export const AppProvider = ({ children }) => {
   const deleteNotification = (id) => setNotifications(prev => prev.filter(n => n.id !== id));
   const clearAllNotifications = () => setNotifications([]);
 
-  // ─── INTERVIEW SCHEDULING ──────────────────────────────────────────────
+  // ΓöÇΓöÇΓöÇ INTERVIEW SCHEDULING ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
   const [availabilitySlots, setAvailabilitySlots] = useState([]);
   const [interviewBookings, setInterviewBookings] = useState([]);
 
@@ -451,25 +452,78 @@ export const AppProvider = ({ children }) => {
     } catch (err) { console.error('Error fetching partner availability:', err); return []; }
   };
 
-  // ─── COMMUNITY POSTS ──────────────────────────────────────────────────
+  // ΓöÇΓöÇΓöÇ COMMUNITY POSTS ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
   const [posts, setPosts] = useState([]);
   const [postComments, setPostComments] = useState([]);
   const [jobPostingComments, setJobPostingComments] = useState([]);
   const [contactRequests, setContactRequests] = useState([]);
 
-  const fetchPosts = async () => {
+  const fetchPosts = async (limitOverride = null) => {
     try {
+      const limitToUse = limitOverride || feedLimit;
       const { data, error } = await supabase
         .from('posts')
         .select('*')
         .eq('is_active', true)
-        .order('created_at', { ascending: false });
+        .order('created_at', { ascending: false })
+        .limit(limitToUse);
 
       if (error) throw error;
       setPosts(data || []);
     } catch (err) {
       console.error('Error fetching posts:', err);
     }
+  };
+
+  const fetchJobPostings = async (limitOverride = null) => {
+    try {
+      const limitToUse = limitOverride || feedLimit;
+      const { data: jobs, error } = await supabase
+        .from('job_postings')
+        .select('*, industry_partners(company_name), programs(name, competencies, description)')
+        .order('created_at', { ascending: false })
+        .limit(limitToUse);
+
+      if (error) throw error;
+      if (jobs) {
+        setJobPostings(jobs.map(j => ({
+          ...(j.source === 'partner' && (j.attachment_url || j.source_url)
+            ? {
+              attachmentUrl: j.attachment_url || j.source_url,
+              attachmentName: j.attachment_name || decodeURIComponent(String(j.attachment_url || j.source_url).split('/').pop()?.split('?')[0] || ''),
+              attachmentType: j.attachment_type || null,
+            }
+            : {}),
+          id: j.id,
+          title: j.title,
+          description: j.description,
+          location: j.location,
+          employmentType: j.employment_type,
+          workSetup: j.work_setup,
+          status: j.status,
+          createdAt: j.created_at,
+          salaryRange: j.salary_range,
+          salaryMin: j.salary_min,
+          salaryMax: j.salary_max,
+          salaryCurrency: j.salary_currency,
+          partnerId: j.partner_id,
+          companyName: j.industry_partners?.company_name || 'Industry Partner',
+          programId: j.program_id,
+          ncLevel: j.programs?.name || j.nc_level || '',
+          requiredCompetencies: Array.isArray(j.programs?.competencies) ? j.programs.competencies : [],
+          feedType: 'job',
+        })));
+      }
+    } catch (err) {
+      console.error('Error fetching job postings:', err);
+    }
+  };
+
+  const loadMoreFeeds = async () => {
+    const newLimit = feedLimit + 10;
+    setFeedLimit(newLimit);
+    await Promise.all([fetchPosts(newLimit), fetchJobPostings(newLimit)]);
+    return 10; 
   };
 
   const fetchPostComments = async () => {
@@ -704,15 +758,29 @@ export const AppProvider = ({ children }) => {
     try {
       if (!currentUser) throw new Error('You must be logged in to post');
 
+      // Guarantee we use the exact UUID from the active session to pass RLS
+      const { data: { session } } = await supabase.auth.getSession();
+
+      if (!session) {
+        // If there is no active session, Supabase sends the request as an "anon" user.
+        // This causes the database Row Level Security (RLS) to immediately reject the post.
+        alert("Your authentication session has expired or is invalid. Please sign out and log in again to post.");
+        throw new Error("Missing active Supabase authentication token.");
+      }
+
+      const actualUserId = session.user.id;
+
       const authorType = userRole === 'partner' ? 'industry_partner' : 'student';
 
       const newPost = {
-        author_id: currentUser.id,
+        author_id: actualUserId,
         author_type: authorType,
         ...postData,
         tags: postData.tags || [],
         created_at: new Date().toISOString(),
       };
+
+      console.log("Attempting to insert post:", newPost, "with active UID:", actualUserId);
 
       const { data, error } = await supabase
         .from('posts')
@@ -797,7 +865,7 @@ export const AppProvider = ({ children }) => {
     }
   };
 
-  // ─── POST INTERACTIONS ────────────────────────────────────────────────────
+  // ΓöÇΓöÇΓöÇ POST INTERACTIONS ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
   const [postInteractions, setPostInteractions] = useState([]);
 
   const fetchPostInteractions = async (postId = null) => {
@@ -887,7 +955,7 @@ export const AppProvider = ({ children }) => {
     ) || null;
   };
 
-  // ─── ADMIN ACCOUNT ────────────────────────────────────────────────────────
+  // ΓöÇΓöÇΓöÇ ADMIN ACCOUNT ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
   const [adminAccount] = useState({
     id: 1,
     name: 'PSTDII Admin',
@@ -900,7 +968,7 @@ export const AppProvider = ({ children }) => {
     accountStatus: 'Active',
   });
 
-  // ─── ACTIVITY LOG ──────────────────────────────────────────────────────────
+  // ΓöÇΓöÇΓöÇ ACTIVITY LOG ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
   const [activityLog, setActivityLog] = useState([
     { id: 1, user: 'PSTDII Admin', action: 'Create', module: 'Trainees', description: 'Added trainee Juan Dela Cruz', prevValue: null, newValue: 'Juan Dela Cruz', timestamp: '2026-02-01T09:00:00' },
     { id: 2, user: 'PSTDII Admin', action: 'Create', module: 'Trainees', description: 'Added trainee Maria Santos', prevValue: null, newValue: 'Maria Santos', timestamp: '2026-02-01T09:15:00' },
@@ -975,7 +1043,7 @@ export const AppProvider = ({ children }) => {
     fetchProgramsCatalog();
   }, []);
 
-  // ─── ML-INSPIRED RECOMMENDATION ENGINE ────────────────────────────────────
+  // ΓöÇΓöÇΓöÇ ML-INSPIRED RECOMMENDATION ENGINE ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
   // Hybrid cold-start ranker with explainable signals and ML-ready metadata
 
   const RECOMMENDER_ENGINE_VERSION = 'hybrid-coldstart-v1';
@@ -1653,11 +1721,18 @@ export const AppProvider = ({ children }) => {
     const isSupabaseUser = typeof traineeId === 'string' && traineeId.includes('-');
 
     if (isSupabaseUser) {
+      // Guarantee we use the exact UUID from the active session to pass RLS
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        return { success: false, error: 'Your authentication session has expired or is invalid. Please sign out and log in again.' };
+      }
+      const actualUserId = session.user.id;
+
       const attempts = [
         {
           table: 'job_applications',
           payload: {
-            student_id: traineeId,
+            student_id: actualUserId,
             job_id: jobId,
             status: 'pending',
             applied_at: new Date().toISOString(),
@@ -1669,7 +1744,7 @@ export const AppProvider = ({ children }) => {
         {
           table: 'applications',
           payload: {
-            student_id: traineeId,
+            student_id: actualUserId,
             job_posting_id: jobId,
             status: 'pending',
             applicant_message: applicationMessage,
@@ -1982,7 +2057,7 @@ export const AppProvider = ({ children }) => {
     return [...applicationRecords, ...contactRecords].sort((a, b) => b.sortAt - a.sortAt);
   };
 
-  // ─── JOB / OPPORTUNITY FUNCTIONS ───────────────────────────────────────────
+  // ΓöÇΓöÇΓöÇ JOB / OPPORTUNITY FUNCTIONS ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
   const addJobPosting = async (jobData) => {
     const partner = partners.find(p => p.id === currentUser?.id);
     const selectedProgram = programs.find(program =>
@@ -2329,7 +2404,7 @@ export const AppProvider = ({ children }) => {
     return { success: true };
   };
 
-  // ─── PARTNER FUNCTIONS ───────────────────────────────────────────────────
+  // ΓöÇΓöÇΓöÇ PARTNER FUNCTIONS ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
   const approvePartner = async (partnerId) => {
     const partner = partners.find(p => p.id === partnerId);
     try {
@@ -2571,7 +2646,7 @@ export const AppProvider = ({ children }) => {
     }
   };
 
-  // ─── TRAINEE FUNCTIONS ──────────────────────────────────────────────────
+  // ΓöÇΓöÇΓöÇ TRAINEE FUNCTIONS ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
   const addTrainee = (traineeData) => {
     const newTrainee = {
       ...traineeData,
@@ -2684,7 +2759,7 @@ export const AppProvider = ({ children }) => {
     logActivity('Delete', 'Trainees', `Deleted trainee: ${existing?.name}`, existing?.name, null);
   };
 
-  // ─── ACCOUNT MANAGEMENT ───────────────────────────────────────────────────
+  // ΓöÇΓöÇΓöÇ ACCOUNT MANAGEMENT ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
   const deleteAccount = async (accountType, accountId) => {
     const isUUID = typeof accountId === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(accountId);
 
@@ -2749,7 +2824,7 @@ export const AppProvider = ({ children }) => {
 
   // Auto-detect: use localhost for dev, relative path for Vercel production
 
-  // ─── AUTH FUNCTIONS ──────────────────────────────────────────────────────
+  // ΓöÇΓöÇΓöÇ AUTH FUNCTIONS ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
   const login = async (email, password) => {
 
     try {
@@ -3056,7 +3131,7 @@ export const AppProvider = ({ children }) => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentUser?.id, userRole]);
 
-  // ─── Data Hydration (Supabase) ──────────────────────────────────────────
+  // ΓöÇΓöÇΓöÇ Data Hydration (Supabase) ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
   useEffect(() => {
     if (!currentUser || !userRole) return;
     const isSupabaseUser = typeof currentUser.id === 'string' && currentUser.id.includes('-');
@@ -3621,10 +3696,10 @@ export const AppProvider = ({ children }) => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentUser?.id, userRole]);
 
-  // ─── REGISTRATION DATA (multi-step persist) ──────────────────────────────
+  // ΓöÇΓöÇΓöÇ REGISTRATION DATA (multi-step persist) ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
   const [registrationData, setRegistrationData] = useState({});
 
-  // ─── ANALYTICS HELPERS ───────────────────────────────────────────────────
+  // ΓöÇΓöÇΓöÇ ANALYTICS HELPERS ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
   const getEmploymentStats = () => {
     const total = trainees.length;
 
@@ -3775,6 +3850,9 @@ export const AppProvider = ({ children }) => {
       resetPassword,
       exportMyData,
       deleteMyAccount,
+      loadMoreFeeds,
+      feedLimit,
+      fetchJobPostings,
     }}>
       {children}
     </AppContext.Provider>

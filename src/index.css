@@ -6,7 +6,7 @@
 @tailwind utilities;
 /* stylelint-enable at-rule-no-unknown */
 
-/* ─── DESIGN TOKENS ─────────────────────────────────────────────── */
+/* ΓöÇΓöÇΓöÇ DESIGN TOKENS ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ */
 :root {
   --primary: #1e3a5f;
   --primary-light: #2563eb;
@@ -30,9 +30,10 @@
   --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
 }
 
-/* ─── GLOBAL ─────────────────────────────────────────────────────── */
+/* ΓöÇΓöÇΓöÇ GLOBAL ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ */
 html {
   scrollbar-gutter: stable;
+  overflow-x: hidden;
 }
 
 * {
@@ -47,9 +48,17 @@ body {
   color: var(--gray-900);
   line-height: 1.5;
   -webkit-font-smoothing: antialiased;
+  overflow-x: hidden;
 }
 
-/* ─── SCROLLBAR ───────────────────────────────────────────────────── */
+img,
+video,
+svg {
+  max-width: 100%;
+  height: auto;
+}
+
+/* ΓöÇΓöÇΓöÇ SCROLLBAR ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ */
 ::-webkit-scrollbar {
   width: 6px;
   height: 6px;
@@ -64,11 +73,238 @@ body {
   border-radius: 3px;
 }
 
+/* Standard Sidebar Fixed Position */
+.tt-sidenav {
+  width: 280px;
+  height: calc(100vh - 96px);
+  background: linear-gradient(180deg, #1e3a8a 0%, #312e81 100%);
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+  border-right: 1px solid rgba(255, 255, 255, 0.1);
+  padding: 24px 16px;
+  position: fixed;
+  top: 80px;
+  left: 16px;
+  border-radius: 16px;
+  z-index: 1000;
+  box-shadow: 4px 0 24px rgba(0, 0, 0, 0.05);
+  overflow-y: auto;
+  scrollbar-width: none;
+}
+
+.tt-sidenav::-webkit-scrollbar {
+  display: none;
+}
+
+/* ΓöÇΓöÇΓöÇ TOP NAVBAR ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ */
+.tt-topbar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 64px;
+  background: linear-gradient(90deg, #1e3a8a 0%, #0f172a 100%);
+  z-index: 1050;
+  display: flex;
+  align-items: center;
+  padding: 0 24px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  justify-content: space-between;
+}
+
+.tt-topbar-brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.tt-topbar-title {
+  font-weight: 800;
+  font-size: 19px;
+  color: white;
+  letter-spacing: -0.02em;
+}
+
+.tt-topbar-search-container {
+  flex: 1;
+  display: flex;
+  justify-content: center;
+}
+
+.tt-topbar-search {
+  display: flex;
+  align-items: center;
+  background: #f1f5f9;
+  border-radius: 8px;
+  padding: 8px 16px;
+  width: 100%;
+  max-width: 400px;
+  gap: 10px;
+  border: 1px solid #e2e8f0;
+  transition: all 0.2s ease;
+}
+
+.tt-topbar-search:focus-within {
+  border-color: #3b82f6;
+  background: #fff;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
+
+.tt-topbar-search input {
+  border: none;
+  background: transparent;
+  width: 100%;
+  outline: none;
+  font-size: 14px;
+  color: #0f172a;
+}
+
+.tt-topbar-search input::placeholder {
+  color: #94a3b8;
+}
+
+.tt-topbar-right {
+  display: flex;
+  width: 200px;
+  justify-content: flex-end;
+  align-items: center;
+}
+
+/* ΓöÇΓöÇΓöÇ TOPBAR HAMBURGER DROPDOWN ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ */
+.tt-hamburger-container {
+  position: relative;
+}
+
+.tt-hamburger-btn {
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 8px;
+  width: 42px;
+  height: 42px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  position: relative;
+  transition: all 0.2s ease;
+}
+
+.tt-hamburger-btn:hover {
+  background: rgba(255, 255, 255, 0.15);
+  border-color: rgba(255, 255, 255, 0.3);
+}
+
+.tt-hamburger-badge {
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  background: #ef4444;
+  color: white;
+  min-width: 18px;
+  height: 18px;
+  border-radius: 99px;
+  font-size: 10px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 4px;
+  border: 2px solid white;
+}
+
+.tt-hamburger-dropdown {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  width: 220px;
+  background: white;
+  border-radius: 12px;
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
+  border: 1px solid #e2e8f0;
+  padding: 8px 0;
+  z-index: 1100;
+  animation: ttFadeSlide 0.2s ease-out forwards;
+}
+
+.tt-dropdown-item {
+  width: 100%;
+  text-align: left;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 16px;
+  background: transparent;
+  border: none;
+  font-size: 14px;
+  font-weight: 500;
+  color: #475569;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.tt-dropdown-item:hover {
+  background: #f8fafc;
+  color: #1e3a8a;
+  outline: none;
+}
+
+.tt-dropdown-badge {
+  margin-left: auto;
+  background: #ef4444;
+  color: white;
+  padding: 2px 6px;
+  border-radius: 99px;
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.tt-dropdown-divider {
+  height: 1px;
+  background: #f1f5f9;
+  margin: 8px 0;
+}
+
+.tt-dropdown-danger {
+  color: #dc2626;
+}
+
+.tt-dropdown-danger:hover {
+  background: #fef2f2;
+  color: #b91c1c;
+}
+
+.ln-app {
+  display: flex;
+  height: 100vh;
+  width: 100vw;
+  background: #eef2f7;
+  overflow: hidden;
+  position: relative;
+}
+
+.ln-main {
+  flex: 1;
+  min-width: 0;
+  padding: 88px 24px 24px 24px;
+  margin-left: 312px;
+  /* Shift content to the right of fixed sidebar */
+  overflow-y: auto;
+  height: 100vh;
+  background: #f8fafc;
+}
+
+/* Hide legacy mobile artifacts */
+.ln-mobile-menu-btn,
+.mobile-menu-btn {
+  display: none !important;
+}
+
 ::-webkit-scrollbar-thumb:hover {
   background: var(--gray-600);
 }
 
-/* ─── LAYOUT ──────────────────────────────────────────────────────── */
+/* ΓöÇΓöÇΓöÇ LAYOUT ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ */
 .app-layout {
   display: flex;
   min-height: 100vh;
@@ -88,7 +324,7 @@ body {
   flex: 1;
 }
 
-/* ─── SIDEBAR ─────────────────────────────────────────────────────── */
+/* ΓöÇΓöÇΓöÇ SIDEBAR ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ */
 .sidebar {
   position: fixed;
   top: 0;
@@ -242,7 +478,7 @@ body {
   text-transform: capitalize;
 }
 
-/* ─── HEADER ──────────────────────────────────────────────────────── */
+/* ΓöÇΓöÇΓöÇ HEADER ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ */
 .top-header {
   height: var(--header-height);
   background: white;
@@ -314,7 +550,7 @@ body {
   z-index: -1;
 }
 
-/* ─── PULSE ANIMATION ─────────────────────────────────────────────── */
+/* ΓöÇΓöÇΓöÇ PULSE ANIMATION ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ */
 .pulse-container {
   display: inline-flex;
   align-items: center;
@@ -435,7 +671,7 @@ body {
   text-transform: capitalize;
 }
 
-/* ─── CARDS ───────────────────────────────────────────────────────── */
+/* ΓöÇΓöÇΓöÇ CARDS ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ */
 .card {
   background: white;
   border-radius: var(--border-radius);
@@ -497,7 +733,7 @@ body {
   margin-top: 4px;
 }
 
-/* ─── JOB CARDS ───────────────────────────────────────────────────── */
+/* ΓöÇΓöÇΓöÇ JOB CARDS ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ */
 .job-card {
   background: white;
   border: 1px solid var(--gray-200);
@@ -513,7 +749,7 @@ body {
   transform: translateY(-1px);
 }
 
-/* ─── BADGES ──────────────────────────────────────────────────────── */
+/* ΓöÇΓöÇΓöÇ BADGES ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ */
 .badge {
   display: inline-flex;
   align-items: center;
@@ -632,11 +868,19 @@ body {
   color: #b91c1c;
 }
 
-/* ─── TABLES ──────────────────────────────────────────────────────── */
+/* ΓöÇΓöÇΓöÇ TABLES ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ */
+.data-table-wrapper {
+  width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  border-radius: var(--border-radius);
+}
+
 .data-table {
   width: 100%;
   border-collapse: collapse;
   font-size: 13.5px;
+  min-width: 500px;
 }
 
 .data-table th {
@@ -675,7 +919,7 @@ body {
   background: var(--gray-50);
 }
 
-/* ─── PROGRESS BAR ────────────────────────────────────────────────── */
+/* ΓöÇΓöÇΓöÇ PROGRESS BAR ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ */
 .progress-bar-wrap {
   background: var(--gray-200);
   border-radius: 99px;
@@ -701,7 +945,7 @@ body {
   background: linear-gradient(90deg, #dc2626, #ef4444);
 }
 
-/* ─── BUTTONS ─────────────────────────────────────────────────────── */
+/* ΓöÇΓöÇΓöÇ BUTTONS ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ */
 .btn {
   display: inline-flex;
   align-items: center;
@@ -784,7 +1028,7 @@ body {
   border-radius: 8px;
 }
 
-/* ─── FORMS ───────────────────────────────────────────────────────── */
+/* ΓöÇΓöÇΓöÇ FORMS ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ */
 .form-group {
   margin-bottom: 16px;
 }
@@ -838,7 +1082,7 @@ body {
   margin-top: 4px;
 }
 
-/* ─── SEARCH BAR ──────────────────────────────────────────────────── */
+/* ΓöÇΓöÇΓöÇ SEARCH BAR ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ */
 .search-bar {
   display: flex;
   align-items: center;
@@ -870,7 +1114,7 @@ body {
   color: var(--gray-400);
 }
 
-/* ─── PAGE HEADER ─────────────────────────────────────────────────── */
+/* ΓöÇΓöÇΓöÇ PAGE HEADER ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ */
 .page-header {
   display: flex;
   align-items: flex-start;
@@ -893,7 +1137,7 @@ body {
   margin-top: 3px;
 }
 
-/* ─── GRID HELPERS ────────────────────────────────────────────────── */
+/* ΓöÇΓöÇΓöÇ GRID HELPERS ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ */
 .stats-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
@@ -919,7 +1163,7 @@ a text and a able to upload documents but not needed .two-col {
   gap: 16px;
 }
 
-/* ─── MODAL ───────────────────────────────────────────────────────── */
+/* ΓöÇΓöÇΓöÇ MODAL ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ */
 .modal-overlay {
   position: fixed;
   inset: 0;
@@ -967,7 +1211,7 @@ a text and a able to upload documents but not needed .two-col {
   color: var(--gray-900);
 }
 
-/* ─── TABS ────────────────────────────────────────────────────────── */
+/* ΓöÇΓöÇΓöÇ TABS ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ */
 .tabs {
   display: flex;
   gap: 2px;
@@ -999,7 +1243,7 @@ a text and a able to upload documents but not needed .two-col {
   font-weight: 600;
 }
 
-/* ─── EMPTY STATE ─────────────────────────────────────────────────── */
+/* ΓöÇΓöÇΓöÇ EMPTY STATE ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ */
 .empty-state {
   text-align: center;
   padding: 60px 20px;
@@ -1022,7 +1266,7 @@ a text and a able to upload documents but not needed .two-col {
   font-size: 13px;
 }
 
-/* ─── LOGIN ───────────────────────────────────────────────────────── */
+/* ΓöÇΓöÇΓöÇ LOGIN ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ */
 .login-page {
   min-height: 100vh;
   background: transparent !important;
@@ -1067,7 +1311,7 @@ a text and a able to upload documents but not needed .two-col {
   z-index: 1;
 }
 
-/* ─── ALERT/NOTIFICATION ─────────────────────────────────────────── */
+/* ΓöÇΓöÇΓöÇ ALERT/NOTIFICATION ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ */
 .alert {
   padding: 12px 16px;
   border-radius: 8px;
@@ -1102,7 +1346,7 @@ a text and a able to upload documents but not needed .two-col {
   border: 1px solid #fde68a;
 }
 
-/* ─── CHART CONTAINER ────────────────────────────────────────────── */
+/* ΓöÇΓöÇΓöÇ CHART CONTAINER ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ */
 .chart-wrap {
   background: white;
   border-radius: var(--border-radius);
@@ -1124,7 +1368,7 @@ a text and a able to upload documents but not needed .two-col {
   margin-bottom: 16px;
 }
 
-/* ─── COMPETENCY ITEM ────────────────────────────────────────────── */
+/* ΓöÇΓöÇΓöÇ COMPETENCY ITEM ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ */
 .competency-item {
   display: flex;
   align-items: center;
@@ -1137,7 +1381,7 @@ a text and a able to upload documents but not needed .two-col {
   border-bottom: none;
 }
 
-/* ─── DROPDOWN ────────────────────────────────────────────────────── */
+/* ΓöÇΓöÇΓöÇ DROPDOWN ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ */
 .dropdown-menu {
   position: absolute;
   top: calc(100% + 6px);
@@ -1318,7 +1562,7 @@ a text and a able to upload documents but not needed .two-col {
   cursor: not-allowed;
 }
 
-/* ─── SECTION HEADER ─────────────────────────────────────────────── */
+/* ΓöÇΓöÇΓöÇ SECTION HEADER ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ */
 .section-header {
   display: flex;
   align-items: center;
@@ -1338,7 +1582,7 @@ a text and a able to upload documents but not needed .two-col {
   margin-top: 2px;
 }
 
-/* ─── PROFILE ─────────────────────────────────────────────────────── */
+/* ΓöÇΓöÇΓöÇ PROFILE ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ */
 .profile-bg-header {
   background: linear-gradient(135deg, #1e3a5f 0%, #2563eb 100%);
   border-radius: 12px 12px 0 0;
@@ -1364,7 +1608,7 @@ a text and a able to upload documents but not needed .two-col {
   box-shadow: var(--shadow-md);
 }
 
-/* ─── HAMBURGER BUTTON ────────────────────────────────────────────── */
+/* ΓöÇΓöÇΓöÇ HAMBURGER BUTTON ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ */
 .hamburger-btn {
   display: none;
   background: none;
@@ -1381,7 +1625,7 @@ a text and a able to upload documents but not needed .two-col {
   color: var(--gray-700);
 }
 
-/* ─── SIDEBAR OVERLAY ─────────────────────────────────────────────── */
+/* ΓöÇΓöÇΓöÇ SIDEBAR OVERLAY ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ */
 .sidebar-overlay {
   display: none;
   position: fixed;
@@ -1391,7 +1635,7 @@ a text and a able to upload documents but not needed .two-col {
   backdrop-filter: blur(2px);
 }
 
-/* ─── PROGRESS BAR ────────────────────────────────────────────────── */
+/* ΓöÇΓöÇΓöÇ PROGRESS BAR ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ */
 .progress-bar-wrap {
   height: 7px;
   background: var(--gray-100);
@@ -1417,7 +1661,7 @@ a text and a able to upload documents but not needed .two-col {
   background: linear-gradient(90deg, #dc2626, #ef4444);
 }
 
-/* ─── EXTRA BADGES ────────────────────────────────────────────────── */
+/* ΓöÇΓöÇΓöÇ EXTRA BADGES ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ */
 .badge-green {
   background: #dcfce7;
   color: #166534;
@@ -1557,7 +1801,7 @@ a text and a able to upload documents but not needed .two-col {
   color: #166534;
 }
 
-/* ─── COMPETENCY ITEM ─────────────────────────────────────────────── */
+/* ΓöÇΓöÇΓöÇ COMPETENCY ITEM ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ */
 .competency-item {
   display: flex;
   align-items: center;
@@ -1566,7 +1810,7 @@ a text and a able to upload documents but not needed .two-col {
   border-bottom: 1px solid var(--gray-50);
 }
 
-/* ─── JOB CARD ────────────────────────────────────────────────────── */
+/* ΓöÇΓöÇΓöÇ JOB CARD ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ */
 .job-card {
   padding: 14px;
   border: 1.5px solid var(--gray-100);
@@ -1580,14 +1824,14 @@ a text and a able to upload documents but not needed .two-col {
   box-shadow: var(--shadow-sm);
 }
 
-/* ─── CARDS GRID ──────────────────────────────────────────────────── */
+/* ΓöÇΓöÇΓöÇ CARDS GRID ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ */
 .cards-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
   gap: 16px;
 }
 
-/* ─── LOGIN & REGISTRATION RESPONSIVE ────────────────────────────── */
+/* ΓöÇΓöÇΓöÇ LOGIN & REGISTRATION RESPONSIVE ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ */
 
 /* Mobile Phones (up to 767px) */
 @media (max-width: 767px) {
@@ -1645,7 +1889,7 @@ a text and a able to upload documents but not needed .two-col {
 }
 
 
-/* ─── ROLE SELECTION ────────────────────────────────────────────── */
+/* ΓöÇΓöÇΓöÇ ROLE SELECTION ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ */
 .role-selection-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -1733,7 +1977,7 @@ a text and a able to upload documents but not needed .two-col {
 }
 
 
-/* ─── RESPONSIVE: TABLET ──────────────────────────────────────────── */
+/* ΓöÇΓöÇΓöÇ RESPONSIVE: TABLET ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ */
 @media (max-width: 1024px) {
   .sidebar {
     width: 220px;
@@ -1748,7 +1992,7 @@ a text and a able to upload documents but not needed .two-col {
   }
 }
 
-/* ─── RESPONSIVE: MOBILE ──────────────────────────────────────────── */
+/* ΓöÇΓöÇΓöÇ RESPONSIVE: MOBILE ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ */
 @media (max-width: 768px) {
   .hamburger-btn {
     display: flex;
@@ -1872,7 +2116,7 @@ a text and a able to upload documents but not needed .two-col {
   }
 }
 
-/* ─── RESPONSIVE: SMALL MOBILE ────────────────────────────────────── */
+/* ΓöÇΓöÇΓöÇ RESPONSIVE: SMALL MOBILE ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ */
 @media (max-width: 480px) {
   .stats-grid {
     grid-template-columns: 1fr;
@@ -1898,7 +2142,7 @@ a text and a able to upload documents but not needed .two-col {
   }
 }
 
-/* ─── ANIMATIONS ──────────────────────────────────────────────────── */
+/* ΓöÇΓöÇΓöÇ ANIMATIONS ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ */
 @keyframes slideIn {
   from {
     opacity: 0;
@@ -1931,9 +2175,9 @@ a text and a able to upload documents but not needed .two-col {
   animation: pulse-dot 2s ease-in-out infinite;
 }
 
-/* ═══════════════════════════════════════════════════════════════════
+/* ΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉ
    REGISTRATION MODULE
-   ═══════════════════════════════════════════════════════════════════ */
+   ΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉ */
 
 /* Container */
 .reg-container {
@@ -1949,7 +2193,7 @@ a text and a able to upload documents but not needed .two-col {
   overflow-y: auto;
 }
 
-/* ─── Step Progress Indicator ─────────────────────────────────── */
+/* ΓöÇΓöÇΓöÇ Step Progress Indicator ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ */
 .reg-progress {
   display: flex;
   align-items: center;
@@ -2026,7 +2270,7 @@ a text and a able to upload documents but not needed .two-col {
   background: linear-gradient(90deg, #16a34a, #22c55e);
 }
 
-/* ─── Step Content ────────────────────────────────────────────── */
+/* ΓöÇΓöÇΓöÇ Step Content ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ */
 .reg-step-content {
   min-height: 200px;
 }
@@ -2089,7 +2333,7 @@ a text and a able to upload documents but not needed .two-col {
   grid-column: span 2;
 }
 
-/* ─── Upload Zones ────────────────────────────────────────────── */
+/* ΓöÇΓöÇΓöÇ Upload Zones ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ */
 .upload-zone-wrapper {
   min-width: 0;
 }
@@ -2137,7 +2381,7 @@ a text and a able to upload documents but not needed .two-col {
   color: #94a3b8;
 }
 
-/* ─── Upload Preview ──────────────────────────────────────────── */
+/* ΓöÇΓöÇΓöÇ Upload Preview ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ */
 .upload-preview {
   border: 1.5px solid #e2e8f0;
   border-radius: 12px;
@@ -2232,7 +2476,7 @@ a text and a able to upload documents but not needed .two-col {
   background: #fee2e2;
 }
 
-/* ─── OCR Banner ──────────────────────────────────────────────── */
+/* ΓöÇΓöÇΓöÇ OCR Banner ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ */
 .ocr-banner {
   display: flex;
   align-items: flex-start;
@@ -2273,7 +2517,7 @@ a text and a able to upload documents but not needed .two-col {
   border: 1px solid #fde68a;
 }
 
-/* ─── OCR Spinner ─────────────────────────────────────────────── */
+/* ΓöÇΓöÇΓöÇ OCR Spinner ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ */
 .ocr-spinner {
   width: 20px;
   height: 20px;
@@ -2308,7 +2552,7 @@ a text and a able to upload documents but not needed .two-col {
   }
 }
 
-/* ─── Form Valid State ────────────────────────────────────────── */
+/* ΓöÇΓöÇΓöÇ Form Valid State ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ */
 .form-input.valid,
 .form-select.valid {
   border-color: #22c55e;
@@ -2328,7 +2572,7 @@ a text and a able to upload documents but not needed .two-col {
   box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.12);
 }
 
-/* ─── Fade-In Animation ──────────────────────────────────────── */
+/* ΓöÇΓöÇΓöÇ Fade-In Animation ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ */
 @keyframes fadeSlideIn {
   from {
     opacity: 0;
@@ -2341,7 +2585,7 @@ a text and a able to upload documents but not needed .two-col {
   }
 }
 
-/* ─── Responsive Adjustments ──────────────────────────────────── */
+/* ΓöÇΓöÇΓöÇ Responsive Adjustments ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ */
 @media (max-width: 900px) {
   .reg-container {
     padding: 28px 24px;
@@ -2438,7 +2682,7 @@ a text and a able to upload documents but not needed .two-col {
   }
 }
 
-/* ─── STEP 2 STYLES ──────────────────────────────────────────── */
+/* ΓöÇΓöÇΓöÇ STEP 2 STYLES ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ */
 .step2-section-header {
   display: flex;
   align-items: center;
@@ -2551,7 +2795,7 @@ a text and a able to upload documents but not needed .two-col {
   font-weight: 600;
 }
 
-/* ─── STEP 3 PROFILE SETUP STYLES ────────────────────────────── */
+/* ΓöÇΓöÇΓöÇ STEP 3 PROFILE SETUP STYLES ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ */
 
 /* Entry cards for education, work, licenses */
 .profile-entry-card {
@@ -2766,7 +3010,7 @@ a text and a able to upload documents but not needed .two-col {
   border-color: #93c5fd;
 }
 
-/* License date grid — side by side on desktop, stacked on mobile */
+/* License date grid ΓÇö side by side on desktop, stacked on mobile */
 .license-date-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -2779,49 +3023,37 @@ a text and a able to upload documents but not needed .two-col {
   }
 }
 
-/* ═══════════════════════════════════════════════════════════════════
+/* ΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉ
    LINKEDIN-STYLE TRAINEE DASHBOARD STYLES
    All classes prefixed with ln- to avoid conflicts
-   ═══════════════════════════════════════════════════════════════════ */
+   ΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉ */
 
-/* ─── APP WRAPPER ─────────────────────────────────────────────────── */
-.ln-app {
+/* Legacy APP WRAPPER removed - replaced by modern tt-sidenav/ln-app at top */
+.ln-app-legacy {
+  display: flex;
+  flex-direction: row;
   min-height: 100vh;
-  background: #f3f2ef;
-  font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  background: #f0f4f8;
 }
 
-.ln-main {
-  max-width: 1440px;
-  margin: 0 auto;
-  padding: 24px 24px;
+/* Legacy ln-main definition removed to avoid conflict */
+
+/* Hide legacy mobile menu artifacts that might be floating */
+.ln-mobile-menu-btn {
+  display: none !important;
 }
 
-/* ─── TOP NAV ─────────────────────────────────────────────────────── */
+/* ΓöÇΓöÇΓöÇ TOP NAV (legacy ΓÇö kept for non-redesigned pages) ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ */
 .ln-topnav {
-  background: white;
-  border-bottom: 1px solid #e8e8e8;
-  position: sticky;
-  top: 0;
-  z-index: 100;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+  display: none;
 }
 
 .ln-topnav-inner {
-  max-width: 1440px;
-  margin: 0 auto;
-  display: flex;
-  align-items: center;
-  height: 52px;
-  padding: 0 24px;
-  gap: 8px;
+  display: none;
 }
 
 .ln-topnav-left {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex-shrink: 0;
+  display: none;
 }
 
 .ln-logo {
@@ -2834,7 +3066,7 @@ a text and a able to upload documents but not needed .two-col {
   justify-content: center;
   width: 36px;
   height: 36px;
-  background: linear-gradient(135deg, #0a66c2, #0d8de8);
+  background: linear-gradient(135deg, #2563eb, #4f46e5);
   border-radius: 8px;
   color: white;
   font-weight: 800;
@@ -2856,7 +3088,7 @@ a text and a able to upload documents but not needed .two-col {
 
 .ln-search-wrap:focus-within {
   background: white;
-  box-shadow: 0 0 0 2px #0a66c2;
+  box-shadow: 0 0 0 2px #2563eb;
   width: 260px;
 }
 
@@ -2945,7 +3177,7 @@ a text and a able to upload documents but not needed .two-col {
   width: 24px;
   height: 24px;
   border-radius: 50%;
-  background: #0a66c2;
+  background: #2563eb;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -2979,15 +3211,6 @@ a text and a able to upload documents but not needed .two-col {
   margin: 0 4px;
 }
 
-.ln-mobile-menu-btn {
-  display: none;
-  background: none;
-  border: none;
-  cursor: pointer;
-  color: rgba(0, 0, 0, 0.6);
-  padding: 6px;
-}
-
 .ln-mobile-nav {
   background: white;
   border-top: 1px solid #e0dfdc;
@@ -3016,12 +3239,12 @@ a text and a able to upload documents but not needed .two-col {
 }
 
 .ln-mobile-nav-item.active {
-  color: #0a66c2;
+  color: #2563eb;
   font-weight: 600;
-  background: #eef3f8;
+  background: #eef3ff;
 }
 
-/* ─── DROPDOWN ────────────────────────────────────────────────────── */
+/* ΓöÇΓöÇΓöÇ DROPDOWN ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ */
 .ln-dropdown {
   position: absolute;
   top: calc(100% + 4px);
@@ -3092,7 +3315,7 @@ a text and a able to upload documents but not needed .two-col {
   padding: 10px 16px;
   text-align: center;
   font-size: 13px;
-  color: #0a66c2;
+  color: #2563eb;
   font-weight: 600;
   cursor: pointer;
   border-top: 1px solid #e0dfdc;
@@ -3114,7 +3337,7 @@ a text and a able to upload documents but not needed .two-col {
   width: 48px;
   height: 48px;
   border-radius: 50%;
-  background: #0a66c2;
+  background: linear-gradient(135deg, #2563eb, #4f46e5);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -3142,8 +3365,8 @@ a text and a able to upload documents but not needed .two-col {
   padding: 6px 16px;
   font-size: 14px;
   font-weight: 600;
-  color: #0a66c2;
-  border: 1.5px solid #0a66c2;
+  color: #2563eb;
+  border: 1.5px solid #2563eb;
   border-radius: 16px;
   background: white;
   cursor: pointer;
@@ -3153,9 +3376,9 @@ a text and a able to upload documents but not needed .two-col {
 }
 
 .ln-dropdown-profile-btn:hover {
-  background: #eef3f8;
-  border-color: #004182;
-  color: #004182;
+  background: #eff6ff;
+  border-color: #1d4ed8;
+  color: #1d4ed8;
 }
 
 .ln-notif-avatar {
@@ -3182,17 +3405,18 @@ a text and a able to upload documents but not needed .two-col {
   margin-top: 2px;
 }
 
-/* ─── 3-COLUMN LAYOUT ─────────────────────────────────────────────── */
+/* ΓöÇΓöÇΓöÇ LAYOUT COLUMNS ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ */
+/* Legacy 3-col ΓÇö kept but overridden by tt-two-col on home pages */
 .ln-three-col {
   display: grid;
-  grid-template-columns: 220px 1fr 280px;
+  grid-template-columns: 1fr 290px;
   gap: 20px;
   align-items: start;
 }
 
+/* Hide old left profile col ΓÇö now lives in sidebar */
 .ln-col-left {
-  position: sticky;
-  top: 76px;
+  display: none;
 }
 
 .ln-col-center {
@@ -3201,13 +3425,36 @@ a text and a able to upload documents but not needed .two-col {
 
 .ln-col-right {
   position: sticky;
-  top: 76px;
+  top: 24px;
   display: flex;
   flex-direction: column;
   gap: 12px;
 }
 
-/* ─── CARD (LinkedIn-style) ───────────────────────────────────────── */
+/* ΓöÇΓöÇΓöÇ NEW TWO-COL FOR HOME PAGES ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ */
+.tt-two-col {
+  display: grid;
+  grid-template-columns: 1fr 290px;
+  gap: 20px;
+  align-items: start;
+}
+
+.tt-col-feed {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.tt-col-aside {
+  position: sticky;
+  top: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+/* ΓöÇΓöÇΓöÇ CARD (LinkedIn-style) ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ */
 .ln-card {
   background: white;
   border-radius: 12px;
@@ -3217,7 +3464,7 @@ a text and a able to upload documents but not needed .two-col {
   box-shadow: 0 1px 4px rgba(0, 0, 0, 0.04);
 }
 
-/* ─── PROFILE SIDE CARD ───────────────────────────────────────────── */
+/* ΓöÇΓöÇΓöÇ PROFILE SIDE CARD ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ */
 .ln-profile-card {
   overflow: visible;
 }
@@ -3365,7 +3612,7 @@ a text and a able to upload documents but not needed .two-col {
   color: #004182;
 }
 
-/* ─── WIDGET (Right sidebar) ──────────────────────────────────────── */
+/* ΓöÇΓöÇΓöÇ WIDGET (Right sidebar) ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ */
 .ln-widget {
   padding: 12px 0;
 }
@@ -3492,7 +3739,7 @@ a text and a able to upload documents but not needed .two-col {
   font-size: 13px;
 }
 
-/* ─── STATS ROW ───────────────────────────────────────────────────── */
+/* ΓöÇΓöÇΓöÇ STATS ROW ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ */
 .ln-stats-row {
   display: flex;
   padding: 16px 12px;
@@ -3527,56 +3774,65 @@ a text and a able to upload documents but not needed .two-col {
   margin-top: 2px;
 }
 
-/* ─── FEED CARD ───────────────────────────────────────────────────── */
+/* ΓöÇΓöÇΓöÇ FEED CARD ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ */
 .ln-feed-card {
   padding: 0;
+  height: 400px;
+  display: flex;
+  flex-direction: column;
 }
 
 .ln-feed-card-header {
   display: flex;
   align-items: center;
   gap: 12px;
-  padding: 16px 16px 0;
+  padding: 10px 12px 6px;
 }
 
 .ln-feed-avatar {
-  width: 48px;
-  height: 48px;
+  width: 30px;
+  height: 30px;
   border-radius: 50%;
   background: #0a66c2;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 16px;
+  font-size: 12px;
   font-weight: 700;
   color: white;
   flex-shrink: 0;
 }
 
 .ln-feed-author {
-  font-size: 14px;
+  font-size: 12px;
   font-weight: 600;
   color: rgba(0, 0, 0, 0.9);
 }
 
 .ln-feed-meta {
-  font-size: 12px;
+  font-size: 10px;
   color: rgba(0, 0, 0, 0.55);
 }
 
 .ln-feed-content {
-  padding: 12px 16px 16px;
+  padding: 4px 12px 8px;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+  min-height: 0;
 }
 
 .ln-media-frame {
   width: 100%;
-  height: clamp(420px, 56vw, 620px);
+  aspect-ratio: 16 / 10;
+  max-height: 140px;
   display: flex;
   align-items: center;
   justify-content: center;
   overflow: hidden;
   border: 1px solid #e2e8f0;
-  border-radius: 10px;
+  border-radius: 6px;
   background: #111827;
 }
 
@@ -3594,7 +3850,8 @@ a text and a able to upload documents but not needed .two-col {
 .ln-feed-actions {
   display: flex;
   border-top: 1px solid #e0dfdc;
-  padding: 4px 4px;
+  padding: 4px 8px;
+  margin-top: auto;
 }
 
 .ln-feed-action-btn {
@@ -3602,11 +3859,11 @@ a text and a able to upload documents but not needed .two-col {
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 6px;
-  padding: 12px 8px;
+  gap: 3px;
+  padding: 4px 6px;
   border: none;
   background: none;
-  font-size: 13px;
+  font-size: 11px;
   font-weight: 600;
   color: rgba(0, 0, 0, 0.55);
   cursor: pointer;
@@ -3620,7 +3877,406 @@ a text and a able to upload documents but not needed .two-col {
   color: rgba(0, 0, 0, 0.8);
 }
 
-/* ─── SECTION HEADER ──────────────────────────────────────────────── */
+/* ΓöÇΓöÇΓöÇ FORUM-STYLE COMMUNITY FEED ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ */
+
+/* Feed Filter Tabs */
+.ln-feed-filter-bar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px;
+  background: white;
+  border-radius: 12px;
+  border: 1px solid #e8e8e8;
+  margin-bottom: 16px;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.04);
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.ln-feed-filter-bar::-webkit-scrollbar {
+  display: none;
+}
+
+.ln-feed-filter-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 16px;
+  border: none;
+  background: none;
+  font-size: 13px;
+  font-weight: 600;
+  color: rgba(0, 0, 0, 0.5);
+  cursor: pointer;
+  border-radius: 8px;
+  transition: all 0.2s ease;
+  font-family: inherit;
+  white-space: nowrap;
+  position: relative;
+}
+
+.ln-feed-filter-tab:hover {
+  background: #f3f2ef;
+  color: rgba(0, 0, 0, 0.8);
+}
+
+.ln-feed-filter-tab.active {
+  background: #0a66c2;
+  color: white;
+  box-shadow: 0 2px 6px rgba(10, 102, 194, 0.3);
+}
+
+.ln-feed-filter-tab .ln-filter-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 9px;
+  font-size: 10px;
+  font-weight: 700;
+  background: rgba(0, 0, 0, 0.08);
+  color: rgba(0, 0, 0, 0.55);
+}
+
+.ln-feed-filter-tab.active .ln-filter-count {
+  background: rgba(255, 255, 255, 0.25);
+  color: white;
+}
+
+/* Create Post Bar - Forum style */
+.ln-create-post-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 18px;
+  background: white;
+  border-radius: 12px;
+  border: 1px solid #e8e8e8;
+  margin-bottom: 16px;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.04);
+}
+
+.ln-create-post-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 20px;
+  background: #0a66c2;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: inherit;
+  transition: all 0.2s ease;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.ln-create-post-btn:hover {
+  background: #004182;
+  box-shadow: 0 2px 8px rgba(10, 102, 194, 0.3);
+}
+
+.ln-create-post-label {
+  flex: 1;
+  font-size: 13.5px;
+  color: rgba(0, 0, 0, 0.4);
+  font-weight: 500;
+}
+
+/* Forum Card */
+.ln-forum-card {
+  background: white;
+  border-radius: 12px;
+  border: 1px solid #e8e8e8;
+  overflow: hidden;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.04);
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.ln-forum-card:hover {
+  border-color: #d0d0d0;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+}
+
+.ln-forum-card-body {
+  padding: 16px 18px;
+}
+
+.ln-forum-card-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 10px;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  margin-bottom: 8px;
+}
+
+.ln-forum-card-title {
+  font-size: 15.5px;
+  font-weight: 700;
+  color: #0f172a;
+  margin: 0 0 6px;
+  line-height: 1.35;
+}
+
+.ln-forum-card-text {
+  font-size: 13.5px;
+  color: #475569;
+  line-height: 1.55;
+  margin: 0;
+  white-space: pre-wrap;
+}
+
+.ln-forum-card-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 18px;
+  border-top: 1px solid #f1f1f1;
+  gap: 8px;
+}
+
+.ln-forum-card-author {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: rgba(0, 0, 0, 0.55);
+  min-width: 0;
+}
+
+.ln-forum-card-author-avatar {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: #0a66c2;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  font-weight: 700;
+  color: white;
+  flex-shrink: 0;
+  overflow: hidden;
+}
+
+.ln-forum-card-author-name {
+  font-weight: 600;
+  color: rgba(0, 0, 0, 0.75);
+  cursor: pointer;
+  background: none;
+  border: none;
+  padding: 0;
+  font-family: inherit;
+  font-size: inherit;
+}
+
+.ln-forum-card-author-name:hover {
+  color: #0a66c2;
+  text-decoration: underline;
+}
+
+.ln-forum-card-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.ln-forum-action-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 6px 12px;
+  border: 1px solid #e2e8f0;
+  background: white;
+  border-radius: 7px;
+  font-size: 12px;
+  font-weight: 600;
+  color: rgba(0, 0, 0, 0.55);
+  cursor: pointer;
+  font-family: inherit;
+  transition: all 0.15s;
+  white-space: nowrap;
+}
+
+.ln-forum-action-btn:hover {
+  background: #f8fafc;
+  border-color: #cbd5e1;
+  color: rgba(0, 0, 0, 0.8);
+}
+
+.ln-forum-action-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.ln-forum-action-btn.active {
+  color: #0a66c2;
+  border-color: #0a66c2;
+  background: #f0f7ff;
+}
+
+/* Job Card - Structured listing */
+.ln-job-listing-card {
+  background: white;
+  border-radius: 12px;
+  border: 1px solid #e8e8e8;
+  overflow: hidden;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.04);
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.ln-job-listing-card:hover {
+  border-color: #d0d0d0;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+}
+
+.ln-job-listing-header {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  padding: 16px 18px 12px;
+}
+
+.ln-job-listing-icon {
+  width: 44px;
+  height: 44px;
+  border-radius: 10px;
+  background: #eef3f8;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #0a66c2;
+  flex-shrink: 0;
+}
+
+.ln-job-listing-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.ln-job-listing-company {
+  font-size: 12px;
+  color: rgba(0, 0, 0, 0.55);
+  margin-bottom: 2px;
+}
+
+.ln-job-listing-title {
+  font-size: 15.5px;
+  font-weight: 700;
+  color: #0f172a;
+  line-height: 1.3;
+  margin-bottom: 4px;
+}
+
+.ln-job-listing-meta {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  font-size: 12px;
+  color: rgba(0, 0, 0, 0.45);
+}
+
+.ln-job-listing-meta-dot::before {
+  content: '┬╖';
+  margin: 0 2px;
+}
+
+.ln-job-listing-body {
+  padding: 0 18px 14px;
+}
+
+.ln-job-listing-desc {
+  font-size: 13px;
+  color: rgba(0, 0, 0, 0.6);
+  line-height: 1.5;
+  margin-bottom: 10px;
+}
+
+.ln-job-listing-tags {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.ln-job-listing-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 18px;
+  border-top: 1px solid #f1f1f1;
+  gap: 8px;
+}
+
+/* Bulletin Card - Pinned announcement style */
+.ln-bulletin-card {
+  background: white;
+  border-radius: 12px;
+  border: 1px solid #e8e8e8;
+  overflow: hidden;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.04);
+  position: relative;
+}
+
+.ln-bulletin-ribbon {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+}
+
+.ln-bulletin-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 18px 18px 10px;
+}
+
+.ln-bulletin-icon {
+  width: 42px;
+  height: 42px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 20px;
+  flex-shrink: 0;
+}
+
+.ln-bulletin-label-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.ln-bulletin-body {
+  padding: 0 18px 14px;
+}
+
+.ln-bulletin-footer {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 18px;
+  border-top: 1px solid #f1f1f1;
+  flex-wrap: wrap;
+}
+
+/* ΓöÇΓöÇΓöÇ SECTION HEADER ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ */
 .ln-section-header {
   display: flex;
   align-items: center;
@@ -3637,7 +4293,7 @@ a text and a able to upload documents but not needed .two-col {
   margin: 0;
 }
 
-/* ─── OPPORTUNITIES LIST ──────────────────────────────────────────── */
+/* ΓöÇΓöÇΓöÇ OPPORTUNITIES LIST ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ */
 .ln-opportunities-list {
   padding: 0;
 }
@@ -3758,7 +4414,7 @@ a text and a able to upload documents but not needed .two-col {
   border-color: rgba(0, 0, 0, 0.6);
 }
 
-/* ─── BADGES ──────────────────────────────────────────────────────── */
+/* ΓöÇΓöÇΓöÇ BADGES ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ */
 .ln-badge {
   display: inline-flex;
   align-items: center;
@@ -3800,7 +4456,7 @@ a text and a able to upload documents but not needed .two-col {
   color: #7c3aed;
 }
 
-/* ─── BUTTONS ─────────────────────────────────────────────────────── */
+/* ΓöÇΓöÇΓöÇ BUTTONS ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ */
 .ln-btn {
   display: inline-flex;
   align-items: center;
@@ -3899,9 +4555,9 @@ a text and a able to upload documents but not needed .two-col {
   background: #f3f2ef;
 }
 
-/* ─── PAGE CONTENT ────────────────────────────────────────────────── */
+/* ΓöÇΓöÇΓöÇ PAGE CONTENT ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ */
 .ln-page-content {
-  max-width: 820px;
+  max-width: 100%;
   margin: 0 auto;
 }
 
@@ -3928,7 +4584,7 @@ a text and a able to upload documents but not needed .two-col {
   margin: 4px 0 0;
 }
 
-/* ─── STATS GRIDS ─────────────────────────────────────────────────── */
+/* ΓöÇΓöÇΓöÇ STATS GRIDS ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ */
 .ln-stats-grid-4 {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
@@ -3973,7 +4629,7 @@ a text and a able to upload documents but not needed .two-col {
   margin-top: 4px;
 }
 
-/* ─── CERT CARD ───────────────────────────────────────────────────── */
+/* ΓöÇΓöÇΓöÇ CERT CARD ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ */
 .ln-cert-card-header {
   display: flex;
   justify-content: space-between;
@@ -4034,7 +4690,7 @@ a text and a able to upload documents but not needed .two-col {
   color: #cc1016;
 }
 
-/* ─── TABLE ───────────────────────────────────────────────────────── */
+/* ΓöÇΓöÇΓöÇ TABLE ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ */
 .ln-table {
   width: 100%;
   border-collapse: collapse;
@@ -4069,7 +4725,7 @@ a text and a able to upload documents but not needed .two-col {
   border-bottom: none;
 }
 
-/* ─── FILTERS ROW ─────────────────────────────────────────────────── */
+/* ΓöÇΓöÇΓöÇ FILTERS ROW ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ */
 .ln-filters-row {
   display: flex;
   gap: 10px;
@@ -4097,16 +4753,43 @@ a text and a able to upload documents but not needed .two-col {
   box-shadow: 0 0 0 2px rgba(10, 102, 194, 0.15);
 }
 
-/* ─── JOB CARD LIST ───────────────────────────────────────────────── */
+/* ΓöÇΓöÇΓöÇ JOB CARD LIST ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ */
 .ln-jobs-list {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 16px;
+}
+
+@media (max-width: 1400px) {
+  .ln-jobs-list {
+    grid-template-columns: repeat(4, 1fr);
+  }
+}
+
+@media (max-width: 1100px) {
+  .ln-jobs-list {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+@media (max-width: 800px) {
+  .ln-jobs-list {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 500px) {
+  .ln-jobs-list {
+    grid-template-columns: 1fr;
+  }
 }
 
 .ln-job-card-li {
   padding: 16px;
   transition: box-shadow 0.15s;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
 }
 
 .ln-job-card-li:hover {
@@ -4117,6 +4800,7 @@ a text and a able to upload documents but not needed .two-col {
   display: flex;
   gap: 14px;
   align-items: flex-start;
+  flex: 1;
 }
 
 .ln-job-card-icon {
@@ -4140,11 +4824,13 @@ a text and a able to upload documents but not needed .two-col {
   font-size: 15px;
   font-weight: 600;
   color: rgba(0, 0, 0, 0.9);
+  word-break: break-word;
 }
 
 .ln-job-card-company {
   font-size: 14px;
   color: rgba(0, 0, 0, 0.55);
+  word-break: break-word;
 }
 
 .ln-job-card-meta {
@@ -4153,6 +4839,7 @@ a text and a able to upload documents but not needed .two-col {
   margin-top: 4px;
   font-size: 13px;
   color: rgba(0, 0, 0, 0.55);
+  flex-wrap: wrap;
 }
 
 .ln-job-card-meta span {
@@ -4174,12 +4861,13 @@ a text and a able to upload documents but not needed .two-col {
   justify-content: space-between;
   align-items: center;
   padding-top: 12px;
+  margin-top: 12px;
   border-top: 1px solid #f3f2ef;
   flex-wrap: wrap;
   gap: 8px;
 }
 
-/* ─── PILLS ROW ───────────────────────────────────────────────────── */
+/* ΓöÇΓöÇΓöÇ PILLS ROW ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ */
 .ln-pills-row {
   display: flex;
   gap: 12px;
@@ -4210,7 +4898,7 @@ a text and a able to upload documents but not needed .two-col {
   font-weight: 500;
 }
 
-/* ─── MODAL ───────────────────────────────────────────────────────── */
+/* ΓöÇΓöÇΓöÇ MODAL ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ */
 .ln-modal {
   background: white;
   border-radius: 8px;
@@ -4245,9 +4933,9 @@ a text and a able to upload documents but not needed .two-col {
   border-top: 1px solid #e0dfdc;
 }
 
-/* ─── PROFILE PAGE ────────────────────────────────────────────────── */
+/* ΓöÇΓöÇΓöÇ PROFILE PAGE ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ */
 .ln-profile-page {
-  max-width: 820px;
+  max-width: 100%;
   margin: 0 auto;
 }
 
@@ -4332,18 +5020,25 @@ a text and a able to upload documents but not needed .two-col {
   margin-top: 12px;
 }
 
-/* ─── SINGLE-COLUMN PROFILE LAYOUT ─────────────────────────────── */
-.ln-profile-single-col {
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
+/* ΓöÇΓöÇΓöÇ SINGLE-COLUMN PROFILE LAYOUT ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ */
+.ln-profile-two-col {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 340px;
+  gap: 20px;
+  width: 100%;
 }
 
 .ln-profile-main {
   min-width: 0;
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 20px;
+}
+
+@media (max-width: 992px) {
+  .ln-profile-two-col {
+    grid-template-columns: 1fr;
+  }
 }
 
 /* Skills + Interests: equal 2-up side-by-side row */
@@ -4381,7 +5076,7 @@ a text and a able to upload documents but not needed .two-col {
   }
 }
 
-/* ─── INFO GRID ───────────────────────────────────────────────────── */
+/* ΓöÇΓöÇΓöÇ INFO GRID ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ */
 .ln-info-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -4403,7 +5098,7 @@ a text and a able to upload documents but not needed .two-col {
   padding: 4px 0;
 }
 
-/* ─── SKILLS / COMPETENCIES ───────────────────────────────────────── */
+/* ΓöÇΓöÇΓöÇ SKILLS / COMPETENCIES ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ */
 .ln-skill-item {
   display: flex;
   align-items: center;
@@ -4436,7 +5131,7 @@ a text and a able to upload documents but not needed .two-col {
   border-radius: 10px;
 }
 
-/* ─── ACHIEVEMENT ─────────────────────────────────────────────────── */
+/* ΓöÇΓöÇΓöÇ ACHIEVEMENT ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ */
 .ln-achievement-item {
   display: flex;
   align-items: center;
@@ -4451,7 +5146,7 @@ a text and a able to upload documents but not needed .two-col {
   border-bottom: none;
 }
 
-/* ─── DOCUMENTS ───────────────────────────────────────────────────── */
+/* ΓöÇΓöÇΓöÇ DOCUMENTS ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ */
 .ln-doc-item {
   display: flex;
   align-items: center;
@@ -4511,7 +5206,7 @@ a text and a able to upload documents but not needed .two-col {
   flex-shrink: 0;
 }
 
-/* ─── SOCIAL LINKS FORM ─────────────────────────────────────────── */
+/* ΓöÇΓöÇΓöÇ SOCIAL LINKS FORM ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ */
 .ln-social-links-edit {
   border-top: 1px solid #eef2f6;
   padding: 20px 16px;
@@ -4557,7 +5252,7 @@ a text and a able to upload documents but not needed .two-col {
   }
 }
 
-/* ─── EMPLOYMENT STATUS HERO ──────────────────────────────────────── */
+/* ΓöÇΓöÇΓöÇ EMPLOYMENT STATUS HERO ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ */
 .ln-employment-status-hero {
   text-align: center;
   padding: 32px 20px;
@@ -4569,7 +5264,7 @@ a text and a able to upload documents but not needed .two-col {
   margin-bottom: 8px;
 }
 
-/* ─── WARNING CARD ────────────────────────────────────────────────── */
+/* ΓöÇΓöÇΓöÇ WARNING CARD ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ */
 .ln-card-warning {
   border-left: 3px solid #b24020;
   padding: 20px;
@@ -4611,7 +5306,7 @@ a text and a able to upload documents but not needed .two-col {
   flex-shrink: 0;
 }
 
-/* ─── EMPTY STATE ─────────────────────────────────────────────────── */
+/* ΓöÇΓöÇΓöÇ EMPTY STATE ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ */
 .ln-empty-state {
   text-align: center;
   padding: 60px 20px;
@@ -4636,7 +5331,7 @@ a text and a able to upload documents but not needed .two-col {
 }
 
 
-/* ─── PAGINATION ─────────────────────────────────────────────────── */
+/* ΓöÇΓöÇΓöÇ PAGINATION ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ */
 .ln-pagination {
   display: flex;
   flex-direction: column;
@@ -4738,7 +5433,7 @@ a text and a able to upload documents but not needed .two-col {
   }
 }
 
-/* ─── ADMIN PAGINATION ────────────────────────────────────────────── */
+/* ΓöÇΓöÇΓöÇ ADMIN PAGINATION ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ */
 .admin-pagination {
   display: flex;
   justify-content: space-between;
@@ -4830,7 +5525,7 @@ a text and a able to upload documents but not needed .two-col {
   }
 }
 
-/* ─── RESPONSIVE: TABLET ──────────────────────────────────────────── */
+/* ΓöÇΓöÇΓöÇ RESPONSIVE: TABLET ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ */
 @media (max-width: 1024px) {
   .ln-three-col {
     grid-template-columns: 1fr;
@@ -4867,7 +5562,7 @@ a text and a able to upload documents but not needed .two-col {
   }
 }
 
-/* ─── RESPONSIVE: MOBILE ──────────────────────────────────────────── */
+/* ΓöÇΓöÇΓöÇ RESPONSIVE: MOBILE ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ */
 @media (max-width: 768px) {
   .ln-main {
     padding: 12px 8px;
@@ -4996,7 +5691,7 @@ a text and a able to upload documents but not needed .two-col {
   }
 }
 
-/* ─── RESPONSIVE: LARGE MOBILE / SMALL TABLET ────────────────────── */
+/* ΓöÇΓöÇΓöÇ RESPONSIVE: LARGE MOBILE / SMALL TABLET ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ */
 @media (max-width: 640px) {
   .ln-main {
     padding: 12px 6px;
@@ -5054,7 +5749,7 @@ a text and a able to upload documents but not needed .two-col {
   }
 }
 
-/* ─── RESPONSIVE: SMALL MOBILE ────────────────────────────────────── */
+/* ΓöÇΓöÇΓöÇ RESPONSIVE: SMALL MOBILE ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ */
 .ln-mobile-nav {
   position: absolute;
   top: 100%;
@@ -5129,10 +5824,10 @@ a text and a able to upload documents but not needed .two-col {
   }
 }
 
-/* ═══════════════════════════════════════════════════════════════════
+/* ΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉ
    PARTNER DASHBOARD OVERRIDES (pn- prefix)
    Teal/cyan accent theme to distinguish from trainee's blue
-   ═══════════════════════════════════════════════════════════════════ */
+   ΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉ */
 
 .pn-logo-icon {
   background: linear-gradient(135deg, #10b981, #059669) !important;
@@ -5226,9 +5921,9 @@ a text and a able to upload documents but not needed .two-col {
   border-color: #059669 !important;
 }
 
-/* ═══════════════════════════════════════════════════════════════════
+/* ΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉ
    ADMIN DASHBOARD RESPONSIVE OVERRIDES
-   ═══════════════════════════════════════════════════════════════════ */
+   ΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉ */
 
 .hamburger-btn {
   display: none;
@@ -5305,9 +6000,9 @@ a text and a able to upload documents but not needed .two-col {
   }
 }
 
-/* ═══════════════════════════════════════════════════════════════════
+/* ΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉ
    GLOBAL: PREVENT HORIZONTAL OVERFLOW ON ALL DEVICES
-   ═══════════════════════════════════════════════════════════════════ */
+   ΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉ */
 html {
   overflow-x: hidden;
 }
@@ -5334,10 +6029,10 @@ body {
   min-width: 0;
 }
 
-/* ═══════════════════════════════════════════════════════════════════
-   iOS ZOOM PREVENTION: inputs use font-size ≥ 16px on mobile
+/* ΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉ
+   iOS ZOOM PREVENTION: inputs use font-size ΓëÑ 16px on mobile
    prevents Safari from auto-zooming on focus
-   ═══════════════════════════════════════════════════════════════════ */
+   ΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉ */
 @media (max-width: 768px) {
 
   .form-input,
@@ -5350,12 +6045,11 @@ body {
   }
 }
 
-/* ═══════════════════════════════════════════════════════════════════
-   RESPONSIVE: SMALL TABLET / LARGE PHONE  (≤ 540px)
-   ═══════════════════════════════════════════════════════════════════ */
+/* ΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉ
+   RESPONSIVE: SMALL TABLET / LARGE PHONE  (Γëñ 540px)
+   ΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉ */
 @media (max-width: 540px) {
 
-  /* Admin dashboard header banner (inline-styled) */
   .header-title {
     font-size: 15px;
     max-width: 160px;
@@ -5376,7 +6070,7 @@ body {
     padding: 2px 7px;
   }
 
-  /* Tabs — allow horizontal scroll on small screens */
+  /* Tabs ΓÇö allow horizontal scroll on small screens */
   .tabs {
     overflow-x: auto;
     -webkit-overflow-scrolling: touch;
@@ -5389,7 +6083,7 @@ body {
     display: none;
   }
 
-  /* ln-pills-row — horizontal scroll instead of stack */
+  /* ln-pills-row ΓÇö horizontal scroll instead of stack */
   .ln-pills-row {
     flex-wrap: nowrap;
     overflow-x: auto;
@@ -5426,9 +6120,9 @@ body {
   }
 }
 
-/* ═══════════════════════════════════════════════════════════════════
-   RESPONSIVE: SMALL PHONE  (≤ 420px)
-   ═══════════════════════════════════════════════════════════════════ */
+/* ΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉ
+   RESPONSIVE: SMALL PHONE  (Γëñ 420px)
+   ΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉ */
 @media (max-width: 420px) {
 
   /* Login card */
@@ -5490,7 +6184,7 @@ body {
     font-size: 11px;
   }
 
-  /* Tables stay scrollable — ensure parent has room */
+  /* Tables stay scrollable ΓÇö ensure parent has room */
   .data-table th,
   .data-table td {
     padding: 8px;
@@ -5621,9 +6315,9 @@ body {
   }
 }
 
-/* ═══════════════════════════════════════════════════════════════════
-   RESPONSIVE: MINIMUM SUPPORTED SIZE  (≤ 360px — iPhone SE, etc.)
-   ═══════════════════════════════════════════════════════════════════ */
+/* ΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉ
+   RESPONSIVE: MINIMUM SUPPORTED SIZE  (Γëñ 360px ΓÇö iPhone SE, etc.)
+   ΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉ */
 @media (max-width: 360px) {
 
   /* Login */
@@ -5652,7 +6346,7 @@ body {
     max-width: 20px;
   }
 
-  /* All grids → single column */
+  /* All grids ΓåÆ single column */
   .ln-stats-grid-4,
   .ln-stats-grid-3 {
     grid-template-columns: 1fr;
@@ -5832,7 +6526,7 @@ body {
     padding: 40px 12px;
   }
 
-  /* Dropdown menus — ensure they don't overflow viewport */
+  /* Dropdown menus ΓÇö ensure they don't overflow viewport */
   .ln-dropdown {
     max-width: calc(100vw - 16px);
   }
@@ -5873,4 +6567,1188 @@ body {
 
 .ln-empty-state-desc {
   color: var(--gray-600);
+}
+
+/* ΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉ
+   APP LAYOUT ΓÇö Sidebar + Main Content Shell
+   ΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉ */
+/* Consolidated with global layout at top */
+
+/* ΓöÇΓöÇΓöÇ FEED COLUMN (centered, max-width) ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ */
+.tt-col-feed {
+  max-width: 100%;
+  margin: 0 auto;
+  width: 100%;
+  padding: 0 12px;
+}
+
+/* ΓöÇΓöÇΓöÇ FEED FILTER TABS ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ */
+.ln-feed-filter-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 0;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+}
+
+.ln-feed-filter-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 16px;
+  border-radius: 20px;
+  border: 1.5px solid #e2e8f0;
+  background: #fff;
+  color: #64748b;
+  font-size: 13px;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.ln-feed-filter-tab:hover {
+  border-color: #2563eb;
+  color: #2563eb;
+  background: #eff6ff;
+}
+
+.ln-feed-filter-tab.active {
+  background: linear-gradient(135deg, #2563eb, #4f46e5);
+  color: #fff;
+  border-color: transparent;
+}
+
+.ln-filter-count {
+  font-size: 11px;
+  font-weight: 700;
+  background: rgba(0, 0, 0, 0.08);
+  padding: 1px 7px;
+  border-radius: 10px;
+}
+
+.ln-feed-filter-tab.active .ln-filter-count {
+  background: rgba(255, 255, 255, 0.25);
+}
+
+/* ΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉ
+   TRAINEETRACK SIDEBAR ΓÇö NEW IDENTITY (tt- prefix)
+   Replaces LinkedIn-style top nav for both Trainee & Partner
+   ΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉ */
+
+/* ΓöÇΓöÇΓöÇ SIDEBAR SHELL ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ */
+/* tt-sidenav already defined globally as fixed */
+
+.tt-sidenav::-webkit-scrollbar {
+  display: none;
+}
+
+/* ΓöÇΓöÇΓöÇ LOGO ROW ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ */
+.tt-sidenav-logo {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 20px 18px 16px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  flex-shrink: 0;
+}
+
+.tt-sidenav-brand {
+  font-size: 15px;
+  font-weight: 800;
+  color: #fff;
+  letter-spacing: -0.3px;
+  white-space: nowrap;
+}
+
+.tt-logo-icon {
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.15);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  font-weight: 800;
+  color: #fff;
+  flex-shrink: 0;
+  border: 1.5px solid rgba(255, 255, 255, 0.25);
+}
+
+/* ΓöÇΓöÇΓöÇ PROFILE MINI SECTION ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ */
+.tt-sidenav-profile {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 16px;
+  margin: 12px 10px 4px;
+  border-radius: 12px;
+  cursor: pointer;
+  transition: background 0.2s;
+  flex-shrink: 0;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.tt-sidenav-profile:hover {
+  background: rgba(255, 255, 255, 0.12);
+  border-color: rgba(255, 255, 255, 0.2);
+}
+
+.tt-sidenav-avatar {
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #60a5fa, #a78bfa);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  font-weight: 700;
+  color: white;
+  flex-shrink: 0;
+  overflow: hidden;
+  border: 2px solid rgba(255, 255, 255, 0.3);
+}
+
+.tt-sidenav-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: 50%;
+}
+
+.tt-sidenav-profile-info {
+  min-width: 0;
+  flex: 1;
+}
+
+.tt-sidenav-profile-name {
+  font-size: 13px;
+  font-weight: 700;
+  color: #fff;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.tt-sidenav-profile-role {
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.55);
+  margin-top: 1px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ΓöÇΓöÇΓöÇ NAV SECTION ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ */
+.tt-sidenav-section-label {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: rgba(255, 255, 255, 0.35);
+  padding: 14px 18px 4px;
+  flex-shrink: 0;
+}
+
+.tt-sidenav-nav {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 8px 10px;
+  flex: 1;
+}
+
+/* ΓöÇΓöÇΓöÇ NAV ITEM ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ */
+.tt-sidenav-item {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  padding: 10px 12px;
+  border: none;
+  background: none;
+  cursor: pointer;
+  border-radius: 10px;
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 13.5px;
+  font-weight: 500;
+  font-family: inherit;
+  text-align: left;
+  transition: background 0.15s, color 0.15s;
+  width: 100%;
+  position: relative;
+  flex-shrink: 0;
+}
+
+.tt-sidenav-item:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: #fff;
+}
+
+.tt-sidenav-item.active {
+  background: rgba(255, 255, 255, 0.15);
+  color: #fff;
+  font-weight: 700;
+}
+
+.tt-sidenav-item.active::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 25%;
+  bottom: 25%;
+  width: 3px;
+  border-radius: 0 3px 3px 0;
+  background: #60a5fa;
+}
+
+.tt-sidenav-item-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  flex-shrink: 0;
+  position: relative;
+}
+
+.tt-sidenav-item-label {
+  flex: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.tt-sidenav-item-badge {
+  background: #ef4444;
+  color: #fff;
+  font-size: 10px;
+  font-weight: 700;
+  min-width: 18px;
+  height: 18px;
+  border-radius: 9px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 4px;
+  flex-shrink: 0;
+}
+
+/* Danger item (sign out) */
+.tt-sidenav-danger {
+  color: rgba(252, 165, 165, 0.8) !important;
+}
+
+.tt-sidenav-danger:hover {
+  background: rgba(220, 38, 38, 0.15) !important;
+  color: #fca5a5 !important;
+}
+
+/* ΓöÇΓöÇΓöÇ DIVIDER ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ */
+.tt-sidenav-divider {
+  height: 1px;
+  background: rgba(255, 255, 255, 0.1);
+  margin: 4px 10px;
+  flex-shrink: 0;
+}
+
+/* ΓöÇΓöÇΓöÇ BOTTOM SECTION ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ */
+.tt-sidenav-bottom {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 8px 10px 16px;
+  flex-shrink: 0;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+/* ΓöÇΓöÇΓöÇ NOTIFICATION BADGE ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ */
+.tt-notif-badge {
+  position: absolute;
+  top: -5px;
+  right: -6px;
+  background: #ef4444;
+  color: #fff;
+  font-size: 9px;
+  font-weight: 700;
+  min-width: 16px;
+  height: 16px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 3px;
+  border: 1.5px solid #312e81;
+}
+
+/* ΓöÇΓöÇΓöÇ INLINE NOTIFICATION DROPDOWN IN SIDEBAR ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ */
+.tt-sidenav-notif-panel {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 10px;
+  margin: 4px 10px 0;
+  overflow: hidden;
+  animation: ttFadeSlide 0.15s ease;
+}
+
+.tt-notif-panel-header {
+  padding: 10px 14px;
+  font-size: 11px;
+  font-weight: 700;
+  color: rgba(255, 255, 255, 0.5);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.tt-notif-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px 14px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.tt-notif-item:hover {
+  background: rgba(255, 255, 255, 0.07);
+}
+
+.tt-notif-item:last-child {
+  border-bottom: none;
+}
+
+.tt-notif-item-text {
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.75);
+  line-height: 1.4;
+}
+
+.tt-notif-item-unread .tt-notif-item-text {
+  color: #fff;
+  font-weight: 600;
+}
+
+.tt-notif-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #60a5fa;
+  flex-shrink: 0;
+  margin-top: 4px;
+}
+
+/* ΓöÇΓöÇΓöÇ FEED SEARCH BAR (new, not LinkedIn) ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ */
+.tt-feed-search {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: white;
+  border-radius: 12px;
+  border: 1.5px solid #e2e8f0;
+  padding: 0 14px;
+  height: 44px;
+  transition: border-color 0.2s, box-shadow 0.2s;
+  margin-bottom: 4px;
+}
+
+.tt-feed-search:focus-within {
+  border-color: #2563eb;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);
+}
+
+.tt-feed-search input {
+  flex: 1;
+  border: none;
+  outline: none;
+  font-size: 14px;
+  color: #1e293b;
+  background: transparent;
+  font-family: inherit;
+}
+
+.tt-feed-search input::placeholder {
+  color: #94a3b8;
+}
+
+/* ΓöÇΓöÇΓöÇ UPDATED BUTTON STYLES (blue+indigo) ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ */
+.ln-btn-primary,
+.ln-btn.ln-btn-primary {
+  background: linear-gradient(135deg, #2563eb, #4f46e5) !important;
+  color: #fff !important;
+  border: none !important;
+}
+
+.ln-btn-primary:hover,
+.ln-btn.ln-btn-primary:hover {
+  background: linear-gradient(135deg, #1d4ed8, #4338ca) !important;
+}
+
+/* ΓöÇΓöÇΓöÇ UPDATED BADGE COLORS ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ */
+.ln-badge-blue {
+  background: #eff6ff;
+  color: #2563eb;
+  border: 1px solid #bfdbfe;
+}
+
+/* ΓöÇΓöÇΓöÇ CREATE POST BAR (updated) ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ */
+.ln-create-post-bar {
+  background: white;
+  border-radius: 14px;
+  border: 1.5px solid #e2e8f0;
+  padding: 14px 16px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.04);
+}
+
+.ln-create-post-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 18px;
+  background: linear-gradient(135deg, #2563eb, #4f46e5);
+  color: white;
+  border: none;
+  border-radius: 20px;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  font-family: inherit;
+  transition: opacity 0.15s, transform 0.15s;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.ln-create-post-btn:hover {
+  opacity: 0.9;
+  transform: translateY(-1px);
+}
+
+.ln-create-post-label {
+  font-size: 13px;
+  color: #94a3b8;
+  flex: 1;
+}
+
+/* ΓöÇΓöÇΓöÇ ANIMATIONS ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ */
+@keyframes ttFadeSlide {
+  from {
+    opacity: 0;
+    transform: translateY(-6px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* ΓöÇΓöÇΓöÇ MOBILE: collapse sidebar ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ */
+/* ΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉ
+   RESPONSIVE BREAKPOINTS ΓÇö desktop ΓåÆ smallest phone
+   ΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉ */
+
+/* ΓöÇΓöÇΓöÇ LARGE TABLET / SMALL DESKTOP (Γëñ 1200px) ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ */
+@media (max-width: 1200px) {
+  .tt-sidenav {
+    width: 220px;
+  }
+
+  .ln-main {
+    margin-left: 252px;
+    /* 220 + 16 left + 16 gap */
+  }
+
+  .tt-topbar-search {
+    max-width: 300px;
+  }
+
+  .tt-topbar-right {
+    width: auto;
+  }
+}
+
+/* ΓöÇΓöÇΓöÇ TABLET & BELOW (Γëñ 900px) ΓÇö bottom tab bar ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ */
+@media (max-width: 900px) {
+
+  /* Topbar adjustments */
+  .tt-topbar {
+    padding: 0 12px;
+    height: 56px;
+  }
+
+  .tt-topbar-brand {
+    gap: 8px;
+  }
+
+  .tt-topbar-title {
+    font-size: 16px;
+  }
+
+  .tt-topbar-search-container {
+    flex: 1;
+    padding: 0 8px;
+  }
+
+  .tt-topbar-search {
+    max-width: 100%;
+    padding: 6px 10px;
+    font-size: 13px;
+  }
+
+  .tt-topbar-right {
+    width: auto;
+  }
+
+  /* Sidebar becomes bottom tab bar */
+  .tt-sidenav {
+    display: flex;
+    flex-direction: row;
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    top: auto;
+    width: 100%;
+    height: 60px;
+    border-radius: 0;
+    padding: 0;
+    justify-content: space-around;
+    align-items: center;
+    overflow: hidden;
+    z-index: 999;
+    background: linear-gradient(90deg, #1e3a8a 0%, #312e81 100%);
+  }
+
+  .tt-sidenav-logo,
+  .tt-sidenav-profile,
+  .tt-sidenav-section-label,
+  .tt-sidenav-divider,
+  .tt-sidenav-bottom,
+  .tt-sidenav-notif-panel {
+    display: none !important;
+  }
+
+  .tt-sidenav-nav {
+    display: flex;
+    flex-direction: row;
+    flex: 1;
+    justify-content: space-around;
+    padding: 0;
+    gap: 0;
+  }
+
+  .tt-sidenav-item {
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    padding: 6px 4px 2px;
+    gap: 2px;
+    font-size: 9px;
+    flex: 1;
+    border-radius: 0;
+    min-width: 0;
+  }
+
+  .tt-sidenav-item-label {
+    display: block;
+    font-size: 9px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 100%;
+    text-align: center;
+  }
+
+  .tt-sidenav-item-icon {
+    width: auto;
+  }
+
+  .tt-sidenav-item.active::before {
+    display: none;
+  }
+
+  /* Main content ΓÇö no sidebar margin, bottom padding for tab bar */
+  .ln-main {
+    margin-left: 0;
+    padding: 68px 14px 72px 14px;
+    height: 100dvh;
+  }
+
+  /* Stacks */
+  .tt-feed-grid {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+
+  .tt-two-col,
+  .ln-three-col {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+
+  .tt-col-aside {
+    position: static;
+  }
+
+  /* Cards */
+  .card,
+  .stat-card {
+    padding: 14px;
+  }
+
+  /* Tables scroll */
+  .data-table {
+    font-size: 12px;
+  }
+
+  .data-table th,
+  .data-table td {
+    padding: 8px 10px;
+  }
+}
+
+/* ΓöÇΓöÇΓöÇ PHONE (Γëñ 480px) ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ */
+@media (max-width: 480px) {
+  .tt-topbar {
+    height: 52px;
+    padding: 0 10px;
+  }
+
+  .tt-topbar-title {
+    font-size: 14px;
+  }
+
+  .tt-topbar-search {
+    padding: 5px 8px;
+    gap: 6px;
+  }
+
+  .tt-topbar-search input {
+    font-size: 12px;
+  }
+
+  .tt-hamburger-btn {
+    width: 36px;
+    height: 36px;
+  }
+
+  .ln-main {
+    padding: 64px 10px 68px 10px;
+  }
+
+  .tt-sidenav {
+    height: 56px;
+  }
+
+  .tt-sidenav-item {
+    font-size: 8px;
+    padding: 6px 2px 2px;
+  }
+
+  .stat-value {
+    font-size: 20px;
+  }
+
+  .card,
+  .stat-card {
+    padding: 12px;
+  }
+
+  .btn {
+    padding: 7px 12px;
+    font-size: 12px;
+  }
+
+  .badge {
+    font-size: 10px;
+    padding: 2px 8px;
+  }
+
+  /* Feed grid single column */
+  .tt-feed-grid {
+    grid-template-columns: 1fr;
+    gap: 10px;
+    margin-top: 12px;
+  }
+
+  .tt-feed-card-cover {
+    height: 100px;
+  }
+
+  /* Modals/drawers */
+  [class*="modal"],
+  [class*="Modal"] {
+    border-radius: 16px 16px 0 0;
+    bottom: 0;
+    top: auto;
+    transform: none !important;
+    left: 0;
+    right: 0;
+    max-height: 90dvh;
+    overflow-y: auto;
+  }
+}
+
+/* ΓöÇΓöÇΓöÇ SMALL PHONE (Γëñ 390px) ΓÇö iPhone SE, Galaxy A series ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ */
+@media (max-width: 390px) {
+  .tt-topbar {
+    height: 50px;
+    padding: 0 8px;
+  }
+
+  .tt-topbar-title {
+    font-size: 13px;
+  }
+
+  /* Keep search bar but make it compact */
+  .tt-topbar-search-container {
+    flex: 1;
+    padding: 0 4px;
+  }
+
+  .tt-topbar-search {
+    padding: 4px 8px;
+  }
+
+  .tt-topbar-search input {
+    font-size: 11px;
+  }
+
+  .tt-topbar-brand {
+    gap: 6px;
+  }
+
+  .ln-main {
+    padding: 62px 8px 66px 8px;
+  }
+
+  .tt-sidenav {
+    height: 54px;
+  }
+
+  .tt-sidenav-item {
+    padding: 5px 1px 2px;
+    font-size: 7px;
+  }
+
+  .tt-sidenav-item-label {
+    font-size: 7px;
+  }
+
+  .stat-card {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+  }
+
+  .stat-icon {
+    width: 40px;
+    height: 40px;
+  }
+
+  .card,
+  .stat-card {
+    padding: 10px;
+    border-radius: 10px;
+  }
+
+  .data-table th,
+  .data-table td {
+    padding: 6px 8px;
+    font-size: 11px;
+  }
+
+  .btn {
+    padding: 6px 10px;
+    font-size: 11px;
+  }
+}
+
+/* ΓöÇΓöÇΓöÇ SMALLEST PHONE (Γëñ 320px) ΓÇö Galaxy S5, iPhone 4 ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ */
+@media (max-width: 320px) {
+  .tt-topbar {
+    height: 48px;
+    padding: 0 6px;
+  }
+
+  .tt-topbar-title {
+    font-size: 12px;
+  }
+
+  .ln-main {
+    padding: 58px 6px 62px 6px;
+  }
+
+  .tt-sidenav {
+    height: 52px;
+  }
+
+  .tt-sidenav-item {
+    padding: 4px 1px;
+  }
+
+  .tt-sidenav-item-label {
+    display: none;
+  }
+
+  .stat-value {
+    font-size: 18px;
+  }
+
+  .card,
+  .stat-card {
+    padding: 8px;
+    border-radius: 8px;
+  }
+
+  .btn {
+    padding: 5px 8px;
+    font-size: 10px;
+  }
+
+  .badge {
+    font-size: 9px;
+    padding: 1px 6px;
+  }
+
+  .tt-feed-grid {
+    gap: 8px;
+  }
+
+  .tt-feed-card-content {
+    padding: 28px 10px 10px;
+  }
+
+  .tt-feed-card-title {
+    font-size: 14px;
+  }
+
+  .tt-feed-card-text {
+    font-size: 11px;
+    -webkit-line-clamp: 2;
+  }
+
+  /* Drop shadows on tiny screens to reduce visual weight */
+  .card,
+  .stat-card,
+  .job-card {
+    box-shadow: none;
+    border: 1px solid #e2e8f0;
+  }
+}
+
+/* ΓöÇΓöÇΓöÇ FEED GRID SYSTEM (Live Feed Mockup) ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ */
+.tt-feed-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 20px;
+  width: 100%;
+  margin-top: 20px;
+  align-items: stretch;
+}
+
+.tt-feed-card {
+  display: flex;
+  flex-direction: column;
+  background: #fff;
+  border-radius: 12px;
+  border: 1px solid #e2e8f0;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.03);
+  position: relative;
+  overflow: hidden;
+  transition: transform 0.2s, box-shadow 0.2s;
+  height: 400px;
+  /* Fixed height guarantees uniform cards across all rows */
+}
+
+.tt-feed-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.08);
+}
+
+.tt-feed-card-cover {
+  height: 130px;
+  min-height: 130px;
+  /* always show the cover area, even without an image */
+  width: 100%;
+  background-size: cover;
+  background-position: center;
+  position: relative;
+  background-color: #f1f5f9;
+  border-bottom: 1px solid #e2e8f0;
+  flex-shrink: 0;
+  /* never compress the cover area */
+}
+
+.tt-feed-card-icon {
+  width: 48px;
+  height: 48px;
+  border-radius: 8px;
+  background: #fff;
+  border: 2px solid #fff;
+  position: absolute;
+  top: 106px;
+  /* center overlaps 130px cover bottom (130 - 24) */
+  left: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  overflow: hidden;
+  font-size: 20px;
+}
+
+.tt-feed-card-icon img {
+  width: 100%;
+  height: 60%;
+  object-fit: cover;
+}
+
+.tt-feed-card-content {
+  padding: 32px 16px 16px 16px;
+  /* 32px top to clear the absolute icon */
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+.tt-feed-card-title {
+  font-size: 16px;
+  font-weight: 700;
+  color: #0f172a;
+  margin-bottom: 4px;
+  line-height: 1.3;
+}
+
+.tt-feed-card-subtitle {
+  font-size: 13px;
+  color: #475569;
+  margin-bottom: 12px;
+  font-weight: 500;
+}
+
+.tt-feed-card-text {
+  font-size: 13px;
+  color: #334155;
+  line-height: 1.5;
+  margin-bottom: 16px;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.tt-feed-card-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 16px;
+}
+
+.tt-feed-card-tag {
+  background: #f1f5f9;
+  color: #475569;
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.tt-feed-card-footer {
+  margin-top: auto;
+  padding-top: 16px;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+}
+
+.tt-feed-card-btn {
+  width: 100%;
+  height: 38px;
+  padding: 0 4px;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  background: transparent;
+  color: #0f172a;
+  font-weight: 600;
+  font-size: 10px;
+  line-height: 1.1;
+  cursor: pointer;
+  transition: all 0.2s;
+  text-transform: uppercase;
+  letter-spacing: 0.2px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  white-space: normal;
+  overflow: hidden;
+  padding: 0 2px;
+}
+
+.tt-feed-card-btn:hover:not(:disabled) {
+  background: #f8fafc;
+  border-color: #cbd5e1;
+}
+
+.tt-feed-card-btn-primary {
+  background: #4f46e5;
+  color: #fff;
+  border-color: #4f46e5;
+}
+
+.tt-feed-card-btn-primary:hover:not(:disabled) {
+  background: #4338ca;
+  border-color: #4338ca;
+}
+
+/* ─── COMMUNITY FEED GRID (4-COLUMN) ───────────────────────── */
+.tt-feed-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 16px;
+  width: 100%;
+  align-items: start;
+}
+
+@media (max-width: 1440px) {
+  .tt-feed-grid {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+@media (max-width: 1100px) {
+  .tt-feed-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 640px) {
+  .tt-feed-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Compact card styling for grid */
+.tt-feed-grid .ln-card {
+  display: flex !important;
+  flex-direction: column !important;
+  margin-bottom: 0 !important;
+  height: 400px;
+  overflow: hidden;
+  transition: transform 0.2s ease, box-shadow 0.2s ease !important;
+}
+
+.tt-feed-grid .ln-card:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 8px 20px -4px rgba(0, 0, 0, 0.12);
+}
+
+/* Clamp all text content to 2 lines */
+.tt-feed-grid .ln-feed-content p,
+.tt-feed-grid .ln-feed-content > div > p {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin-bottom: 8px;
+  font-size: 12.5px !important;
+  line-height: 1.4 !important;
+}
+
+/* Clamp titles */
+.tt-feed-grid h4,
+.tt-feed-grid .ln-feed-content h4,
+.tt-feed-grid .ln-feed-content h3 {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  font-size: 13px !important;
+  line-height: 1.3 !important;
+  margin-bottom: 4px !important;
+}
+
+/* Compact card header */
+.tt-feed-grid .ln-feed-card-header {
+  padding: 10px 12px 6px !important;
+}
+
+.tt-feed-grid .ln-feed-avatar {
+  width: 30px !important;
+  height: 30px !important;
+  font-size: 12px !important;
+}
+
+.tt-feed-grid .ln-feed-author {
+  font-size: 12px !important;
+}
+
+.tt-feed-grid .ln-feed-meta {
+  font-size: 10px !important;
+}
+
+/* Compact content area */
+.tt-feed-grid .ln-feed-content {
+  padding: 4px 12px 8px !important;
+  flex: 1;
+  overflow-y: auto;
+  min-height: 0;
+}
+
+/* Compact actions bar */
+.tt-feed-grid .ln-feed-actions {
+  margin-top: auto;
+  border-top: 1px solid #f1f5f9;
+  padding: 4px 8px !important;
+}
+
+.tt-feed-grid .ln-feed-action-btn {
+  font-size: 11px !important;
+  padding: 4px 6px !important;
+  gap: 3px !important;
+}
+
+/* Compact media */
+.tt-feed-grid .ln-media-frame {
+  aspect-ratio: 16 / 10;
+  overflow: hidden;
+  border-radius: 6px;
+  margin-bottom: 8px;
+  max-height: 140px;
+}
+
+.tt-feed-grid .ln-media-image {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+/* Hide comment previews and long metadata in grid view */
+.tt-feed-grid .ln-feed-content > div:last-child > div[style*="borderTop"] {
+  display: none;
+}
+
+/* Compact badges and tags */
+.tt-feed-grid .ln-badge,
+.tt-feed-grid .ln-opp-type-badge {
+  font-size: 9px !important;
+  padding: 1px 6px !important;
+}
+
+/* Compact schedule/time/slots info blocks in bulletins */
+.tt-feed-grid div[style*="gridTemplateColumns"] {
+  gap: 4px !important;
+}
+
+.tt-feed-grid div[style*="gridTemplateColumns"] > div {
+  padding: 4px 8px !important;
 }

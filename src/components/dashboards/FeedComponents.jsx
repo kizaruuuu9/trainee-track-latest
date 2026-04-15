@@ -50,16 +50,53 @@ const isStudentAuthorType = (authorType = '') => {
 
 const toProfileAuthorType = (authorType = '') => (isStudentAuthorType(authorType) ? 'trainee' : 'partner');
 
+export const isVerified = (user) => user?.verificationStatus === 'Verified';
+
+export const getLivePartner = (currentUser, partners = []) => {
+  if (!currentUser) return null;
+  // Look for partner record where user_id matches currentUser.id
+  return partners.find(p => p.user_id === currentUser.id) || null;
+};
+
+export const resolvePartnerVisibility = (profile) => {
+    if (!profile) return 'private';
+    if (profile.verificationStatus === 'Verified') return 'public';
+    return profile.visibility || 'private';
+};
+
+export const StatusBadge = ({ status }) => {
+    const s = String(status || '').toLowerCase();
+    const configs = {
+        verified: { bg: '#dcfce7', color: '#166534', label: 'Verified' },
+        pending: { bg: '#fef3c7', color: '#92400e', label: 'Pending' },
+        rejected: { bg: '#fee2e2', color: '#991b1b', label: 'Rejected' },
+        unverified: { bg: '#f1f5f9', color: '#475569', label: 'Unverified' }
+    };
+    const cfg = configs[s] || configs.unverified;
+    return (
+        <span style={{ 
+            padding: '2px 8px', 
+            borderRadius: 6, 
+            fontSize: 11, 
+            fontWeight: 700, 
+            background: cfg.bg, 
+            color: cfg.color 
+        }}>
+            {cfg.label}
+        </span>
+    );
+};
+
 // --- SHARED COMPONENTS ---
 
 export const BULLETIN_CONFIG = {
-  training: { label: 'Training Program', color: '#7c3aed', bg: '#ede9fe', emoji: '📚', traineeLabel: 'Apply Now', type: 'apply' },
+  training: { label: 'Training Program', color: '#7c3aed', bg: '#ede9fe', emoji: '📚', traineeLabel: 'Apply', type: 'apply' },
   event: { label: 'Event', color: '#0ea5e9', bg: '#e0f2fe', emoji: '📅', traineeLabel: 'Register', type: 'register' },
   workshop: { label: 'Workshop', color: '#0ea5e9', bg: '#e0f2fe', emoji: '🛠️', traineeLabel: 'Register', type: 'register' },
   announcement: { label: 'Announcement', color: '#d97706', bg: '#fef3c7', emoji: '📢', traineeLabel: null, type: null },
-  scholarship: { label: 'Scholarship', color: '#16a34a', bg: '#dcfce7', emoji: '🎓', traineeLabel: 'Apply Now', type: 'apply' },
-  ojt_opportunity: { label: 'OJT Opportunity', color: '#ef4444', bg: '#fee2e2', emoji: '💼', traineeLabel: 'Apply Now', type: 'apply' },
-  training_batch: { label: 'Training Batch', color: '#7c3aed', bg: '#ede9fe', emoji: '📚', traineeLabel: 'Apply Now', type: 'apply' },
+  scholarship: { label: 'Scholarship', color: '#16a34a', bg: '#dcfce7', emoji: '🎓', traineeLabel: 'Apply', type: 'apply' },
+  ojt_opportunity: { label: 'OJT Opportunity', color: '#ef4444', bg: '#fee2e2', emoji: '💼', traineeLabel: 'Apply', type: 'apply' },
+  training_batch: { label: 'Training Batch', color: '#7c3aed', bg: '#ede9fe', emoji: '📚', traineeLabel: 'Apply', type: 'apply' },
   exam_schedule: { label: 'Exam Schedule', color: '#0ea5e9', bg: '#e0f2fe', emoji: '📝', traineeLabel: 'Register', type: 'register' },
   certification_assessment: { label: 'Certification Assessment', color: '#16a34a', bg: '#dcfce7', emoji: '🏆', traineeLabel: 'Register', type: 'register' }
 };
@@ -431,6 +468,200 @@ export const UniversalPostModal = ({
 };
 
 /**
+ * FeedItemDetailModal: A premium modal to show the full details of a post, job, or bulletin.
+ */
+export const FeedItemDetailModal = ({ item, onClose, onApply, onSave, onInquire, openProfile }) => {
+  const { currentUser, trainees, partners, getUserPostInteraction, getPostComments, getJobPostingComments, addPostComment, addJobPostingComment } = useApp();
+  const [newComment, setNewComment] = useState('');
+  const [isSubmittingComment, setIsSubmittingComment] = useState(false);
+  const [imageOrientation, setImageOrientation] = useState('landscape'); // default
+
+  useEffect(() => {
+    const src = item?.media_url || item?.attachmentUrl;
+    if (src) {
+      const img = new window.Image();
+      img.onload = () => {
+        setImageOrientation(img.width > img.height ? 'landscape' : 'portrait');
+      };
+      img.src = src;
+    }
+  }, [item]);
+
+  if (!item) return null;
+
+  const isJob = item.feedType === 'job';
+  const isBulletin = item.feedType === 'bulletin';
+  const comments = isJob ? getJobPostingComments(item.id) : getPostComments(item.id);
+
+  const getAuthor = () => {
+    if (isBulletin) return { name: 'PSTDII Admin', photo: null };
+    if (isJob) {
+      const p = partners.find(p => p.id === item.partnerId);
+      return { name: item.companyName, photo: p?.company_logo_url };
+    }
+    const author = isStudentAuthorType(item.author_type) ? trainees.find(t => t.id === item.author_id) : partners.find(p => p.id === item.author_id);
+    return { name: author?.name || author?.companyName || 'Unknown User', photo: author?.photo || author?.company_logo_url };
+  };
+
+  const author = getAuthor();
+
+  const handleSendComment = async () => {
+    if (!newComment.trim()) return;
+    setIsSubmittingComment(true);
+    const res = isJob ? await addJobPostingComment(item.id, newComment) : await addPostComment(item.id, newComment);
+    if (res.success) setNewComment('');
+    else alert(res.error || 'Comment failed');
+    setIsSubmittingComment(false);
+  };
+
+  return (
+    <div className="ln-modal-overlay" style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(8px)', zIndex: 10000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }} onClick={onClose}>
+      <div className="ln-modal-content" style={{ width: '100%', maxWidth: 960, maxHeight: '94vh', background: '#fff', borderRadius: 20, display: 'flex', flexDirection: 'column', overflow: 'hidden', animation: 'lnModalIn 0.3s cubic-bezier(0.16, 1, 0.3, 1)' }} onClick={e => e.stopPropagation()}>
+
+        {/* Header */}
+        <div style={{ padding: '16px 24px', borderBottom: '1px solid #f1f5f9', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <div style={{ width: 44, height: 44, borderRadius: '50%', background: '#e2e8f0', overflow: 'hidden' }}>
+              {author.photo ? <img src={author.photo} style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700 }}>{author.name.charAt(0)}</div>}
+            </div>
+            <div>
+              <div style={{ fontWeight: 800, color: '#0f172a', fontSize: 16 }}>{author.name}</div>
+              <div style={{ fontSize: 12, color: '#64748b' }}>{timeAgo(item.created_at || item.createdAt)}</div>
+            </div>
+          </div>
+          <button onClick={onClose} style={{ background: '#f1f5f9', border: 'none', width: 36, height: 36, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', transition: 'all 0.2s' }}>
+            <X size={20} color="#64748b" />
+          </button>
+        </div>
+
+        {/* Scrollable Content */}
+        <div style={{ flex: 1, overflowY: 'auto', padding: '24px' }}>
+          {isBulletin && (
+            <div style={{ marginBottom: 20 }}>
+              <span style={{ fontSize: 11, fontWeight: 800, textTransform: 'uppercase', color: BULLETIN_CONFIG[item.post_type]?.color, background: BULLETIN_CONFIG[item.post_type]?.bg, padding: '4px 10px', borderRadius: 20 }}>
+                {BULLETIN_CONFIG[item.post_type]?.emoji} {BULLETIN_CONFIG[item.post_type]?.label}
+              </span>
+            </div>
+          )}
+
+          <h1 style={{ fontSize: 28, fontWeight: 900, lineHeight: 1.2, color: '#0f172a', marginBottom: 16 }}>{item.title}</h1>
+
+          <div style={{ fontSize: 16, lineHeight: 1.7, color: '#334155', whiteSpace: 'pre-wrap', marginBottom: 24 }}>
+            {item.description || item.content}
+          </div>
+
+          {(item.media_url || item.attachmentUrl) && (
+            <div style={{
+              borderRadius: 16,
+              overflow: 'hidden',
+              border: '1px solid #e2e8f0',
+              marginBottom: 24,
+              background: '#0f172a',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              ...(imageOrientation === 'portrait' 
+                ? { width: '100%', maxWidth: 500, height: 600, margin: '0 auto 24px' } 
+                : { width: '100%', height: 480 })
+            }}>
+              <img src={item.media_url || item.attachmentUrl} alt="" style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain', display: 'block' }} />
+            </div>
+          )}
+
+          {isJob && (
+            <div style={{ background: '#f8fafc', padding: 20, borderRadius: 16, border: '1px solid #e2e8f0', marginBottom: 24 }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 16 }}>
+                <div><div style={{ fontSize: 11, color: '#64748b', fontWeight: 800, textTransform: 'uppercase' }}>Location</div><div style={{ fontWeight: 700, fontSize: 14, color: '#0f172a' }}>{item.location}</div></div>
+                <div><div style={{ fontSize: 11, color: '#64748b', fontWeight: 800, textTransform: 'uppercase' }}>Type</div><div style={{ fontWeight: 700, fontSize: 14, color: '#0f172a' }}>{item.opportunityType}</div></div>
+                {item.ncLevel && <div><div style={{ fontSize: 11, color: '#64748b', fontWeight: 800, textTransform: 'uppercase' }}>Requirement</div><div style={{ fontWeight: 700, fontSize: 14, color: '#7c3aed' }}>{item.ncLevel}</div></div>}
+                {item.salaryRange && <div><div style={{ fontSize: 11, color: '#64748b', fontWeight: 800, textTransform: 'uppercase' }}>Proposed Salary</div><div style={{ fontWeight: 700, fontSize: 14, color: '#16a34a' }}>{formatSalaryDisplay(item.salaryRange)}</div></div>}
+              </div>
+            </div>
+          )}
+
+          {/* Detailed Actions */}
+          <div style={{ display: 'flex', gap: 12, borderTop: '1px solid #f1f5f9', paddingTop: 20, marginBottom: 30 }}>
+            {isBulletin && BULLETIN_CONFIG[item.post_type]?.traineeLabel && (
+              <button
+                className="ln-btn ln-btn-primary"
+                disabled={getUserPostInteraction(item.id, BULLETIN_CONFIG[item.post_type]?.type)}
+                onClick={() => onApply(item, BULLETIN_CONFIG[item.post_type]?.type)}
+                style={{ flex: 1, borderRadius: 12, height: 48 }}
+              >
+                {getUserPostInteraction(item.id, BULLETIN_CONFIG[item.post_type]?.type) ? 'Applied' : BULLETIN_CONFIG[item.post_type]?.traineeLabel}
+              </button>
+            )}
+            {isJob && (
+              <button className="ln-btn ln-btn-primary" onClick={() => onApply(item)} style={{ flex: 1, borderRadius: 12, height: 48 }}>Apply Now</button>
+            )}
+            <button className="ln-btn ln-btn-outline" onClick={() => onSave(item.id)} style={{ padding: '0 20px', borderRadius: 12, height: 48 }}>
+              <Bookmark size={18} fill={getUserPostInteraction(item.id, 'save') ? 'currentColor' : 'none'} />
+            </button>
+          </div>
+
+          {/* Comments Section */}
+          <div>
+            <h3 style={{ fontSize: 18, fontWeight: 800, color: '#0f172a', marginBottom: 20 }}>Comments ({comments.length})</h3>
+
+            <div style={{ display: 'flex', gap: 12, marginBottom: 24 }}>
+              <div style={{ width: 40, height: 40, borderRadius: '50%', background: '#e2e8f0', flexShrink: 0, overflow: 'hidden' }}>
+                {currentUser?.photo || currentUser?.company_logo_url ? <img src={currentUser.photo || currentUser.company_logo_url} style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700 }}>{(currentUser?.name || 'U').charAt(0)}</div>}
+              </div>
+              <div style={{ flex: 1, position: 'relative' }}>
+                <textarea
+                  placeholder="Share your thoughts..."
+                  value={newComment}
+                  onChange={e => setNewComment(e.target.value)}
+                  style={{ width: '100%', border: '1px solid #e2e8f0', borderRadius: 16, padding: '12px 60px 12px 16px', fontSize: 14, minHeight: 48, outline: 'none', resize: 'none', background: '#f8fafc' }}
+                />
+                <button
+                  disabled={!newComment.trim() || isSubmittingComment}
+                  onClick={handleSendComment}
+                  style={{ position: 'absolute', right: 10, top: 4, bottom: 4, background: newComment.trim() ? '#0a66c2' : 'transparent', color: newComment.trim() ? '#fff' : '#94a3b8', border: 'none', width: 40, height: 40, borderRadius: 12, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: newComment.trim() ? 'pointer' : 'default', transition: 'all 0.2s' }}
+                >
+                  <Send size={18} />
+                </button>
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+              {comments.map(c => {
+                let cAuthorName = 'Unknown User';
+                let cAuthorPhoto = null;
+                if (c.author_type === 'industry_partner') {
+                  const p = partners.find(p => p.id === c.author_id);
+                  cAuthorName = p?.companyName || 'Industry Partner';
+                  cAuthorPhoto = p?.company_logo_url;
+                } else {
+                  const t = trainees.find(t => t.id === c.author_id);
+                  cAuthorName = t?.name || 'Student';
+                  cAuthorPhoto = t?.photo;
+                }
+
+                return (
+                  <div key={c.id} style={{ display: 'flex', gap: 12 }}>
+                    <div style={{ width: 36, height: 36, borderRadius: '50%', background: '#f1f5f9', flexShrink: 0, overflow: 'hidden' }}>
+                      {cAuthorPhoto ? <img src={cAuthorPhoto} style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 700 }}>{cAuthorName.charAt(0)}</div>}
+                    </div>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginBottom: 2 }}>
+                        <span style={{ fontWeight: 700, fontSize: 14, color: '#0f172a' }}>{cAuthorName}</span>
+                        <span style={{ fontSize: 11, color: '#94a3b8' }}>{timeAgo(c.created_at)}</span>
+                      </div>
+                      <div style={{ fontSize: 14, color: '#475569', lineHeight: 1.5 }}>{c.content}</div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+/**
  * FeedItem: Unified card for rendering posts, jobs, and bulletins
  */
 export const FeedItem = ({
@@ -445,7 +676,8 @@ export const FeedItem = ({
   onOpenMediaModal,
   postMenuId,
   setPostMenuId,
-  onComment
+  onComment,
+  onViewDetail
 }) => {
   const {
     currentUser, trainees, partners, getUserPostInteraction,
@@ -545,291 +777,225 @@ export const FeedItem = ({
     );
   };
 
-  // Render Bulletin
-  if (item.feedType === 'bulletin') {
-    const cfg = BULLETIN_CONFIG[item.post_type] || BULLETIN_CONFIG.announcement;
-    const alreadyInteracted = getUserPostInteraction(item.id, cfg.type);
-    const statusColors = {
-      Open: { bg: '#dcfce7', color: '#16a34a' },
-      Full: { bg: '#fef3c7', color: '#d97706' },
-      Closed: { bg: '#fee2e2', color: '#dc2626' }
-    };
-    const sc = statusColors[item.status] || statusColors.Open;
-    const reqs = Array.isArray(item.requirements) ? item.requirements : [];
+  // --- Shared helpers for tt-feed-card rendering ---
+  const COVER_COLORS = [
+    '#dcfce7', '#e0f2fe', '#ede9fe', '#fce7f3', '#fef3c7',
+    '#dbeafe', '#f1f5f9', '#ecfdf5', '#fdf2f8', '#fff7ed'
+  ];
 
-    const getAuthorName = () => {
+  const getCoverColor = (id) => {
+    const hash = String(id || '').split('').reduce((acc, ch) => acc + ch.charCodeAt(0), 0);
+    return COVER_COLORS[hash % COVER_COLORS.length];
+  };
+
+  // Determine card metadata for ALL feed types
+  const getCardData = () => {
+    if (item.feedType === 'bulletin') {
+      const cfg = BULLETIN_CONFIG[item.post_type] || BULLETIN_CONFIG.announcement;
       const authorId = String(item.author_id || '');
       const ADMIN_ID = 'de305d54-75b4-431b-adb2-eb6b9e546014';
-      if (item.author_type === 'admin' || authorId === ADMIN_ID) return 'PSTDII Admin';
+      let authorName = 'PSTDII Admin';
+      let authorPhoto = null;
       if (item.author_type === 'industry_partner' || item.author_type === 'partner') {
         const p = partners.find(p => String(p.id) === authorId);
-        return p ? (p.companyName || p.profileName) : 'Industry Partner';
-      }
-      if (item.author_type === 'student' || item.author_type === 'trainee') {
+        authorName = p ? (p.companyName || p.profileName) : 'Industry Partner';
+        authorPhoto = p?.company_logo_url || p?.photo;
+      } else if (item.author_type === 'student' || item.author_type === 'trainee') {
         const t = trainees.find(t => String(t.id) === authorId);
-        if (!t || t.name === 'Trainee' || t.profileName === 'Trainee') return 'PSTDII Admin';
-        return t.name || t.profileName;
+        if (t && t.name !== 'Trainee' && t.profileName !== 'Trainee') {
+          authorName = t.name || t.profileName;
+          authorPhoto = t?.photo;
+        }
+      } else if (item.author_type !== 'admin' && authorId !== ADMIN_ID) {
+        authorName = 'PSTDII Admin';
       }
-      return 'PSTDII Admin';
+      const sc = { Open: '#16a34a', Full: '#d97706', Closed: '#dc2626' };
+      let targetType = 'trainee';
+      if (item.author_type === 'industry_partner' || item.author_type === 'partner') {
+        targetType = 'partner';
+      } else if (item.author_type === 'admin' || authorId === ADMIN_ID) {
+        targetType = 'admin';
+      }
+
+      return {
+        coverColor: cfg.bg,
+        coverImage: null,
+        iconEmoji: cfg.emoji,
+        iconPhoto: authorPhoto,
+        title: authorName,
+        subtitle: `${cfg.label} • ${item.status || 'Open'}`,
+        subtitleColor: sc[item.status] || sc.Open,
+        text: item.content || item.title || '',
+        tags: item.slots_available ? [`${item.slots_available} Slots`] : [],
+        tagExtra: cfg.emoji,
+        profileTarget: { id: item.author_id, type: targetType }
+      };
+    }
+    if (item.feedType === 'job') {
+      const p = partners.find(p => String(p.id) === String(item.partnerId));
+      return {
+        coverColor: getCoverColor(item.id),
+        coverImage: (item.attachmentUrl && isImageAttachment(item.attachmentUrl, item.attachmentType)) ? item.attachmentUrl : null,
+        iconEmoji: null,
+        iconPhoto: p?.company_logo_url || p?.photo,
+        iconFallback: <Building2 size={20} />,
+        title: item.companyName || 'Company',
+        subtitle: `${item.opportunityType || 'Job'} • ${timeAgo(item.createdAt)}`,
+        subtitleColor: '#475569',
+        text: item.description || '',
+        tags: [
+          item.opportunityType,
+          item.ncLevel,
+          item.salaryRange ? formatSalaryDisplay(item.salaryRange) : null
+        ].filter(Boolean),
+        profileTarget: { id: item.partnerId, type: 'partner' }
+      };
+    }
+    // Post
+    const author = isOwnPost ? currentUser : (isStudentAuthorType(item.author_type) ? trainees.find(t => t.id === item.author_id) : partners.find(p => p.id === item.author_id));
+    const authorName = author?.name || author?.profileName || author?.companyName || 'Unknown User';
+    const authorPhoto = author?.photo || author?.company_logo_url;
+    const allTypes = [...TRAINEE_POST_TYPES, ...PARTNER_POST_TYPES];
+    const matchType = allTypes.find(t => t.value === item.post_type);
+    return {
+      coverColor: getCoverColor(item.id),
+      coverImage: (item.media_url || item.attachmentUrl) && isImageAttachment(item.media_url || item.attachmentUrl) ? (item.media_url || item.attachmentUrl) : null,
+      iconEmoji: null,
+      iconPhoto: authorPhoto,
+      iconFallback: authorName.charAt(0),
+      title: authorName,
+      subtitle: `${isStudentAuthorType(item.author_type) ? 'Trainee' : 'Partner'} • ${timeAgo(item.created_at || item.createdAt)} • ${matchType?.label || (item.post_type || 'general').replace('_', ' ')}`,
+      subtitleColor: '#475569',
+      text: item.content || '',
+      tags: [],
+      profileTarget: { id: item.author_id, type: toProfileAuthorType(item.author_type) }
     };
+  };
 
-    return (
-      <div className="ln-card ln-feed-card" style={{ marginBottom: 0, borderLeft: `4px solid ${cfg.color}` }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '14px 16px 10px' }}>
-          <div style={{ width: 40, height: 40, borderRadius: 10, background: cfg.bg, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18, flexShrink: 0 }}>{cfg.emoji}</div>
-          <div style={{ flex: 1 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <span style={{ fontWeight: 700, fontSize: 13, color: cfg.color }}>{cfg.label}</span>
-              <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 20, background: sc.bg, color: sc.color }}>{item.status || 'Open'}</span>
-            </div>
-            <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 2 }}>
-              {getAuthorName()} • {timeAgo(item.created_at)}
-            </div>
-          </div>
-          {isOwnPost && (
-            <div style={{ position: 'relative' }}>
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setPostMenuId(postMenuId === item.id ? null : item.id);
-                }}
-                style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 4, borderRadius: '50%', color: '#65676b' }}
-              >
-                <span style={{ fontSize: 20, fontWeight: 700, letterSpacing: 2, lineHeight: 1 }}>···</span>
-              </button>
-              {postMenuId === item.id && (
-                <div style={{ position: 'absolute', right: 0, top: 32, background: '#fff', borderRadius: 8, boxShadow: '0 2px 12px rgba(0,0,0,0.15)', border: '1px solid #e4e6eb', zIndex: 10, minWidth: 170, overflow: 'hidden' }}>
-                  <button onClick={() => { onEdit(item); setPostMenuId?.(null); }} style={{ display: 'flex', alignItems: 'center', gap: 10, width: '100%', padding: '10px 16px', border: 'none', background: 'none', cursor: 'pointer', fontSize: 14, color: '#1c1e21', textAlign: 'left' }}>
-                    <Edit size={16} /> Edit post
-                  </button>
-                  <button onClick={() => { if (window.confirm('Delete this post?')) onDelete(item.id); setPostMenuId?.(null); }} style={{ display: 'flex', alignItems: 'center', gap: 10, width: '100%', padding: '10px 16px', border: 'none', background: 'none', cursor: 'pointer', fontSize: 14, color: '#dc3545', textAlign: 'left' }}>
-                    <Trash2 size={16} /> Delete post
-                  </button>
-                </div>
-              )}
-            </div>
-          )}
-        </div>
-        <div style={{ padding: '0 16px 12px' }}>
-          <h4 style={{ fontSize: 15, fontWeight: 800, color: '#0f172a', marginBottom: 6 }}>{item.title}</h4>
-          <p style={{ fontSize: 13.5, color: '#475569', lineHeight: 1.6 }}>{item.content}</p>
-        </div>
-        <div className="ln-feed-actions" style={{ borderTop: '1px solid #f3f3f3', padding: '8px 12px', display: 'flex', gap: 8 }}>
-          {isOwnPost ? (
-            <>
-              <button className="ln-feed-action-btn" onClick={() => onApply?.(item, 'applicants')}>
-                <Users size={14} /> View Applicants
-              </button>
-              <button className="ln-feed-action-btn" onClick={handleToggleComments}>
-                <MessageSquare size={14} /> Comment ({commentCount})
-              </button>
-            </>
-          ) : (
-            <>
-              {cfg.type && (
-                <button className="ln-feed-action-btn" disabled={!!alreadyInteracted || item.status === 'Closed' || item.status === 'Full'} onClick={() => onApply(item, cfg.type)}>
-                  {alreadyInteracted ? <><CheckCircle size={14} /> Applied</> : <><Send size={14} /> {cfg.traineeLabel}</>}
-                </button>
-              )}
-              <button className="ln-feed-action-btn" onClick={() => onInquire(item)}>
-                <MessageSquare size={14} /> Inquire
-              </button>
-              <button className="ln-feed-action-btn" onClick={() => onSave(item.id)} style={getUserPostInteraction(item.id, 'save') ? { color: '#d97706', fontWeight: 700 } : {}}>
-                <Bookmark size={14} fill={getUserPostInteraction(item.id, 'save') ? "currentColor" : "none"} /> {getUserPostInteraction(item.id, 'save') ? 'Saved' : 'Save'}
-              </button>
-              <button className="ln-feed-action-btn" onClick={handleToggleComments}>
-                <MessageSquare size={14} /> Comment ({commentCount})
-              </button>
-            </>
-          )}
-        </div>
-        {renderCommentsSection()}
-      </div>
-    );
-  }
+  // Determine footer buttons for each feed type
+  const getFooterButtons = () => {
+    if (item.feedType === 'bulletin') {
+      const cfg = BULLETIN_CONFIG[item.post_type] || BULLETIN_CONFIG.announcement;
+      const alreadyInteracted = getUserPostInteraction(item.id, cfg.type);
+      if (isOwnPost) {
+        return [
+          { label: 'Applicants', primary: true, onClick: (e) => { e.stopPropagation(); onApply?.(item, 'applicants'); } },
+          { label: `Comment (${commentCount})`, onClick: (e) => { e.stopPropagation(); handleToggleComments(); } },
+          { label: 'Save', onClick: (e) => { e.stopPropagation(); onSave(item.id); }, active: !!getUserPostInteraction(item.id, 'save') }
+        ];
+      }
+      return [
+        cfg.type ? {
+          label: alreadyInteracted ? 'Applied' : (cfg.traineeLabel || 'Apply'),
+          primary: !alreadyInteracted,
+          disabled: !!alreadyInteracted || item.status === 'Closed' || item.status === 'Full',
+          onClick: (e) => { e.stopPropagation(); onApply(item, cfg.type); }
+        } : { label: `Comment (${commentCount})`, onClick: (e) => { e.stopPropagation(); handleToggleComments(); } },
+        { label: 'Inquire', onClick: (e) => { e.stopPropagation(); onInquire(item); } },
+        { label: getUserPostInteraction(item.id, 'save') ? 'Saved' : 'Save', onClick: (e) => { e.stopPropagation(); onSave(item.id); }, active: !!getUserPostInteraction(item.id, 'save') }
+      ];
+    }
+    if (item.feedType === 'job') {
+      const isSaved = Array.isArray(currentUser?.savedOpportunities) && currentUser.savedOpportunities.includes(item.id);
+      if (isOwnPost) {
+        return [
+          { label: 'Applicants', primary: true, onClick: (e) => { e.stopPropagation(); onApply?.(item, 'applicants'); } },
+          { label: `Comment (${commentCount})`, onClick: (e) => { e.stopPropagation(); handleToggleComments(); } },
+          { label: 'Your Listing', disabled: true }
+        ];
+      }
+      return [
+        { label: 'Apply', primary: true, onClick: (e) => { e.stopPropagation(); onApply(item); } },
+        { label: 'Contact', primary: false, onClick: (e) => { e.stopPropagation(); onInquire(item); }, border: true },
+        { label: isSaved ? 'Saved' : 'Save', onClick: (e) => { e.stopPropagation(); onSave(item.id); }, active: isSaved }
+      ];
+    }
+    // Post
+    if (isOwnPost) {
+      return [
+        { label: `Comment (${commentCount})`, onClick: (e) => { e.stopPropagation(); handleToggleComments(); } },
+        { label: 'Contact', primary: true, onClick: (e) => { e.stopPropagation(); onInquire?.(item); } },
+        { label: 'Save', onClick: (e) => { e.stopPropagation(); onSave?.(item.id); } }
+      ];
+    }
+    return [
+      { label: `Comment (${commentCount})`, onClick: (e) => { e.stopPropagation(); handleToggleComments(); } },
+      { label: 'Contact', primary: true, onClick: (e) => { e.stopPropagation(); onInquire?.(item); } },
+      { label: getUserPostInteraction(item.id, 'save') ? 'Saved' : 'Save', onClick: (e) => { e.stopPropagation(); onSave?.(item.id); }, active: !!getUserPostInteraction(item.id, 'save') }
+    ];
+  };
 
-  // Render Job
-  if (item.feedType === 'job') {
-    const isSaved = Array.isArray(currentUser?.savedOpportunities) && currentUser.savedOpportunities.includes(item.id);
-    return (
-      <div className="ln-card ln-feed-card" style={{ marginBottom: 0 }}>
-        <div className="ln-feed-card-header">
-          <button type="button" className="ln-feed-avatar" onClick={() => openProfile({ id: item.partnerId, type: 'partner' })} style={{ background: '#f0f7ff', color: '#0a66c2', border: 'none' }}>
-            <Building2 size={20} />
-          </button>
-          <div style={{ flex: 1 }}>
-            <div className="ln-feed-author">
-              <button type="button" onClick={() => openProfile({ id: item.partnerId, type: 'partner' })} style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', fontWeight: 700, color: 'inherit', fontSize: 'inherit' }}>
-                {item.companyName}
-              </button>
-              <span style={{ fontWeight: 400, color: 'rgba(0,0,0,0.45)', marginLeft: 4 }}>posted a new {item.opportunityType}</span>
-            </div>
-            <div className="ln-feed-meta">
-              {[item.location, timeAgo(item.createdAt)].filter(Boolean).join(' • ')}
-            </div>
-          </div>
-          {isOwnPost && (
-            <div style={{ position: 'relative' }}>
-              <button onClick={() => setPostMenuId?.(postMenuId === item.id ? null : item.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 4, borderRadius: '50%', color: '#65676b' }}>
-                <span style={{ fontSize: 20, fontWeight: 700, letterSpacing: 2, lineHeight: 1 }}>···</span>
-              </button>
-              {postMenuId === item.id && (
-                <div style={{ position: 'absolute', right: 0, top: 32, background: '#fff', borderRadius: 8, boxShadow: '0 2px 12px rgba(0,0,0,0.15)', border: '1px solid #e4e6eb', zIndex: 10, minWidth: 170, overflow: 'hidden' }}>
-                  <button onClick={() => { onEdit(item); setPostMenuId?.(null); }} style={{ display: 'flex', alignItems: 'center', gap: 10, width: '100%', padding: '10px 16px', border: 'none', background: 'none', cursor: 'pointer', fontSize: 14, color: '#1c1e21', textAlign: 'left' }}>
-                    <Edit size={16} /> Edit listing
-                  </button>
-                  <button onClick={() => { if (window.confirm('Delete this listing?')) onDelete(item.id); setPostMenuId?.(null); }} style={{ display: 'flex', alignItems: 'center', gap: 10, width: '100%', padding: '10px 16px', border: 'none', background: 'none', cursor: 'pointer', fontSize: 14, color: '#dc3545', textAlign: 'left' }}>
-                    <Trash2 size={16} /> Delete listing
-                  </button>
-                </div>
-              )}
-            </div>
-          )}
-        </div>
-        <div className="ln-feed-content">
-          <h4 style={{ fontSize: 15, fontWeight: 700, marginBottom: 4 }}>{item.title}</h4>
-          <p style={{ fontSize: 13, color: 'rgba(0,0,0,0.6)', marginBottom: 8 }}>{item.description?.substring(0, 150)}...</p>
-          {item.attachmentUrl && isImageAttachment(item.attachmentUrl, item.attachmentType) && (
-            <div className="ln-media-frame" style={{ marginBottom: 10 }}>
-              <img src={item.attachmentUrl} alt="" className="ln-media-image" />
-            </div>
-          )}
-          <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
-            <span className="ln-opp-type-badge">{item.opportunityType}</span>
-            {item.ncLevel && <span className="ln-opp-type-badge" style={{ background: '#ede9fe', color: '#6d28d9' }}>{item.ncLevel}</span>}
-            {item.salaryRange && <span style={{ fontSize: 15, color: '#057642', fontWeight: 700 }}>{formatSalaryDisplay(item.salaryRange)}</span>}
-          </div>
-        </div>
-        <div className="ln-feed-actions" style={{ borderTop: '1px solid #f3f3f3', padding: '4px 12px', display: 'flex', gap: 4 }}>
-          {isOwnPost ? (
-            <>
-              <button className="ln-feed-action-btn" onClick={() => onApply?.(item, 'applicants')}>
-                <Users size={14} /> View Applicants
-              </button>
-              <button className="ln-feed-action-btn" onClick={handleToggleComments}>
-                <MessageSquare size={14} /> Comment ({commentCount})
-              </button>
-              <button className="ln-feed-action-btn" disabled style={{ opacity: 0.6, cursor: 'default' }}>
-                <MessageSquare size={14} /> Your Listing
-              </button>
-            </>
-          ) : (
-            <>
-              <button className="ln-feed-action-btn" onClick={() => onApply(item)}>
-                <Send size={14} /> Apply
-              </button>
-              <button className="ln-feed-action-btn" onClick={() => onSave(item.id)} style={isSaved ? { color: '#0a66c2', fontWeight: 600 } : {}}>
-                <Bookmark size={14} fill={isSaved ? '#0a66c2' : 'none'} /> {isSaved ? 'Saved' : 'Save'}
-              </button>
-              <button className="ln-feed-action-btn" onClick={() => onInquire(item)}>
-                <Mail size={14} /> Inquire
-              </button>
-              <button className="ln-feed-action-btn" onClick={handleToggleComments}>
-                <MessageSquare size={14} /> Comment ({commentCount})
-              </button>
-            </>
-          )}
-        </div>
-        {renderCommentsSection()}
-      </div>
-    );
-  }
-
-  // Render Post
-  const author = isOwnPost ? currentUser : (isStudentAuthorType(item.author_type) ? trainees.find(t => t.id === item.author_id) : partners.find(p => p.id === item.author_id));
-  const authorName = author?.name || author?.profileName || author?.companyName || 'Unknown User';
-  const authorPhoto = author?.photo || author?.company_logo_url;
+  const card = getCardData();
+  const buttons = getFooterButtons();
 
   return (
-    <div className="ln-card ln-feed-card" style={{ marginBottom: 0 }}>
-      <div className="ln-feed-card-header">
-        <button type="button" className="ln-feed-avatar" onClick={() => openProfile({ id: item.author_id, type: toProfileAuthorType(item.author_type) })} style={{ border: 'none', background: '#e4e6eb', overflow: 'hidden', cursor: 'pointer' }}>
-          {authorPhoto ? <img src={authorPhoto} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : authorName.charAt(0)}
-        </button>
-        <div style={{ flex: 1 }}>
-          <div className="ln-feed-author">
-            <button type="button" onClick={() => openProfile({ id: item.author_id, type: toProfileAuthorType(item.author_type) })} style={{ background: 'none', border: 'none', padding: 0, fontWeight: 700, color: 'inherit', cursor: 'pointer' }}>
-              {authorName}
+    <div
+      className="tt-feed-card"
+      style={{ cursor: 'pointer' }}
+      onClick={() => onViewDetail?.(item)}
+    >
+      {/* Cover */}
+      <div
+        className="tt-feed-card-cover"
+        style={card.coverImage
+          ? { backgroundImage: `url(${card.coverImage})` }
+          : { backgroundColor: card.coverColor }
+        }
+      />
+
+      {/* Icon overlapping cover */}
+      <div
+        className="tt-feed-card-icon"
+        onClick={(e) => { 
+          e.stopPropagation(); 
+          if (card.profileTarget?.type !== 'admin') {
+            openProfile(card.profileTarget); 
+          }
+        }}
+        style={{ cursor: card.profileTarget?.type === 'admin' ? 'default' : 'pointer' }}
+      >
+        {card.iconEmoji
+          ? card.iconEmoji
+          : card.iconPhoto
+            ? <img src={card.iconPhoto} alt="" />
+            : (card.iconFallback || <Building2 size={20} />)
+        }
+      </div>
+
+      {/* Content */}
+      <div className="tt-feed-card-content">
+        <div className="tt-feed-card-title">{card.title}</div>
+        <div className="tt-feed-card-subtitle" style={{ color: card.subtitleColor }}>{card.subtitle}</div>
+        <div className="tt-feed-card-text">{card.text}</div>
+
+        {card.tags && card.tags.length > 0 && (
+          <div className="tt-feed-card-tags">
+            {card.tags.map((tag, i) => (
+              <span key={i} className="tt-feed-card-tag">{tag}</span>
+            ))}
+          </div>
+        )}
+
+        {/* Footer buttons */}
+        <div className="tt-feed-card-footer">
+          {buttons.map((btn, i) => (
+            <button
+              key={i}
+              className={`tt-feed-card-btn${btn.primary ? ' tt-feed-card-btn-primary' : ''}`}
+              onClick={btn.onClick}
+              disabled={btn.disabled}
+              style={btn.active ? { color: '#4f46e5', fontWeight: 700, borderColor: '#4f46e5' } : undefined}
+            >
+              {btn.label}
             </button>
-          </div>
-          <div className="ln-feed-meta">
-            {item.post_type && (
-              <span className="ln-post-type-badge" style={{
-                background: '#f1f5f9',
-                color: '#475569',
-                padding: '2px 8px',
-                borderRadius: 12,
-                fontSize: 11,
-                fontWeight: 700,
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: 4,
-                marginRight: 6,
-                textTransform: 'capitalize'
-              }}>
-                {(() => {
-                  const allTypes = [...TRAINEE_POST_TYPES, ...PARTNER_POST_TYPES];
-                  const match = allTypes.find(t => t.value === item.post_type);
-                  return (
-                    <>
-                      {match?.icon || '📝'} {match?.label || item.post_type.replace('_', ' ')}
-                    </>
-                  );
-                })()}
-              </span>
-            )}
-            • {timeAgo(item.created_at || item.createdAt)}
-          </div>
+          ))}
         </div>
-        {isOwnPost && (
-          <div style={{ position: 'relative' }}>
-            <button onClick={() => setPostMenuId?.(postMenuId === item.id ? null : item.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 4, borderRadius: '50%', color: '#65676b' }}>
-              <span style={{ fontSize: 20, fontWeight: 700, letterSpacing: 2, lineHeight: 1 }}>···</span>
-            </button>
-            {postMenuId === item.id && (
-              <div style={{ position: 'absolute', right: 0, top: 32, background: '#fff', borderRadius: 8, boxShadow: '0 2px 12px rgba(0,0,0,0.15)', border: '1px solid #e4e6eb', zIndex: 10, minWidth: 170, overflow: 'hidden' }}>
-                <button onClick={() => { onEdit(item); setPostMenuId?.(null); }} style={{ display: 'flex', alignItems: 'center', gap: 10, width: '100%', padding: '10px 16px', border: 'none', background: 'none', cursor: 'pointer', fontSize: 14, color: '#1c1e21', textAlign: 'left' }}>
-                  <Edit size={16} /> Edit post
-                </button>
-                <button onClick={() => { if (window.confirm('Delete this post?')) onDelete(item.id); setPostMenuId?.(null); }} style={{ display: 'flex', alignItems: 'center', gap: 10, width: '100%', padding: '10px 16px', border: 'none', background: 'none', cursor: 'pointer', fontSize: 14, color: '#dc3545', textAlign: 'left' }}>
-                  <Trash2 size={16} /> Delete post
-                </button>
-              </div>
-            )}
-          </div>
-        )}
       </div>
-      <div className="ln-feed-content">
-        {item.title && <h4 style={{ fontSize: 15, fontWeight: 800, marginBottom: 8 }}>{item.title}</h4>}
-        <p style={{ whiteSpace: 'pre-wrap', fontSize: 14, color: '#1c1e21', lineHeight: '1.4' }}>{item.content}</p>
-        {(item.media_url || item.attachmentUrl) && isImageAttachment(item.media_url || item.attachmentUrl) && (
-          <div className="ln-media-frame" style={{ marginTop: 12 }}>
-            <img src={item.media_url || item.attachmentUrl} alt="" className="ln-media-image" />
-          </div>
-        )}
+
+      {/* Comment section (expands below the card) */}
+      <div onClick={(e) => e.stopPropagation()}>
+        {renderCommentsSection()}
       </div>
-      <div className="ln-feed-actions" style={{ borderTop: '1px solid #f3f3f3', padding: '4px 12px', display: 'flex', gap: 4 }}>
-        {isOwnPost ? (
-          <>
-            <button className="ln-feed-action-btn" disabled style={{ opacity: 0.6, cursor: 'default' }}>
-              <MessageSquare size={14} /> Your Post
-            </button>
-            <button className="ln-feed-action-btn" onClick={handleToggleComments}>
-              <MessageSquare size={14} /> Comment ({commentCount})
-            </button>
-          </>
-        ) : (
-          <>
-            <button className="ln-feed-action-btn" onClick={handleToggleComments}>
-              <MessageSquare size={14} /> Comment ({commentCount})
-            </button>
-            <button className="ln-feed-action-btn">
-              <Send size={14} /> Share
-            </button>
-          </>
-        )}
-      </div>
-      {renderCommentsSection()}
     </div>
   );
 };

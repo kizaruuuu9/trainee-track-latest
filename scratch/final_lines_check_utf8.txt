@@ -1,0 +1,42 @@
+﻿1050:   const unifiedFeed = [
+1051: 
+1052:   const visibleFeed = unifiedFeed.slice(0, visibleItemsCount);
+1053:   const hasMoreItems = visibleItemsCount < unifiedFeed.length;
+1054: 
+1055:   useEffect(() => {
+1056:     if (!hasMoreItems || isLoadingMore) return;
+1057: 
+1058:     const observer = new IntersectionObserver(
+1059:       (entries) => {
+1060:         if (entries[0].isIntersecting) {
+1061:           handleLoadMore();
+1062:         }
+1063:       },
+1064:       { threshold: 0.1 }
+1065:     );
+1066: 
+1067:     if (loadMoreRef.current) {
+1068:       observer.observe(loadMoreRef.current);
+1069:     }
+1070: 
+1071:     return () => observer.disconnect();
+1072:   }, [hasMoreItems, isLoadingMore, visibleItemsCount]);
+1073: 
+1074:   const handleLoadMore = () => {
+1075:     setIsLoadingMore(true);
+1076:     setTimeout(() => {
+1077:       setVisibleItemsCount(prev => prev + 20);
+1078:       setIsLoadingMore(false);
+1079:     }, 800);
+1080:   };
+1081: 
+1082: 
+1083:     ...posts.map(p => ({
+1084:       ...p,
+1085:       feedType: (BULLETIN_TYPES.includes(p.post_type) && p.author_type !== 'industry_partner') ? 'bulletin' : 'post'
+1086:     })),
+1087:     ...jobPostings.map(j => ({ ...j, feedType: 'job' }))
+1088:   ].sort((a, b) => new Date(b.created_at || b.createdAt || b.datePosted) - new Date(a.created_at || a.createdAt || a.datePosted));
+1089: 
+1090:   // Bulletin interaction state
+1091:   const [bulletinModal, setBulletinModal] = useState(null); // { post, type }

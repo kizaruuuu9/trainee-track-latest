@@ -1,0 +1,14 @@
+﻿
+      return date.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+    };
+  
+    // Unified Feed: tag bulletin posts, mix with jobs
+    const BULLETIN_TYPES = ['training_batch', 'exam_schedule', 'certification_assessment', 'announcement'];
+>   const unifiedFeed = [
+  
+    const visibleFeed = unifiedFeed.slice(0, visibleItemsCount);
+    const hasMoreItems = visibleItemsCount < unifiedFeed.length;
+  
+    useEffect(() => {
+
+

@@ -1,0 +1,26 @@
+    if (!dateStr) return '';
+    if (dateStr.includes('–') || (dateStr.includes('-') && dateStr.split('-').length !== 3)) return dateStr;
+    const date = new Date(dateStr);
+    if (isNaN(date.getTime())) return dateStr;
+    return date.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+  };
+
+  // Unified Feed: tag bulletin posts, mix with jobs
+  const BULLETIN_TYPES = ['training_batch', 'exam_schedule', 'certification_assessment', 'announcement'];
+  const unifiedFeed = [
+    ...posts.map(p => ({
+      ...p,
+      feedType: (BULLETIN_TYPES.includes(p.post_type) && p.author_type !== 'industry_partner') ? 'bulletin' : 'post'
+    })),
+    ...jobPostings.map(j => ({ ...j, feedType: 'job' }))
+  ].sort((a, b) => new Date(b.created_at || b.createdAt || b.datePosted) - new Date(a.created_at || a.createdAt || a.datePosted));
+
+  // Bulletin interaction state
+  const [bulletinModal, setBulletinModal] = useState(null); // { post, type }
+  const [bulletinMsg, setBulletinMsg] = useState('');
+  const [bulletinSubmitting, setBulletinSubmitting] = useState(false);
+  const [bulletinToast, setBulletinToast] = useState('');
+
+  useEffect(() => {
+    fetchPostInteractions();
+  }, []);

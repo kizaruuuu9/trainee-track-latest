@@ -5,7 +5,7 @@ import SettingsPage from './SettingsPage';
 import NotificationsPage from './NotificationsPage';
 import {
     User, Briefcase, FileText, CheckCircle, Bell, ChevronDown, Search, Filter, MapPin, Clock, Building2,
-    Award, Send, CheckSquare, X, Eye, EyeOff, Plus, Menu, Home, Settings, LogOut, MessageSquare, Bookmark,
+    Award, Send, CheckSquare, Check, X, Eye, EyeOff, Plus, Menu, Home, Settings, LogOut, MessageSquare, Bookmark,
     Trash2, Camera, Loader, GraduationCap, MoveRight, ExternalLink, ShieldCheck, Mail, Calendar, AlignLeft, Users, ChevronRight, ChevronLeft, Edit, Upload, Link, Star, Heart, MoreVertical, Info
 } from 'lucide-react';
 import ProfileActivityTab from './ProfileActivityTab';
@@ -20,6 +20,7 @@ import BrandLogo from '../common/BrandLogo';
 import { supabase } from '../../lib/supabase';
 import { Routes, Route, useNavigate, useLocation, Navigate, useParams } from 'react-router-dom';
 import { CompanyProfile } from './PartnerDashboard';
+import TopNavBar from '../common/TopNavBar';
 
 /* ════════════════════════════════════════════════════════════════════
    LINKEDIN-STYLE TRAINEE DASHBOARD
@@ -176,178 +177,68 @@ const BULLETIN_CONFIG = {
 };
 
 // ─── TOP NAVIGATION BAR (LinkedIn-style) ─────────────────────────
-const LinkedInTopNav = ({ activePage, setActivePage }) => {
-    const { currentUser, logout, notifications, markNotificationRead } = useApp();
-    const unreadCount = notifications?.filter(n => !n.read).length || 0;
-    const [showProfileMenu, setShowProfileMenu] = useState(false);
-    const [showNotif, setShowNotif] = useState(false);
-    const [searchQuery, setSearchQuery] = useState('');
-    const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+// ─── LEFT NAVIGATION BAR ─────────────
+const TraineeSideNav = ({ activePage, setActivePage }) => {
+    const { currentUser } = useApp();
+    const navigate = useNavigate();
+    
+    // Trainee-specific data
     const initials = (currentUser?.name || '').split(' ').filter(Boolean).map(n => n[0]).join('').slice(0, 2).toUpperCase() || 'T';
 
     const navItems = [
-        { id: 'dashboard', label: 'Home', icon: <Home size={20} /> },
-        { id: 'profile', label: 'Profile', icon: <User size={20} /> },
-        { id: 'recommendations', label: 'Opportunities', icon: <Briefcase size={20} /> },
-        { id: 'applications', label: 'My Applications', icon: <FileText size={20} /> },
+        { id: 'dashboard', label: 'Home', icon: <Home size={18} /> },
+        { id: 'profile', label: 'Profile', icon: <User size={18} /> },
+        { id: 'recommendations', label: 'Opportunities', icon: <Briefcase size={18} /> },
+        { id: 'applications', label: 'My Applications', icon: <FileText size={18} /> },
     ];
 
     return (
-        <header className="ln-topnav">
-            <div className="ln-topnav-inner">
-                {/* Left: Logo + Search */}
-                <div className="ln-topnav-left">
-                    <div className="ln-logo">
-                        <BrandLogo size={32} fallbackClassName="ln-logo-icon" />
-                    </div>
-                    <div className="ln-search-wrap">
-                        <Search size={16} className="ln-search-icon" />
-                        <input
-                            className="ln-search-input"
-                            placeholder="Search..."
-                            value={searchQuery}
-                            onChange={e => setSearchQuery(e.target.value)}
-                        />
-                    </div>
+        <aside className="tt-sidenav">
+            <div
+                className="tt-sidenav-profile"
+                onClick={() => setActivePage('profile')}
+                role="button"
+                tabIndex={0}
+                onKeyDown={e => e.key === 'Enter' && setActivePage('profile')}
+            >
+                <div className="tt-sidenav-avatar">
+                    {currentUser?.photo
+                        ? <img src={currentUser.photo} style={{width: '100%', height: '100%', objectFit: 'cover'}} alt={currentUser?.name || 'Profile'} />
+                        : initials
+                    }
                 </div>
-
-                {/* Center: Nav Items */}
-                <nav className="ln-topnav-center">
-                    {navItems.map(item => (
-                        <button
-                            key={item.id}
-                            className={`ln-nav-item ${activePage === item.id ? 'active' : ''}`}
-                            onClick={() => setActivePage(item.id)}
-                            title={item.label}
-                        >
-                            {item.icon}
-                            <span className="ln-nav-label">{item.label}</span>
-                        </button>
-                    ))}
-                </nav>
-
-                {/* Right: Notifications + Profile */}
-                <div className="ln-topnav-right">
-                    <div style={{ position: 'relative' }}>
-                        <button className="ln-nav-item" onClick={() => { setShowNotif(!showNotif); setShowProfileMenu(false); }}>
-                            <Bell size={20} />
-                            {unreadCount > 0 && (
-                                <span className="ln-notif-dot" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, fontWeight: 'bold', background: '#dc2626', color: 'white', width: 16, height: 16, borderRadius: '50%', position: 'absolute', top: 2, right: 10 }}>
-                                    {unreadCount}
-                                </span>
-                            )}
-                            <span className="ln-nav-label">Alerts</span>
-                        </button>
-                        {showNotif && (
-                            <div className="ln-dropdown" style={{ right: 0, minWidth: 320, padding: 0, overflow: 'hidden' }}>
-                                <div className="ln-dropdown-header" style={{ padding: '12px 16px', borderBottom: '1px solid #e4e6eb', fontWeight: 600 }}>
-                                    Notifications
-                                </div>
-                                {(!notifications || notifications.length === 0) ? (
-                                    <div style={{ padding: '20px', textAlign: 'center', color: '#65676b', fontSize: 13 }}>No notifications</div>
-                                ) : (
-                                    notifications.slice(0, 4).map((n) => (
-                                        <div
-                                            key={n.id}
-                                            className="ln-dropdown-item hover:bg-slate-50"
-                                            style={{ background: n.read ? 'transparent' : '#f0f7ff', borderBottom: '1px solid #f3f3f3', alignItems: 'flex-start', padding: '12px 16px', cursor: 'pointer' }}
-                                            onClick={() => { markNotificationRead(n.id); setActivePage('notifications'); setShowNotif(false); }}
-                                        >
-                                            <div className="ln-notif-avatar" style={{ background: '#fff', border: '1px solid #e4e6eb', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', width: 32, height: 32, borderRadius: '50%' }}>
-                                                <Bell size={16} color="#0a66c2" />
-                                            </div>
-                                            <div style={{ flex: 1, marginLeft: 12 }}>
-                                                <div className="ln-notif-text" style={{ fontWeight: n.read ? 400 : 600, color: '#1c1e21', fontSize: 13, lineHeight: 1.4, whiteSpace: 'normal' }}>{n.text}</div>
-                                            </div>
-                                        </div>
-                                    ))
-                                )}
-                                <div
-                                    className="ln-dropdown-footer hover:bg-slate-50"
-                                    style={{ textAlign: 'center', padding: '12px', borderTop: '1px solid #e4e6eb', color: '#0a66c2', fontWeight: 600, cursor: 'pointer' }}
-                                    onClick={() => { setActivePage('notifications'); setShowNotif(false); }}
-                                >
-                                    View all notifications
-                                </div>
-                            </div>
-                        )}
-                    </div>
-
-                    <div className="ln-topnav-divider" />
-
-                    <div style={{ position: 'relative' }}>
-                        <button className="ln-nav-item ln-profile-trigger" onClick={() => { setShowProfileMenu(!showProfileMenu); setShowNotif(false); }}>
-                            <div className="ln-nav-avatar" style={{ overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                                {currentUser?.photo ? (
-                                    <img src={currentUser.photo} alt="Profile" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                                ) : initials}
-                            </div>
-                            <span className="ln-nav-label">
-                                Me <ChevronDown size={12} style={{ marginLeft: 2 }} />
-                            </span>
-                        </button>
-                        {showProfileMenu && (
-                            <div className="ln-dropdown" style={{ right: 0, minWidth: 260 }}>
-                                <div className="ln-dropdown-profile">
-                                    <div className="ln-dropdown-profile-avatar" style={{ overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                                        {currentUser?.photo ? (
-                                            <img src={currentUser.photo} alt="Profile" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                                        ) : initials}
-                                    </div>
-                                    <div>
-                                        <div className="ln-dropdown-profile-name">{currentUser?.name || 'Trainee'}</div>
-                                        <div className="ln-dropdown-profile-role">TESDA Trainee</div>
-                                    </div>
-                                </div>
-                                <button className="ln-dropdown-profile-btn" onClick={() => { setActivePage('profile'); setShowProfileMenu(false); }}>
-                                    View Profile
-                                </button>
-                                <div className="ln-dropdown-divider" />
-                                <div className="ln-dropdown-item" onClick={() => { setActivePage('settings'); setShowProfileMenu(false); }}>
-                                    <Settings size={16} /> Settings
-                                </div>
-                                <div className="ln-dropdown-divider" />
-                                <div className="ln-dropdown-item ln-dropdown-danger" onClick={logout}>
-                                    <LogOut size={16} /> Sign Out
-                                </div>
-                            </div>
-                        )}
-                    </div>
+                <div className="tt-sidenav-profile-info">
+                    <div className="tt-sidenav-profile-name">{currentUser?.name || 'Trainee'}</div>
+                    <div className="tt-sidenav-profile-role">TESDA Trainee</div>
                 </div>
-
-                {/* Mobile hamburger */}
-                <button className="ln-mobile-menu-btn" onClick={() => setMobileMenuOpen(!mobileMenuOpen)}>
-                    <Menu size={22} />
-                </button>
+                <ChevronRight size={14} style={{ color: 'rgba(255,255,255,0.4)', flexShrink: 0 }} />
             </div>
 
-            {/* Mobile nav dropdown */}
-            {mobileMenuOpen && (
-                <div className="ln-mobile-nav">
-                    {navItems.map(item => (
-                        <button
-                            key={item.id}
-                            className={`ln-mobile-nav-item ${activePage === item.id ? 'active' : ''}`}
-                            onClick={() => { setActivePage(item.id); setMobileMenuOpen(false); }}
-                        >
+            <div className="tt-sidenav-section-label">Navigation</div>
+            <nav className="tt-sidenav-nav">
+                {navItems.map(item => (
+                    <button
+                        key={item.id}
+                        className={`tt-sidenav-item ${activePage === item.id ? 'active' : ''}`}
+                        onClick={() => setActivePage(item.id)}
+                        title={item.label}
+                    >
+                        <span className="tt-sidenav-item-icon">
                             {item.icon}
-                            <span>{item.label}</span>
-                        </button>
-                    ))}
-                    <div className="ln-dropdown-divider" />
-                    <button className="ln-mobile-nav-item ln-dropdown-danger" onClick={logout}>
-                        <LogOut size={18} /> Sign Out
+                        </span>
+                        <span className="tt-sidenav-item-label">{item.label}</span>
                     </button>
-                </div>
-            )}
-        </header>
+                ))}
+            </nav>
+        </aside>
     );
 };
 
 // ─── LAYOUT WRAPPER ──────────────────────────────────────────────
-const LinkedInLayout = ({ children, activePage, setActivePage }) => (
+const TraineeLayout = ({ children, activePage, setActivePage }) => (
     <div className="ln-app">
-        <LinkedInTopNav activePage={activePage} setActivePage={setActivePage} />
+        <TopNavBar activePage={activePage} setActivePage={setActivePage} />
+        <TraineeSideNav activePage={activePage} setActivePage={setActivePage} />
         <main className="ln-main">
             {children}
         </main>
@@ -518,6 +409,42 @@ const TraineeDashboardHome = ({ setActivePage }) => {
     const [feedResumeInfo, setFeedResumeInfo] = useState(null);
     const [feedSubmittingApp, setFeedSubmittingApp] = useState(false);
 
+    // Filter state
+    const [feedFilter, setFeedFilter] = useState('All');
+    const [visibleFeedCount, setVisibleFeedCount] = useState(20);
+    const [isLoadingMore, setIsLoadingMore] = useState(false);
+
+    // Track state in ref to avoid stale closure in scroll event
+    const feedLimitRef = useRef({ count: 20, total: 0, loading: false });
+
+    useEffect(() => {
+        feedLimitRef.current.count = visibleFeedCount;
+        feedLimitRef.current.loading = isLoadingMore;
+    }, [visibleFeedCount, isLoadingMore]);
+
+    // Infinite scroll handler
+    useEffect(() => {
+        const handleScroll = () => {
+            if (window.innerHeight + document.documentElement.scrollTop + 100 >= document.documentElement.offsetHeight) {
+                if (!feedLimitRef.current.loading && feedLimitRef.current.count < feedLimitRef.current.total) {
+                    setIsLoadingMore(true);
+                }
+            }
+        };
+        window.addEventListener('scroll', handleScroll);
+        return () => window.removeEventListener('scroll', handleScroll);
+    }, []);
+
+    useEffect(() => {
+        if (isLoadingMore) {
+            const timer = setTimeout(() => {
+                setVisibleFeedCount(prev => prev + 20);
+                setIsLoadingMore(false);
+            }, 800); // UI visual loading latency
+            return () => clearTimeout(timer);
+        }
+    }, [isLoadingMore]);
+
     const unifiedFeed = useMemo(() => {
         return [
             ...posts.map(p => ({
@@ -527,6 +454,32 @@ const TraineeDashboardHome = ({ setActivePage }) => {
             ...jobPostings.map(j => ({ ...j, feedType: 'job' }))
         ].sort((a, b) => new Date(b.created_at || b.createdAt || b.datePosted) - new Date(a.created_at || a.createdAt || a.datePosted));
     }, [posts, jobPostings]);
+
+    const filteredFeed = useMemo(() => {
+        let list = unifiedFeed;
+        if (feedFilter === 'All') {
+            // Keep all
+        } else if (feedFilter === 'Recommended') {
+            // Frontend-controlled initially
+        } else if (feedFilter === 'Announcement') {
+            list = list.filter(item => item.post_type === 'announcement');
+        } else if (feedFilter === 'Hiring Update') {
+            list = list.filter(item => item.post_type === 'hiring_update' || item.feedType === 'job');
+        } else if (feedFilter === 'Achievement') {
+            list = list.filter(item => item.post_type === 'achievement');
+        } else if (feedFilter === 'General') {
+            list = list.filter(item => item.post_type === 'general' || (!item.post_type && item.feedType === 'post'));
+        } else if (feedFilter === 'Public') {
+            list = list.filter(item => item.post_type === 'public');
+        } else if (feedFilter === 'Certification') {
+            list = list.filter(item => item.post_type === 'certification');
+        } else if (feedFilter === 'Project') {
+            list = list.filter(item => item.post_type === 'project');
+        }
+        return list;
+    }, [unifiedFeed, feedFilter]);
+
+    useEffect(() => { feedLimitRef.current.total = filteredFeed.length; }, [filteredFeed.length]);
 
     // ── Bulletin interaction state (local to this component) ──
     const [bulletinModal, setBulletinModal] = useState(null);
@@ -973,24 +926,18 @@ const TraineeDashboardHome = ({ setActivePage }) => {
     const useCompactPostCommentModal = isCompactCommentViewport;
 
     return (
-        <div className="ln-three-col">
-            {/* Left Column - Profile Card */}
-            <div className="ln-col-left">
-                <ProfileSideCard trainee={trainee} setActivePage={setActivePage} />
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: 24, alignItems: 'start', width: '100%' }}>
+            <div style={{ minWidth: 0 }}>
+            {/* Dashboard Summary / Stats */}
+            <div className="ln-card ln-stats-row" style={{ marginBottom: 16 }}>
+                {stats.map((s, i) => (
+                    <div key={i} className="ln-stat-item">
+                        <div className="ln-stat-icon" style={{ color: s.color }}>{s.icon}</div>
+                        <div className="ln-stat-value">{s.value}</div>
+                        <div className="ln-stat-label">{s.label}</div>
+                    </div>
+                ))}
             </div>
-
-            {/* Center Column - Feed */}
-            <div className="ln-col-center">
-                {/* Stats Row */}
-                <div className="ln-card ln-stats-row">
-                    {stats.map((s, i) => (
-                        <div key={i} className="ln-stat-item">
-                            <div className="ln-stat-icon" style={{ color: s.color }}>{s.icon}</div>
-                            <div className="ln-stat-value">{s.value}</div>
-                            <div className="ln-stat-label">{s.label}</div>
-                        </div>
-                    ))}
-                </div>
 
                 {/* Create Post Card (Trigger) */}
                 <div className="ln-card" style={{ padding: '12px 16px', marginBottom: 16 }}>
@@ -1150,9 +1097,43 @@ const TraineeDashboardHome = ({ setActivePage }) => {
                     </div>
                 )}
 
-                {/* Unified Feed */}
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-                    {unifiedFeed.map(item => {
+                {/* Feed Filter */}
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+                    <h3 style={{ fontSize: 16, fontWeight: 700, margin: 0 }}>Community Feed</h3>
+                    <select
+                        style={{
+                            padding: '8px 12px',
+                            borderRadius: 8,
+                            border: '1px solid #cbd5e1',
+                            background: '#fff',
+                            fontSize: 14,
+                            color: '#1e293b',
+                            cursor: 'pointer',
+                            outline: 'none',
+                            fontWeight: 500
+                        }}
+                        value={feedFilter}
+                        onChange={(e) => {
+                            setFeedFilter(e.target.value);
+                            setVisibleFeedCount(20); // Reset infinite scroll
+                            window.scrollTo({ top: 0, behavior: 'smooth' });
+                        }}
+                    >
+                        <option value="All">All</option>
+                        <option value="Announcement">Announcement</option>
+                        <option value="Hiring Update">Hiring Update</option>
+                        <option value="Achievement">Achievement</option>
+                        <option value="General">General</option>
+                        <option value="Public">Public</option>
+                        <option value="Certification">Certification</option>
+                        <option value="Project">Project</option>
+                        <option value="Recommended">Recommended ✨</option>
+                    </select>
+                </div>
+
+                {/* Unified Feed Grid */}
+                <div className="tt-feed-grid">
+                    {filteredFeed.slice(0, visibleFeedCount).map(item => {
                         if (item.feedType === 'bulletin') {
                             const cfg = BULLETIN_CONFIG[item.post_type] || BULLETIN_CONFIG.announcement;
                             const alreadyInteracted = getUserPostInteraction(item.id, cfg.type);
@@ -1348,7 +1329,7 @@ const TraineeDashboardHome = ({ setActivePage }) => {
                                                 <FileText size={13} /> {item.attachmentName || decodeURIComponent(String(item.attachmentUrl).split('/').pop()?.split('?')[0] || 'Attachment')}
                                             </a>
                                         )}
-                                        <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
+                                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 8 }}>
                                             <span className="ln-opp-type-badge">{item.opportunityType}</span>
                                             {item.opportunityType !== 'OJT' && item.employmentType && (
                                                 <span className="ln-opp-type-badge" style={{ background: '#f8fafc', color: '#64748b' }}>{item.employmentType}</span>
@@ -1356,10 +1337,12 @@ const TraineeDashboardHome = ({ setActivePage }) => {
                                             {item.ncLevel && (
                                                 <span className="ln-opp-type-badge" style={{ background: '#ede9fe', color: '#6d28d9' }}>{item.ncLevel}</span>
                                             )}
-                                            {item.salaryRange && (
-                                                <span style={{ fontSize: 15, color: '#057642', fontWeight: 700 }}>{formatSalaryDisplay(item.salaryRange)}</span>
-                                            )}
                                         </div>
+                                        {item.salaryRange && (
+                                            <div style={{ marginBottom: 8 }}>
+                                                <span style={{ fontSize: 15, color: '#057642', fontWeight: 700 }}>{formatSalaryDisplay(item.salaryRange)}</span>
+                                            </div>
+                                        )}
                                         {jobComments.length > 0 && (
                                             <div style={{ marginTop: 10, fontSize: 12, color: '#64748b', display: 'flex', gap: 14 }}>
                                                 {jobComments.length > 0 && <span>{jobComments.length} comment{jobComments.length === 1 ? '' : 's'}</span>}
@@ -1635,16 +1618,27 @@ const TraineeDashboardHome = ({ setActivePage }) => {
                             );
                         }
                     })}
-                    {unifiedFeed.length === 0 && (
-                        <div className="ln-empty-state"><Search size={48} /><h3>No posts yet</h3><p>Follow partners or update your profile to see relevant content.</p></div>
+                    {filteredFeed.length === 0 && (
+                        <div className="ln-empty-state"><Search size={48} /><h3>No posts found</h3><p>Try changing your filter or updating your profile.</p></div>
+                    )}
+                    {isLoadingMore && (
+                        <div style={{ textAlign: 'center', padding: '20px 0', marginTop: 10, color: '#64748b' }}>
+                            <Loader size={24} style={{ animation: 'ln-spin 1s linear infinite', margin: '0 auto' }} />
+                            <style>{`@keyframes ln-spin { 100% { transform: rotate(360deg); } }`}</style>
+                        </div>
+                    )}
+                    {!isLoadingMore && visibleFeedCount < filteredFeed.length && (
+                        <div style={{ textAlign: 'center', padding: '20px 0', marginTop: 10 }}>
+                            <button
+                                className="ln-btn-outline"
+                                onClick={() => setIsLoadingMore(true)}
+                                style={{ padding: '8px 24px', borderRadius: 20, fontSize: 13, fontWeight: 600, color: '#475569', border: '1px solid #cbd5e1', background: '#fff', cursor: 'pointer' }}
+                            >
+                                Load More
+                            </button>
+                        </div>
                     )}
                 </div>
-            </div>
-
-            {/* Right Column - Widgets */}
-            <div className="ln-col-right">
-                <SuggestedOpportunities recJobs={recJobs} handleApply={handleApply} setActivePage={setActivePage} onViewProfile={openProfile} />
-                <QuickLinksWidget setActivePage={setActivePage} />
             </div>
 
             {/* Bulletin Interaction Toast */}
@@ -5296,7 +5290,7 @@ export default function TraineeDashboard() {
     if (!currentUser) return null;
 
     return (
-        <LinkedInLayout activePage={activePage} setActivePage={setActivePage}>
+        <TraineeLayout activePage={activePage} setActivePage={setActivePage}>
             <Routes>
                 <Route path="/" element={<TraineeDashboardHome setActivePage={setActivePage} openBulletinModal={openBulletinModal} />} />
                 <Route path="/profile" element={<TraineeProfile openBulletinModal={openBulletinModal} />} />
@@ -5360,6 +5354,6 @@ export default function TraineeDashboard() {
                     </div>
                 );
             })()}
-        </LinkedInLayout>
+        </TraineeLayout>
     );
 }

@@ -1,0 +1,51 @@
+const fs = require('fs');
+const path = 'src/components/dashboards/PartnerDashboard.jsx';
+let content = fs.readFileSync(path, 'utf8');
+
+function robustReplace(startAnchor, endAnchor, replacement) {
+  let i1 = content.indexOf(startAnchor);
+  if (i1 === -1) {
+    startAnchor = startAnchor.replace(/\\r\\n/g, '\n');
+    i1 = content.indexOf(startAnchor);
+    if(i1 === -1) throw new Error("Could not find start " + startAnchor.substring(0, 50));
+  }
+  let searchStartPos = startAnchor.trim() === '' ? i1 : i1 + startAnchor.length;
+  let i2 = content.indexOf(endAnchor, searchStartPos);
+  if (i2 === -1) {
+    endAnchor = endAnchor.replace(/\\r\\n/g, '\n');
+    i2 = content.indexOf(endAnchor, searchStartPos);
+    if(i2 === -1) throw new Error("Could not find end " + endAnchor.substring(0, 50));
+  }
+  content = content.substring(0, i1) + replacement + content.substring(i2 + endAnchor.length);
+}
+
+// Fix \n in partnerSideNav from node script:
+content = content.replace(/};\n\n\/\/ ─── LAYOUT WRAPPER/g, "};\r\n\r\n// ─── LAYOUT WRAPPER");
+content = content.replace(/\);\n\n\/\/ ─── LEFT: COMPANY/g, ");\r\n\r\n// ─── LEFT: COMPANY");
+
+// Center wrapper fix
+const newCenterWrap = "    <div>\r\n      {/* Center Column - Feed */}\r\n      <div className=\"tt-col-feed\">\r\n        {/* Search Bar */}\r\n        <div className=\"tt-feed-search\" style={{ marginBottom: '16px' }}>\r\n          <Search size={18} color=\"#94a3b8\" />\r\n          <input type=\"text\" placeholder=\"Search for jobs, skills, companies...\" />\r\n        </div>";
+
+robustReplace(
+  "    <div className=\"ln-three-col\">\r\n      {/* Left Column - Company Card */}",
+  "      {/* Center Column - Feed */}\r\n      <div className=\"ln-col-center\">",
+  newCenterWrap
+);
+
+// Right Aside fix
+robustReplace(
+  "      {/* Right Column - Widgets */}\r\n      <div className=\"ln-col-right\">",
+  "      </div>",
+  ""
+);
+
+// Modal Replace
+const modalStr1 = "        {/* Post Creator Modal */}\r\n        {showPostModal && (\r\n          <div className=\"ln-modal-overlay\" style={{\r\n              position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,\r\n              background: 'rgba(255, 255, 255, 0.8)', backdropFilter: 'blur(4px)',\r\n              zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20\r\n          }} onClick={() => setShowPostModal(false)}>\r\n            <div className=\"ln-card ln-modal-content\" style={{\r\n                width: '100%', maxWidth: 500, padding: 0, borderRadius: 12,\r\n                boxShadow: '0 12px 28px 0 rgba(0, 0, 0, 0.2), 0 2px 4px 0 rgba(0, 0, 0, 0.1)',\r\n                overflow: 'hidden', animation: 'lnModalIn 0.2s ease-out'\r\n            }} onClick={e => e.stopPropagation()}>\r\n              <div style={{ padding: '16px 20px', borderBottom: '1px solid #f0f2f5', position: 'relative', textAlign: 'center' }}>\r\n                <h3 style={{ fontSize: 17, fontWeight: 700, margin: 0 }}>Create a post</h3>\r\n                <button\r\n                    style={{\r\n                        position: 'absolute', right: 12, top: 12, background: '#e4e6eb',\r\n                        border: 'none', width: 32, height: 32, borderRadius: '50%',\r\n                        display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer'\r\n                    }}\r\n                    onClick={() => setShowPostModal(false)}\r\n                >\r\n                    <X size={20} />\r\n                </button>\r\n              </div>\r\n\r\n              <div style={{ padding: '16px 16px' }}>\r\n                <div style={{ display: 'flex', gap: 12, marginBottom: 16 }}>\r\n                    <button\r\n                        type=\"button\"\r\n                        onClick={(e) => { e.stopPropagation(); openProfile({ id: currentUser?.id, type: 'partner' }); }}\r\n                        style={{ flexShrink: 0, width: 40, height: 40, fontSize: 14, border: 'none', cursor: 'pointer', borderRadius: '50%', overflow: 'hidden' }}\r\n                    >\r\n                        {livePartner?.company_logo_url || livePartner?.photo ? <img src={livePartner.company_logo_url || livePartner.photo} alt=\"\" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : initials}\r\n                    </button>\r\n                    <div>\r\n                        <button\r\n                            type=\"button\"\r\n                            onClick={(e) => { e.stopPropagation(); openProfile({ id: currentUser?.id, type: 'partner' }); }}\r\n                            style={{ fontWeight: 600, fontSize: 15, background: 'none', border: 'none', padding: 0, cursor: 'pointer', color: '#1e293b' }}\r\n                        >\r\n                            {livePartner?.companyName || 'Company Name'}\r\n                        </button>\r\n                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 4 }}>\r\n                            <select value={postType} onChange={e => setPostType(e.target.value)} style={{ padding: '2px 8px', borderRadius: 12, border: 'none', background: '#f0f2f5', fontSize: 13, fontWeight: 600, color: '#050505', outline: 'none', cursor: 'pointer' }}>\r\n                                <option value=\"announcement\">📢 Announcement</option>\r\n                                <option value=\"hiring_update\">💼 Hiring Update</option>\r\n                                <option value=\"achievement\">🏆 Achievement</option>\r\n                                <option value=\"general\">📝 General</option>\r\n                            </select>\r\n                        </div>\r\n                    </div>\r\n                </div>\r\n\r\n                <textarea\r\n                    autoFocus\r\n                    placeholder=\"Provide an update or make an announcement...\"\r\n                    value={postContent}\r\n                    onChange={e => setPostContent(e.target.value)}\r\n                    style={{\r\n                        width: '100%', minHeight: 100, border: 'none', resize: 'none', outline: 'none',\r\n                        fontSize: 20, color: '#050505', background: 'transparent'\r\n                    }}\r\n                />\r\n\r\n                {filePreview && (\r\n                    <div style={{ position: 'relative', marginTop: 12, borderRadius: 8, overflow: 'hidden', border: '1px solid #ced0d4' }}>\r\n                        <img src={filePreview} alt=\"Preview\" style={{ width: '100%', display: 'block', maxHeight: 300, objectFit: 'contain', background: '#f0f2f5' }} />\r\n                        <button\r\n                            style={{ position: 'absolute', top: 8, right: 8, background: '#fff', border: 'none', borderRadius: '50%', width: 28, height: 28, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', boxShadow: '0 2px 4px rgba(0,0,0,0.1)' }}\r\n                            onClick={() => { setSelectedFile(null); setFilePreview(null); }}\r\n                        >\r\n                            <X size={16} color=\"#050505\" />\r\n                        </button>\r\n                    </div>\r\n                )}\r\n                {selectedFile && !filePreview && (\r\n                    <div style={{ marginTop: 12, padding: '12px 16px', background: '#f0f2f5', borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>\r\n                        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>\r\n                            <FileText size={20} color=\"#65676b\" />\r\n                            <span style={{ fontSize: 14, fontWeight: 600, color: '#050505' }}>{selectedFile.name}</span>\r\n                        </div>\r\n                        <button style={{ border: 'none', background: 'none', cursor: 'pointer', padding: 4 }} onClick={() => setSelectedFile(null)}>\r\n                            <X size={16} color=\"#65676b\" />\r\n                        </button>\r\n                    </div>\r\n                )}\r\n              </div>\r\n\r\n              <div style={{ padding: '16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderTop: '1px solid #f0f2f5' }}>\r\n                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>\r\n                      <input type=\"file\" hidden ref={fileInputRef} onChange={handleFileChange} accept=\"image/*,.pdf,.doc,.docx\" />\r\n                      <button\r\n                          type=\"button\"\r\n                          style={{ width: 36, height: 36, borderRadius: '50%', border: 'none', background: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', transition: 'background 0.2s' }}\r\n                          onMouseOver={e => e.currentTarget.style.background = '#f0f2f5'}\r\n                          onMouseOut={e => e.currentTarget.style.background = 'none'}\r\n                          onClick={() => fileInputRef.current?.click()}\r\n                          title=\"Attach Media\"\r\n                      >\r\n                          <Camera size={20} color=\"#45bd62\" />\r\n                      </button>\r\n                  </div>\r\n                  <button\r\n                      className=\"tt-feed-card-btn tt-feed-card-btn-primary\"\r\n                      onClick={handleCreatePost}\r\n                      disabled={isPosting || (!postContent.trim() && !selectedFile)}\r\n                      style={{ padding: '8px 24px', opacity: (isPosting || (!postContent.trim() && !selectedFile)) ? 0.5 : 1, width: 'auto', flex: 0 }}\r\n                  >\r\n                      {isPosting ? 'Posting...' : 'Post'}\r\n                  </button>\r\n              </div>\r\n            </div>\r\n          </div>\r\n        )}";
+
+const theCardStr = "        {/* Post Creator Modal */}\r\n        {showPostModal && (\r\n          <div className=\"modal-overlay\" onClick={() => setShowPostModal(false)}>";
+const theCardEnd = "            </div>\r\n          </div>\r\n        )}";
+
+robustReplace(theCardStr, theCardEnd, modalStr1);
+
+fs.writeFileSync(path, content, 'utf8');
+console.log("Layout pieces applied successfully!");

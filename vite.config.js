@@ -25,4 +25,16 @@ export default defineConfig({
       ],
     },
   },
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          'vendor-react': ['react', 'react-dom', 'react-router-dom'],
+          'vendor-ui': ['lucide-react', 'recharts'],
+          'vendor-supabase': ['@supabase/supabase-js'],
+        }
+      }
+    },
+    chunkSizeWarningLimit: 1000,
+  }
 })
