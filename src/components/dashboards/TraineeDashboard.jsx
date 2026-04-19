@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+﻿import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useApp } from '../../context/AppContext';
 import SavedItemsView from './SavedItemsView';
 import SettingsPage from './SettingsPage';
@@ -6,7 +6,7 @@ import NotificationsPage from './NotificationsPage';
 import {
     User, Briefcase, FileText, CheckCircle, Bell, ChevronDown, Search, Filter, MapPin, Clock, Building2,
     Award, Send, CheckSquare, Check, X, Eye, EyeOff, Plus, Menu, Home, Settings, LogOut, MessageSquare, Bookmark,
-    Trash2, Camera, Loader, GraduationCap, MoveRight, ExternalLink, ShieldCheck, Mail, Calendar, AlignLeft, Users, ChevronRight, ChevronLeft, Edit, Upload, Link, Star, Heart, MoreVertical, Info
+    Trash2, Camera, Loader, GraduationCap, MoveRight, ExternalLink, ShieldCheck, Mail, Calendar, AlignLeft, Users, ChevronRight, ChevronLeft, Edit, Upload, Link, Star, Heart, MoreVertical, Info, LayoutDashboard, Target, FileCheck
 } from 'lucide-react';
 import ProfileActivityTab from './ProfileActivityTab';
 import EmptyState, {
@@ -19,8 +19,9 @@ import EmptyState, {
 import BrandLogo from '../common/BrandLogo';
 import { supabase } from '../../lib/supabase';
 import { Routes, Route, useNavigate, useLocation, Navigate, useParams } from 'react-router-dom';
-import { CompanyProfile } from './PartnerDashboard';
 import TopNavBar from '../common/TopNavBar';
+
+const CompanyProfile = React.lazy(() => import('./PartnerDashboard').then(m => ({ default: m.CompanyProfile })));
 
 /* ════════════════════════════════════════════════════════════════════
    LINKEDIN-STYLE TRAINEE DASHBOARD
@@ -186,10 +187,9 @@ const TraineeSideNav = ({ activePage, setActivePage }) => {
     const initials = (currentUser?.name || '').split(' ').filter(Boolean).map(n => n[0]).join('').slice(0, 2).toUpperCase() || 'T';
 
     const navItems = [
-        { id: 'dashboard', label: 'Home', icon: <Home size={18} /> },
-        { id: 'profile', label: 'Profile', icon: <User size={18} /> },
-        { id: 'recommendations', label: 'Opportunities', icon: <Briefcase size={18} /> },
-        { id: 'applications', label: 'My Applications', icon: <FileText size={18} /> },
+        { id: 'dashboard', label: 'Home', icon: <LayoutDashboard size={18} /> },
+        { id: 'recommendations', label: 'Opportunities', icon: <Target size={18} /> },
+        { id: 'applications', label: 'My Applications', icon: <FileCheck size={18} /> },
     ];
 
     return (
@@ -368,7 +368,7 @@ const ProgressBar = ({ value, showLabel = true }) => {
 const TraineeDashboardHome = ({ setActivePage }) => {
     const {
         currentUser, trainees, applications, getTraineeRecommendedJobs,
-        posts, jobPostings, createPost, updatePost, deletePost, partners,
+        posts, createPost, updatePost, deletePost, partners,
         addPostComment, getPostComments, addJobPostingComment,
         getJobPostingComments, updateJobPostingComment,
         deleteJobPostingComment, sendContactRequest, applyToJob,
@@ -390,9 +390,9 @@ const TraineeDashboardHome = ({ setActivePage }) => {
 
     // Modal state
     const [showPostModal, setShowPostModal] = useState(false);
-    const [postContent, setPostContent] = useState('');
+    const [postContent, setPostContent] = useState({});
     const [isPosting, setIsPosting] = useState(false);
-    const [postType, setPostType] = useState('general');
+    const [postType, setPostType] = useState('lf_job');
     const [selectedFile, setSelectedFile] = useState(null);
     const [filePreview, setFilePreview] = useState(null);
     const [commentModalPost, setCommentModalPost] = useState(null);
@@ -411,6 +411,7 @@ const TraineeDashboardHome = ({ setActivePage }) => {
 
     // Filter state
     const [feedFilter, setFeedFilter] = useState('All');
+    const [feedSearchText, setFeedSearchText] = useState('');
     const [visibleFeedCount, setVisibleFeedCount] = useState(20);
     const [isLoadingMore, setIsLoadingMore] = useState(false);
 
@@ -450,34 +451,33 @@ const TraineeDashboardHome = ({ setActivePage }) => {
             ...posts.map(p => ({
                 ...p,
                 feedType: (BULLETIN_TYPES.includes(p.post_type) && p.author_type !== 'industry_partner') ? 'bulletin' : 'post'
-            })),
-            ...jobPostings.map(j => ({ ...j, feedType: 'job' }))
+            }))
         ].sort((a, b) => new Date(b.created_at || b.createdAt || b.datePosted) - new Date(a.created_at || a.createdAt || a.datePosted));
-    }, [posts, jobPostings]);
+    }, [posts]);
 
     const filteredFeed = useMemo(() => {
         let list = unifiedFeed;
-        if (feedFilter === 'All') {
-            // Keep all
-        } else if (feedFilter === 'Recommended') {
-            // Frontend-controlled initially
+        if (feedFilter === 'All' || feedFilter === 'Recommended') {
         } else if (feedFilter === 'Announcement') {
-            list = list.filter(item => item.post_type === 'announcement');
-        } else if (feedFilter === 'Hiring Update') {
+            list = list.filter(item => (item.post_type === 'announcement' || item.feedType === 'bulletin') && ['industry_partner', 'admin', 'partner'].includes(item.author_type || item.role));
+        } else if (feedFilter === 'Job Hiring' || feedFilter === 'Hiring Update') {
             list = list.filter(item => item.post_type === 'hiring_update' || item.feedType === 'job');
-        } else if (feedFilter === 'Achievement') {
-            list = list.filter(item => item.post_type === 'achievement');
-        } else if (feedFilter === 'General') {
-            list = list.filter(item => item.post_type === 'general' || (!item.post_type && item.feedType === 'post'));
-        } else if (feedFilter === 'Public') {
-            list = list.filter(item => item.post_type === 'public');
-        } else if (feedFilter === 'Certification') {
-            list = list.filter(item => item.post_type === 'certification');
-        } else if (feedFilter === 'Project') {
-            list = list.filter(item => item.post_type === 'project');
+        }
+        
+        if (feedSearchText.trim()) {
+            const query = feedSearchText.toLowerCase();
+            list = list.filter(item => {
+                const combinedText = `
+                    ${item.title || ''}
+                    ${item.content || ''}
+                    ${item.companyName || item.company_name || ''}
+                    ${item.author_name || item.authorParams?.name || ''}
+                `.toLowerCase();
+                return combinedText.includes(query);
+            });
         }
         return list;
-    }, [unifiedFeed, feedFilter]);
+    }, [unifiedFeed, feedFilter, feedSearchText]);
 
     useEffect(() => { feedLimitRef.current.total = filteredFeed.length; }, [filteredFeed.length]);
 
@@ -660,7 +660,7 @@ const TraineeDashboardHome = ({ setActivePage }) => {
     };
 
     const handleCreatePost = async () => {
-        if (!postContent.trim() && !selectedFile) return;
+        if (!postContent.description?.trim() && !selectedFile) return;
         setIsPosting(true);
         let media_url = null;
 
@@ -675,16 +675,27 @@ const TraineeDashboardHome = ({ setActivePage }) => {
                 media_url = urlData?.publicUrl;
             }
 
+            const title = `Looking for ${postContent.role || 'Job'}`;
+            const tags = postContent.skills ? postContent.skills.split(',').map(s => s.trim()).filter(Boolean) : [];
+            const finalContent = `
+Experience: ${postContent.experience || 'Not specified'}
+Availability: ${postContent.availability || 'Not specified'}
+Location: ${postContent.location || 'Not specified'}
+
+${postContent.description || ''}
+            `.trim();
+
             const res = await createPost({
-                content: postContent,
+                content: finalContent,
                 post_type: postType,
+                title: title,
                 media_url: media_url,
-                tags: []
+                tags: tags
             });
 
             if (res.success) {
-                setPostContent('');
-                setPostType('general');
+                setPostContent({});
+                setPostType('lf_job');
                 setSelectedFile(null);
                 setFilePreview(null);
                 setShowPostModal(false);
@@ -1015,23 +1026,65 @@ const TraineeDashboardHome = ({ setActivePage }) => {
                                             value={postType}
                                             onChange={e => setPostType(e.target.value)}
                                         >
-                                            <option value="general">Public</option>
-                                            <option value="achievement">Achievement</option>
-                                            <option value="certification">Certification</option>
-                                            <option value="project">Project</option>
+                                            <option value="lf_job">Trainee Finding Job</option>
                                         </select>
                                     </div>
                                 </div>
 
+                                {/* Dynamic Post Fields */}
+                                <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1fr)', gap: 12, marginBottom: 12 }}>
+                                    <input 
+                                        type="text" 
+                                        placeholder="Preferred Role (e.g. Web Developer)" 
+                                        value={postContent.role || ''}
+                                        onChange={e => setPostContent({ ...postContent, role: e.target.value })}
+                                        style={{ width: '100%', border: '1px solid #e4e6eb', borderRadius: 6, padding: '8px 12px', fontSize: 14 }}
+                                    />
+                                    <input 
+                                        type="text" 
+                                        placeholder="Skills (comma separated)" 
+                                        value={postContent.skills || ''}
+                                        onChange={e => setPostContent({ ...postContent, skills: e.target.value })}
+                                        style={{ width: '100%', border: '1px solid #e4e6eb', borderRadius: 6, padding: '8px 12px', fontSize: 14 }}
+                                    />
+                                    <select 
+                                        value={postContent.experience || ''}
+                                        onChange={e => setPostContent({ ...postContent, experience: e.target.value })}
+                                        style={{ width: '100%', border: '1px solid #e4e6eb', borderRadius: 6, padding: '8px 12px', fontSize: 14 }}
+                                    >
+                                        <option value="" disabled>Select Experience Level</option>
+                                        <option value="Beginner">Beginner</option>
+                                        <option value="Intermediate">Intermediate</option>
+                                        <option value="Advanced">Advanced</option>
+                                    </select>
+                                    <select 
+                                        value={postContent.availability || ''}
+                                        onChange={e => setPostContent({ ...postContent, availability: e.target.value })}
+                                        style={{ width: '100%', border: '1px solid #e4e6eb', borderRadius: 6, padding: '8px 12px', fontSize: 14 }}
+                                    >
+                                        <option value="" disabled>Select Availability</option>
+                                        <option value="Full-time">Full-time</option>
+                                        <option value="Part-time">Part-time</option>
+                                        <option value="Internship">Internship</option>
+                                    </select>
+                                    <input 
+                                        type="text" 
+                                        placeholder="Location (Optional)" 
+                                        value={postContent.location || ''}
+                                        onChange={e => setPostContent({ ...postContent, location: e.target.value })}
+                                        style={{ width: '100%', border: '1px solid #e4e6eb', borderRadius: 6, padding: '8px 12px', fontSize: 14, gridColumn: 'span 2' }}
+                                    />
+                                </div>
+
                                 <textarea
                                     autoFocus
-                                    placeholder="What's on your mind?"
+                                    placeholder="Short intro about yourself..."
                                     style={{
-                                        width: '100%', border: 'none', resize: 'none', fontSize: 18,
-                                        minHeight: filePreview ? 80 : 150, padding: 0, outline: 'none', marginBottom: 20
+                                        width: '100%', border: '1px solid #e4e6eb', resize: 'none', fontSize: 14, borderRadius: 6,
+                                        minHeight: 80, padding: '12px', outline: 'none', marginBottom: 20
                                     }}
-                                    value={postContent}
-                                    onChange={e => setPostContent(e.target.value)}
+                                    value={postContent.description || ''}
+                                    onChange={e => setPostContent({ ...postContent, description: e.target.value })}
                                 />
 
                                 {filePreview && (
@@ -1084,10 +1137,10 @@ const TraineeDashboardHome = ({ setActivePage }) => {
                                     className="ln-btn-primary"
                                     style={{
                                         width: '100%', height: 36, borderRadius: 6, fontWeight: 600,
-                                        opacity: (postContent.trim() || selectedFile) && !isPosting ? 1 : 0.5,
-                                        cursor: (postContent.trim() || selectedFile) && !isPosting ? 'pointer' : 'not-allowed'
+                                        opacity: (postContent.description?.trim() || selectedFile) && !isPosting ? 1 : 0.5,
+                                        cursor: (postContent.description?.trim() || selectedFile) && !isPosting ? 'pointer' : 'not-allowed'
                                     }}
-                                    disabled={(!postContent.trim() && !selectedFile) || isPosting}
+                                    disabled={(!postContent.description?.trim() && !selectedFile) || isPosting}
                                     onClick={handleCreatePost}
                                 >
                                     {isPosting ? 'Posting...' : 'Post'}
@@ -1097,38 +1150,59 @@ const TraineeDashboardHome = ({ setActivePage }) => {
                     </div>
                 )}
 
-                {/* Feed Filter */}
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-                    <h3 style={{ fontSize: 16, fontWeight: 700, margin: 0 }}>Community Feed</h3>
-                    <select
-                        style={{
-                            padding: '8px 12px',
-                            borderRadius: 8,
-                            border: '1px solid #cbd5e1',
-                            background: '#fff',
-                            fontSize: 14,
-                            color: '#1e293b',
-                            cursor: 'pointer',
-                            outline: 'none',
-                            fontWeight: 500
-                        }}
-                        value={feedFilter}
-                        onChange={(e) => {
-                            setFeedFilter(e.target.value);
-                            setVisibleFeedCount(20); // Reset infinite scroll
-                            window.scrollTo({ top: 0, behavior: 'smooth' });
-                        }}
-                    >
-                        <option value="All">All</option>
-                        <option value="Announcement">Announcement</option>
-                        <option value="Hiring Update">Hiring Update</option>
-                        <option value="Achievement">Achievement</option>
-                        <option value="General">General</option>
-                        <option value="Public">Public</option>
-                        <option value="Certification">Certification</option>
-                        <option value="Project">Project</option>
-                        <option value="Recommended">Recommended ✨</option>
-                    </select>
+                {/* Feed Filter and Search */}
+                <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) auto minmax(0, 1fr)', alignItems: 'center', marginBottom: 16, gap: '8px' }}>
+                    <div>
+                        <h3 style={{ fontSize: 16, fontWeight: 700, margin: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>Community Feed</h3>
+                    </div>
+                    
+                    <div style={{ display: 'flex', justifyContent: 'center' }}>
+                        <div style={{ position: 'relative', display: 'flex', alignItems: 'center', minWidth: '150px', maxWidth: '800px', width: 'clamp(200px, 40vw, 800px)' }}>
+                            <Search size={16} color="#64748b" style={{ position: 'absolute', left: '10px' }} />
+                            <input
+                                type="text"
+                                placeholder="Search..."
+                                value={feedSearchText}
+                                onChange={(e) => setFeedSearchText(e.target.value)}
+                                style={{
+                                    padding: '8px 12px 8px 32px',
+                                    borderRadius: 8,
+                                    border: '1px solid #cbd5e1',
+                                    background: '#fff',
+                                    fontSize: 14,
+                                    color: '#0f172a',
+                                    outline: 'none',
+                                    width: '100%'
+                                }}
+                            />
+                        </div>
+                    </div>
+                    
+                    <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                        <select
+                            style={{
+                                padding: '8px 12px',
+                                borderRadius: 8,
+                                border: '1px solid #cbd5e1',
+                                background: '#fff',
+                                fontSize: 14,
+                                color: '#1e293b',
+                                cursor: 'pointer',
+                                outline: 'none',
+                                fontWeight: 500
+                            }}
+                            value={feedFilter}
+                            onChange={(e) => {
+                                setFeedFilter(e.target.value);
+                                setVisibleFeedCount(20);
+                                window.scrollTo({ top: 0, behavior: 'smooth' });
+                            }}
+                        >
+                            <option value="All">All</option>
+                            <option value="Announcement">Announcement</option>
+                            <option value="Job Hiring">Job Hiring</option>
+                        </select>
+                    </div>
                 </div>
 
                 {/* Unified Feed Grid */}
@@ -2265,7 +2339,7 @@ class ErrorBoundary extends React.Component {
 }
 
 const ApplicationTimeline = ({ traineeId }) => {
-    const { applications, jobPostings } = useApp();
+    const { applications, posts } = useApp();
     const myApps = applications.filter(a => String(a.traineeId) === String(traineeId));
 
     const stages = [
@@ -2324,7 +2398,8 @@ const ApplicationTimeline = ({ traineeId }) => {
     return (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
             {myApps.map(app => {
-                const job = jobPostings.find(j => String(j.id) === String(app.jobId));
+                const rawJob = posts.find(j => String(j.id) === String(app.jobId));
+                const job = rawJob ? { ...rawJob, ...(rawJob.details || {}) } : null;
                 const step = getStatusStep(app.status);
                 const isRejected = step === -1;
 
@@ -2456,7 +2531,7 @@ export const TraineeProfileContent = ({ viewedProfileId = null, onBack = null, o
     // eslint-disable-next-line no-unused-vars
     const [editingEmployment, setEditingEmployment] = useState(false);
     const [empForm, setEmpForm] = useState({
-        employmentStatus: (['Employed', 'Seeking Employment', 'Certified', 'Seeking OJT', 'OJT In Progress'].includes(trainee?.employmentStatus)
+        employmentStatus: (['Employed', 'Seeking Employment', 'Not Employed'].includes(trainee?.employmentStatus)
             ? trainee.employmentStatus
             : 'Seeking Employment'),
         employer: trainee?.employer || '',
@@ -2573,7 +2648,7 @@ export const TraineeProfileContent = ({ viewedProfileId = null, onBack = null, o
         setTrainings(initialTrainings);
 
         setEmpForm({
-            employmentStatus: (['Employed', 'Seeking Employment', 'Certified', 'Seeking OJT', 'OJT In Progress'].includes(trainee?.employmentStatus)
+            employmentStatus: (['Employed', 'Seeking Employment', 'Not Employed'].includes(trainee?.employmentStatus)
                 ? trainee.employmentStatus
                 : 'Seeking Employment'),
             employer: trainee?.employer || '',
@@ -3375,9 +3450,7 @@ export const TraineeProfileContent = ({ viewedProfileId = null, onBack = null, o
                                             <select className="form-select" value={empForm.employmentStatus} onChange={e => setEmpForm({ ...empForm, employmentStatus: e.target.value })}>
                                                 <option value="Employed">🟢 Employed</option>
                                                 <option value="Seeking Employment">🔵 Seeking Employment</option>
-                                                <option value="Certified">🟣 Certified</option>
-                                                <option value="Seeking OJT">🟠 Seeking OJT</option>
-                                                <option value="OJT In Progress">🟡 OJT In Progress</option>
+                                                <option value="Not Employed">🔴 Not Employed</option>
                                             </select>
                                         ) : (
                                             <span className="ln-badge" style={{ fontSize: 13, background: statusColors[trainee?.employmentStatus] || '#0a66c2', color: 'white' }}>
@@ -4245,7 +4318,7 @@ const TraineeProfile = (props) => (
 
 // ─── PAGE 4: OPPORTUNITIES ───────────────────────────────────────
 const Opportunities = () => {
-    const { currentUser, trainees, jobPostings, applications, getTraineeRecommendedJobs, applyToJob } = useApp();
+    const { currentUser, trainees, posts, applications, getTraineeRecommendedJobs, applyToJob } = useApp();
     const navigate = useNavigate();
     const trainee = currentUser || trainees[0];
     const myApps = applications.filter(a => a.traineeId === trainee?.id).map(a => a.jobId);
@@ -4277,15 +4350,16 @@ const Opportunities = () => {
         navigate(`/trainee/profile-view/${profileType}/${target.id}`);
     };
 
-    const industries = ['All', ...new Set(jobPostings.map(j => j.industry))];
+    const hiringUpdates = allJobs;
+    const industries = ['All', ...new Set(hiringUpdates.map(j => j.industry).filter(Boolean))];
     const types = ['All', 'Full-time', 'Part-time', 'Contract', 'Internship'];
-    const locations = ['All', ...new Set(jobPostings.map(j => j.location))];
+    const locations = ['All', ...new Set(hiringUpdates.map(j => j.location).filter(Boolean))];
     const opTypes = ['All', 'Job', 'OJT', 'Apprenticeship'];
 
     const filtered = allJobs.filter(j => {
         const q = search.toLowerCase();
         return (
-            (j.title.toLowerCase().includes(q) || j.companyName.toLowerCase().includes(q)) &&
+            ((j.title || '').toLowerCase().includes(q) || (j.companyName || '').toLowerCase().includes(q)) &&
             (filterIndustry === 'All' || j.industry === filterIndustry) &&
             (filterType === 'All' || j.employmentType === filterType) &&
             (filterLocation === 'All' || j.location === filterLocation) &&
@@ -4396,57 +4470,72 @@ const Opportunities = () => {
             </div>
 
             {/* Job Cards - LinkedIn Style */}
-            <div className="ln-jobs-list">
+            <div className="tt-feed-grid">
                 {displayedJobs.map(job => {
                     const applied = myApps.includes(job.id);
                     return (
-                        <div key={job.id} className="ln-card ln-job-card-li">
-                            <div className="ln-job-card-top">
+                        <div key={job.id} className="ln-card ln-feed-card" style={{ marginBottom: 0 }}>
+                            <div className="ln-feed-card-header">
                                 <button
                                     type="button"
-                                    className="ln-job-card-icon"
+                                    className="ln-feed-avatar"
                                     onClick={() => openProfile({ id: job.partnerId, type: 'partner' })}
-                                    style={{ border: 'none', cursor: job.partnerId ? 'pointer' : 'default' }}
+                                    style={{ background: '#f0f7ff', color: '#0a66c2', border: 'none', cursor: job.partnerId ? 'pointer' : 'default' }}
                                     disabled={!job.partnerId}
                                 >
-                                    <Building2 size={24} />
+                                    <Building2 size={20} />
                                 </button>
-                                <div className="ln-job-card-info">
-                                    <div className="ln-job-card-title">{job.title}</div>
-                                    <div className="ln-job-card-company">
+                                <div>
+                                    <div className="ln-feed-author">
                                         <button
                                             type="button"
                                             onClick={() => openProfile({ id: job.partnerId, type: 'partner' })}
-                                            style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', color: 'inherit', font: 'inherit' }}
+                                            style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', fontWeight: 700, color: 'inherit', fontSize: 'inherit', fontFamily: 'inherit' }}
                                         >
                                             {job.companyName}
                                         </button>
+                                        <span style={{ fontWeight: 400, color: 'rgba(0,0,0,0.45)', marginLeft: 4 }}>posted a new {job.opportunityType}</span>
                                     </div>
-                                    <div className="ln-job-card-meta">
-                                        <span><MapPin size={13} /> {job.location}</span>
-                                        <span><Clock size={13} /> {job.employmentType}</span>
-                                        <span title={new Date(job.createdAt).toLocaleString()}><Clock size={13} /> {timeAgo(job.createdAt)}</span>
+                                    <div className="ln-feed-meta">
+                                        {[ 
+                                            (job.industry && String(job.industry).trim().toLowerCase() !== 'general') ? job.industry : '',
+                                            job.location,
+                                            timeAgo(job.createdAt),
+                                        ].filter(Boolean).join(' • ')}
                                     </div>
-                                </div>
-                                <div className="ln-job-card-badges">
-                                    <span className={`ln-badge ln-badge-${job.status === 'Open' ? 'green' : 'gray'}`}>{job.status}</span>
-                                    <span className="ln-badge ln-badge-blue" style={{ fontSize: 11 }}>{job.opportunityType}</span>
                                 </div>
                             </div>
-
-                            <div className="ln-job-card-footer">
-                                <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
-                                    <span className="ln-badge ln-badge-purple">{job.ncLevel}</span>
-                                    {job.salaryRange && <span style={{ fontSize: 13, color: '#057642', fontWeight: 600 }}>{formatSalaryDisplay(job.salaryRange)}</span>}
+                            <div className="ln-feed-content">
+                                <h4 style={{ fontSize: 15, fontWeight: 700, marginBottom: 4 }}>{job.title}</h4>
+                                <p style={{ fontSize: 13, color: 'rgba(0,0,0,0.6)', marginBottom: 8 }}>
+                                    {job.description ? job.description.substring(0, 150) + '...' : ''}
+                                </p>
+                                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 8 }}>
+                                    <span className="ln-opp-type-badge">{job.opportunityType}</span>
+                                    {job.opportunityType !== 'OJT' && job.employmentType && (
+                                        <span className="ln-opp-type-badge" style={{ background: '#f8fafc', color: '#64748b' }}>{job.employmentType}</span>
+                                    )}
+                                    {job.ncLevel && (
+                                        <span className="ln-opp-type-badge" style={{ background: '#ede9fe', color: '#6d28d9' }}>{job.ncLevel}</span>
+                                    )}
                                 </div>
-                                <div style={{ display: 'flex', gap: 8 }}>
-                                    <button className="ln-btn-sm ln-btn-outline" onClick={() => setSelectedJob(job)}>
-                                        <Eye size={13} /> Details
-                                    </button>
-                                    <button className="ln-btn-sm ln-btn-primary" disabled={applied || job.status !== 'Open'} onClick={() => openApplyModal(job)}>
-                                        {applied ? <><CheckCircle size={13} /> Applied</> : <><Send size={13} /> Apply</>}
-                                    </button>
-                                </div>
+                                {job.salaryRange && (
+                                    <div style={{ marginBottom: 8 }}>
+                                        <span style={{ fontSize: 15, color: '#057642', fontWeight: 700 }}>{formatSalaryDisplay(job.salaryRange)}</span>
+                                    </div>
+                                )}
+                            </div>
+                            <div className="ln-feed-actions" style={{ borderTop: '1px solid #f3f3f3', padding: '8px 12px', display: 'flex', gap: 4 }}>
+                                <button className="ln-btn-sm ln-btn-outline" onClick={() => setSelectedJob(job)}>
+                                    <Eye size={13} style={{ marginRight: 4 }} /> Details
+                                </button>
+                                <button
+                                    className="ln-btn-sm ln-btn-primary"
+                                    disabled={applied || job.status !== 'Open'}
+                                    onClick={() => openApplyModal(job)}
+                                >
+                                    {applied ? <><CheckCircle size={13} style={{ marginRight: 4 }} /> Applied</> : <><Send size={13} style={{ marginRight: 4 }} /> Apply</>}
+                                </button>
                             </div>
                         </div>
                     );
@@ -4550,7 +4639,7 @@ const Opportunities = () => {
                         )}
                         <div style={{ marginBottom: 16 }}>
                             <div style={{ fontWeight: 600, fontSize: 14, marginBottom: 8, color: 'rgba(0,0,0,0.9)' }}>Required Competencies</div>
-                            {selectedJob.requiredCompetencies.map((c, i) => (
+                            {(selectedJob.requiredCompetencies || []).map((c, i) => (
                                 <div key={i} className="ln-skill-item" style={{ borderBottom: '1px solid #f3f2ef' }}>
                                     <div className="ln-skill-row">
                                         <CheckSquare size={14} color="#0a66c2" />
@@ -5230,7 +5319,11 @@ const TraineeProfileViewRoute = () => {
     }
 
     if (normalizedProfileType === 'partner') {
-        return <CompanyProfile viewedPartnerId={profileId} onBack={() => navigate(-1)} />;
+        return (
+            <React.Suspense fallback={<div className="ln-page-content"><div className="ln-empty-state"><p>Loading profile...</p></div></div>}>
+                <CompanyProfile viewedPartnerId={profileId} onBack={() => navigate(-1)} />
+            </React.Suspense>
+        );
     }
 
     return <Navigate to="/trainee" replace />;
@@ -5357,3 +5450,5 @@ export default function TraineeDashboard() {
         </TraineeLayout>
     );
 }
+
+

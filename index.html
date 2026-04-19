@@ -6,6 +6,32 @@
   <link rel="icon" type="image/svg+xml" href="/traineetrack_logo.svg" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Trainee Track</title>
+
+  <!-- Prevent browser extensions from breaking the development overlay or app -->
+  <script>
+    window.addEventListener('error', function(e) {
+      if (
+        (e.message && e.message.includes('EXCEPTIONS_HOSTS')) ||
+        (e.filename && e.filename.includes('overlay.js'))
+      ) {
+        // Stop the error from surfacing to React, Vite's Dev Error Overlay, or trackers
+        e.preventDefault();
+        e.stopImmediatePropagation();
+        return true; 
+      }
+    });
+
+    window.addEventListener('unhandledrejection', function(e) {
+      if (
+        (e.reason && e.reason.message && e.reason.message.includes('EXCEPTIONS_HOSTS')) ||
+        (e.reason && e.reason.stack && e.reason.stack.includes('overlay.js'))
+      ) {
+        e.preventDefault();
+        e.stopImmediatePropagation();
+        return true;
+      }
+    });
+  </script>
 </head>
 
 <body>

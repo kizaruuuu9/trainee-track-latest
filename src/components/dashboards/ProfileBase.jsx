@@ -435,7 +435,7 @@ export const TraineeProfileContent = ({ viewedProfileId = null, onBack = null, o
     ];
 
     const experienceFields = [
-        { label: 'Employment Status', key: 'employmentStatus', type: 'select', options: ['Seeking Employment', 'Employed', 'Seeking OJT', 'OJT In Progress', 'Certified'] },
+        { label: 'Employment Status', key: 'employmentStatus', type: 'select', options: ['Seeking Employment', 'Employed', 'Not Employed'] },
         { label: 'Current Employer', key: 'employer', type: 'text' },
         { label: 'Job Title', key: 'jobTitle', type: 'text' },
         { label: 'Date Hired', key: 'dateHired', type: 'date' },

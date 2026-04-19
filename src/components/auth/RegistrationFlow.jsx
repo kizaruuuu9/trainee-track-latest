@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { ArrowLeft, ArrowRight, CheckCircle, Loader, Users, Building2, ShieldCheck, Mail, MapPin, Building, Lock, Send, Eye, EyeOff } from 'lucide-react';
+import { ArrowLeft, ArrowRight, CheckCircle, Loader, Users, Building2, ShieldCheck, Mail, MapPin, Building, Lock, Send, Eye, EyeOff, Briefcase } from 'lucide-react';
 import BrandLogo from '../common/BrandLogo';
 import Step1IDUpload from './Step1IDUpload';
 import Step2PersonalInfo from './Step2PersonalInfo';
 import { supabase } from '../../lib/supabase';
+import { useApp } from '../../context/AppContext';
 
 const STEPS = [
   { number: 1, label: 'Account Setup' },
@@ -61,6 +62,7 @@ const compressImageDataUrl = async (dataUrl) => {
 };
 
 export default function RegistrationFlow({ onBackToLogin }) {
+  const { industries } = useApp();
   const [selectedRole, setSelectedRole] = useState(null); // 'trainee' | 'partner'
   const [currentStep, setCurrentStep] = useState(1);
   const [traineeData, setTraineeData] = useState({
@@ -77,6 +79,7 @@ export default function RegistrationFlow({ onBackToLogin }) {
   const [partnerData, setPartnerData] = useState({
     companyName: '',
     contactPerson: '',
+    industry: '',
     email: '',
     address: '',
     password: '',
@@ -213,7 +216,7 @@ export default function RegistrationFlow({ onBackToLogin }) {
   };
 
   const isPartnerValid = partnerData.companyName && partnerData.contactPerson &&
-    partnerData.email && partnerData.address &&
+    partnerData.industry && partnerData.email && partnerData.address &&
     partnerData.password && partnerData.password === partnerData.confirmPassword &&
     partnerData.password.length >= 8 && otpVerified;
 
@@ -313,6 +316,18 @@ export default function RegistrationFlow({ onBackToLogin }) {
             <div style={{ position: 'relative' }}>
               <input className="form-input" style={{ paddingLeft: 38 }} placeholder="Full Name" value={partnerData.contactPerson} onChange={e => setPartnerData({ ...partnerData, contactPerson: e.target.value })} />
               <Users size={16} style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: '#94a3b8' }} />
+            </div>
+          </div>
+          <div className="form-group">
+            <label className="form-label">Industry</label>
+            <div style={{ position: 'relative' }}>
+              <select className="form-input" style={{ paddingLeft: 38 }} value={partnerData.industry} onChange={e => setPartnerData({ ...partnerData, industry: e.target.value })}>
+                <option value="" disabled>Select an Industry</option>
+                {industries.map(ind => (
+                  <option key={ind} value={ind}>{ind}</option>
+                ))}
+              </select>
+              <Briefcase size={16} style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: '#94a3b8' }} />
             </div>
           </div>
           <div className="form-group reg-full-width">

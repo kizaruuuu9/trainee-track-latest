@@ -1,9 +1,11 @@
-import React, { useEffect } from 'react'; 
+﻿import React, { useEffect, Suspense } from 'react'; 
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useApp } from '../context/AppContext';
-import TraineeDashboard from './dashboards/TraineeDashboard';
-import PartnerDashboard from './dashboards/PartnerDashboard';
-import AdminDashboard from './dashboards/AdminDashboard';
+import { Loader } from 'lucide-react';
+
+const TraineeDashboard = React.lazy(() => import('./dashboards/TraineeDashboard'));
+const PartnerDashboard = React.lazy(() => import('./dashboards/PartnerDashboard'));
+const AdminDashboard = React.lazy(() => import('./dashboards/AdminDashboard'));
 
 export default function Dashboard() {
   const { userRole } = useApp();
@@ -16,8 +18,10 @@ export default function Dashboard() {
     }
   }, [userRole, location.pathname, navigate]);
 
-  if (userRole === 'trainee') return <TraineeDashboard />;
-  if (userRole === 'partner') return <PartnerDashboard />;
-  if (userRole === 'admin') return <AdminDashboard />;
+  const fallback = <div className="min-h-screen flex items-center justify-center"><Loader className="animate-spin text-blue-600" size={48} /></div>;
+
+  if (userRole === 'trainee') return <Suspense fallback={fallback}><TraineeDashboard /></Suspense>;
+  if (userRole === 'partner') return <Suspense fallback={fallback}><PartnerDashboard /></Suspense>;
+  if (userRole === 'admin') return <Suspense fallback={fallback}><AdminDashboard /></Suspense>;
   return null;
 }

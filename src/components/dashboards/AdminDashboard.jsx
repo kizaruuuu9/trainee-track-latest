@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+﻿import React, { useEffect, useState } from 'react';
 import { useApp } from '../../context/AppContext';
 import { supabase } from '../../lib/supabase';
 import {
@@ -348,7 +348,7 @@ const AdminSidebar = ({ activePage, setActivePage, mobileOpen, closeSidebar }) =
 // — PAGE 1: ADMIN DASHBOARD —————————————————————————————————————————————————
 // ——— PAGE 1: ADMIN DASHBOARD (COMMAND CENTER) ——————————————————————————————
 const AdminHome = ({ setActivePage }) => {
-    const { trainees, partners, jobPostings, applications, getEmploymentStats, getSkillsDemand } = useApp();
+    const { trainees, partners, posts,  applications, getEmploymentStats, getSkillsDemand } = useApp();
     const stats = getEmploymentStats();
 
     // Export Handlers (Mock)
@@ -377,7 +377,7 @@ const AdminHome = ({ setActivePage }) => {
 
     // Top Performing Sectors (Donut Chart)
     const sectors = {};
-    jobPostings.forEach(j => {
+    posts.filter(p => p.post_type === 'hiring_update').forEach(j => {
         const ind = j.industry || 'General';
         sectors[ind] = (sectors[ind] || 0) + 1;
     });
@@ -395,7 +395,7 @@ const AdminHome = ({ setActivePage }) => {
     // Table Data Prep
     const recentMatches = applications.slice().sort((a, b) => new Date(b.appliedAt) - new Date(a.appliedAt)).slice(0, 4).map(app => {
         const trainee = trainees.find(t => t.id === app.traineeId);
-        const job = jobPostings.find(j => j.id === app.jobId);
+        const job = posts.find(p => p.post_type === 'hiring_update' && String(p.id) === String(app.jobId));
         return { ...app, traineeName: trainee?.name || 'Unknown Trainee', jobTitle: job?.title || 'Unknown Job', company: job?.companyName || 'Unknown Company' };
     });
 
@@ -424,7 +424,7 @@ const AdminHome = ({ setActivePage }) => {
                     <div className="stat-info"><div className="stat-label">Pending Job Matches</div><div className="stat-value" style={{ fontSize: 28 }}>{pendingMatches}</div><div className="stat-sub">Awaiting partner review</div></div>
                 </div>
                 <div className="stat-card" style={{ borderLeft: '4px solid #0ea5e9' }}>
-                    <div className="stat-info"><div className="stat-label">Active Opportunities</div><div className="stat-value" style={{ fontSize: 28 }}>{jobPostings.filter(j => j.status === 'Open').length}</div><div className="stat-sub">Open job postings</div></div>
+                    <div className="stat-info"><div className="stat-label">Active Opportunities</div><div className="stat-value" style={{ fontSize: 28 }}>{posts.filter(p => p.post_type === 'hiring_update' && p.status === 'Open').length}</div><div className="stat-sub">Open job postings</div></div>
                 </div>
             </div>
 
@@ -601,7 +601,7 @@ const ManageTrainees = () => {
                 <div style={{ display: 'flex', gap: 12, marginBottom: 16, flexWrap: 'wrap', alignItems: 'center' }}>
                     <div className="search-bar" style={{ flex: 1, minWidth: 200 }}><Search size={14} color="#94a3b8" /><input placeholder="Search by name or email..." value={search} onChange={e => setSearch(e.target.value)} /></div>
                     <select className="form-select" style={{ width: 'auto', minWidth: 180 }} value={filterStatus} onChange={e => setFilterStatus(e.target.value)}>
-                        {['All', 'Employed', 'Seeking Employment', 'Certified', 'Seeking OJT', 'OJT In Progress'].map(s => <option key={s}>{s}</option>)}
+                        {['All', 'Employed', 'Seeking Employment', 'Not Employed'].map(s => <option key={s}>{s}</option>)}
                     </select>
                 </div>
                 <div style={{ overflowX: 'auto' }}>
@@ -650,10 +650,10 @@ const ManageTrainees = () => {
                             <div style={{ marginTop: 8, display: 'flex', gap: 6, justifyContent: 'center', flexWrap: 'wrap' }}>{viewT.certifications?.map((c, i) => <span key={i} className="badge badge-blue"><Award size={10} />{typeof c === 'object' ? c.name : c}</span>)}</div>
                         </div>
                         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 14 }}>
-                            {[['Address', viewT.address], ['Birthday', viewT.birthday], ['Status', viewT.trainingStatus], ['Year', viewT.graduationYear], ['Employment', viewT.employmentStatus], ['Employer', viewT.employer || 'â€”']].map(([k, v]) => (
+                            {[['Address', viewT.address], ['Birthday', viewT.birthday], ['Status', viewT.trainingStatus], ['Year', viewT.graduationYear], ['Employment', viewT.employmentStatus], ['Employer', viewT.employer || '-']].map(([k, v]) => (
                                 <div key={k} style={{ padding: '8px 12px', background: '#f8fafc', borderRadius: 8 }}>
                                     <div style={{ fontSize: 10, color: '#94a3b8', textTransform: 'uppercase', fontWeight: 600 }}>{k}</div>
-                                    <div style={{ fontSize: 13.5, fontWeight: 500, color: '#475569' }}>{v || 'â€”'}</div>
+                                    <div style={{ fontSize: 13.5, fontWeight: 500, color: '#475569' }}>{v || '-'}</div>
                                 </div>
                             ))}
                         </div>
@@ -684,9 +684,7 @@ const ManageTrainees = () => {
                             <select className="form-select" value={editT.employmentStatus} onChange={e => setEditT({ ...editT, employmentStatus: e.target.value })}>
                                 <option value="Employed">🟢 Employed</option>
                                 <option value="Seeking Employment">🔵 Seeking Employment</option>
-                                <option value="Certified">🟣 Certified</option>
-                                <option value="Seeking OJT">🟠 Seeking OJT</option>
-                                <option value="OJT In Progress">🟡 OJT In Progress</option>
+                                <option value="Not Employed">🔴 Not Employed</option>
                             </select>
                         </div>
                         <div style={{ display: 'flex', gap: 10 }}>
@@ -1584,7 +1582,7 @@ const ManagePartners = () => {
 
 // â”€â”€â”€ PAGE 4: OPPORTUNITIES OVERSIGHT â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 const OpportunitiesOversight = () => {
-    const { jobPostings, updateJobPosting, deleteJobPosting } = useApp();
+    const { posts, updatePost, deletePost, adminDeletePost, adminUpdatePost } = useApp();
     const [search, setSearch] = useState('');
     const [filterStatus, setFilterStatus] = useState('All');
     const [filterType, setFilterType] = useState('All');
@@ -1610,13 +1608,14 @@ const OpportunitiesOversight = () => {
 
     const handleDelete = async (job) => {
         if (!window.confirm(`Delete opportunity "${job.title}"? This action cannot be undone.`)) return;
-        await deleteJobPosting(job.id);
+        await adminDeletePost(job.id);
         setOpenMenuId(null);
     };
 
-    const filtered = jobPostings.filter(j => {
+    const hiringUpdates = posts.filter(p => p.post_type === 'hiring_update');
+    const filtered = hiringUpdates.filter(j => {
         const q = search.toLowerCase();
-        return (j.title.toLowerCase().includes(q) || j.companyName.toLowerCase().includes(q)) && (filterStatus === 'All' || j.status === filterStatus) && (filterType === 'All' || j.opportunityType === filterType);
+        return ((j.title || '').toLowerCase().includes(q) || (j.companyName || '').toLowerCase().includes(q)) && (filterStatus === 'All' || j.status === filterStatus) && (filterType === 'All' || j.opportunityType === filterType);
     });
     const displayedItems = filtered.slice((currentPage - 1) * pageSize, currentPage * pageSize);
 
@@ -1630,7 +1629,7 @@ const OpportunitiesOversight = () => {
                 <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                     {['All', 'Open', 'Closed', 'Filled'].map(s => (
                         <button key={s} className={`btn btn-${filterStatus === s ? 'primary' : 'outline'} btn-sm`} onClick={() => setFilterStatus(s)}>
-                            {s} ({s === 'All' ? jobPostings.length : jobPostings.filter(j => j.status === s).length})
+                            {s} ({s === 'All' ? hiringUpdates.length : hiringUpdates.filter(j => j.status === s).length})
                         </button>
                     ))}
                 </div>
@@ -1668,11 +1667,11 @@ const OpportunitiesOversight = () => {
                                                 <div className="account-actions-panel" style={{ right: 0 }}>
                                                     <div className="account-actions-header">Opportunity Actions</div>
                                                     {j.status === 'Open' ? (
-                                                        <button className="account-actions-item" onClick={() => { updateJobPosting(j.id, { status: 'Closed' }); setOpenMenuId(null); }}>
+                                                        <button className="account-actions-item" onClick={() => { adminUpdatePost(j.id, { status: 'Closed' }); setOpenMenuId(null); }}>
                                                             <XCircle size={14} /> Close Posting
                                                         </button>
                                                     ) : (
-                                                        <button className="account-actions-item" onClick={() => { updateJobPosting(j.id, { status: 'Open' }); setOpenMenuId(null); }}>
+                                                        <button className="account-actions-item" onClick={() => { adminUpdatePost(j.id, { status: 'Open' }); setOpenMenuId(null); }}>
                                                             <CheckCircle size={14} /> Re-open Posting
                                                         </button>
                                                     )}
@@ -1748,9 +1747,9 @@ const EmploymentTracking = () => {
                                     <td style={{ fontWeight: 600 }}>{t.name}</td>
                                     <td><div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>{t.certifications?.slice(0, 2).map((c, i) => <span key={i} className="badge badge-blue" style={{ fontSize: 10 }}>{typeof c === 'object' ? c.name : c}</span>)}</div></td>
                                     <td><span className={`badge badge-${(t.employmentStatus || 'unemployed').toLowerCase().replace(' ', '-').replace('-', '-')}`}>{t.employmentStatus}</span></td>
-                                    <td style={{ color: '#64748b', fontSize: 13 }}>{t.employer || 'â€”'}</td>
-                                    <td style={{ color: '#64748b', fontSize: 13 }}>{t.jobTitle || 'â€”'}</td>
-                                    <td style={{ color: '#64748b', fontSize: 13 }}>{t.dateHired || 'â€”'}</td>
+                                    <td style={{ color: '#64748b', fontSize: 13 }}>{t.employer || '-'}</td>
+                                    <td style={{ color: '#64748b', fontSize: 13 }}>{t.jobTitle || '-'}</td>
+                                    <td style={{ color: '#64748b', fontSize: 13 }}>{t.dateHired || '-'}</td>
                                 </tr>
                             ))}
                             {filtered.length === 0 && <tr><td colSpan={6} style={{ textAlign: 'center', padding: 32, color: '#94a3b8' }}>No trainees found.</td></tr>}
@@ -1770,7 +1769,7 @@ const EmploymentTracking = () => {
 
 // ——— PAGE 6: ANALYTICS (DEEP DIVE REPORTS) ————————————————————————————————
 const Analytics = () => {
-    const { trainees, jobPostings, partners, applications, getEmploymentStats } = useApp();
+    const { trainees, posts,  partners, applications, getEmploymentStats } = useApp();
     const stats = getEmploymentStats();
 
     const handleExportCSV = () => alert("Exporting metrics to CSV...");
@@ -2228,8 +2227,8 @@ const SystemActivityLog = () => {
                         </div>
                         {(viewEntry.prevValue || viewEntry.newValue) && (
                             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-                                <div style={{ padding: '8px 12px', background: '#fee2e2', borderRadius: 8 }}><div style={{ fontSize: 10, color: '#dc2626', fontWeight: 600, textTransform: 'uppercase' }}>Previous Value</div><div style={{ fontSize: 13, color: '#991b1b', marginTop: 4 }}>{viewEntry.prevValue || 'â€”'}</div></div>
-                                <div style={{ padding: '8px 12px', background: '#dcfce7', borderRadius: 8 }}><div style={{ fontSize: 10, color: '#16a34a', fontWeight: 600, textTransform: 'uppercase' }}>New Value</div><div style={{ fontSize: 13, color: '#166534', marginTop: 4 }}>{viewEntry.newValue || 'â€”'}</div></div>
+                                <div style={{ padding: '8px 12px', background: '#fee2e2', borderRadius: 8 }}><div style={{ fontSize: 10, color: '#dc2626', fontWeight: 600, textTransform: 'uppercase' }}>Previous Value</div><div style={{ fontSize: 13, color: '#991b1b', marginTop: 4 }}>{viewEntry.prevValue || '-'}</div></div>
+                                <div style={{ padding: '8px 12px', background: '#dcfce7', borderRadius: 8 }}><div style={{ fontSize: 10, color: '#16a34a', fontWeight: 600, textTransform: 'uppercase' }}>New Value</div><div style={{ fontSize: 13, color: '#166534', marginTop: 4 }}>{viewEntry.newValue || '-'}</div></div>
                             </div>
                         )}
                     </div>

@@ -128,7 +128,7 @@ export const TRAINEE_POST_TYPES = [
 
 export const PARTNER_POST_TYPES = [
   { value: 'announcement', label: 'Announcement', icon: '📢' },
-  { value: 'hiring_update', label: 'Hiring Update', icon: '💼' },
+  { value: 'hiring_update', label: 'Job Hiring', icon: '💼' },
   { value: 'achievement', label: 'Achievement', icon: '🏆' },
   { value: 'general', label: 'General', icon: '📝' }
 ];

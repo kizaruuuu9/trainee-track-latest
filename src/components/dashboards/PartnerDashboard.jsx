@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+﻿import React, { useState, useRef, useEffect } from 'react';
 import { useApp } from '../../context/AppContext';
 import SavedItemsView from './SavedItemsView';
 import ProfileActivityTab from './ProfileActivityTab';
@@ -31,11 +31,11 @@ const TraineeProfileContent = React.lazy(() =>
   import('./TraineeDashboard').then(module => ({ default: module.TraineeProfileContent }))
 );
 
-/* ═══════════════════════════════════════════════════════════════════
+/* -------------------------------------------------------------------
    LINKEDIN-STYLE PARTNER DASHBOARD
-   ═══════════════════════════════════════════════════════════════════ */
+   ------------------------------------------------------------------- */
 
-// ─── HELPERS ──────────────────────────────────────────────────────
+// --- HELPERS ------------------------------------------------------
 const isVerified = (user) => user?.verificationStatus === 'Verified';
 const getLivePartner = (currentUser, partners = []) => {
   const livePartner = partners.find(p => p.id === currentUser?.id);
@@ -86,11 +86,11 @@ const isImageAttachment = (attachmentUrl, attachmentType) => {
 };
 
 const SALARY_CURRENCY_OPTIONS = [
-  { code: 'PHP', label: 'PHP (₱)' },
+  { code: 'PHP', label: 'PHP (?)' },
   { code: 'USD', label: 'USD ($)' },
-  { code: 'EUR', label: 'EUR (€)' },
-  { code: 'GBP', label: 'GBP (£)' },
-  { code: 'JPY', label: 'JPY (¥)' },
+  { code: 'EUR', label: 'EUR (�)' },
+  { code: 'GBP', label: 'GBP (�)' },
+  { code: 'JPY', label: 'JPY (�)' },
 ];
 
 const DEFAULT_SALARY_CURRENCY = 'PHP';
@@ -100,13 +100,13 @@ const sanitizeNumericSalaryInput = (value = '') => String(value || '').replace(/
 const getCurrencySymbol = (currency = DEFAULT_SALARY_CURRENCY) => {
   const code = String(currency || DEFAULT_SALARY_CURRENCY).toUpperCase();
   const symbols = {
-    PHP: '₱',
+    PHP: '?',
     USD: '$',
-    EUR: '€',
-    GBP: '£',
-    JPY: '¥',
+    EUR: '�',
+    GBP: '�',
+    JPY: '�',
   };
-  return symbols[code] || '₱';
+  return symbols[code] || '?';
 };
 
 const formatSalaryAmount = (value = '', currency = DEFAULT_SALARY_CURRENCY) => {
@@ -130,11 +130,11 @@ const formatSalaryRangeValue = (minimum = '', maximum = '', currency = DEFAULT_S
 const inferSalaryCurrency = (salaryText = '', fallback = DEFAULT_SALARY_CURRENCY) => {
   const raw = String(salaryText || '').trim().toUpperCase();
   if (!raw) return fallback;
-  if (raw.includes('₱') || raw.includes('PHP')) return 'PHP';
+  if (raw.includes('?') || raw.includes('PHP')) return 'PHP';
   if (raw.includes('$') || raw.includes('USD')) return 'USD';
-  if (raw.includes('€') || raw.includes('EUR')) return 'EUR';
-  if (raw.includes('£') || raw.includes('GBP')) return 'GBP';
-  if (raw.includes('¥') || raw.includes('JPY')) return 'JPY';
+  if (raw.includes('�') || raw.includes('EUR')) return 'EUR';
+  if (raw.includes('�') || raw.includes('GBP')) return 'GBP';
+  if (raw.includes('�') || raw.includes('JPY')) return 'JPY';
   return fallback;
 };
 
@@ -245,7 +245,7 @@ const normalizePartnerProfile = (profile) => {
   };
 };
 
-// ─── STATUS BADGE HELPER ──────────────────────────────────────────
+// --- STATUS BADGE HELPER ------------------------------------------
 const StatusBadge = ({ status }) => {
   const map = {
     'Pending Verification': 'ln-badge-yellow',
@@ -266,12 +266,12 @@ const StatusBadge = ({ status }) => {
   );
 };
 
-// ─── TOP NAVIGATION BAR (LinkedIn-style for Partners) ─────────────
-// ─── LEFT NAVIGATION BAR ─────────────
+// --- TOP NAVIGATION BAR (LinkedIn-style for Partners) -------------
+// --- LEFT NAVIGATION BAR -------------
 const PartnerSideNav = ({ activePage, setActivePage }) => {
     const { currentUser, partners } = useApp();
     const navigate = useNavigate();
-    
+
     // Partner-specific data
     const livePartner = getLivePartner(currentUser, partners);
     const verified = isVerified(livePartner);
@@ -338,7 +338,7 @@ const PartnerSideNav = ({ activePage, setActivePage }) => {
     );
 };
 
-// ─── LAYOUT WRAPPER ──────────────────────────────────────────────
+// --- LAYOUT WRAPPER ----------------------------------------------
 const PartnerLayout = ({ children, activePage, setActivePage }) => (
     <div className="ln-app">
         <TopNavBar activePage={activePage} setActivePage={setActivePage} />
@@ -349,7 +349,7 @@ const PartnerLayout = ({ children, activePage, setActivePage }) => (
     </div>
 );
 
-// ─── LEFT: COMPANY PROFILE CARD ──────────────────────────────────
+// --- LEFT: COMPANY PROFILE CARD ----------------------------------
 const CompanySideCard = ({ partner, setActivePage }) => {
   const initials = partner?.companyName?.charAt(0)?.toUpperCase() || 'P';
   const visibleCompanyInfo = new Set(resolvePartnerVisibility(partner));
@@ -383,12 +383,12 @@ const CompanySideCard = ({ partner, setActivePage }) => {
 
         <div className="ln-profile-stats">
           <div className="ln-profile-stat" onClick={() => setActivePage('applicants')}>
-            <span className="ln-profile-stat-num pn-stat-num">{partner?.companySize || '—'}</span>
+            <span className="ln-profile-stat-num pn-stat-num">{partner?.companySize || '�'}</span>
             <span className="ln-profile-stat-label">Company Size</span>
           </div>
           <div className="ln-profile-stat-divider" />
           <div className="ln-profile-stat" onClick={() => setActivePage('profile')}>
-            <span className="ln-profile-stat-num pn-stat-num">{partner?.contactPerson ? '✓' : '—'}</span>
+            <span className="ln-profile-stat-num pn-stat-num">{partner?.contactPerson ? '?' : '�'}</span>
             <span className="ln-profile-stat-label">Contact Info</span>
           </div>
         </div>
@@ -401,7 +401,7 @@ const CompanySideCard = ({ partner, setActivePage }) => {
   );
 };
 
-// ─── RIGHT: QUICK ACTIONS WIDGET ─────────────────────────────────
+// --- RIGHT: QUICK ACTIONS WIDGET ---------------------------------
 const QuickActionsWidget = ({ setActivePage, verified }) => (
   <div className="ln-card ln-widget">
     <div className="ln-widget-header"><span>Quick Actions</span></div>
@@ -447,9 +447,10 @@ const RecruitmentStatsWidget = ({ myJobs, myApplicants }) => (
   </div>
 );
 
-// ─── PAGE 1: PARTNER DASHBOARD HOME ──────────────────────────────
+// --- PAGE 1: PARTNER DASHBOARD HOME ------------------------------
 const PartnerHome = ({ setActivePage }) => {
   const [feedFilter, setFeedFilter] = useState('All');
+  const [feedSearchText, setFeedSearchText] = useState('');
   const [visibleFeedCount, setVisibleFeedCount] = useState(20);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
 
@@ -544,7 +545,7 @@ const PartnerHome = ({ setActivePage }) => {
   // Create Post state
   const [postContent, setPostContent] = useState('');
   const [isPosting, setIsPosting] = useState(false);
-  const [postType, setPostType] = useState('announcement');
+  const [postType, setPostType] = useState('general');
   const [showPostModal, setShowPostModal] = useState(false);
   const [postTitle, setPostTitle] = useState('');
   const [postExpiryEnabled, setPostExpiryEnabled] = useState(false);
@@ -755,7 +756,7 @@ const PartnerHome = ({ setActivePage }) => {
 
       if (res.success) {
         setPostContent('');
-        setPostType('announcement');
+        setPostType('general');
         setPostTitle('');
         setPostExpiryEnabled(false);
         setPostExpiryDate('');
@@ -1068,7 +1069,7 @@ const PartnerHome = ({ setActivePage }) => {
 
   const formatBulletinDate = (dateStr) => {
     if (!dateStr) return '';
-    if (dateStr.includes('–') || (dateStr.includes('-') && dateStr.split('-').length !== 3)) return dateStr;
+    if (dateStr.includes('�') || (dateStr.includes('-') && dateStr.split('-').length !== 3)) return dateStr;
     const date = new Date(dateStr);
     if (isNaN(date.getTime())) return dateStr;
     return date.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
@@ -1101,11 +1102,19 @@ const PartnerHome = ({ setActivePage }) => {
         } else if (feedFilter === "Project") {
             list = list.filter(item => item.post_type === "project");
         }
+
+        if (feedSearchText.trim()) {
+            const query = feedSearchText.toLowerCase();
+            list = list.filter(item => {
+                const searchableText = `${item.title || ''} ${item.content || ''} ${item.description || ''} ${item.company_name || ''} ${item.jobTitle || ''} ${item.author?.name || ''} ${item.profileName || ''}`.toLowerCase();
+                return searchableText.includes(query);
+            });
+        }
+
         return list;
-    }, [unifiedFeed, feedFilter]);
+    }, [unifiedFeed, feedFilter, feedSearchText]);
 
     useEffect(() => { feedLimitRef.current.total = filteredFeed.length; }, [filteredFeed.length]);
-
 
   // Bulletin interaction state
   const [bulletinModal, setBulletinModal] = useState(null); // { post, type }
@@ -1150,16 +1159,16 @@ const PartnerHome = ({ setActivePage }) => {
   };
 
   const BULLETIN_CONFIG = {
-    training_batch: { label: 'Training Batch', color: '#7c3aed', bg: '#ede9fe', emoji: '📚', partnerLabel: 'Refer Apprentice', type: 'refer' },
-    exam_schedule: { label: 'Exam Schedule', color: '#0ea5e9', bg: '#e0f2fe', emoji: '📝', partnerLabel: 'Register Apprentice', type: 'register' },
-    certification_assessment: { label: 'Certification Assessment', color: '#16a34a', bg: '#dcfce7', emoji: '🏆', partnerLabel: 'Register Apprentice', type: 'register' },
-    announcement: { label: 'Announcement', color: '#d97706', bg: '#fef3c7', emoji: '📢', partnerLabel: null, type: null },
+    training_batch: { label: 'Training Batch', color: '#7c3aed', bg: '#ede9fe', emoji: '??', partnerLabel: 'Refer Apprentice', type: 'refer' },
+    exam_schedule: { label: 'Exam Schedule', color: '#0ea5e9', bg: '#e0f2fe', emoji: '??', partnerLabel: 'Register Apprentice', type: 'register' },
+    certification_assessment: { label: 'Certification Assessment', color: '#16a34a', bg: '#dcfce7', emoji: '??', partnerLabel: 'Register Apprentice', type: 'register' },
+    announcement: { label: 'Announcement', color: '#d97706', bg: '#fef3c7', emoji: '??', partnerLabel: null, type: null },
   };
 
   const stats = [
     { label: 'Active Postings', value: myJobs.filter(j => j.status === 'Open').length, icon: <Briefcase size={20} />, color: '#0ea5e9' },
     { label: 'Total Applicants', value: myApplicants.length, icon: <Users size={20} />, color: '#7c3aed' },
-    { label: 'Accepted', value: myApplicants.filter(a => a.status === 'Accepted').length, icon: <CheckCircle size={20} />, color: '#16a34a' },
+    { label: 'Hired', value: myApplicants.filter(a => ['Accepted', 'Hired'].includes(a.status)).length, icon: <CheckCircle size={20} />, color: '#16a34a' },
     { label: 'Avg Match', value: myApplicants.length > 0 ? `${Math.round(myApplicants.reduce((s, a) => s + a.matchRate, 0) / myApplicants.length)}%` : '0%', icon: <Target size={20} />, color: '#d97706' },
   ];
 
@@ -1206,7 +1215,6 @@ const PartnerHome = ({ setActivePage }) => {
           </div>
         )}
 
-
         {/* Stats Row */}
         <div className="ln-card ln-stats-row">
           {stats.map((s, i) => (
@@ -1218,111 +1226,60 @@ const PartnerHome = ({ setActivePage }) => {
           ))}
         </div>
 
-        {/* Create Post Trigger */}
-        <div className="ln-card" style={{ padding: '12px 16px', marginBottom: 16, cursor: 'pointer' }} onClick={() => setShowPostModal(true)}>
+        {/* Create Post Entry Block */}
+        <div className="ln-card" style={{ marginBottom: 20, padding: 16, cursor: 'pointer', borderRadius: 12, border: '1px solid #e2e8f0', background: '#fff' }} onClick={() => setShowPostModal(true)}>
           <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
-            <div className="ln-nav-avatar pn-nav-avatar" style={{ flexShrink: 0 }}>{initials}</div>
-            <div style={{ flex: 1, padding: '12px 16px', borderRadius: 24, border: '1px solid rgba(0,0,0,0.15)', background: '#f9fafb', color: 'rgba(0,0,0,0.5)', fontSize: 14 }}>Share a hiring update or company announcement...</div>
+            <div style={{ width: 44, height: 44, borderRadius: '50%', background: '#ede9fe', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#7c3aed', flexShrink: 0, fontWeight: 700, fontSize: 16 }}>
+              {partner?.company_name?.charAt(0) || partner?.profileName?.charAt(0) || 'P'}
+            </div>
+            <div style={{ flex: 1, padding: '12px 16px', background: '#f1f5f9', borderRadius: 24, color: '#64748b', fontSize: 14 }}>
+              Share an announcement, event, or hiring update...
+            </div>
+            <div style={{ display: 'flex', gap: 8, paddingLeft: 8 }}>
+              <button style={{ background: 'none', border: 'none', color: '#0ea5e9', display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer', fontWeight: 600, fontSize: 13 }}><Camera size={18} /> Image</button>
+              <button style={{ background: 'none', border: 'none', color: '#10b981', display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer', fontWeight: 600, fontSize: 13 }}><Calendar size={18} /> Event</button>
+            </div>
           </div>
         </div>
 
-        {/* Post Creator Modal */}
-        {showPostModal && (
-          <div className="modal-overlay" onClick={() => setShowPostModal(false)}>
-            <div className="ln-modal" style={{ maxWidth: 560 }} onClick={e => e.stopPropagation()}>
-              <div className="ln-modal-header">
-                <div>
-                  <h3 className="ln-modal-title">Create a Post</h3>
-                  <p style={{ fontSize: 13, color: 'rgba(0,0,0,0.5)', marginTop: 2 }}>Share with the community</p>
-                </div>
-                <button className="ln-btn-icon" onClick={() => setShowPostModal(false)}><X size={18} /></button>
-              </div>
-
-              <div style={{ marginBottom: 14 }}>
-                <label style={{ fontWeight: 700, fontSize: 13, marginBottom: 6, display: 'block', color: '#1e293b' }}>Title</label>
-                <input type="text" className="form-input" placeholder="e.g., Company Open House 2026" value={postTitle} onChange={e => setPostTitle(e.target.value)} maxLength={120} style={{ fontSize: 14, borderRadius: 10, padding: '10px 14px' }} />
-              </div>
-
-              <div style={{ marginBottom: 14 }}>
-                <label style={{ fontWeight: 700, fontSize: 13, marginBottom: 6, display: 'block', color: '#1e293b' }}>Post Type</label>
-                <select className="ln-filter-select" value={postType} onChange={e => setPostType(e.target.value)} style={{ width: '100%', padding: '10px 14px', borderRadius: 10, fontSize: 14, height: 42 }}>
-                  <option value="announcement">📢 Announcement</option>
-                  <option value="hiring_update">💼 Hiring Update</option>
-                  <option value="achievement">🏆 Achievement</option>
-                  <option value="general">📝 General</option>
-                </select>
-              </div>
-
-              <div style={{ marginBottom: 14 }}>
-                <label style={{ fontWeight: 700, fontSize: 13, marginBottom: 6, display: 'block', color: '#1e293b' }}>Description</label>
-                <textarea className="ln-search-input" placeholder="Write your message..." value={postContent} onChange={e => setPostContent(e.target.value)} maxLength={1000} style={{ width: '100%', minHeight: 120, resize: 'none', borderRadius: 10, padding: '12px 14px', fontSize: 14, border: '1px solid rgba(0,0,0,0.15)' }} />
-                <div style={{ fontSize: 12, color: '#94a3b8', textAlign: 'right', marginTop: 4 }}>{postContent.length}/1000</div>
-              </div>
-
-              <div style={{ marginBottom: 14 }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
-                  <label style={{ fontWeight: 700, fontSize: 13, color: '#1e293b', margin: 0 }}>Set Expiry Date</label>
-                  <button type="button" onClick={() => setPostExpiryEnabled(!postExpiryEnabled)} style={{ width: 40, height: 22, borderRadius: 11, border: 'none', background: postExpiryEnabled ? '#0a66c2' : '#cbd5e1', position: 'relative', cursor: 'pointer', transition: 'background 0.2s' }}>
-                    <div style={{ width: 18, height: 18, borderRadius: '50%', background: '#fff', position: 'absolute', top: 2, transition: 'left 0.2s', left: postExpiryEnabled ? 20 : 2, boxShadow: '0 1px 3px rgba(0,0,0,0.2)' }} />
-                  </button>
-                </div>
-                {postExpiryEnabled && (
-                  <input type="date" className="form-input" value={postExpiryDate} onChange={e => setPostExpiryDate(e.target.value)} min={new Date().toISOString().slice(0, 10)} style={{ fontSize: 14, borderRadius: 10, padding: '10px 14px' }} />
-                )}
-              </div>
-
-              <div style={{ marginBottom: 14 }}>
-                <input type="file" hidden ref={fileInputRef} onChange={handleFileChange} accept="image/*,.pdf,.doc,.docx" />
-                <button type="button" onClick={() => fileInputRef.current.click()} className="ln-btn-sm ln-btn-outline" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                  <Camera size={16} /> Attach Media
-                </button>
-                {filePreview && (
-                  <div className="ln-media-frame ln-media-frame-preview" style={{ position: 'relative', marginTop: 12 }}>
-                    <img src={filePreview} alt="Preview" className="ln-media-image" />
-                    <button style={{ position: 'absolute', top: 4, right: 4, background: 'rgba(0,0,0,0.5)', color: '#fff', border: 'none', borderRadius: '50%', width: 20, height: 20, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }} onClick={() => { setSelectedFile(null); setFilePreview(null); }}>
-                      <X size={12} />
-                    </button>
-                  </div>
-                )}
-                {selectedFile && !filePreview && (
-                  <div style={{ marginTop: 12, padding: '8px 12px', background: '#f8fafc', borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'space-between', border: '1px solid #e2e8f0' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                      <FileText size={16} color="#65676b" />
-                      <span style={{ fontSize: 12, fontWeight: 500 }}>{selectedFile.name}</span>
-                    </div>
-                    <X size={14} color="#65676b" cursor="pointer" onClick={() => setSelectedFile(null)} />
-                  </div>
-                )}
-              </div>
-
-              <div className="ln-modal-footer">
-                <button className="ln-btn ln-btn-outline" onClick={() => setShowPostModal(false)}>Cancel</button>
-                <button className="ln-btn ln-btn-primary" onClick={handleCreatePost} disabled={isPosting || (!postContent.trim() && !selectedFile)}>
-                  {isPosting ? 'Publishing...' : 'Publish Post'}
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
-
         {/* Unified Community Feed Grid */}
-        <div className="ln-section-header" style={{ marginBottom: 8, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <h3 style={{ fontSize: 14, textTransform: 'uppercase', letterSpacing: '0.5px', color: 'rgba(0,0,0,0.6)', margin: 0 }}>Community Activity</h3>
-          <select
-              style={{ padding: '6px 10px', borderRadius: 6, border: '1px solid #cbd5e1', background: '#fff', fontSize: 13, color: '#1e293b', cursor: 'pointer', outline: 'none', fontWeight: 500 }}
-              value={feedFilter}
-              onChange={(e) => { setFeedFilter(e.target.value); setVisibleFeedCount(20); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
-          >
+        <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: '12px', marginBottom: 16 }}>
+            <div style={{ flexShrink: 0 }}>
+                <h3 style={{ fontSize: 14, textTransform: 'uppercase', letterSpacing: '0.5px', color: 'rgba(0,0,0,0.6)', margin: 0, whiteSpace: 'nowrap' }}>Community Activity</h3>
+            </div>
+            
+            <div style={{ display: 'flex', flex: '1 1 min-content', justifyContent: 'center', minWidth: '150px' }}>
+                <div style={{ position: 'relative', display: 'flex', alignItems: 'center', width: '100%', maxWidth: '600px' }}>
+                    <Search size={16} color="#64748b" style={{ position: 'absolute', left: '10px' }} />
+                    <input
+                        type="text"
+                        placeholder="Search..."
+                        value={feedSearchText}
+                        onChange={(e) => { setFeedSearchText(e.target.value); setVisibleFeedCount(20); }}
+                        style={{
+                            padding: '8px 12px 8px 32px',
+                            borderRadius: 8,
+                            border: '1px solid #cbd5e1',
+                            background: '#fff',
+                            fontSize: 14,
+                            color: '#0f172a',
+                            outline: 'none',
+                            width: '100%'
+                        }}
+                    />
+                </div>
+            </div>
+            
+            <div style={{ display: 'flex', justifyContent: 'flex-end', flexShrink: 0 }}>
+            <select
+                style={{ padding: '6px 10px', borderRadius: 6, border: '1px solid #cbd5e1', background: '#fff', fontSize: 13, color: '#1e293b', cursor: 'pointer', outline: 'none', fontWeight: 500 }}
+                value={feedFilter}
+                onChange={(e) => { setFeedFilter(e.target.value); setVisibleFeedCount(20); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
+            >
               <option value="All">All</option>
-              <option value="Announcement">Announcement</option>
-              <option value="Hiring Update">Hiring Update</option>
-              <option value="Achievement">Achievement</option>
-              <option value="General">General</option>
-              <option value="Public">Public</option>
-              <option value="Certification">Certification</option>
-              <option value="Project">Project</option>
-              <option value="Recommended">Recommended ✨</option>
-          </select>
+              <option value="Trainee Finding Job">Trainee Finding Job</option>
+            </select>
+          </div>
         </div>
         <div className="tt-feed-grid">
           {filteredFeed.slice(0, visibleFeedCount).map(item => {
@@ -1365,7 +1322,7 @@ const PartnerHome = ({ setActivePage }) => {
                           }
 
                           return 'PSTDII Admin';
-                        })()} • {timeAgo(item.created_at)}
+                        })()} � {timeAgo(item.created_at)}
                       </div>
                     </div>
                     {item.author_id === currentUser?.id && (
@@ -1378,7 +1335,7 @@ const PartnerHome = ({ setActivePage }) => {
                           style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 4, borderRadius: '50%', color: '#65676b' }}
                           title="More options"
                         >
-                          <span style={{ fontSize: 20, fontWeight: 700, letterSpacing: 2, lineHeight: 1 }}>···</span>
+                          <span style={{ fontSize: 20, fontWeight: 700, letterSpacing: 2, lineHeight: 1 }}>���</span>
                         </button>
                         {postMenuId === item.id && (
                           <div style={{
@@ -1437,7 +1394,7 @@ const PartnerHome = ({ setActivePage }) => {
                     {reqs.length > 0 && (
                       <div style={{ marginTop: 10 }}>
                         <div style={{ fontSize: 11, color: '#64748b', fontWeight: 700, marginBottom: 4 }}>REQUIREMENTS</div>
-                        {reqs.map((r, i) => <div key={i} style={{ fontSize: 12.5, color: '#475569', display: 'flex', gap: 6, marginBottom: 3 }}><span style={{ color: cfg.color }}>•</span>{r}</div>)}
+                        {reqs.map((r, i) => <div key={i} style={{ fontSize: 12.5, color: '#475569', display: 'flex', gap: 6, marginBottom: 3 }}><span style={{ color: cfg.color }}>�</span>{r}</div>)}
                       </div>
                     )}
                   </div>
@@ -1498,7 +1455,7 @@ const PartnerHome = ({ setActivePage }) => {
                             (item.industry && String(item.industry).trim().toLowerCase() !== 'general') ? item.industry : '',
                             item.location,
                             timeAgo(item.created_at || item.createdAt || item.datePosted),
-                          ].filter(Boolean).join(' • ')}
+                          ].filter(Boolean).join(' � ')}
                         </div>
                       </div>
                     </div>
@@ -1509,7 +1466,7 @@ const PartnerHome = ({ setActivePage }) => {
                           style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 4, borderRadius: '50%', color: '#65676b' }}
                           title="More options"
                         >
-                          <span style={{ fontSize: 20, fontWeight: 700, letterSpacing: 2, lineHeight: 1 }}>···</span>
+                          <span style={{ fontSize: 20, fontWeight: 700, letterSpacing: 2, lineHeight: 1 }}>���</span>
                         </button>
                         {jobPostMenuId === item.id && (
                           <div style={{
@@ -1677,11 +1634,11 @@ const PartnerHome = ({ setActivePage }) => {
                                         item.post_type === 'project' ? '#e9d5ff' : '#e2e8f0'}`
                               }}
                             >
-                              {item.post_type === 'announcement' ? '📢 ' :
-                                item.post_type === 'hiring_update' ? '💼 ' :
-                                  item.post_type === 'achievement' ? '🏆 ' :
-                                    item.post_type === 'certification' ? '📜 ' :
-                                      item.post_type === 'project' ? '🚀 ' : ''}
+                              {item.post_type === 'announcement' ? '?? ' :
+                                item.post_type === 'hiring_update' ? '?? ' :
+                                  item.post_type === 'achievement' ? '?? ' :
+                                    item.post_type === 'certification' ? '?? ' :
+                                      item.post_type === 'project' ? '?? ' : ''}
                               {item.post_type.replace('_', ' ')}
                             </span>
                           )}
@@ -1699,7 +1656,7 @@ const PartnerHome = ({ setActivePage }) => {
                           style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 4, borderRadius: '50%', color: '#65676b' }}
                           title="More options"
                         >
-                          <span style={{ fontSize: 20, fontWeight: 700, letterSpacing: 2, lineHeight: 1 }}>···</span>
+                          <span style={{ fontSize: 20, fontWeight: 700, letterSpacing: 2, lineHeight: 1 }}>���</span>
                         </button>
                         {postMenuId === item.id && (
                           <div style={{
@@ -1864,7 +1821,6 @@ const PartnerHome = ({ setActivePage }) => {
           )}
         </div>
       </div>
-
 
       {/* Bulletin Toast */}
       {bulletinToast && (
@@ -2228,7 +2184,7 @@ const PartnerHome = ({ setActivePage }) => {
                         (jobMediaModal.industry && String(jobMediaModal.industry).trim().toLowerCase() !== 'general') ? jobMediaModal.industry : '',
                         jobMediaModal.location,
                         timeAgo(jobMediaModal.created_at || jobMediaModal.createdAt || jobMediaModal.datePosted),
-                      ].filter(Boolean).join(' • ')}
+                      ].filter(Boolean).join(' � ')}
                     </div>
                     <div style={{ marginTop: 8, fontSize: 16, fontWeight: 700, color: '#111827' }}>{jobMediaModal.title}</div>
                     <div style={{ marginTop: 4, fontSize: 13, color: '#475569', whiteSpace: 'pre-wrap' }}>{jobMediaModal.description}</div>
@@ -2283,7 +2239,7 @@ const PartnerHome = ({ setActivePage }) => {
                               style={{ border: 'none', background: 'transparent', color: '#94a3b8', cursor: 'pointer', padding: '0 4px', fontSize: 18, lineHeight: 1, borderRadius: 4 }}
                               aria-label="Comment options"
                             >
-                              ···
+                              ���
                             </button>
                             {isMenuOpen && (
                               <div style={{ position: 'absolute', right: 0, top: '100%', zIndex: 200, background: '#fff', border: '1px solid #e2e8f0', borderRadius: 8, boxShadow: '0 4px 14px rgba(0,0,0,0.13)', minWidth: 110, padding: '4px 0' }}>
@@ -2580,11 +2536,79 @@ const PartnerHome = ({ setActivePage }) => {
           </div>
         </div>
       )}
-    </>
+   
+      {showPostModal && (
+        <div className="ln-modal-bg" style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <div className="ln-modal-content" style={{ background: '#fff', width: '100%', maxWidth: 540, borderRadius: 16, overflow: 'hidden', boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1)', margin: '0 20px' }}>
+            <div style={{ padding: '16px 20px', borderBottom: '1px solid #f1f5f9', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <h3 style={{ margin: 0, fontSize: 18, color: '#1e293b', fontWeight: 700 }}>Create Post</h3>
+              <button onClick={() => setShowPostModal(false)} style={{ background: '#f1f5f9', border: 'none', cursor: 'pointer', width: 32, height: 32, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#64748b' }}><X size={20} /></button>
+            </div>
+            <div style={{ padding: 20 }}>
+              <div style={{ display: 'flex', gap: 12, alignItems: 'center', marginBottom: 20 }}>
+                <div style={{ width: 44, height: 44, borderRadius: '50%', background: '#ede9fe', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#7c3aed', flexShrink: 0, fontWeight: 700, fontSize: 16 }}>
+                  {partner?.company_name?.charAt(0) || partner?.profileName?.charAt(0) || 'P'}
+                </div>
+                <div>
+                  <div style={{ fontWeight: 700, fontSize: 14, color: '#1e293b' }}>{partner?.company_name || partner?.profileName || 'Industry Partner'}</div>
+                  <div style={{ fontSize: 12, color: '#64748b' }}>Post to Community Feed</div>
+                </div>
+              </div>
+              <div style={{ marginBottom: 16 }}>
+                <input value={postTitle} onChange={e => setPostTitle(e.target.value)} placeholder="Title (e.g. General Update or Announcement)" style={{ width: '100%', padding: '10px 0', border: 'none', borderBottom: '1px solid #e2e8f0', fontSize: 16, fontWeight: 600, color: '#1e293b', outline: 'none' }} />
+              </div>
+              <div style={{ marginBottom: 16 }}>
+                <textarea value={postContent} onChange={e => setPostContent(e.target.value)} placeholder="What do you want to announce to the community?" rows={4} style={{ width: '100%', padding: '10px 0', border: 'none', fontSize: 15, color: '#1e293b', outline: 'none', resize: 'vertical', minHeight: 80, boxSizing: 'border-box' }} />
+              </div>
+              {(true) && (
+                <div style={{ marginBottom: 16, background: '#f8fafc', padding: 12, borderRadius: 8 }}>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, fontWeight: 600, color: '#475569', marginBottom: 8, cursor: 'pointer' }}>
+                    <input type="checkbox" checked={postExpiryEnabled} onChange={e => setPostExpiryEnabled(e.target.checked)} style={{ width: 16, height: 16, cursor: 'pointer' }} />
+                    Set Event Date / Scheduled Day
+                  </label>
+                  {postExpiryEnabled && (
+                    <input type="date" value={postExpiryDate} onChange={e => setPostExpiryDate(e.target.value)} style={{ width: '100%', padding: '10px', borderRadius: 8, border: '1px solid #cbd5e1', fontSize: 14, color: '#1e293b', outline: 'none', boxSizing: 'border-box' }} />
+                  )}
+                </div>
+              )}
+              <div style={{ border: '1px solid #e2e8f0', borderRadius: 10, padding: 12 }}>
+                <div style={{ fontSize: 13, fontWeight: 600, color: '#475569', marginBottom: 12 }}>Add to your post</div>
+                <div style={{ display: 'flex', gap: 12 }}>
+                  <input type="file" accept="image/*" onChange={e => {
+                    const file = e.target.files[0];
+                    if (file) {
+                        setSelectedFile(file);
+                        const reader = new FileReader();
+                        reader.onloadend = () => setFilePreview(reader.result);
+                        reader.readAsDataURL(file);
+                    }
+                  }} style={{ display: 'none' }} ref={fileInputRef} id="feed-post-image-upload" />
+                  <button type="button" onClick={() => document.getElementById('feed-post-image-upload').click()} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 16px', background: '#f1f5f9', border: 'none', borderRadius: 8, cursor: 'pointer', color: '#0ea5e9', fontWeight: 600, fontSize: 13 }}>
+                    <Camera size={18} /> {selectedFile ? 'Change Image' : 'Photo'}
+                  </button>
+                </div>
+                {filePreview && (
+                   <div style={{ position: 'relative', marginTop: 12 }}>
+                     <button type="button" onClick={() => { setFilePreview(null); setSelectedFile(null); if(fileInputRef.current) fileInputRef.current.value = ''; }} style={{ position: 'absolute', top: 8, right: 8, background: 'rgba(0,0,0,0.5)', border: 'none', borderRadius: '50%', width: 28, height: 28, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', cursor: 'pointer' }}><X size={16} /></button>
+                     <img src={filePreview} alt="Preview" style={{ width: '100%', borderRadius: 8, maxHeight: 300, objectFit: 'contain', background: '#000' }} />
+                   </div>
+                )}
+              </div>
+            </div>
+            <div style={{ padding: '16px 20px', borderTop: '1px solid #f1f5f9', display: 'flex', justifyContent: 'flex-end', gap: 12 }}>
+              <button onClick={() => setShowPostModal(false)} style={{ padding: '10px 20px', border: 'none', background: 'none', fontWeight: 600, cursor: 'pointer', color: '#475569', fontSize: 14 }}>Cancel</button>
+              <button onClick={handleCreatePost} disabled={isPosting || (!postContent.trim() && !postTitle.trim() && !filePreview)} style={{ padding: '10px 24px', background: '#0a66c2', color: '#fff', border: 'none', borderRadius: 20, fontWeight: 600, cursor: isPosting || (!postContent.trim() && !postTitle.trim() && !filePreview) ? 'not-allowed' : 'pointer', fontSize: 14, opacity: isPosting || (!postContent.trim() && !postTitle.trim() && !filePreview) ? 0.6 : 1 }}>
+                {isPosting ? 'Posting...' : 'Post'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+ </>
   );
 };
 
-// ─── PAGE: VERIFICATION ───────────────────────────────────────────
+// --- PAGE: VERIFICATION -------------------------------------------
 const VerificationPage = ({ setActivePage }) => {
   const { currentUser, partners, submitPartnerDocuments, withdrawPartnerSubmission } = useApp();
   const livePartner = getLivePartner(currentUser, partners);
@@ -2819,7 +2843,7 @@ const VerificationPage = ({ setActivePage }) => {
             </div>
           )}
 
-          {/* Add Document Row — only when not yet submitted */}
+          {/* Add Document Row � only when not yet submitted */}
           {!isSubmitted && (
             <div style={{ marginBottom: 20 }}>
               <p style={{ fontSize: 12, color: '#64748b', marginBottom: 10 }}>
@@ -2889,7 +2913,6 @@ const VerificationPage = ({ setActivePage }) => {
         </div>
       </div>
 
-
       {/* Benefits of Verified Account */}
       <div className="ln-card" style={{ marginBottom: 16 }}>
         <div className="ln-section-header"><h3>Benefits of a Verified Account</h3></div>
@@ -2934,7 +2957,7 @@ const VerificationPage = ({ setActivePage }) => {
   );
 };
 
-// ─── PAGE: POST OPPORTUNITIES ─────────────────────────────────────
+// --- PAGE: POST OPPORTUNITIES -------------------------------------
 const ncLevelOptions = ['NC I', 'NC II', 'NC III', 'NC IV'];
 const PostJob = ({ setActivePage, opportunityType = 'Job' }) => {
   const location = useLocation();
@@ -3191,17 +3214,18 @@ const PostJob = ({ setActivePage, opportunityType = 'Job' }) => {
         </div>
       </div>
       <form onSubmit={handleSubmit}>
-        <div className="ln-profile-two-col">
-          <div className="ln-card" style={{ padding: 20 }}>
-            <h3 style={{ fontSize: 16, fontWeight: 600, color: 'rgba(0,0,0,0.9)', marginBottom: 16 }}>Opportunity Details</h3>
-            <div className="form-group">
-              <label className="ln-info-label">Title *</label>
-              <input className="form-input" value={form.title} onChange={e => setForm({ ...form, title: e.target.value })} placeholder={opportunityType === 'OJT' ? 'e.g. Web Dev OJT Trainee' : 'e.g. Junior IT Technician'} maxLength={100} required />
+        <div className="ln-profile-one-col">
+          <div className="ln-card" style={{ padding: 24 }}>
+            <h3 style={{ fontSize: 16, fontWeight: 700, color: `#1e293b`, marginBottom: 16 }}>Opportunity Details</h3>
+            <div style={{ display: `grid`, gridTemplateColumns: `minmax(0, 1fr) minmax(0, 1fr)`, gap: 12 }}>
+            <div style={{ display: `contents` }}>
+              <label style={{ fontWeight: 700, fontSize: 13, marginBottom: 6, display: `block`, color: `#1e293b` }}>Title *</label>
+              <input className="form-input" style={{ fontSize: 14, borderRadius: 10, padding: `10px 14px` }} value={form.title} onChange={e => setForm({ ...form, title: e.target.value })} placeholder={opportunityType === 'OJT' ? 'e.g. Web Dev OJT Trainee' : 'e.g. Junior IT Technician'} maxLength={100} required />
             </div>
-            <div className="form-group">
-              <label className="ln-info-label">Opportunity Type *</label>
+            <div style={{ display: `contents` }}>
+              <label style={{ fontWeight: 700, fontSize: 13, marginBottom: 6, display: `block`, color: `#1e293b` }}>Opportunity Type *</label>
               <select
-                className="form-select"
+                className="form-select" style={{ fontSize: 14, borderRadius: 10, padding: `10px 14px` }}
                 value={form.opportunityType}
                 onChange={e => {
                   const nextType = e.target.value;
@@ -3215,10 +3239,10 @@ const PostJob = ({ setActivePage, opportunityType = 'Job' }) => {
                 <option>Job</option><option>OJT</option><option>Apprenticeship</option>
               </select>
             </div>
-            <div className="form-group">
-              <label className="ln-info-label">Program Required *</label>
+            <div style={{ display: `contents` }}>
+              <label style={{ fontWeight: 700, fontSize: 13, marginBottom: 6, display: `block`, color: `#1e293b` }}>Program Required *</label>
               <select
-                className="form-select"
+                className="form-select" style={{ fontSize: 14, borderRadius: 10, padding: `10px 14px` }}
                 value={form.programId || ''}
                 onChange={e => {
                   const selected = programOptions.find(program => String(program.id) === e.target.value);
@@ -3236,10 +3260,10 @@ const PostJob = ({ setActivePage, opportunityType = 'Job' }) => {
                 ))}
               </select>
             </div>
-            <div className="form-group">
-              <label className="ln-info-label">NC Level Required *</label>
+            <div style={{ display: `contents` }}>
+              <label style={{ fontWeight: 700, fontSize: 13, marginBottom: 6, display: `block`, color: `#1e293b` }}>NC Level Required *</label>
               <select
-                className="form-select"
+                className="form-select" style={{ fontSize: 14, borderRadius: 10, padding: `10px 14px` }}
                 value={form.ncLevel}
                 onChange={e => {
                   const nextLevel = normalizeNcLevelValue(e.target.value);
@@ -3253,27 +3277,27 @@ const PostJob = ({ setActivePage, opportunityType = 'Job' }) => {
                 ))}
               </select>
             </div>
-            <div className="form-group">
-              <label className="ln-info-label">Description</label>
-              <textarea className="form-input" rows={4} maxLength={1000} value={form.description} onChange={e => setForm({ ...form, description: e.target.value })} placeholder="Describe the opportunity..." />
+            <div style={{ display: `contents` }}>
+              <label style={{ fontWeight: 700, fontSize: 13, marginBottom: 6, display: `block`, color: `#1e293b` }}>Description</label>
+              <textarea className="form-input" style={{ fontSize: 14, borderRadius: 10, padding: `10px 14px` }} rows={4} maxLength={1000} value={form.description} onChange={e => setForm({ ...form, description: e.target.value })} placeholder="Describe the opportunity..." />
             </div>
             {form.opportunityType !== 'OJT' && (
-              <div className="form-group">
-                <label className="ln-info-label">Employment Type</label>
-                <select className="form-select" value={form.employmentType} onChange={e => setForm({ ...form, employmentType: e.target.value })}>
+              <div style={{ display: `contents` }}>
+                <label style={{ fontWeight: 700, fontSize: 13, marginBottom: 6, display: `block`, color: `#1e293b` }}>Employment Type</label>
+                <select className="form-select" style={{ fontSize: 14, borderRadius: 10, padding: `10px 14px` }} value={form.employmentType} onChange={e => setForm({ ...form, employmentType: e.target.value })}>
                   <option>Full-time</option><option>Part-time</option><option>Contract</option><option>Internship</option>
                 </select>
               </div>
             )}
-            <div className="ln-info-grid" style={{ gridTemplateColumns: '1fr 180px', gap: 12 }}>
-              <div className="form-group">
-                <label className="ln-info-label">Location *</label>
-                <input className="form-input" value={form.location} onChange={e => setForm({ ...form, location: e.target.value })} placeholder="City" maxLength={100} required />
+            <div style={{ display: `contents` }}>
+              <div style={{ display: `contents` }}>
+                <label style={{ fontWeight: 700, fontSize: 13, marginBottom: 6, display: `block`, color: `#1e293b` }}>Location *</label>
+                <input className="form-input" style={{ fontSize: 14, borderRadius: 10, padding: `10px 14px` }} value={form.location} onChange={e => setForm({ ...form, location: e.target.value })} placeholder="City" maxLength={100} required />
               </div>
-              <div className="form-group">
-                <label className="ln-info-label">Currency</label>
+              <div style={{ display: `contents` }}>
+                <label style={{ fontWeight: 700, fontSize: 13, marginBottom: 6, display: `block`, color: `#1e293b` }}>Currency</label>
                 <select
-                  className="form-select"
+                  className="form-select" style={{ fontSize: 14, borderRadius: 10, padding: `10px 14px` }}
                   value={form.salaryCurrency}
                   onChange={e => setForm({ ...form, salaryCurrency: e.target.value })}
                 >
@@ -3283,11 +3307,11 @@ const PostJob = ({ setActivePage, opportunityType = 'Job' }) => {
                 </select>
               </div>
             </div>
-            <div className="ln-info-grid" style={{ gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-              <div className="form-group">
-                <label className="ln-info-label">Salary Min (Optional)</label>
+            <div style={{ display: `contents` }}>
+              <div style={{ display: `contents` }}>
+                <label style={{ fontWeight: 700, fontSize: 13, marginBottom: 6, display: `block`, color: `#1e293b` }}>Salary Min (Optional)</label>
                 <input
-                  className="form-input"
+                  className="form-input" style={{ fontSize: 14, borderRadius: 10, padding: `10px 14px` }}
                   value={form.salaryMin}
                   onChange={handleSalaryMinInput}
                   placeholder="e.g. 25000"
@@ -3296,10 +3320,10 @@ const PostJob = ({ setActivePage, opportunityType = 'Job' }) => {
                   maxLength={12}
                 />
               </div>
-              <div className="form-group">
-                <label className="ln-info-label">Salary Max (Optional)</label>
+              <div style={{ display: `contents` }}>
+                <label style={{ fontWeight: 700, fontSize: 13, marginBottom: 6, display: `block`, color: `#1e293b` }}>Salary Max (Optional)</label>
                 <input
-                  className="form-input"
+                  className="form-input" style={{ fontSize: 14, borderRadius: 10, padding: `10px 14px` }}
                   value={form.salaryMax}
                   onChange={handleSalaryMaxInput}
                   placeholder="e.g. 30000"
@@ -3309,9 +3333,9 @@ const PostJob = ({ setActivePage, opportunityType = 'Job' }) => {
                 />
               </div>
             </div>
-            <div className="form-group">
-              <label className="ln-info-label">Attachment (Image or Document)</label>
-              <input type="file" className="form-input" accept="image/*,.pdf,.doc,.docx" onChange={handleAttachmentChange} />
+            <div style={{ display: `contents` }}>
+              <label style={{ fontWeight: 700, fontSize: 13, marginBottom: 6, display: `block`, color: `#1e293b` }}>Attachment (Image or Document)</label>
+              <input type="file" className="form-input" style={{ fontSize: 14, borderRadius: 10, padding: `10px 14px` }} accept="image/*,.pdf,.doc,.docx" onChange={handleAttachmentChange} />
               {form.attachmentName && (
                 <div style={{ marginTop: 8, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 8, padding: '8px 10px' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 }}>
@@ -3355,13 +3379,14 @@ const PostJob = ({ setActivePage, opportunityType = 'Job' }) => {
                 </button>
               )}
             </div>
-            <div style={{ marginTop: 20 }}>
-              <button type="submit" className="ln-btn ln-btn-primary" disabled={posting} style={{ width: '100%', padding: '10px 20px', fontSize: 14, opacity: posting ? 0.75 : 1, cursor: posting ? 'not-allowed' : 'pointer' }}>
+            <div style={{ gridColumn: `span 2`, marginTop: 20, display: `flex`, justifyContent: `flex-end`, width: `100%` }}>
+              <button type="submit" className="ln-btn-sm" disabled={posting} style={{ background: `#0a66c2`, color: `white`, border: `none`, padding: `10px 24px`, fontSize: 14, borderRadius: 20, opacity: posting ? 0.7 : 1, cursor: posting ? `not-allowed` : `pointer` }}>
                 <Send size={16} /> {posting ? (isEditMode ? 'Updating...' : 'Posting...') : (isEditMode ? 'Update Opportunity' : 'Post Opportunity')}
               </button>
             </div>
+              </div>
+            </div>
           </div>
-        </div>
 
         <div className="ln-card ln-feed-card" style={{ marginTop: 16 }}>
           <div className="ln-section-header" style={{ marginBottom: 0 }}>
@@ -3395,7 +3420,7 @@ const PostJob = ({ setActivePage, opportunityType = 'Job' }) => {
                   previewLocation,
                   previewSalary,
                   'Just now',
-                ].filter(Boolean).join(' • ')}
+                ].filter(Boolean).join(' � ')}
               </div>
             </div>
           </div>
@@ -3453,7 +3478,7 @@ const PostJob = ({ setActivePage, opportunityType = 'Job' }) => {
   );
 };
 
-// ─── PAGE: VIEW APPLICANTS ────────────────────────────────────────
+// --- PAGE: VIEW APPLICANTS ----------------------------------------
 const ViewApplicants = ({ setActivePage }) => {
   const { currentUser, partners, getPartnerApplicants, updateApplicationStatus, sendRecruitMessage, getPartnerAvailability, interviewBookings } = useApp();
   const navigate = useNavigate();
@@ -3603,7 +3628,7 @@ const ViewApplicants = ({ setActivePage }) => {
                         style={{ background: 'none', border: 'none', padding: 0, cursor: a.trainee?.id ? 'pointer' : 'default', color: 'inherit', font: 'inherit' }}
                         disabled={!a.trainee?.id}
                       >
-                        {a.trainee?.name || '—'}
+                        {a.trainee?.name || '�'}
                       </button>
                     </div>
                   </td>
@@ -3613,14 +3638,14 @@ const ViewApplicants = ({ setActivePage }) => {
                       color: (a.matchRate || 50) >= 90 ? '#16a34a' : (a.matchRate || 50) >= 70 ? '#d97706' : '#64748b',
                       fontSize: 14
                     }}>
-                      {a.matchRate ? `${Math.round(a.matchRate)}%` : '—'}
+                      {a.matchRate ? `${Math.round(a.matchRate)}%` : '�'}
                     </div>
                   </td>
                   <td style={{ fontSize: 13, color: 'rgba(0,0,0,0.55)' }}>{a.job?.title || 'Direct Contact'}</td>
-                  <td style={{ fontSize: 12.5, color: 'rgba(0,0,0,0.5)' }}>{a.eventDate || '—'}</td>
+                  <td style={{ fontSize: 12.5, color: 'rgba(0,0,0,0.5)' }}>{a.eventDate || '�'}</td>
                   <td>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 2, alignItems: 'flex-start' }}>
-                      <span className={`ln-badge ${a.status === 'Pending' ? 'ln-badge-yellow' : a.status === 'Accepted' ? 'ln-badge-green' : a.status === 'Rejected' ? 'ln-badge-red' : a.status === 'Interview Scheduled' ? 'ln-badge-purple' : 'ln-badge-blue'}`}>{a.status}</span>
+                      <span className={`ln-badge ${a.status === 'Pending' ? 'ln-badge-yellow' : (a.status === 'Accepted' || a.status === 'Hired') ? 'ln-badge-green' : a.status === 'Rejected' ? 'ln-badge-red' : a.status === 'Interview Scheduled' ? 'ln-badge-purple' : 'ln-badge-blue'}`}>{a.status}</span>
                       {a.interviewDate && (
                         <div style={{ fontSize: 10, color: '#64748b', fontWeight: 600 }}>
                           {new Date(a.interviewDate).toLocaleDateString()} @ {new Date(a.interviewDate).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
@@ -3681,8 +3706,11 @@ const ViewApplicants = ({ setActivePage }) => {
                             >
                               {(a.status === 'Pending' || a.status === 'Interview Scheduled') && (
                                 <>
-                                  <button className="ln-dropdown-item" style={{ color: '#16a34a' }} onClick={() => { setOpenMenuId(null); updateApplicationStatus(a.id, 'Accepted', 'Approved by partner.'); }}>
-                                    <CheckCircle size={14} /> Accept Trainee
+                                  <button className="ln-dropdown-item" style={{ color: '#059669' }} onClick={() => { setOpenMenuId(null); setInviteApp(a); }}>
+                                    <Calendar size={14} /> Schedule Interview
+                                  </button>
+                                  <button className="ln-dropdown-item" style={{ color: '#16a34a' }} onClick={() => { setOpenMenuId(null); updateApplicationStatus(a.id, 'Hired', 'Hired by partner.'); }}>
+                                    <CheckCircle size={14} /> Hire Trainee
                                   </button>
                                   <button className="ln-dropdown-item" style={{ color: '#dc2626' }} onClick={() => { setOpenMenuId(null); updateApplicationStatus(a.id, 'Rejected', 'Not selected.'); }}>
                                     <XCircle size={14} /> Reject Trainee
@@ -3888,7 +3916,7 @@ const ViewApplicants = ({ setActivePage }) => {
               </button>
             </div>
             <div style={{ display: 'flex', gap: 8, marginBottom: 16, flexWrap: 'wrap' }}>
-              <span className={`ln-badge ${viewApp.status === 'Pending' ? 'ln-badge-yellow' : viewApp.status === 'Accepted' ? 'ln-badge-green' : 'ln-badge-red'}`}>{viewApp.status}</span>
+              <span className={`ln-badge ${viewApp.status === 'Pending' ? 'ln-badge-yellow' : (viewApp.status === 'Accepted' || viewApp.status === 'Hired') ? 'ln-badge-green' : viewApp.status === 'Interview Scheduled' ? 'ln-badge-purple' : 'ln-badge-red'}`}>{viewApp.status}</span>
               <span className="ln-badge ln-badge-blue">{viewApp.job?.opportunityType}</span>
               <span className="ln-badge ln-badge-blue">{viewApp.matchRate}% Match</span>
             </div>
@@ -3902,7 +3930,7 @@ const ViewApplicants = ({ setActivePage }) => {
             </div>
             <div style={{ marginBottom: 14 }}>
               <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 8 }}>Student Application Message</div>
-              <div style={{ fontSize: 13, color: '#475569', lineHeight: 1.5 }}>{viewApp.applicationMessage || '—'}</div>
+              <div style={{ fontSize: 13, color: '#475569', lineHeight: 1.5 }}>{viewApp.applicationMessage || '�'}</div>
             </div>
             <div style={{ marginBottom: 14 }}>
               <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 8 }}>Resume</div>
@@ -3927,11 +3955,14 @@ const ViewApplicants = ({ setActivePage }) => {
             </div>
             {(viewApp.status === 'Pending' || viewApp.status === 'Interview Scheduled') && (
               <div className="ln-modal-footer">
+                <button className="ln-btn" style={{ flex: 1, background: '#059669', color: 'white', border: 'none' }} onClick={() => { setInviteApp(viewApp); setViewApp(null); }}>
+                  <Calendar size={15} /> Interview
+                </button>
+                <button className="ln-btn" style={{ flex: 1, background: '#16a34a', color: 'white', border: 'none' }} onClick={() => { updateApplicationStatus(viewApp.id, 'Hired', 'Hired by partner.'); setViewApp(null); }}>
+                  <CheckCircle size={15} /> Hire
+                </button>
                 <button className="ln-btn" style={{ flex: 1, background: '#dc2626', color: 'white', border: 'none' }} onClick={() => { updateApplicationStatus(viewApp.id, 'Rejected', 'Not selected.'); setViewApp(null); }}>
                   <XCircle size={15} /> Reject
-                </button>
-                <button className="ln-btn" style={{ flex: 1, background: '#16a34a', color: 'white', border: 'none' }} onClick={() => { updateApplicationStatus(viewApp.id, 'Accepted', 'Approved by partner.'); setViewApp(null); }}>
-                  <CheckCircle size={15} /> Accept
                 </button>
               </div>
             )}
@@ -3963,7 +3994,7 @@ const ViewApplicants = ({ setActivePage }) => {
                   >
                     {recruitApp.trainee?.name}
                   </button>
-                  {' '}• {recruitApp.job?.title}
+                  {' '}� {recruitApp.job?.title}
                 </p>
               </div>
               <button className="ln-btn-icon" onClick={() => setRecruitApp(null)}><X size={18} /></button>
@@ -4058,7 +4089,7 @@ const ViewApplicants = ({ setActivePage }) => {
   );
 };
 
-// ─── PAGE: COMPANY PROFILE ────────────────────────────────────────
+// --- PAGE: COMPANY PROFILE ----------------------------------------
 const PREDEFINED_CULTURE_TAGS = [
   'Hands-on Training', 'Mentorship-Focused', 'Fast-Paced',
   'Team-Oriented', 'Independent Work', 'Output-Based'
@@ -4501,7 +4532,7 @@ export const CompanyProfile = ({ viewedPartnerId = null, onBack = null }) => {
                   {showHeaderCompanyName ? partner.companyName : 'Industry Partner'}
                   {isVerified(partner) && <CheckCircle size={20} color="#0a66c2" title="Verified" style={{ flexShrink: 0 }} />}
                 </h1>
-                <p className="ln-profile-header-headline">{showHeaderIndustry && partner.industry ? `${partner.industry} • ` : ''}Industry Partner</p>
+                <p className="ln-profile-header-headline">{showHeaderIndustry && partner.industry ? `${partner.industry} � ` : ''}Industry Partner</p>
                 {showHeaderAddress && partner.address && (
                   <p className="ln-profile-header-loc" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                     <MapPin size={14} />
@@ -4681,10 +4712,10 @@ export const CompanyProfile = ({ viewedPartnerId = null, onBack = null }) => {
                             <div className="ln-info-value">
                               {partner.website
                                 ? <a href={partner.website.startsWith('http') ? partner.website : `https://${partner.website}`} target="_blank" rel="noreferrer" style={{ color: '#0a66c2', display: 'flex', alignItems: 'center', gap: 4 }}>{partner.website} <ExternalLink size={12} /></a>
-                                : '—'}
+                                : '�'}
                             </div>
                           ) : (
-                            <div className="ln-info-value">{value || '—'}</div>
+                            <div className="ln-info-value">{value || '�'}</div>
                           )}
 
                           {isOwnProfile && editing && (
@@ -5200,7 +5231,7 @@ export const CompanyProfile = ({ viewedPartnerId = null, onBack = null }) => {
 
       {/* Bulletin Interaction Modal */}
       {bulletinModal && (() => {
-        const BCFG = { training_batch: { color: '#7c3aed', emoji: '📚' }, exam_schedule: { color: '#0ea5e9', emoji: '📝' }, certification_assessment: { color: '#16a34a', emoji: '🏆' }, announcement: { color: '#d97706', emoji: '📢' } };
+        const BCFG = { training_batch: { color: '#7c3aed', emoji: '??' }, exam_schedule: { color: '#0ea5e9', emoji: '??' }, certification_assessment: { color: '#16a34a', emoji: '??' }, announcement: { color: '#d97706', emoji: '??' } };
         const cfg = BCFG[bulletinModal.post?.post_type] || BCFG.announcement;
         const isInquiry = bulletinModal.type === 'inquire';
         return (
@@ -5247,7 +5278,7 @@ export const CompanyProfile = ({ viewedPartnerId = null, onBack = null }) => {
   );
 };
 
-// ─── PAGE: INTERVIEW CALENDAR ─────────────────────────────────────
+// --- PAGE: INTERVIEW CALENDAR -------------------------------------
 const CalendarView = ({ setActivePage }) => {
   const { currentUser, partners, availabilitySlots, interviewBookings, fetchAvailability, fetchBookings, saveAvailabilitySlot, deleteAvailabilitySlot, trainees, applications, jobPostings, getMatchRate, sendContactRequest } = useApp();
   const livePartner = getLivePartner(currentUser, partners);
@@ -5347,7 +5378,7 @@ const CalendarView = ({ setActivePage }) => {
 
   const ojtAccepted = applications.filter(a => {
     const job = jobPostings.find(j => j.id === a.jobId);
-    return job?.partnerId === livePartner?.id && job?.opportunityType === 'OJT' && a.status === 'Accepted';
+    return job?.partnerId === livePartner?.id && job?.opportunityType === 'OJT' && (a.status === 'Accepted' || a.status === 'Hired');
   }).length;
 
   const totalActiveSlots = availabilitySlots.length;
@@ -5360,7 +5391,7 @@ const CalendarView = ({ setActivePage }) => {
     let allMatches = [];
     trainees.forEach(trainee => {
       const theirApps = applications.filter(a => String(a.traineeId) === String(trainee.id));
-      const isHired = theirApps.some(a => a.status === 'Accepted');
+      const isHired = theirApps.some(a => ['accepted', 'hired'].includes(String(a.status || '').toLowerCase()));
       if (isHired) return;
 
       let bestMatchJob = null;
@@ -5505,7 +5536,7 @@ ${livePartner?.companyName}`);
           gap: 12,
           boxShadow: '0 2px 8px rgba(245, 158, 11, 0.1)'
         }}>
-          <div style={{ fontSize: 20 }}>🔥</div>
+          <div style={{ fontSize: 20 }}>??</div>
           <div style={{ flex: 1 }}>
             <span style={{ fontWeight: 700, color: '#92400e', fontSize: 14 }}>
               {topMatches.length} highly-rated trainees are looking for opportunities in your field right now.
@@ -5573,7 +5604,7 @@ ${livePartner?.companyName}`);
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '14px 16px', borderBottom: '1px solid #e5e7eb' }}>
             <button className="ln-btn-sm ln-btn-outline" onClick={() => setWeekOffset(w => w - 1)}><ChevronLeft size={16} /> Prev</button>
             <div style={{ fontWeight: 700, fontSize: 15 }}>
-              {weekDates[0].toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} — {weekDates[6].toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+              {weekDates[0].toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} � {weekDates[6].toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
             </div>
             <button className="ln-btn-sm ln-btn-outline" onClick={() => setWeekOffset(w => w + 1)}>Next <ChevronRight size={16} /></button>
           </div>
@@ -5889,7 +5920,7 @@ const PartnerProfileViewRoute = () => {
   );
 };
 
-// ─── MAIN EXPORT ──────────────────────────────────────────────────
+// --- MAIN EXPORT --------------------------------------------------
 export default function PartnerDashboard() {
   const { currentUser } = useApp();
   const navigate = useNavigate();
@@ -5911,19 +5942,31 @@ export default function PartnerDashboard() {
   if (!currentUser) return null;
 
   return (
-    <PartnerLayout activePage={activePage} setActivePage={setActivePage}>
-      <Routes>
-        <Route path="/" element={<PartnerHome setActivePage={setActivePage} />} />
-        <Route path="/post-job" element={<PostJob setActivePage={setActivePage} />} />
-        <Route path="/calendar" element={<CalendarView setActivePage={setActivePage} />} />
-        <Route path="/applicants" element={<ViewApplicants setActivePage={setActivePage} />} />
-        <Route path="/profile" element={<CompanyProfile />} />
-        <Route path="/verification" element={<VerificationPage setActivePage={setActivePage} />} />
-        <Route path="/settings" element={<SettingsPage />} />
-        <Route path="/notifications" element={<NotificationsPage />} />
-        <Route path="/profile-view/:profileType/:profileId" element={<PartnerProfileViewRoute />} />
-        <Route path="*" element={<Navigate to="/partner" replace />} />
-      </Routes>
-    </PartnerLayout>
+    <>
+      
+
+      <PartnerLayout activePage={activePage} setActivePage={setActivePage}>
+        <Routes>
+          <Route path="/" element={<PartnerHome setActivePage={setActivePage} />} />
+          <Route path="/post-job" element={<PostJob setActivePage={setActivePage} />} />
+          <Route path="/calendar" element={<CalendarView setActivePage={setActivePage} />} />
+          <Route path="/applicants" element={<ViewApplicants setActivePage={setActivePage} />} />
+          <Route path="/profile" element={<CompanyProfile />} />
+          <Route path="/verification" element={<VerificationPage setActivePage={setActivePage} />} />
+          <Route path="/settings" element={<SettingsPage />} />
+          <Route path="/notifications" element={<NotificationsPage />} />
+          <Route path="/profile-view/:profileType/:profileId" element={<PartnerProfileViewRoute />} />
+          <Route path="*" element={<Navigate to="/partner" replace />} />
+        </Routes>
+      </PartnerLayout>
+    </>
   );
 }
+
+
+
+
+
+
+
+

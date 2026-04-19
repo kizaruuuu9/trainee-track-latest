@@ -206,6 +206,7 @@ export const AppProvider = ({ children }) => {
 
   // ΓöÇΓöÇΓöÇ TESDA PROGRAMS (DB-DRIVEN) ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
   const [programs, setPrograms] = useState([]);
+  const [industries, setIndustries] = useState([]);
 
   // ΓöÇΓöÇΓöÇ JOB / OPPORTUNITY POSTINGS ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
   const [jobPostings, setJobPostings] = useState([]);
@@ -1853,6 +1854,44 @@ export const AppProvider = ({ children }) => {
         alert(`Error: Your decision was not saved to the database. ${lastErrorMessage ? `Details: ${lastErrorMessage}` : 'Please ensure you have run the required SQL migration for contact_requests.'}`);
         return { success: false, error: lastErrorMessage || 'Persistence failed.' };
       }
+      
+      // Automatic Trainee Employment DB Sync
+      if (status.toLowerCase() === 'hired') {
+        const studentId = targetRec?.traineeId;
+        const jobId = targetRec?.jobId;
+        if (studentId) {
+          try {
+            const opportunity = opportunities.find(o => String(o.id) === String(jobId));
+            const partnerId = opportunity?.partnerId;
+            const partner = partners.find(p => String(p.id) === String(partnerId));
+            
+            const employerName = partner?.companyName || opportunity?.companyName || 'Unknown Employer';
+            const jobTitle = opportunity?.title || 'Unknown Position';
+
+            const { error: syncError } = await supabase
+              .from('students')
+              .update({
+                employment_status: 'employed',
+                employer: employerName,
+                job_title: jobTitle,
+                date_hired: new Date().toISOString()
+              })
+              .eq('id', studentId);
+
+            if (syncError) {
+              console.error('Failed to auto-sync trainee employment status:', syncError);
+            } else {
+              setTrainees(prev => prev.map(t => 
+                String(t.id) === String(studentId)
+                  ? { ...t, employmentStatus: 'Employed', employer: employerName, jobTitle: jobTitle, dateHired: new Date().toISOString() }
+                  : t
+              ));
+            }
+          } catch(err) {
+            console.error('Exception during employment sync:', err);
+          }
+        }
+      }
     }
 
     setApplications(prev => prev.map(a =>
@@ -2688,12 +2727,16 @@ export const AppProvider = ({ children }) => {
         if (updates.skills !== undefined) dbUpdates.skills = updates.skills;
         if (updates.interests !== undefined) dbUpdates.interests = updates.interests;
         if (updates.employmentStatus !== undefined) {
-          const statusMap = { 'Employed': 'employed', 'Unemployed': 'not_employed', 'Self-Employed': 'employed', 'Underemployed': 'employed' };
+          const statusMap = { 
+            'Employed': 'employed', 
+            'Seeking Employment': 'seeking_employment', 
+            'Not Employed': 'not_employed' 
+          };
           dbUpdates.employment_status = statusMap[updates.employmentStatus] || 'not_employed';
         }
-        if (updates.employer !== undefined) dbUpdates.employment_work = updates.employer;
-        if (updates.jobTitle !== undefined) dbUpdates.employment_work = updates.jobTitle || dbUpdates.employment_work;
-        if (updates.dateHired !== undefined) dbUpdates.employment_start = updates.dateHired || null;
+        if (updates.employer !== undefined) dbUpdates.employer = updates.employer;
+        if (updates.jobTitle !== undefined) dbUpdates.job_title = updates.jobTitle;
+        if (updates.dateHired !== undefined) dbUpdates.date_hired = updates.dateHired || null;
         if (updates.address !== undefined) dbUpdates.detailed_address = updates.address;
         if (updates.trainingStatus !== undefined) dbUpdates.training_status = updates.trainingStatus;
         if (updates.graduationYear !== undefined) dbUpdates.graduation_year = updates.graduationYear || null;
@@ -2935,9 +2978,9 @@ export const AppProvider = ({ children }) => {
         employmentStatus: student.employment_status === 'employed' ? 'Employed'
           : student.employment_status === 'seeking_employment' ? 'Unemployed'
             : student.employment_status === 'not_employed' ? 'Unemployed' : 'Unemployed',
-        employer: student.employment_work || null,
-        jobTitle: student.employment_work || null,
-        dateHired: student.employment_start || null,
+        employer: student.employer || student.employment_work || null,
+        jobTitle: student.job_title || student.employment_work || null,
+        dateHired: student.date_hired ? new Date(student.date_hired).toLocaleDateString() : student.employment_start || null,
         monthsAfterGraduation: null,
         photo: student.profile_picture_url || null,
         bannerUrl: student.banner_url || null,
@@ -3200,9 +3243,9 @@ export const AppProvider = ({ children }) => {
               program: student.programs?.name || 'None',
               ncLevel: student.programs?.nc_level || '',
               employmentStatus: student.employment_status === 'employed' ? 'Employed' : student.employment_status === 'seeking_employment' ? 'Seeking Employment' : 'Not Employed',
-              employer: student.employment_work || null,
-              jobTitle: student.employment_work || null,
-              dateHired: student.employment_start || null,
+              employer: student.employer || student.employment_work || null,
+              jobTitle: student.job_title || student.employment_work || null,
+              dateHired: student.date_hired ? new Date(student.date_hired).toLocaleDateString() : student.employment_start || null,
               accountStatus: student.account_status || 'Active',
               gender: normalizeGender(student.gender),
               personalInfoVisibility: resolveVisibilityFields(student.personal_info_visibility, DEFAULT_STUDENT_PUBLIC_INFO_FIELDS),
