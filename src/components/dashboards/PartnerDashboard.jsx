@@ -1,4 +1,4 @@
-﻿import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { useApp } from '../../context/AppContext';
 import SavedItemsView from './SavedItemsView';
 import ProfileActivityTab from './ProfileActivityTab';
@@ -86,11 +86,11 @@ const isImageAttachment = (attachmentUrl, attachmentType) => {
 };
 
 const SALARY_CURRENCY_OPTIONS = [
-  { code: 'PHP', label: 'PHP (?)' },
+  { code: 'PHP', label: 'PHP (\u20B1)' },
   { code: 'USD', label: 'USD ($)' },
-  { code: 'EUR', label: 'EUR (�)' },
-  { code: 'GBP', label: 'GBP (�)' },
-  { code: 'JPY', label: 'JPY (�)' },
+  { code: 'EUR', label: 'EUR (\u20AC)' },
+  { code: 'GBP', label: 'GBP (\u00A3)' },
+  { code: 'JPY', label: 'JPY (\u00A5)' },
 ];
 
 const DEFAULT_SALARY_CURRENCY = 'PHP';
@@ -100,13 +100,13 @@ const sanitizeNumericSalaryInput = (value = '') => String(value || '').replace(/
 const getCurrencySymbol = (currency = DEFAULT_SALARY_CURRENCY) => {
   const code = String(currency || DEFAULT_SALARY_CURRENCY).toUpperCase();
   const symbols = {
-    PHP: '?',
+    PHP: '\u20B1',
     USD: '$',
-    EUR: '�',
-    GBP: '�',
-    JPY: '�',
+    EUR: '\u20AC',
+    GBP: '\u00A3',
+    JPY: '\u00A5',
   };
-  return symbols[code] || '?';
+  return symbols[code] || '\u20B1';
 };
 
 const formatSalaryAmount = (value = '', currency = DEFAULT_SALARY_CURRENCY) => {
@@ -130,11 +130,11 @@ const formatSalaryRangeValue = (minimum = '', maximum = '', currency = DEFAULT_S
 const inferSalaryCurrency = (salaryText = '', fallback = DEFAULT_SALARY_CURRENCY) => {
   const raw = String(salaryText || '').trim().toUpperCase();
   if (!raw) return fallback;
-  if (raw.includes('?') || raw.includes('PHP')) return 'PHP';
+  if (raw.includes('\u20B1') || raw.includes('PHP')) return 'PHP';
   if (raw.includes('$') || raw.includes('USD')) return 'USD';
-  if (raw.includes('�') || raw.includes('EUR')) return 'EUR';
-  if (raw.includes('�') || raw.includes('GBP')) return 'GBP';
-  if (raw.includes('�') || raw.includes('JPY')) return 'JPY';
+  if (raw.includes('\u20AC') || raw.includes('EUR')) return 'EUR';
+  if (raw.includes('\u00A3') || raw.includes('GBP')) return 'GBP';
+  if (raw.includes('\u00A5') || raw.includes('JPY')) return 'JPY';
   return fallback;
 };
 
@@ -279,7 +279,6 @@ const PartnerSideNav = ({ activePage, setActivePage }) => {
 
     const navItems = [
         { id: 'dashboard', label: 'Home', icon: <Home size={18} /> },
-        { id: 'profile', label: 'Company', icon: <Building2 size={18} /> },
         { id: 'verification', label: 'Verification', icon: <ShieldCheck size={18} /> },
         { id: 'post-job', label: 'Post Opportunities', icon: <Plus size={18} />, locked: !verified },
         { id: 'calendar', label: 'Calendar', icon: <Calendar size={18} />, locked: !verified },
@@ -383,12 +382,12 @@ const CompanySideCard = ({ partner, setActivePage }) => {
 
         <div className="ln-profile-stats">
           <div className="ln-profile-stat" onClick={() => setActivePage('applicants')}>
-            <span className="ln-profile-stat-num pn-stat-num">{partner?.companySize || '�'}</span>
+            <span className="ln-profile-stat-num pn-stat-num">{partner?.companySize || '—'}</span>
             <span className="ln-profile-stat-label">Company Size</span>
           </div>
           <div className="ln-profile-stat-divider" />
           <div className="ln-profile-stat" onClick={() => setActivePage('profile')}>
-            <span className="ln-profile-stat-num pn-stat-num">{partner?.contactPerson ? '?' : '�'}</span>
+            <span className="ln-profile-stat-num pn-stat-num">{partner?.contactPerson ? '?' : '—'}</span>
             <span className="ln-profile-stat-label">Contact Info</span>
           </div>
         </div>
@@ -1069,28 +1068,36 @@ const PartnerHome = ({ setActivePage }) => {
 
   const formatBulletinDate = (dateStr) => {
     if (!dateStr) return '';
-    if (dateStr.includes('�') || (dateStr.includes('-') && dateStr.split('-').length !== 3)) return dateStr;
+    if (dateStr.includes('—') || (dateStr.includes('-') && dateStr.split('-').length !== 3)) return dateStr;
     const date = new Date(dateStr);
     if (isNaN(date.getTime())) return dateStr;
     return date.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
   };
 
-  // Unified Feed: tag bulletin posts, mix with jobs
+  // Unified Feed: tag bulletin posts - NO job postings in community feed (they belong in Opportunities tab)
   const BULLETIN_TYPES = ['training_batch', 'exam_schedule', 'certification_assessment', 'announcement'];
   const unifiedFeed = [
     ...posts.map(p => ({
       ...p,
       feedType: (BULLETIN_TYPES.includes(p.post_type) && p.author_type !== 'industry_partner') ? 'bulletin' : 'post'
-    })),
-    ...jobPostings.map(j => ({ ...j, feedType: 'job' }))
-  ].sort((a, b) => new Date(b.created_at || b.createdAt || b.datePosted) - new Date(a.created_at || a.createdAt || a.datePosted));
+    }))
+  ]
+  // Community Feed Visibility: Partners can only see trainee + admin posts (not other partners)
+  .filter(p => {
+    const authorType = String(p.author_type || '').toLowerCase();
+    // Hide other partner posts (but keep own posts)
+    if ((authorType === 'industry_partner' || authorType === 'partner') && String(p.author_id) !== String(currentUser?.id)) return false;
+    // Hide job posts (they belong in Opportunities tab)
+    if (p.post_type === 'hiring_update' || p.feedType === 'job') return false;
+    // Show trainee + admin + own posts
+    return true;
+  })
+  .sort((a, b) => new Date(b.created_at || b.createdAt || b.datePosted) - new Date(a.created_at || a.createdAt || a.datePosted));
     const filteredFeed = React.useMemo(() => {
         let list = unifiedFeed;
         if (feedFilter === "All" || feedFilter === "Recommended") {
         } else if (feedFilter === "Announcement") {
             list = list.filter(item => item.post_type === "announcement");
-        } else if (feedFilter === "Hiring Update") {
-            list = list.filter(item => item.post_type === "hiring_update" || item.feedType === "job");
         } else if (feedFilter === "Achievement") {
             list = list.filter(item => item.post_type === "achievement");
         } else if (feedFilter === "General") {
@@ -1159,10 +1166,10 @@ const PartnerHome = ({ setActivePage }) => {
   };
 
   const BULLETIN_CONFIG = {
-    training_batch: { label: 'Training Batch', color: '#7c3aed', bg: '#ede9fe', emoji: '??', partnerLabel: 'Refer Apprentice', type: 'refer' },
-    exam_schedule: { label: 'Exam Schedule', color: '#0ea5e9', bg: '#e0f2fe', emoji: '??', partnerLabel: 'Register Apprentice', type: 'register' },
-    certification_assessment: { label: 'Certification Assessment', color: '#16a34a', bg: '#dcfce7', emoji: '??', partnerLabel: 'Register Apprentice', type: 'register' },
-    announcement: { label: 'Announcement', color: '#d97706', bg: '#fef3c7', emoji: '??', partnerLabel: null, type: null },
+    training_batch: { label: 'Training Batch', color: '#7c3aed', bg: '#ede9fe', emoji: '🎓', partnerLabel: 'Refer Apprentice', type: 'refer' },
+    exam_schedule: { label: 'Exam Schedule', color: '#0ea5e9', bg: '#e0f2fe', emoji: '📅', partnerLabel: 'Register Apprentice', type: 'register' },
+    certification_assessment: { label: 'Certification Assessment', color: '#16a34a', bg: '#dcfce7', emoji: '📜', partnerLabel: 'Register Apprentice', type: 'register' },
+    announcement: { label: 'Announcement', color: '#d97706', bg: '#fef3c7', emoji: '📢', partnerLabel: null, type: null },
   };
 
   const stats = [
@@ -1322,7 +1329,7 @@ const PartnerHome = ({ setActivePage }) => {
                           }
 
                           return 'PSTDII Admin';
-                        })()} � {timeAgo(item.created_at)}
+                        })()} - {timeAgo(item.created_at)}
                       </div>
                     </div>
                     {item.author_id === currentUser?.id && (
@@ -1335,7 +1342,7 @@ const PartnerHome = ({ setActivePage }) => {
                           style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 4, borderRadius: '50%', color: '#65676b' }}
                           title="More options"
                         >
-                          <span style={{ fontSize: 20, fontWeight: 700, letterSpacing: 2, lineHeight: 1 }}>���</span>
+                          <span style={{ fontSize: 20, fontWeight: 700, letterSpacing: 2, lineHeight: 1 }}>...</span>
                         </button>
                         {postMenuId === item.id && (
                           <div style={{
@@ -1394,7 +1401,7 @@ const PartnerHome = ({ setActivePage }) => {
                     {reqs.length > 0 && (
                       <div style={{ marginTop: 10 }}>
                         <div style={{ fontSize: 11, color: '#64748b', fontWeight: 700, marginBottom: 4 }}>REQUIREMENTS</div>
-                        {reqs.map((r, i) => <div key={i} style={{ fontSize: 12.5, color: '#475569', display: 'flex', gap: 6, marginBottom: 3 }}><span style={{ color: cfg.color }}>�</span>{r}</div>)}
+                        {reqs.map((r, i) => <div key={i} style={{ fontSize: 12.5, color: '#475569', display: 'flex', gap: 6, marginBottom: 3 }}><span style={{ color: cfg.color }}>—</span>{r}</div>)}
                       </div>
                     )}
                   </div>
@@ -1455,7 +1462,7 @@ const PartnerHome = ({ setActivePage }) => {
                             (item.industry && String(item.industry).trim().toLowerCase() !== 'general') ? item.industry : '',
                             item.location,
                             timeAgo(item.created_at || item.createdAt || item.datePosted),
-                          ].filter(Boolean).join(' � ')}
+                          ].filter(Boolean).join(' - ')}
                         </div>
                       </div>
                     </div>
@@ -1466,7 +1473,7 @@ const PartnerHome = ({ setActivePage }) => {
                           style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 4, borderRadius: '50%', color: '#65676b' }}
                           title="More options"
                         >
-                          <span style={{ fontSize: 20, fontWeight: 700, letterSpacing: 2, lineHeight: 1 }}>���</span>
+                          <span style={{ fontSize: 20, fontWeight: 700, letterSpacing: 2, lineHeight: 1 }}>...</span>
                         </button>
                         {jobPostMenuId === item.id && (
                           <div style={{
@@ -1634,11 +1641,11 @@ const PartnerHome = ({ setActivePage }) => {
                                         item.post_type === 'project' ? '#e9d5ff' : '#e2e8f0'}`
                               }}
                             >
-                              {item.post_type === 'announcement' ? '?? ' :
-                                item.post_type === 'hiring_update' ? '?? ' :
-                                  item.post_type === 'achievement' ? '?? ' :
-                                    item.post_type === 'certification' ? '?? ' :
-                                      item.post_type === 'project' ? '?? ' : ''}
+                              {item.post_type === 'announcement' ? '📢 ' :
+                                item.post_type === 'hiring_update' ? '💼 ' :
+                                  item.post_type === 'achievement' ? '🏆 ' :
+                                    item.post_type === 'certification' ? '📜 ' :
+                                      item.post_type === 'project' ? '🚀 ' : ''}
                               {item.post_type.replace('_', ' ')}
                             </span>
                           )}
@@ -1656,7 +1663,7 @@ const PartnerHome = ({ setActivePage }) => {
                           style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 4, borderRadius: '50%', color: '#65676b' }}
                           title="More options"
                         >
-                          <span style={{ fontSize: 20, fontWeight: 700, letterSpacing: 2, lineHeight: 1 }}>���</span>
+                          <span style={{ fontSize: 20, fontWeight: 700, letterSpacing: 2, lineHeight: 1 }}>...</span>
                         </button>
                         {postMenuId === item.id && (
                           <div style={{
@@ -2184,7 +2191,7 @@ const PartnerHome = ({ setActivePage }) => {
                         (jobMediaModal.industry && String(jobMediaModal.industry).trim().toLowerCase() !== 'general') ? jobMediaModal.industry : '',
                         jobMediaModal.location,
                         timeAgo(jobMediaModal.created_at || jobMediaModal.createdAt || jobMediaModal.datePosted),
-                      ].filter(Boolean).join(' � ')}
+                      ].filter(Boolean).join(' - ')}
                     </div>
                     <div style={{ marginTop: 8, fontSize: 16, fontWeight: 700, color: '#111827' }}>{jobMediaModal.title}</div>
                     <div style={{ marginTop: 4, fontSize: 13, color: '#475569', whiteSpace: 'pre-wrap' }}>{jobMediaModal.description}</div>
@@ -2239,7 +2246,7 @@ const PartnerHome = ({ setActivePage }) => {
                               style={{ border: 'none', background: 'transparent', color: '#94a3b8', cursor: 'pointer', padding: '0 4px', fontSize: 18, lineHeight: 1, borderRadius: 4 }}
                               aria-label="Comment options"
                             >
-                              ���
+                              ...
                             </button>
                             {isMenuOpen && (
                               <div style={{ position: 'absolute', right: 0, top: '100%', zIndex: 200, background: '#fff', border: '1px solid #e2e8f0', borderRadius: 8, boxShadow: '0 4px 14px rgba(0,0,0,0.13)', minWidth: 110, padding: '4px 0' }}>
@@ -2843,7 +2850,7 @@ const VerificationPage = ({ setActivePage }) => {
             </div>
           )}
 
-          {/* Add Document Row � only when not yet submitted */}
+          {/* Add Document Row - only when not yet submitted */}
           {!isSubmitted && (
             <div style={{ marginBottom: 20 }}>
               <p style={{ fontSize: 12, color: '#64748b', marginBottom: 10 }}>
@@ -2973,10 +2980,12 @@ const PostJob = ({ setActivePage, opportunityType = 'Job' }) => {
   const [posting, setPosting] = useState(false);
   const [showAllComps, setShowAllComps] = useState(false);
   const [attachmentFile, setAttachmentFile] = useState(null);
+  const [skillInput, setSkillInput] = useState('');
   const [form, setForm] = useState({
     title: '', opportunityType, programId: firstProgram?.id || '', ncLevel: normalizeNcLevelValue(firstProgram?.ncLevel || firstProgram?.name || ''), description: '',
-    employmentType: opportunityType === 'OJT' ? '' : 'Full-time', location: '', salaryRange: '', salaryCurrency: DEFAULT_SALARY_CURRENCY, salaryMin: '', salaryMax: '',
+    employmentType: opportunityType === 'OJT' ? 'OJT' : 'Full-time', location: '', salaryRange: '', salaryCurrency: DEFAULT_SALARY_CURRENCY, salaryMin: '', salaryMax: '',
     requiredCompetencies: firstProgram?.competencies || [],
+    requiredSkills: '', requirements: '', companyName: livePartner?.companyName || '',
     attachmentName: '', attachmentType: '', attachmentUrl: '',
   });
 
@@ -3019,6 +3028,9 @@ const PostJob = ({ setActivePage, opportunityType = 'Job' }) => {
       salaryMin: editingJob.salaryMin ? sanitizeNumericSalaryInput(editingJob.salaryMin) : parsedSalary.salaryMin,
       salaryMax: editingJob.salaryMax ? sanitizeNumericSalaryInput(editingJob.salaryMax) : parsedSalary.salaryMax,
       requiredCompetencies: Array.isArray(editingJob.requiredCompetencies) ? editingJob.requiredCompetencies : [],
+      requiredSkills: Array.isArray(editingJob.requiredSkills) ? editingJob.requiredSkills.join(', ') : (editingJob.required_skills ? (Array.isArray(editingJob.required_skills) ? editingJob.required_skills.join(', ') : editingJob.required_skills) : ''),
+      requirements: Array.isArray(editingJob.requirements) ? editingJob.requirements.join('\n') : (editingJob.requirements || ''),
+      companyName: editingJob.companyName || livePartner?.companyName || '',
       attachmentName: editingJob.attachmentName || '',
       attachmentType: editingJob.attachmentType || '',
       attachmentUrl: editingJob.attachmentUrl || '',
@@ -3153,6 +3165,9 @@ const PostJob = ({ setActivePage, opportunityType = 'Job' }) => {
         attachmentName: finalAttachmentName || form.attachmentName || '',
         attachmentType: finalAttachmentType || form.attachmentType || '',
         attachmentUrl: finalAttachmentUrl || form.attachmentUrl || '',
+        requiredSkills: form.requiredSkills ? form.requiredSkills.split(',').map(s => s.trim()).filter(Boolean) : [],
+        requirements: form.requirements ? form.requirements.split('\n').map(r => r.trim()).filter(Boolean) : [],
+        companyName: form.companyName || livePartner?.companyName || '',
       };
 
       const result = isEditMode
@@ -3205,6 +3220,44 @@ const PostJob = ({ setActivePage, opportunityType = 'Job' }) => {
     );
   }
 
+  // --- Tag-based skill helpers ---
+  const skillTags = (form.requiredSkills || '').split(',').map(s => s.trim()).filter(Boolean);
+  const addSkillTag = (value) => {
+    const trimmed = value.trim();
+    if (!trimmed) return;
+    const existing = skillTags.map(s => s.toLowerCase());
+    if (existing.includes(trimmed.toLowerCase())) { setSkillInput(''); return; }
+    const updated = [...skillTags, trimmed].join(', ');
+    setForm(prev => ({ ...prev, requiredSkills: updated }));
+    setSkillInput('');
+  };
+  const removeSkillTag = (index) => {
+    const updated = skillTags.filter((_, i) => i !== index).join(', ');
+    setForm(prev => ({ ...prev, requiredSkills: updated }));
+  };
+  const handleSkillKeyDown = (e) => {
+    if (e.key === 'Enter' || e.key === ',') {
+      e.preventDefault();
+      addSkillTag(skillInput.replace(/,/g, ''));
+    }
+    if (e.key === 'Backspace' && !skillInput && skillTags.length > 0) {
+      removeSkillTag(skillTags.length - 1);
+    }
+  };
+
+  // --- Section card style ---
+  const sectionCard = { borderRadius: 14, border: '1px solid #e2e8f0', background: '#fff', marginBottom: 16, overflow: 'hidden' };
+  const sectionHeader = (icon, title) => (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '16px 20px', borderBottom: '1px solid #f1f5f9', background: '#f8fafc' }}>
+      <div style={{ width: 32, height: 32, borderRadius: 8, background: '#e0f2fe', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>{icon}</div>
+      <h3 style={{ fontSize: 15, fontWeight: 700, color: '#0f172a', margin: 0 }}>{title}</h3>
+    </div>
+  );
+  const fieldLabel = (text, required) => (
+    <label style={{ fontWeight: 600, fontSize: 13, marginBottom: 6, display: 'block', color: '#334155' }}>{text}{required && <span style={{ color: '#ef4444', marginLeft: 2 }}>*</span>}</label>
+  );
+  const inputStyle = { fontSize: 14, borderRadius: 10, padding: '10px 14px', width: '100%', border: '1px solid #e2e8f0', background: '#fff', outline: 'none', transition: 'border-color 0.15s' };
+
   return (
     <div className="ln-page-content">
       <div className="ln-page-header">
@@ -3213,140 +3266,226 @@ const PostJob = ({ setActivePage, opportunityType = 'Job' }) => {
           <p className="ln-page-subtitle">{isEditMode ? 'Update your opportunity posting' : 'Create a new opportunity posting'}</p>
         </div>
       </div>
+
       <form onSubmit={handleSubmit}>
-        <div className="ln-profile-one-col">
-          <div className="ln-card" style={{ padding: 24 }}>
-            <h3 style={{ fontSize: 16, fontWeight: 700, color: `#1e293b`, marginBottom: 16 }}>Opportunity Details</h3>
-            <div style={{ display: `grid`, gridTemplateColumns: `minmax(0, 1fr) minmax(0, 1fr)`, gap: 12 }}>
-            <div style={{ display: `contents` }}>
-              <label style={{ fontWeight: 700, fontSize: 13, marginBottom: 6, display: `block`, color: `#1e293b` }}>Title *</label>
-              <input className="form-input" style={{ fontSize: 14, borderRadius: 10, padding: `10px 14px` }} value={form.title} onChange={e => setForm({ ...form, title: e.target.value })} placeholder={opportunityType === 'OJT' ? 'e.g. Web Dev OJT Trainee' : 'e.g. Junior IT Technician'} maxLength={100} required />
+
+        {/* ═══ Section 1: Basic Information ═══ */}
+        <div style={sectionCard}>
+          {sectionHeader(<Briefcase size={16} color="#0284c7" />, 'Basic Information')}
+          <div style={{ padding: 20, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+            <div>
+              {fieldLabel('Job Title', true)}
+              <input className="form-input" style={inputStyle} value={form.title} onChange={e => setForm({ ...form, title: e.target.value })} placeholder={opportunityType === 'OJT' ? 'e.g. Web Dev OJT Trainee' : 'e.g. Junior IT Technician'} maxLength={100} required />
             </div>
-            <div style={{ display: `contents` }}>
-              <label style={{ fontWeight: 700, fontSize: 13, marginBottom: 6, display: `block`, color: `#1e293b` }}>Opportunity Type *</label>
-              <select
-                className="form-select" style={{ fontSize: 14, borderRadius: 10, padding: `10px 14px` }}
-                value={form.opportunityType}
-                onChange={e => {
-                  const nextType = e.target.value;
-                  setForm(prev => ({
-                    ...prev,
-                    opportunityType: nextType,
-                    employmentType: nextType === 'OJT' ? '' : (prev.employmentType || 'Full-time')
-                  }));
-                }}
-              >
-                <option>Job</option><option>OJT</option><option>Apprenticeship</option>
+            <div>
+              {fieldLabel('Company Name', false)}
+              <input className="form-input" style={{ ...inputStyle, background: '#f8fafc' }} value={form.companyName} onChange={e => setForm({ ...form, companyName: e.target.value })} placeholder="Company Name" />
+              <p style={{ fontSize: 11, color: '#94a3b8', marginTop: 4, margin: '4px 0 0' }}>Auto-filled from your profile. You may edit if needed.</p>
+            </div>
+            <div>
+              {fieldLabel('Employment Type', true)}
+              <select className="form-select" style={inputStyle} value={form.employmentType} onChange={e => setForm({ ...form, employmentType: e.target.value })}>
+                <option value="Full-time">Full-time</option>
+                <option value="Part-time">Part-time</option>
+                <option value="Full-time or Part-time">Full-time or Part-time</option>
+                <option value="Contract">Contract</option>
+                <option value="OJT">OJT</option>
+                <option value="Internship">Internship</option>
               </select>
             </div>
-            <div style={{ display: `contents` }}>
-              <label style={{ fontWeight: 700, fontSize: 13, marginBottom: 6, display: `block`, color: `#1e293b` }}>Program Required *</label>
-              <select
-                className="form-select" style={{ fontSize: 14, borderRadius: 10, padding: `10px 14px` }}
-                value={form.programId || ''}
-                onChange={e => {
-                  const selected = programOptions.find(program => String(program.id) === e.target.value);
-                  setForm({
-                    ...form,
-                    programId: selected?.id || '',
-                    ncLevel: normalizeNcLevelValue(selected?.ncLevel || selected?.name || ''),
-                    requiredCompetencies: selected?.competencies || [],
-                  });
-                }}
-              >
-                {programOptions.length === 0 && <option value="">No programs available</option>}
-                {programOptions.map(program => (
-                  <option key={program.id} value={program.id}>{program.name}</option>
+          </div>
+        </div>
+
+        {/* ═══ Section 2: Salary ═══ */}
+        <div style={sectionCard}>
+          {sectionHeader(<TrendingUp size={16} color="#16a34a" />, 'Salary')}
+          <div style={{ padding: 20, display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 16 }}>
+            <div>
+              {fieldLabel('Currency', false)}
+              <select className="form-select" style={inputStyle} value={form.salaryCurrency} onChange={e => setForm({ ...form, salaryCurrency: e.target.value })}>
+                {SALARY_CURRENCY_OPTIONS.map(option => (
+                  <option key={option.code} value={option.code}>{option.label}</option>
                 ))}
               </select>
             </div>
-            <div style={{ display: `contents` }}>
-              <label style={{ fontWeight: 700, fontSize: 13, marginBottom: 6, display: `block`, color: `#1e293b` }}>NC Level Required *</label>
-              <select
-                className="form-select" style={{ fontSize: 14, borderRadius: 10, padding: `10px 14px` }}
-                value={form.ncLevel}
-                onChange={e => {
-                  const nextLevel = normalizeNcLevelValue(e.target.value);
-                  setForm({ ...form, ncLevel: ncLevelOptions.includes(nextLevel) ? nextLevel : '' });
-                }}
-                required
-              >
-                <option value="">Select NC Level</option>
-                {ncLevelOptions.map(level => (
-                  <option key={level} value={level}>{level}</option>
-                ))}
-              </select>
+            <div>
+              {fieldLabel('Min Salary', false)}
+              <input className="form-input" style={inputStyle} value={form.salaryMin} onChange={handleSalaryMinInput} placeholder="e.g. 25,000" inputMode="numeric" pattern="[0-9]*" maxLength={12} />
             </div>
-            <div style={{ display: `contents` }}>
-              <label style={{ fontWeight: 700, fontSize: 13, marginBottom: 6, display: `block`, color: `#1e293b` }}>Description</label>
-              <textarea className="form-input" style={{ fontSize: 14, borderRadius: 10, padding: `10px 14px` }} rows={4} maxLength={1000} value={form.description} onChange={e => setForm({ ...form, description: e.target.value })} placeholder="Describe the opportunity..." />
+            <div>
+              {fieldLabel('Max Salary', false)}
+              <input className="form-input" style={inputStyle} value={form.salaryMax} onChange={handleSalaryMaxInput} placeholder="e.g. 35,000" inputMode="numeric" pattern="[0-9]*" maxLength={12} />
             </div>
-            {form.opportunityType !== 'OJT' && (
-              <div style={{ display: `contents` }}>
-                <label style={{ fontWeight: 700, fontSize: 13, marginBottom: 6, display: `block`, color: `#1e293b` }}>Employment Type</label>
-                <select className="form-select" style={{ fontSize: 14, borderRadius: 10, padding: `10px 14px` }} value={form.employmentType} onChange={e => setForm({ ...form, employmentType: e.target.value })}>
-                  <option>Full-time</option><option>Part-time</option><option>Contract</option><option>Internship</option>
-                </select>
+            {(form.salaryMin || form.salaryMax) && (
+              <div style={{ gridColumn: 'span 3' }}>
+                <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '6px 14px', background: '#f0fdf4', borderRadius: 8, border: '1px solid #bbf7d0' }}>
+                  <span style={{ fontSize: 13, color: '#166534', fontWeight: 600 }}>Preview: {previewSalary || 'N/A'}</span>
+                </div>
               </div>
             )}
-            <div style={{ display: `contents` }}>
-              <div style={{ display: `contents` }}>
-                <label style={{ fontWeight: 700, fontSize: 13, marginBottom: 6, display: `block`, color: `#1e293b` }}>Location *</label>
-                <input className="form-input" style={{ fontSize: 14, borderRadius: 10, padding: `10px 14px` }} value={form.location} onChange={e => setForm({ ...form, location: e.target.value })} placeholder="City" maxLength={100} required />
+          </div>
+        </div>
+
+        {/* ═══ Section 3: Location ═══ */}
+        <div style={sectionCard}>
+          {sectionHeader(<MapPin size={16} color="#dc2626" />, 'Location')}
+          <div style={{ padding: 20 }}>
+            {fieldLabel('Location', true)}
+            <input className="form-input" style={inputStyle} value={form.location} onChange={e => setForm({ ...form, location: e.target.value })} placeholder="e.g. Cebu City, Cebu or full address" maxLength={200} required />
+            <p style={{ fontSize: 11, color: '#94a3b8', marginTop: 4, margin: '4px 0 0' }}>Enter a city, province, or full address.</p>
+          </div>
+        </div>
+
+        {/* ═══ Section 4: Skills & Competencies ═══ */}
+        <div style={sectionCard}>
+          {sectionHeader(<Award size={16} color="#7c3aed" />, 'Skills & Competencies')}
+          <div style={{ padding: 20, display: 'flex', flexDirection: 'column', gap: 20 }}>
+
+            {/* Tag-based skills input */}
+            <div>
+              {fieldLabel('Required Skills', false)}
+              <div style={{
+                display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 6,
+                border: '1px solid #e2e8f0', borderRadius: 10, padding: '8px 12px',
+                minHeight: 44, background: '#fff', cursor: 'text',
+              }}
+                onClick={() => document.getElementById('skill-tag-input')?.focus()}
+              >
+                {skillTags.map((tag, i) => (
+                  <span key={`${tag}-${i}`} style={{
+                    display: 'inline-flex', alignItems: 'center', gap: 4,
+                    padding: '4px 10px', background: '#e0f2fe', color: '#0369a1',
+                    borderRadius: 20, fontSize: 12, fontWeight: 600,
+                    border: '1px solid #bae6fd', lineHeight: 1.4,
+                  }}>
+                    {tag}
+                    <button type="button" onClick={(e) => { e.stopPropagation(); removeSkillTag(i); }} style={{
+                      background: 'none', border: 'none', padding: 0, cursor: 'pointer',
+                      color: '#0369a1', display: 'flex', alignItems: 'center',
+                    }}>
+                      <X size={12} />
+                    </button>
+                  </span>
+                ))}
+                <input
+                  id="skill-tag-input"
+                  type="text"
+                  value={skillInput}
+                  onChange={e => setSkillInput(e.target.value)}
+                  onKeyDown={handleSkillKeyDown}
+                  onBlur={() => { if (skillInput.trim()) addSkillTag(skillInput); }}
+                  placeholder={skillTags.length === 0 ? 'Type a skill and press Enter...' : ''}
+                  style={{
+                    border: 'none', outline: 'none', background: 'transparent',
+                    fontSize: 13, flex: 1, minWidth: 120, padding: '2px 0',
+                  }}
+                />
               </div>
-              <div style={{ display: `contents` }}>
-                <label style={{ fontWeight: 700, fontSize: 13, marginBottom: 6, display: `block`, color: `#1e293b` }}>Currency</label>
+              <p style={{ fontSize: 11, color: '#94a3b8', marginTop: 4, margin: '4px 0 0' }}>Press <kbd style={{ padding: '1px 5px', background: '#f1f5f9', borderRadius: 4, fontSize: 10, border: '1px solid #e2e8f0' }}>Enter</kbd> or <kbd style={{ padding: '1px 5px', background: '#f1f5f9', borderRadius: 4, fontSize: 10, border: '1px solid #e2e8f0' }}>,</kbd> to add a skill.</p>
+            </div>
+
+            {/* TESDA Program & NC Level */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+              <div>
+                {fieldLabel('Program Required', true)}
                 <select
-                  className="form-select" style={{ fontSize: 14, borderRadius: 10, padding: `10px 14px` }}
-                  value={form.salaryCurrency}
-                  onChange={e => setForm({ ...form, salaryCurrency: e.target.value })}
+                  className="form-select" style={inputStyle}
+                  value={form.programId || ''}
+                  onChange={e => {
+                    const selected = programOptions.find(program => String(program.id) === e.target.value);
+                    setForm({
+                      ...form,
+                      programId: selected?.id || '',
+                      ncLevel: normalizeNcLevelValue(selected?.ncLevel || selected?.name || ''),
+                      requiredCompetencies: selected?.competencies || [],
+                    });
+                  }}
                 >
-                  {SALARY_CURRENCY_OPTIONS.map(option => (
-                    <option key={option.code} value={option.code}>{option.label}</option>
+                  {programOptions.length === 0 && <option value="">No programs available</option>}
+                  {programOptions.map(program => (
+                    <option key={program.id} value={program.id}>{program.name}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                {fieldLabel('NC Level Required', true)}
+                <select
+                  className="form-select" style={inputStyle}
+                  value={form.ncLevel}
+                  onChange={e => {
+                    const nextLevel = normalizeNcLevelValue(e.target.value);
+                    setForm({ ...form, ncLevel: ncLevelOptions.includes(nextLevel) ? nextLevel : '' });
+                  }}
+                  required
+                >
+                  <option value="">Select NC Level</option>
+                  {ncLevelOptions.map(level => (
+                    <option key={level} value={level}>{level}</option>
                   ))}
                 </select>
               </div>
             </div>
-            <div style={{ display: `contents` }}>
-              <div style={{ display: `contents` }}>
-                <label style={{ fontWeight: 700, fontSize: 13, marginBottom: 6, display: `block`, color: `#1e293b` }}>Salary Min (Optional)</label>
-                <input
-                  className="form-input" style={{ fontSize: 14, borderRadius: 10, padding: `10px 14px` }}
-                  value={form.salaryMin}
-                  onChange={handleSalaryMinInput}
-                  placeholder="e.g. 25000"
-                  inputMode="numeric"
-                  pattern="[0-9]*"
-                  maxLength={12}
-                />
+
+            {/* Competency checkboxes */}
+            {availableComps.length > 0 && (
+              <div>
+                <p style={{ fontSize: 13, fontWeight: 600, color: '#334155', marginBottom: 10 }}>Required Competencies for <strong style={{ color: '#6d28d9' }}>{form.ncLevel || 'selected program'}</strong></p>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  {availableComps.slice(0, showAllComps ? availableComps.length : 3).map(comp => (
+                    <label key={comp} style={{
+                      display: 'flex', alignItems: 'flex-start', gap: 10, padding: '10px 12px',
+                      background: form.requiredCompetencies.includes(comp) ? '#ede9fe' : '#f8fafc',
+                      borderRadius: 10, cursor: 'pointer',
+                      border: `1.5px solid ${form.requiredCompetencies.includes(comp) ? '#8b5cf6' : '#e8e8e8'}`,
+                      transition: 'all 0.15s',
+                    }}>
+                      <input type="checkbox" checked={form.requiredCompetencies.includes(comp)} onChange={() => toggleComp(comp)} style={{ marginTop: 2 }} />
+                      <span style={{ fontSize: 13.5, color: '#475569' }}>{comp}</span>
+                    </label>
+                  ))}
+                  {availableComps.length > 3 && (
+                    <button
+                      type="button"
+                      onClick={() => setShowAllComps(!showAllComps)}
+                      style={{
+                        background: 'none', border: 'none', color: '#7c3aed', fontWeight: 600, fontSize: 13,
+                        cursor: 'pointer', textAlign: 'left', padding: '4px 0', marginTop: '4px', display: 'inline-block', width: 'fit-content'
+                      }}
+                    >
+                      {showAllComps ? 'See Less' : `+ ${availableComps.length - 3} more`}
+                    </button>
+                  )}
+                </div>
               </div>
-              <div style={{ display: `contents` }}>
-                <label style={{ fontWeight: 700, fontSize: 13, marginBottom: 6, display: `block`, color: `#1e293b` }}>Salary Max (Optional)</label>
-                <input
-                  className="form-input" style={{ fontSize: 14, borderRadius: 10, padding: `10px 14px` }}
-                  value={form.salaryMax}
-                  onChange={handleSalaryMaxInput}
-                  placeholder="e.g. 30000"
-                  inputMode="numeric"
-                  pattern="[0-9]*"
-                  maxLength={12}
-                />
-              </div>
+            )}
+          </div>
+        </div>
+
+        {/* ═══ Section 5: Job Details ═══ */}
+        <div style={sectionCard}>
+          {sectionHeader(<FileText size={16} color="#ea580c" />, 'Job Details')}
+          <div style={{ padding: 20, display: 'flex', flexDirection: 'column', gap: 16 }}>
+            <div>
+              {fieldLabel('Job Description', false)}
+              <textarea className="form-input" style={{ ...inputStyle, resize: 'vertical' }} rows={5} maxLength={2000} value={form.description} onChange={e => setForm({ ...form, description: e.target.value })} placeholder="Describe roles, responsibilities, and what the position entails..." />
             </div>
-            <div style={{ display: `contents` }}>
-              <label style={{ fontWeight: 700, fontSize: 13, marginBottom: 6, display: `block`, color: `#1e293b` }}>Attachment (Image or Document)</label>
-              <input type="file" className="form-input" style={{ fontSize: 14, borderRadius: 10, padding: `10px 14px` }} accept="image/*,.pdf,.doc,.docx" onChange={handleAttachmentChange} />
+            <div>
+              {fieldLabel('Requirements', false)}
+              <textarea className="form-input" style={{ ...inputStyle, resize: 'vertical' }} rows={4} maxLength={1000} value={form.requirements} onChange={e => setForm({ ...form, requirements: e.target.value })} placeholder={"Enter one requirement per line, e.g.\nMust be a graduate of BS Computer Science\nAt least 1 year of experience"} />
+              <p style={{ fontSize: 11, color: '#94a3b8', marginTop: 4, margin: '4px 0 0' }}>One requirement per line.</p>
+            </div>
+            <div>
+              {fieldLabel('Attachment', false)}
+              <input type="file" className="form-input" style={inputStyle} accept="image/*,.pdf,.doc,.docx" onChange={handleAttachmentChange} />
               {form.attachmentName && (
-                <div style={{ marginTop: 8, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 8, padding: '8px 10px' }}>
+                <div style={{ marginTop: 8, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 8, padding: '8px 12px' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 }}>
                     <FileText size={14} color="#64748b" />
                     <span style={{ fontSize: 12, color: '#334155', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{form.attachmentName}</span>
                   </div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                     {form.attachmentUrl && (
-                      <a href={form.attachmentUrl} target="_blank" rel="noreferrer" style={{ fontSize: 12, color: '#2563eb', textDecoration: 'none' }}>
-                        Preview
-                      </a>
+                      <a href={form.attachmentUrl} target="_blank" rel="noreferrer" style={{ fontSize: 12, color: '#2563eb', textDecoration: 'none' }}>Preview</a>
                     )}
                     <button type="button" className="ln-feed-action-btn" style={{ padding: '2px 6px', minHeight: 'auto' }} onClick={removeAttachment}>
                       <X size={12} />
@@ -3354,41 +3493,27 @@ const PostJob = ({ setActivePage, opportunityType = 'Job' }) => {
                   </div>
                 </div>
               )}
+              <p style={{ fontSize: 11, color: '#94a3b8', marginTop: 4, margin: '4px 0 0' }}>Supported: Images, PDF, DOC, DOCX.</p>
             </div>
           </div>
-          <div className="ln-card" style={{ padding: 20 }}>
-            <h3 style={{ fontSize: 16, fontWeight: 600, color: 'rgba(0,0,0,0.9)', marginBottom: 16 }}>Required Competencies</h3>
-            <p style={{ fontSize: 13, color: 'rgba(0,0,0,0.55)', marginBottom: 12 }}>Select the competencies required for <strong>{form.ncLevel}</strong>:</p>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-              {availableComps.slice(0, showAllComps ? availableComps.length : 3).map(comp => (
-                <label key={comp} style={{ display: 'flex', alignItems: 'flex-start', gap: 10, padding: '10px 12px', background: form.requiredCompetencies.includes(comp) ? '#dbeafe' : '#f8fafc', borderRadius: 10, cursor: 'pointer', border: `1.5px solid ${form.requiredCompetencies.includes(comp) ? '#3b82f6' : '#e8e8e8'}`, transition: 'all 0.15s' }}>
-                  <input type="checkbox" checked={form.requiredCompetencies.includes(comp)} onChange={() => toggleComp(comp)} style={{ marginTop: 2 }} />
-                  <span style={{ fontSize: 13.5, color: '#475569' }}>{comp}</span>
-                </label>
-              ))}
-              {availableComps.length > 3 && (
-                <button
-                  type="button"
-                  onClick={() => setShowAllComps(!showAllComps)}
-                  style={{
-                    background: 'none', border: 'none', color: '#0a66c2', fontWeight: 600, fontSize: 13,
-                    cursor: 'pointer', textAlign: 'left', padding: '4px 0', marginTop: '4px', display: 'inline-block', width: 'fit-content'
-                  }}
-                >
-                  {showAllComps ? 'See Less' : `+ ${availableComps.length - 3} more`}
-                </button>
-              )}
-            </div>
-            <div style={{ gridColumn: `span 2`, marginTop: 20, display: `flex`, justifyContent: `flex-end`, width: `100%` }}>
-              <button type="submit" className="ln-btn-sm" disabled={posting} style={{ background: `#0a66c2`, color: `white`, border: `none`, padding: `10px 24px`, fontSize: 14, borderRadius: 20, opacity: posting ? 0.7 : 1, cursor: posting ? `not-allowed` : `pointer` }}>
-                <Send size={16} /> {posting ? (isEditMode ? 'Updating...' : 'Posting...') : (isEditMode ? 'Update Opportunity' : 'Post Opportunity')}
-              </button>
-            </div>
-              </div>
-            </div>
-          </div>
+        </div>
 
-        <div className="ln-card ln-feed-card" style={{ marginTop: 16 }}>
+        {/* ═══ Submit Button ═══ */}
+        <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 20 }}>
+          <button type="submit" disabled={posting} style={{
+            display: 'inline-flex', alignItems: 'center', gap: 8,
+            background: 'linear-gradient(135deg, #0369a1, #0284c7)', color: '#fff',
+            border: 'none', padding: '12px 32px', fontSize: 14, fontWeight: 700,
+            borderRadius: 12, cursor: posting ? 'not-allowed' : 'pointer',
+            opacity: posting ? 0.7 : 1, boxShadow: '0 2px 8px rgba(3,105,161,0.18)',
+            transition: 'all 0.2s',
+          }}>
+            <Send size={16} /> {posting ? (isEditMode ? 'Updating...' : 'Posting...') : (isEditMode ? 'Update Opportunity' : 'Post Opportunity')}
+          </button>
+        </div>
+
+        {/* ═══ Live Post Preview ═══ */}
+        <div className="ln-card ln-feed-card" style={{ marginTop: 0 }}>
           <div className="ln-section-header" style={{ marginBottom: 0 }}>
             <h3 style={{ fontSize: 14, textTransform: 'uppercase', letterSpacing: '0.5px', color: 'rgba(0,0,0,0.6)' }}>Live Post Preview</h3>
             <span className="ln-badge ln-badge-blue" style={{ fontSize: 11 }}>How trainees will see it</span>
@@ -3420,7 +3545,7 @@ const PostJob = ({ setActivePage, opportunityType = 'Job' }) => {
                   previewLocation,
                   previewSalary,
                   'Just now',
-                ].filter(Boolean).join(' � ')}
+                ].filter(Boolean).join(' | ')}
               </div>
             </div>
           </div>
@@ -3447,9 +3572,8 @@ const PostJob = ({ setActivePage, opportunityType = 'Job' }) => {
               </div>
             )}
 
-            <div style={{ display: 'flex', gap: 8 }}>
-              <span className="ln-opp-type-badge">{form.opportunityType || 'Job'}</span>
-              {form.opportunityType !== 'OJT' && form.employmentType && (
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+              {form.employmentType && (
                 <span className="ln-opp-type-badge" style={{ background: '#f8fafc', color: '#64748b' }}>{form.employmentType}</span>
               )}
               {form.ncLevel && (
@@ -3473,6 +3597,7 @@ const PostJob = ({ setActivePage, opportunityType = 'Job' }) => {
             </button>
           </div>
         </div>
+
       </form>
     </div>
   );
@@ -3628,7 +3753,7 @@ const ViewApplicants = ({ setActivePage }) => {
                         style={{ background: 'none', border: 'none', padding: 0, cursor: a.trainee?.id ? 'pointer' : 'default', color: 'inherit', font: 'inherit' }}
                         disabled={!a.trainee?.id}
                       >
-                        {a.trainee?.name || '�'}
+                        {a.trainee?.name || '—'}
                       </button>
                     </div>
                   </td>
@@ -3638,11 +3763,11 @@ const ViewApplicants = ({ setActivePage }) => {
                       color: (a.matchRate || 50) >= 90 ? '#16a34a' : (a.matchRate || 50) >= 70 ? '#d97706' : '#64748b',
                       fontSize: 14
                     }}>
-                      {a.matchRate ? `${Math.round(a.matchRate)}%` : '�'}
+                      {a.matchRate ? `${Math.round(a.matchRate)}%` : '—'}
                     </div>
                   </td>
                   <td style={{ fontSize: 13, color: 'rgba(0,0,0,0.55)' }}>{a.job?.title || 'Direct Contact'}</td>
-                  <td style={{ fontSize: 12.5, color: 'rgba(0,0,0,0.5)' }}>{a.eventDate || '�'}</td>
+                  <td style={{ fontSize: 12.5, color: 'rgba(0,0,0,0.5)' }}>{a.eventDate || '—'}</td>
                   <td>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 2, alignItems: 'flex-start' }}>
                       <span className={`ln-badge ${a.status === 'Pending' ? 'ln-badge-yellow' : (a.status === 'Accepted' || a.status === 'Hired') ? 'ln-badge-green' : a.status === 'Rejected' ? 'ln-badge-red' : a.status === 'Interview Scheduled' ? 'ln-badge-purple' : 'ln-badge-blue'}`}>{a.status}</span>
@@ -3930,7 +4055,7 @@ const ViewApplicants = ({ setActivePage }) => {
             </div>
             <div style={{ marginBottom: 14 }}>
               <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 8 }}>Student Application Message</div>
-              <div style={{ fontSize: 13, color: '#475569', lineHeight: 1.5 }}>{viewApp.applicationMessage || '�'}</div>
+              <div style={{ fontSize: 13, color: '#475569', lineHeight: 1.5 }}>{viewApp.applicationMessage || '—'}</div>
             </div>
             <div style={{ marginBottom: 14 }}>
               <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 8 }}>Resume</div>
@@ -3994,7 +4119,7 @@ const ViewApplicants = ({ setActivePage }) => {
                   >
                     {recruitApp.trainee?.name}
                   </button>
-                  {' '}� {recruitApp.job?.title}
+                  {' '}— {recruitApp.job?.title}
                 </p>
               </div>
               <button className="ln-btn-icon" onClick={() => setRecruitApp(null)}><X size={18} /></button>
@@ -4532,7 +4657,7 @@ export const CompanyProfile = ({ viewedPartnerId = null, onBack = null }) => {
                   {showHeaderCompanyName ? partner.companyName : 'Industry Partner'}
                   {isVerified(partner) && <CheckCircle size={20} color="#0a66c2" title="Verified" style={{ flexShrink: 0 }} />}
                 </h1>
-                <p className="ln-profile-header-headline">{showHeaderIndustry && partner.industry ? `${partner.industry} � ` : ''}Industry Partner</p>
+                <p className="ln-profile-header-headline">{showHeaderIndustry && partner.industry ? `${partner.industry} - ` : ''}Industry Partner</p>
                 {showHeaderAddress && partner.address && (
                   <p className="ln-profile-header-loc" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                     <MapPin size={14} />
@@ -4712,10 +4837,10 @@ export const CompanyProfile = ({ viewedPartnerId = null, onBack = null }) => {
                             <div className="ln-info-value">
                               {partner.website
                                 ? <a href={partner.website.startsWith('http') ? partner.website : `https://${partner.website}`} target="_blank" rel="noreferrer" style={{ color: '#0a66c2', display: 'flex', alignItems: 'center', gap: 4 }}>{partner.website} <ExternalLink size={12} /></a>
-                                : '�'}
+                                : '—'}
                             </div>
                           ) : (
-                            <div className="ln-info-value">{value || '�'}</div>
+                            <div className="ln-info-value">{value || '—'}</div>
                           )}
 
                           {isOwnProfile && editing && (
@@ -5231,7 +5356,7 @@ export const CompanyProfile = ({ viewedPartnerId = null, onBack = null }) => {
 
       {/* Bulletin Interaction Modal */}
       {bulletinModal && (() => {
-        const BCFG = { training_batch: { color: '#7c3aed', emoji: '??' }, exam_schedule: { color: '#0ea5e9', emoji: '??' }, certification_assessment: { color: '#16a34a', emoji: '??' }, announcement: { color: '#d97706', emoji: '??' } };
+        const BCFG = { training_batch: { color: '#7c3aed', emoji: '🎓' }, exam_schedule: { color: '#0ea5e9', emoji: '📅' }, certification_assessment: { color: '#16a34a', emoji: '📜' }, announcement: { color: '#d97706', emoji: '📢' } };
         const cfg = BCFG[bulletinModal.post?.post_type] || BCFG.announcement;
         const isInquiry = bulletinModal.type === 'inquire';
         return (
@@ -5536,7 +5661,7 @@ ${livePartner?.companyName}`);
           gap: 12,
           boxShadow: '0 2px 8px rgba(245, 158, 11, 0.1)'
         }}>
-          <div style={{ fontSize: 20 }}>??</div>
+          <div style={{ fontSize: 20 }}>📢</div>
           <div style={{ flex: 1 }}>
             <span style={{ fontWeight: 700, color: '#92400e', fontSize: 14 }}>
               {topMatches.length} highly-rated trainees are looking for opportunities in your field right now.
@@ -5604,7 +5729,7 @@ ${livePartner?.companyName}`);
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '14px 16px', borderBottom: '1px solid #e5e7eb' }}>
             <button className="ln-btn-sm ln-btn-outline" onClick={() => setWeekOffset(w => w - 1)}><ChevronLeft size={16} /> Prev</button>
             <div style={{ fontWeight: 700, fontSize: 15 }}>
-              {weekDates[0].toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} � {weekDates[6].toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+              {weekDates[0].toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} - {weekDates[6].toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
             </div>
             <button className="ln-btn-sm ln-btn-outline" onClick={() => setWeekOffset(w => w + 1)}>Next <ChevronRight size={16} /></button>
           </div>

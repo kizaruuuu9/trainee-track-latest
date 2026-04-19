@@ -499,7 +499,7 @@ export const TraineeProfileContent = ({ viewedProfileId = null, onBack = null, o
                                     {showPublic('name') ? form.name || 'Trainee' : 'Private Profile'}
                                     {isVerifiedOfficial && <ShieldCheck size={20} color="#0a66c2" title="Verified Professional" />}
                                 </h1>
-                                <p className="ln-profile-header-headline">{showPublic('program') && form.program ? `${form.program} ${form.ncLevel ? `(${form.ncLevel})` : ''} • ` : ''}Trainee</p>
+                                <p className="ln-profile-header-headline">{showPublic('program') && form.program ? `${form.program} ${form.ncLevel ? `(${form.ncLevel})` : ''} | ` : ''}Trainee</p>
                                 {showPublic('address') && form.address && (
                                     <p className="ln-profile-header-loc"><MapPin size={14} /> {form.address}</p>
                                 )}
@@ -669,7 +669,7 @@ export const TraineeProfileContent = ({ viewedProfileId = null, onBack = null, o
                                                         <div className="ln-cert-icon"><Award size={20} color="#0a66c2" /></div>
                                                         <div style={{ minWidth: 0, flex: 1 }}>
                                                             <div style={{ fontWeight: 700, fontSize: 14, color: '#1e293b' }} className="truncate">{c.title}</div>
-                                                            <div style={{ fontSize: 12, color: '#64748b', marginTop: 2 }}>{c.provider} • {c.year}</div>
+                                                            <div style={{ fontSize: 12, color: '#64748b', marginTop: 2 }}> {c.provider} | {c.year}</div>
                                                         </div>
                                                     </div>
                                                     <div style={{ display: 'flex', gap: 6, marginTop: 12 }}>
@@ -780,7 +780,7 @@ export const TraineeProfileContent = ({ viewedProfileId = null, onBack = null, o
                             <div>
                                 <h3 className="ln-modal-title">Application Form</h3>
                                 <p style={{ fontSize: 14, color: 'rgba(0,0,0,0.6)', marginTop: 4 }}>
-                                    {applyJob.title} • {applyJob.companyName}
+                                    {applyJob.title} | {applyJob.companyName}
                                 </p>
                             </div>
                             <button type="button" className="ln-btn-icon" onClick={() => setApplyJob(null)}><X size={18} /></button>
@@ -1233,7 +1233,7 @@ export const CompanyProfile = ({ viewedPartnerId = null, onBack = null }) => {
                   {showHeaderCompanyName ? partner.companyName : 'Industry Partner'}
                   {isVerified(partner) && <CheckCircle size={20} color="#0a66c2" title="Verified" style={{ flexShrink: 0 }} />}
                 </h1>
-                <p className="ln-profile-header-headline">{showHeaderIndustry && partner.industry ? `${partner.industry} • ` : ''}Industry Partner</p>
+                <p className="ln-profile-header-headline">{showHeaderIndustry && partner.industry ? `${partner.industry} | ` : ''}Industry Partner</p>
                 {showHeaderAddress && partner.address && (
                   <p className="ln-profile-header-loc" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                     <MapPin size={14} />

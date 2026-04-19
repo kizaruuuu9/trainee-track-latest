@@ -1,4 +1,4 @@
-﻿import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useApp } from '../../context/AppContext';
 import { supabase } from '../../lib/supabase';
 import {
@@ -161,7 +161,7 @@ const AppLayout = ({ sidebar, children, pageTitle, pageSubtitle }) => {
     );
 };
 
-// — SIDEBAR —————————————————————————————————————————————————————————————————
+// - SIDEBAR —————————————————————————————————————————————————————————————————
 const AdminSidebar = ({ activePage, setActivePage, mobileOpen, closeSidebar }) => {
     const { logout } = useApp();
 
@@ -345,7 +345,7 @@ const AdminSidebar = ({ activePage, setActivePage, mobileOpen, closeSidebar }) =
     );
 };
 
-// — PAGE 1: ADMIN DASHBOARD —————————————————————————————————————————————————
+// - PAGE 1: ADMIN DASHBOARD —————————————————————————————————————————————————
 // ——— PAGE 1: ADMIN DASHBOARD (COMMAND CENTER) ——————————————————————————————
 const AdminHome = ({ setActivePage }) => {
     const { trainees, partners, posts,  applications, getEmploymentStats, getSkillsDemand } = useApp();
@@ -1533,7 +1533,7 @@ const ManagePartners = () => {
                                     <div key={doc.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 0', borderBottom: '1px solid #f1f5f9' }}>
                                         <div>
                                             <div style={{ fontSize: 13, fontWeight: 600, color: '#1e293b' }}>{doc.label}</div>
-                                            <div style={{ fontSize: 11, color: '#94a3b8' }}>{doc.file_name} • {new Date(doc.uploaded_at).toLocaleDateString()}</div>
+                                            <div style={{ fontSize: 11, color: '#94a3b8' }}>{doc.file_name} | {new Date(doc.uploaded_at).toLocaleDateString()}</div>
                                         </div>
                                         <a href={doc.file_url} target="_blank" rel="noopener noreferrer" className="btn btn-outline btn-sm" style={{ textDecoration: 'none' }}>
                                             <Eye size={12} /> View
@@ -1740,19 +1740,18 @@ const EmploymentTracking = () => {
                 </div>
                 <div style={{ overflowX: 'auto' }}>
                     <table className="data-table">
-                        <thead><tr><th>Name</th><th>Certifications</th><th>Status</th><th>Employer</th><th>Job Title</th><th>Date Hired</th></tr></thead>
+                        <thead><tr><th>Name</th><th>Program</th><th>Status</th><th>Company / Employer</th><th>Date Hired</th></tr></thead>
                         <tbody>
                             {displayedItems.map(t => (
                                 <tr key={t.id}>
                                     <td style={{ fontWeight: 600 }}>{t.name}</td>
-                                    <td><div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>{t.certifications?.slice(0, 2).map((c, i) => <span key={i} className="badge badge-blue" style={{ fontSize: 10 }}>{typeof c === 'object' ? c.name : c}</span>)}</div></td>
-                                    <td><span className={`badge badge-${(t.employmentStatus || 'unemployed').toLowerCase().replace(' ', '-').replace('-', '-')}`}>{t.employmentStatus}</span></td>
+                                    <td style={{ color: '#64748b', fontSize: 13 }}>{t.program || '-'}</td>
+                                    <td><span className={`badge badge-${(t.employmentStatus || 'not-employed').toLowerCase().replace(' ', '-')}`}>{t.employmentStatus || 'Not Employed'}</span></td>
                                     <td style={{ color: '#64748b', fontSize: 13 }}>{t.employer || '-'}</td>
-                                    <td style={{ color: '#64748b', fontSize: 13 }}>{t.jobTitle || '-'}</td>
                                     <td style={{ color: '#64748b', fontSize: 13 }}>{t.dateHired || '-'}</td>
                                 </tr>
                             ))}
-                            {filtered.length === 0 && <tr><td colSpan={6} style={{ textAlign: 'center', padding: 32, color: '#94a3b8' }}>No trainees found.</td></tr>}
+                            {filtered.length === 0 && <tr><td colSpan={5} style={{ textAlign: 'center', padding: 32, color: '#94a3b8' }}>No trainees found.</td></tr>}
                         </tbody>
                     </table>
                 </div>

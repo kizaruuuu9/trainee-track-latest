@@ -60,7 +60,7 @@ const DEFAULT_PARTNER_PUBLIC_INFO_FIELDS = ['companyName', 'contactPerson', 'ind
 const resolveVisibilityFields = (value, defaults = []) => (Array.isArray(value) ? value : defaults);
 
 const SALARY_SYMBOL_BY_CURRENCY = {
-  PHP: '₱',
+  PHP: '\u20B1',
   USD: '$',
   EUR: '€',
   GBP: '£',
@@ -88,7 +88,7 @@ const toSalaryCurrency = (value) => {
 const formatSalaryAmount = (value, currency = 'PHP') => {
   const parsed = toSalaryNumber(value);
   if (!parsed) return '';
-  const symbol = SALARY_SYMBOL_BY_CURRENCY[toSalaryCurrency(currency)] || '₱';
+  const symbol = SALARY_SYMBOL_BY_CURRENCY[toSalaryCurrency(currency)] || '\u20B1';
   return `${symbol}${Math.round(parsed).toLocaleString('en-US')}`;
 };
 
@@ -197,6 +197,7 @@ export const AppProvider = ({ children }) => {
   const [currentUser, setCurrentUser] = useState(null);
   const [userRole, setUserRole] = useState(null); // 'admin' | 'trainee' | 'partner'
   const presenceAccessTokenRef = useRef('');
+  const presenceApiFailedRef = useRef(false);
 
   // ΓöÇΓöÇΓöÇ TRAINEES ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
   const [trainees, setTrainees] = useState([]);
@@ -1719,7 +1720,7 @@ export const AppProvider = ({ children }) => {
     const resumeFileName = applicationData.resumeFileName || null;
 
 
-    const isSupabaseUser = typeof traineeId === 'string' && traineeId.includes('-');
+    const isSupabaseUser = typeof traineeId === 'string' && traineeId.length === 36;
 
     if (isSupabaseUser) {
       // Guarantee we use the exact UUID from the active session to pass RLS
@@ -1821,7 +1822,7 @@ export const AppProvider = ({ children }) => {
     const prevStatus = targetRec?.status;
     const reviewedAt = new Date().toISOString().split('T')[0];
 
-    const isSupabaseApplication = typeof applicationId === 'string' && applicationId.includes('-');
+    const isSupabaseApplication = typeof applicationId === 'string' && applicationId.length === 36;
     if (isSupabaseApplication) {
       let persisted = false;
       let lastErrorMessage = '';
@@ -1918,7 +1919,7 @@ export const AppProvider = ({ children }) => {
 
     const nowIso = new Date().toISOString();
 
-    const isSupabaseApplication = typeof applicationId === 'string' && applicationId.includes('-');
+    const isSupabaseApplication = typeof applicationId === 'string' && applicationId.length === 36;
     if (isSupabaseApplication) {
       const candidateTables = app?.sourceTable ? [app.sourceTable] : ['job_applications'];
       let persisted = false;
@@ -2112,7 +2113,7 @@ export const AppProvider = ({ children }) => {
     const salaryMax = toSalaryNumber(jobData.salaryMax);
     const normalizedSalaryRange = buildSalaryRangeText(jobData.salaryRange, salaryMin, salaryMax, salaryCurrency);
 
-    const isSupabasePartner = typeof currentUser?.id === 'string' && currentUser.id.includes('-');
+    const isSupabasePartner = typeof currentUser?.id === 'string' && currentUser.id.length === 36;
 
     if (isSupabasePartner) {
       try {
@@ -2130,8 +2131,10 @@ export const AppProvider = ({ children }) => {
           salaryMin,
           salaryMax,
           requiredCompetencies: payloadCompetencies.length > 0 ? payloadCompetencies : selectedCompetencies,
-          requiredSkills: normalizeCompetencyList(jobData.requiredSkills || []),
+          requiredSkills: Array.isArray(jobData.requiredSkills) ? jobData.requiredSkills : normalizeCompetencyList(jobData.requiredSkills || []),
+          requirements: Array.isArray(jobData.requirements) ? jobData.requirements : (jobData.requirements ? [jobData.requirements] : []),
           industry: partner?.industry || partner?.businessType || 'General',
+          companyName: jobData.companyName || partner?.companyName || 'General',
           attachmentName: jobData.attachmentName || null,
           attachmentType: jobData.attachmentType || null,
           attachmentUrl: jobData.attachmentUrl || null,
@@ -2167,7 +2170,9 @@ export const AppProvider = ({ children }) => {
       salaryMin,
       salaryMax,
       requiredCompetencies: payloadCompetencies.length > 0 ? payloadCompetencies : selectedCompetencies,
-      companyName: partner?.companyName || 'Company',
+      requiredSkills: Array.isArray(jobData.requiredSkills) ? jobData.requiredSkills : normalizeCompetencyList(jobData.requiredSkills || []),
+      requirements: Array.isArray(jobData.requirements) ? jobData.requirements : (jobData.requirements ? [jobData.requirements] : []),
+      companyName: jobData.companyName || partner?.companyName || 'Company',
       opportunityType: jobData.opportunityType || 'Job',
       employmentType: (jobData.opportunityType || 'Job') === 'OJT' ? '' : (jobData.employmentType || 'Full-time'),
       status: 'Open',
@@ -2219,8 +2224,10 @@ export const AppProvider = ({ children }) => {
       salaryMin,
       salaryMax,
       requiredCompetencies: payloadCompetencies.length > 0 ? payloadCompetencies : selectedCompetencies,
-      requiredSkills: normalizeCompetencyList(jobData.requiredSkills || existingJob.requiredSkills || []),
+      requiredSkills: Array.isArray(jobData.requiredSkills) ? jobData.requiredSkills : normalizeCompetencyList(jobData.requiredSkills || existingJob.requiredSkills || []),
+      requirements: Array.isArray(jobData.requirements) ? jobData.requirements : (jobData.requirements || existingJob.requirements || []),
       industry: partner?.industry || partner?.businessType || existingJob.industry || 'General',
+      companyName: jobData.companyName || existingJob.companyName || partner?.companyName || 'Company',
       attachmentName: Object.prototype.hasOwnProperty.call(jobData, 'attachmentName')
         ? (jobData.attachmentName || null)
         : (existingJob.attachmentName || null),
@@ -2233,7 +2240,7 @@ export const AppProvider = ({ children }) => {
       status: existingJob.status || 'Open',
     };
 
-    const isSupabasePartner = typeof currentUser?.id === 'string' && currentUser.id.includes('-');
+    const isSupabasePartner = typeof currentUser?.id === 'string' && currentUser.id.length === 36;
 
     if (isSupabasePartner) {
       let apiFailureMessage = '';
@@ -2296,6 +2303,8 @@ export const AppProvider = ({ children }) => {
           employment_type: toEmploymentDbValue(updatedPayload.employmentType, updatedPayload.opportunityType),
           required_competencies: updatedPayload.requiredCompetencies || [],
           required_skills: updatedPayload.requiredSkills || [],
+          requirements: updatedPayload.requirements || [],
+          company_name: updatedPayload.companyName || 'Company',
           salary_range: updatedPayload.salaryRange || null,
           salary_min: salaryMin,
           salary_max: salaryMax,
@@ -2425,7 +2434,7 @@ export const AppProvider = ({ children }) => {
     const existing = jobPostings.find(j => j.id === jobId);
 
     // If ID is a string, it's likely a Supabase UUID
-    if (typeof jobId === 'string' && jobId.includes('-')) {
+    if (typeof jobId === 'string' && jobId.length === 36) {
       try {
         const { error } = await supabase
           .from('job_postings')
@@ -2561,7 +2570,7 @@ export const AppProvider = ({ children }) => {
 
   const updatePartner = async (partnerId, updates) => {
     // For Supabase-registered users (UUID string IDs), persist to database
-    const isSupabaseUser = typeof partnerId === 'string' && partnerId.includes('-');
+    const isSupabaseUser = typeof partnerId === 'string' && partnerId.length === 36;
     if (isSupabaseUser) {
       try {
         // Map dashboard field names to industry_partners table column names
@@ -2710,7 +2719,7 @@ export const AppProvider = ({ children }) => {
 
   const updateTrainee = async (traineeId, updates) => {
     // For Supabase-registered users (UUID string IDs), persist to database
-    const isSupabaseUser = typeof traineeId === 'string' && traineeId.includes('-');
+    const isSupabaseUser = typeof traineeId === 'string' && traineeId.length === 36;
     if (isSupabaseUser) {
       try {
         // Map dashboard field names to students table column names
@@ -2976,8 +2985,8 @@ export const AppProvider = ({ children }) => {
         interests: student.interests || [],
         bio: student.bio || '',
         employmentStatus: student.employment_status === 'employed' ? 'Employed'
-          : student.employment_status === 'seeking_employment' ? 'Unemployed'
-            : student.employment_status === 'not_employed' ? 'Unemployed' : 'Unemployed',
+          : student.employment_status === 'seeking_employment' ? 'Seeking Employment'
+            : 'Not Employed',
         employer: student.employer || student.employment_work || null,
         jobTitle: student.job_title || student.employment_work || null,
         dateHired: student.date_hired ? new Date(student.date_hired).toLocaleDateString() : student.employment_start || null,
@@ -3013,7 +3022,7 @@ export const AppProvider = ({ children }) => {
     const { keepalive = false } = options;
     const tableName = userRole === 'partner' ? 'industry_partners' : userRole === 'trainee' ? 'students' : null;
     const userId = currentUser?.id;
-    const isSupabaseUser = typeof userId === 'string' && userId.includes('-');
+    const isSupabaseUser = typeof userId === 'string' && userId.length === 36;
     if (!tableName || !isSupabaseUser) return;
 
     const normalizedStatus = String(status || '').toLowerCase() === 'offline' ? 'Offline' : 'Online';
@@ -3022,23 +3031,29 @@ export const AppProvider = ({ children }) => {
       const { data: sessionData } = await supabase.auth.getSession();
       const accessToken = sessionData?.session?.access_token;
 
-      if (accessToken) {
-        const resp = await fetch('/api/presence/ping', {
-          method: 'POST',
-          keepalive,
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${accessToken}`,
-          },
-          body: JSON.stringify({ status: normalizedStatus.toLowerCase() }),
-        });
 
-        if (resp.ok) {
-          return;
+      if (accessToken && !presenceApiFailedRef.current) {
+        try {
+          const resp = await fetch('/api/presence/ping', {
+            method: 'POST',
+            keepalive,
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${accessToken}`,
+            },
+            body: JSON.stringify({ status: normalizedStatus.toLowerCase() }),
+          });
+
+          if (resp.ok) {
+            return;
+          }
+
+          if (resp.status === 401 || resp.status === 403) {
+            presenceApiFailedRef.current = true;
+          }
+        } catch (fetchErr) {
+          // Quietly fallback without console noise
         }
-
-        const errorPayload = await resp.json().catch(() => ({}));
-        console.warn('Presence API ping failed, falling back to direct update:', errorPayload?.error || resp.statusText);
       }
 
       const { error } = await supabase
@@ -3109,7 +3124,7 @@ export const AppProvider = ({ children }) => {
   useEffect(() => {
     const tableName = userRole === 'partner' ? 'industry_partners' : userRole === 'trainee' ? 'students' : null;
     const userId = currentUser?.id;
-    const isSupabaseUser = typeof userId === 'string' && userId.includes('-');
+    const isSupabaseUser = typeof userId === 'string' && userId.length === 36;
 
     if (!tableName || !isSupabaseUser) return;
 
@@ -3177,7 +3192,7 @@ export const AppProvider = ({ children }) => {
   // ΓöÇΓöÇΓöÇ Data Hydration (Supabase) ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
   useEffect(() => {
     if (!currentUser || !userRole) return;
-    const isSupabaseUser = typeof currentUser.id === 'string' && currentUser.id.includes('-');
+    const isSupabaseUser = typeof currentUser.id === 'string' && currentUser.id.length === 36;
     if (!isSupabaseUser) return;
 
     let adminRefreshTimeout = null;
@@ -3212,7 +3227,8 @@ export const AppProvider = ({ children }) => {
       if (userRole !== 'admin') return;
 
       try {
-        const res = await fetch(`/api/admin/data`);
+        const timestamp = new Date().getTime();
+        const res = await fetch(`/api/admin/data?t=${timestamp}`);
         const raw = await res.text();
         let adminData = {};
         try {
@@ -3589,7 +3605,7 @@ export const AppProvider = ({ children }) => {
 
     const fetchApplications = async () => {
       try {
-        const isSupabaseUser = typeof currentUser?.id === 'string' && currentUser.id.includes('-');
+        const isSupabaseUser = typeof currentUser?.id === 'string' && currentUser.id.length === 36;
         if (!isSupabaseUser) return;
 
         const combinedApps = [];
@@ -3641,7 +3657,7 @@ export const AppProvider = ({ children }) => {
 
     const fetchContactRequests = async () => {
       try {
-        const isSupabaseUser = typeof currentUser?.id === 'string' && currentUser.id.includes('-');
+        const isSupabaseUser = typeof currentUser?.id === 'string' && currentUser.id.length === 36;
         if (!isSupabaseUser || userRole === 'admin') return;
 
         const { data, error } = await supabase
@@ -3699,17 +3715,23 @@ export const AppProvider = ({ children }) => {
     const adminRealtimeChannel = supabase
       .channel(`admin-live-sync-${currentUser.id}`)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'students' }, (payload) => {
+        console.log('[Realtime] admin-live-sync students payload received:', payload);
         if (isPresenceOnlyPayload(payload)) {
+          console.log('[Realtime] Detected as presence-only payload, doing quick update...');
           applyAdminPresenceUpdate('students', payload);
           return;
         }
+        console.log('[Realtime] Doing full refresh...');
         scheduleAdminRefresh();
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'industry_partners' }, (payload) => {
+        console.log('[Realtime] admin-live-sync partners payload received:', payload);
         if (isPresenceOnlyPayload(payload)) {
+          console.log('[Realtime] Detected as presence-only (partner), doing quick update...');
           applyAdminPresenceUpdate('industry_partners', payload);
           return;
         }
+        console.log('[Realtime] Doing full refresh (partner)...');
         scheduleAdminRefresh();
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'partner_verifications' }, scheduleAdminRefresh)

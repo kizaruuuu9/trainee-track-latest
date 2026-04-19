@@ -715,6 +715,8 @@ app.post('/api/partner/opportunities', uploadRateLimit, async (req, res) => {
         salaryMax,
         requiredCompetencies,
         requiredSkills,
+        requirements: actualRequirements,
+        companyName,
         industry,
         attachmentName,
         attachmentType,
@@ -731,6 +733,9 @@ app.post('/api/partner/opportunities', uploadRateLimit, async (req, res) => {
             : [];
         const normalizedSkills = Array.isArray(requiredSkills)
             ? requiredSkills.map(item => String(item || '').trim()).filter(Boolean)
+            : [];
+        const normalizedReqs = Array.isArray(actualRequirements)
+            ? actualRequirements.map(item => String(item || '').trim()).filter(Boolean)
             : [];
 
         const normalizedOpportunityType = String(opportunityType || 'Job').trim() || 'Job';
@@ -749,9 +754,11 @@ app.post('/api/partner/opportunities', uploadRateLimit, async (req, res) => {
             partner_id: partnerId,
             program_id: programId || null,
             title: String(title || '').trim(),
-            company_name: null,
+            company_name: String(companyName || '').trim() || null,
             description: String(description || '').trim() || null,
-            requirements: normalizedComps.length > 0 ? normalizedComps : null,
+            requirements: normalizedReqs.length > 0 ? normalizedReqs : null,
+            required_competencies: normalizedComps.length > 0 ? normalizedComps : null,
+            required_skills: normalizedSkills.length > 0 ? normalizedSkills : null,
             location: String(location || '').trim(),
             employment_type: normalizedEmploymentType,
             source: 'partner',
@@ -780,6 +787,8 @@ app.post('/api/partner/opportunities', uploadRateLimit, async (req, res) => {
             required_competencies: normalizedComps,
             required_skills: normalizedSkills,
             salary_range: normalizedSalaryRange || null,
+            salary_min: normalizedSalaryMin ?? null,
+            salary_max: normalizedSalaryMax ?? null,
             status: 'Open',
             industry: String(industry || '').trim() || 'General',
             attachment_name: String(attachmentName || '').trim() || null,
@@ -885,6 +894,8 @@ app.put('/api/partner/opportunities/:jobId', uploadRateLimit, async (req, res) =
         salaryMax,
         requiredCompetencies,
         requiredSkills,
+        requirements: actualRequirements,
+        companyName,
         industry,
         attachmentName,
         attachmentType,
@@ -916,6 +927,9 @@ app.put('/api/partner/opportunities/:jobId', uploadRateLimit, async (req, res) =
         const normalizedSkills = Array.isArray(requiredSkills)
             ? requiredSkills.map(item => String(item || '').trim()).filter(Boolean)
             : [];
+        const normalizedReqs = Array.isArray(actualRequirements)
+            ? actualRequirements.map(item => String(item || '').trim()).filter(Boolean)
+            : [];
 
         const normalizedOpportunityType = String(opportunityType || 'Job').trim() || 'Job';
         const normalizedEmploymentType = toEmploymentDbValue(employmentType, normalizedOpportunityType);
@@ -932,9 +946,11 @@ app.put('/api/partner/opportunities/:jobId', uploadRateLimit, async (req, res) =
         const commonPayload = {
             program_id: programId || null,
             title: String(title || '').trim(),
-            company_name: null,
+            company_name: String(companyName || '').trim() || null,
             description: String(description || '').trim() || null,
-            requirements: normalizedComps.length > 0 ? normalizedComps : null,
+            requirements: normalizedReqs.length > 0 ? normalizedReqs : null,
+            required_competencies: normalizedComps.length > 0 ? normalizedComps : null,
+            required_skills: normalizedSkills.length > 0 ? normalizedSkills : null,
             location: String(location || '').trim(),
             employment_type: normalizedEmploymentType,
             source: 'partner',

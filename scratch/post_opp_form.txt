@@ -1,0 +1,266 @@
+<div className="ln-page-content">
+      <div className="ln-page-header">
+        <div>
+          <h1 className="ln-page-title">{isEditMode ? 'Edit Opportunity' : 'Post Opportunities'}</h1>
+          <p className="ln-page-subtitle">{isEditMode ? 'Update your opportunity posting' : 'Create a new opportunity posting'}</p>
+        </div>
+      </div>
+      <form onSubmit={handleSubmit}>
+        <div className="ln-profile-two-col">
+          <div className="ln-card" style={{ padding: 20 }}>
+            <h3 style={{ fontSize: 16, fontWeight: 600, color: 'rgba(0,0,0,0.9)', marginBottom: 16 }}>Opportunity Details</h3>
+            <div className="form-group">
+              <label className="ln-info-label">Title *</label>
+              <input className="form-input" value={form.title} onChange={e => setForm({ ...form, title: e.target.value })} placeholder={opportunityType === 'OJT' ? 'e.g. Web Dev OJT Trainee' : 'e.g. Junior IT Technician'} maxLength={100} required />
+            </div>
+            <div className="form-group">
+              <label className="ln-info-label">Opportunity Type *</label>
+              <select
+                className="form-select"
+                value={form.opportunityType}
+                onChange={e => {
+                  const nextType = e.target.value;
+                  setForm(prev => ({
+                    ...prev,
+                    opportunityType: nextType,
+                    employmentType: nextType === 'OJT' ? '' : (prev.employmentType || 'Full-time')
+                  }));
+                }}
+              >
+                <option>Job</option><option>OJT</option><option>Apprenticeship</option>
+              </select>
+            </div>
+            <div className="form-group">
+              <label className="ln-info-label">Program Required *</label>
+              <select
+                className="form-select"
+                value={form.programId || ''}
+                onChange={e => {
+                  const selected = programOptions.find(program => String(program.id) === e.target.value);
+                  setForm({
+                    ...form,
+                    programId: selected?.id || '',
+                    ncLevel: normalizeNcLevelValue(selected?.ncLevel || selected?.name || ''),
+                    requiredCompetencies: selected?.competencies || [],
+                  });
+                }}
+              >
+                {programOptions.length === 0 && <option value="">No programs available</option>}
+                {programOptions.map(program => (
+                  <option key={program.id} value={program.id}>{program.name}</option>
+                ))}
+              </select>
+            </div>
+            <div className="form-group">
+              <label className="ln-info-label">NC Level Required *</label>
+              <select
+                className="form-select"
+                value={form.ncLevel}
+                onChange={e => {
+                  const nextLevel = normalizeNcLevelValue(e.target.value);
+                  setForm({ ...form, ncLevel: ncLevelOptions.includes(nextLevel) ? nextLevel : '' });
+                }}
+                required
+              >
+                <option value="">Select NC Level</option>
+                {ncLevelOptions.map(level => (
+                  <option key={level} value={level}>{level}</option>
+                ))}
+              </select>
+            </div>
+            <div className="form-group">
+              <label className="ln-info-label">Description</label>
+              <textarea className="form-input" rows={4} maxLength={1000} value={form.description} onChange={e => setForm({ ...form, description: e.target.value })} placeholder="Describe the opportunity..." />
+            </div>
+            {form.opportunityType !== 'OJT' && (
+              <div className="form-group">
+                <label className="ln-info-label">Employment Type</label>
+                <select className="form-select" value={form.employmentType} onChange={e => setForm({ ...form, employmentType: e.target.value })}>
+                  <option>Full-time</option><option>Part-time</option><option>Contract</option><option>Internship</option>
+                </select>
+              </div>
+            )}
+            <div className="ln-info-grid" style={{ gridTemplateColumns: '1fr 180px', gap: 12 }}>
+              <div className="form-group">
+                <label className="ln-info-label">Location *</label>
+                <input className="form-input" value={form.location} onChange={e => setForm({ ...form, location: e.target.value })} placeholder="City" maxLength={100} required />
+              </div>
+              <div className="form-group">
+                <label className="ln-info-label">Currency</label>
+                <select
+                  className="form-select"
+                  value={form.salaryCurrency}
+                  onChange={e => setForm({ ...form, salaryCurrency: e.target.value })}
+                >
+                  {SALARY_CURRENCY_OPTIONS.map(option => (
+                    <option key={option.code} value={option.code}>{option.label}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+            <div className="ln-info-grid" style={{ gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+              <div className="form-group">
+                <label className="ln-info-label">Salary Min (Optional)</label>
+                <input
+                  className="form-input"
+                  value={form.salaryMin}
+                  onChange={handleSalaryMinInput}
+                  placeholder="e.g. 25000"
+                  inputMode="numeric"
+                  pattern="[0-9]*"
+                  maxLength={12}
+                />
+              </div>
+              <div className="form-group">
+                <label className="ln-info-label">Salary Max (Optional)</label>
+                <input
+                  className="form-input"
+                  value={form.salaryMax}
+                  onChange={handleSalaryMaxInput}
+                  placeholder="e.g. 30000"
+                  inputMode="numeric"
+                  pattern="[0-9]*"
+                  maxLength={12}
+                />
+              </div>
+            </div>
+            <div className="form-group">
+              <label className="ln-info-label">Attachment (Image or Document)</label>
+              <input type="file" className="form-input" accept="image/*,.pdf,.doc,.docx" onChange={handleAttachmentChange} />
+              {form.attachmentName && (
+                <div style={{ marginTop: 8, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 8, padding: '8px 10px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 }}>
+                    <FileText size={14} color="#64748b" />
+                    <span style={{ fontSize: 12, color: '#334155', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{form.attachmentName}</span>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                    {form.attachmentUrl && (
+                      <a href={form.attachmentUrl} target="_blank" rel="noreferrer" style={{ fontSize: 12, color: '#2563eb', textDecoration: 'none' }}>
+                        Preview
+                      </a>
+                    )}
+                    <button type="button" className="ln-feed-action-btn" style={{ padding: '2px 6px', minHeight: 'auto' }} onClick={removeAttachment}>
+                      <X size={12} />
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+          <div className="ln-card" style={{ padding: 20 }}>
+            <h3 style={{ fontSize: 16, fontWeight: 600, color: 'rgba(0,0,0,0.9)', marginBottom: 16 }}>Required Competencies</h3>
+            <p style={{ fontSize: 13, color: 'rgba(0,0,0,0.55)', marginBottom: 12 }}>Select the competencies required for <strong>{form.ncLevel}</strong>:</p>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {availableComps.slice(0, showAllComps ? availableComps.length : 3).map(comp => (
+                <label key={comp} style={{ display: 'flex', alignItems: 'flex-start', gap: 10, padding: '10px 12px', background: form.requiredCompetencies.includes(comp) ? '#dbeafe' : '#f8fafc', borderRadius: 10, cursor: 'pointer', border: `1.5px solid ${form.requiredCompetencies.includes(comp) ? '#3b82f6' : '#e8e8e8'}`, transition: 'all 0.15s' }}>
+                  <input type="checkbox" checked={form.requiredCompetencies.includes(comp)} onChange={() => toggleComp(comp)} style={{ marginTop: 2 }} />
+                  <span style={{ fontSize: 13.5, color: '#475569' }}>{comp}</span>
+                </label>
+              ))}
+              {availableComps.length > 3 && (
+                <button
+                  type="button"
+                  onClick={() => setShowAllComps(!showAllComps)}
+                  style={{
+                    background: 'none', border: 'none', color: '#0a66c2', fontWeight: 600, fontSize: 13,
+                    cursor: 'pointer', textAlign: 'left', padding: '4px 0', marginTop: '4px', display: 'inline-block', width: 'fit-content'
+                  }}
+                >
+                  {showAllComps ? 'See Less' : `+ ${availableComps.length - 3} more`}
+                </button>
+              )}
+            </div>
+            <div style={{ marginTop: 20 }}>
+              <button type="submit" className="ln-btn ln-btn-primary" disabled={posting} style={{ width: '100%', padding: '10px 20px', fontSize: 14, opacity: posting ? 0.75 : 1, cursor: posting ? 'not-allowed' : 'pointer' }}>
+                <Send size={16} /> {posting ? (isEditMode ? 'Updating...' : 'Posting...') : (isEditMode ? 'Update Opportunity' : 'Post Opportunity')}
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div className="ln-card ln-feed-card" style={{ marginTop: 16 }}>
+          <div className="ln-section-header" style={{ marginBottom: 0 }}>
+            <h3 style={{ fontSize: 14, textTransform: 'uppercase', letterSpacing: '0.5px', color: 'rgba(0,0,0,0.6)' }}>Live Post Preview</h3>
+            <span className="ln-badge ln-badge-blue" style={{ fontSize: 11 }}>How trainees will see it</span>
+          </div>
+
+          <div className="ln-feed-card-header">
+            <button
+              type="button"
+              className="ln-feed-avatar"
+              onClick={() => setActivePage('profile')}
+              style={{ background: '#f0f7ff', color: '#0a66c2', border: 'none', cursor: 'pointer' }}
+            >
+              <Building2 size={20} />
+            </button>
+            <div>
+              <div className="ln-feed-author">
+                <button
+                  type="button"
+                  onClick={() => setActivePage('profile')}
+                  style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', color: 'inherit', font: 'inherit', textAlign: 'left' }}
+                >
+                  {previewCompany}
+                </button>
+                <span className="ln-badge ln-badge-blue" style={{ fontSize: 10, marginLeft: 4 }}>Your Post</span>
+              </div>
+              <div className="ln-feed-meta">
+                {[
+                  (previewIndustry && String(previewIndustry).trim().toLowerCase() !== 'general') ? previewIndustry : '',
+                  previewLocation,
+                  previewSalary,
+                  'Just now',
+                ].filter(Boolean).join(' • ')}
+              </div>
+            </div>
+          </div>
+
+          <div className="ln-feed-content">
+            <h4 style={{ fontSize: 15, fontWeight: 700, marginBottom: 4 }}>{previewTitle}</h4>
+            <p style={{ fontSize: 13, color: 'rgba(0,0,0,0.6)', marginBottom: 8 }}>{previewDescription}</p>
+
+            {form.attachmentUrl && isImageAttachment(form.attachmentUrl, form.attachmentType) && (
+              <div style={{ marginBottom: 10 }}>
+                <div className="ln-media-frame">
+                  <img
+                    src={form.attachmentUrl}
+                    alt={form.attachmentName || 'Opportunity attachment'}
+                    className="ln-media-image"
+                  />
+                </div>
+              </div>
+            )}
+
+            {form.attachmentUrl && !isImageAttachment(form.attachmentUrl, form.attachmentType) && (
+              <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12, color: '#2563eb', marginBottom: 8 }}>
+                <FileText size={13} /> {form.attachmentName || 'Attachment'}
+              </div>
+            )}
+
+            <div style={{ display: 'flex', gap: 8 }}>
+              <span className="ln-opp-type-badge">{form.opportunityType || 'Job'}</span>
+              {form.opportunityType !== 'OJT' && form.employmentType && (
+                <span className="ln-opp-type-badge" style={{ background: '#f8fafc', color: '#64748b' }}>{form.employmentType}</span>
+              )}
+              {form.ncLevel && (
+                <span className="ln-opp-type-badge" style={{ background: '#ede9fe', color: '#6d28d9' }}>{form.ncLevel}</span>
+              )}
+              {previewSalary && (
+                <span style={{ fontSize: 15, color: '#057642', fontWeight: 700 }}>{previewSalary}</span>
+              )}
+            </div>
+          </div>
+
+          <div className="ln-feed-actions" style={{ borderTop: '1px solid #f3f3f3', padding: '8px 12px' }}>
+            <button type="button" className="ln-feed-action-btn" disabled style={{ opacity: 0.65, cursor: 'not-allowed' }}>
+              <Users size={14} /> View Applicants
+            </button>
+            <button type="button" className="ln-feed-action-btn" disabled style={{ opacity: 0.65, cursor: 'not-allowed' }}>
+              <MessageSquare size={14} /> Comment (0)
+            </button>
+            <button type="button" className="ln-feed-action-btn" disabled style={{ opacity: 0.65, cursor: 'not-allowed' }}>
+              <MessageSquare size={14} /> Your Listing
+            </button>
+          </div>
+        </div>
+      </form>

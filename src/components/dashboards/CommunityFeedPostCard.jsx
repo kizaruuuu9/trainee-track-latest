@@ -121,12 +121,12 @@ export const CommunityFeedPostCard = ({
             gap: '4px'
           }}>
             {role && <span>{role}</span>}
-            {role && metadata.length > 0 && <span>•</span>}
+            {role && metadata.length > 0 && <span> | </span>}
             {metadata.map((item, idx) => (
               <span key={idx}>
                 {item}
                 {idx < metadata.length - 1 && (
-                  <span style={{ marginLeft: '4px' }}>•</span>
+                  <span style={{ marginLeft: '4px' }}> | </span>
                 )}
               </span>
             ))}

@@ -1,0 +1,58 @@
+            {/* Job Cards - LinkedIn Style */}
+            <div className="ln-jobs-list">
+                {displayedJobs.map(job => {
+                    const applied = myApps.includes(job.id);
+                    return (
+                        <div key={job.id} className="ln-card ln-job-card-li">
+                            <div className="ln-job-card-top">
+                                <button
+                                    type="button"
+                                    className="ln-job-card-icon"
+                                    onClick={() => openProfile({ id: job.partnerId, type: 'partner' })}
+                                    style={{ border: 'none', cursor: job.partnerId ? 'pointer' : 'default' }}
+                                    disabled={!job.partnerId}
+                                >
+                                    <Building2 size={24} />
+                                </button>
+                                <div className="ln-job-card-info">
+                                    <div className="ln-job-card-title">{job.title}</div>
+                                    <div className="ln-job-card-company">
+                                        <button
+                                            type="button"
+                                            onClick={() => openProfile({ id: job.partnerId, type: 'partner' })}
+                                            style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', color: 'inherit', font: 'inherit' }}
+                                        >
+                                            {job.companyName}
+                                        </button>
+                                    </div>
+                                    <div className="ln-job-card-meta">
+                                        <span><MapPin size={13} /> {job.location}</span>
+                                        <span><Clock size={13} /> {job.employmentType}</span>
+                                        <span title={new Date(job.createdAt).toLocaleString()}><Clock size={13} /> {timeAgo(job.createdAt)}</span>
+                                    </div>
+                                </div>
+                                <div className="ln-job-card-badges">
+                                    <span className={`ln-badge ln-badge-${job.status === 'Open' ? 'green' : 'gray'}`}>{job.status}</span>
+                                    <span className="ln-badge ln-badge-blue" style={{ fontSize: 11 }}>{job.opportunityType}</span>
+                                </div>
+                            </div>
+
+                            <div className="ln-job-card-footer">
+                                <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
+                                    <span className="ln-badge ln-badge-purple">{job.ncLevel}</span>
+                                    {job.salaryRange && <span style={{ fontSize: 13, color: '#057642', fontWeight: 600 }}>{formatSalaryDisplay(job.salaryRange)}</span>}
+                                </div>
+                                <div style={{ display: 'flex', gap: 8 }}>
+                                    <button className="ln-btn-sm ln-btn-outline" onClick={() => setSelectedJob(job)}>
+                                        <Eye size={13} /> Details
+                                    </button>
+                                    <button className="ln-btn-sm ln-btn-primary" disabled={applied || job.status !== 'Open'} onClick={() => openApplyModal(job)}>
+                                        {applied ? <><CheckCircle size={13} /> Applied</> : <><Send size={13} /> Apply</>}
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    );
+                })}
+            </div>
+

@@ -312,7 +312,7 @@ const ProfilePage = ({ profileId, profileType, onBack }) => {
           <span style={{ fontSize: 12, color: '#94a3b8', fontWeight: 400 }}>• View only</span>
         </div>
 
-        {loading && <div style={{ textAlign: 'center', padding: '56px 0', color: '#94a3b8' }}><div style={{ fontSize: 14 }}>Loading profile…</div></div>}
+        {loading && <div style={{ textAlign: 'center', padding: '56px 0', color: '#94a3b8' }}><div style={{ fontSize: 14 }}>Loading profile...</div></div>}
         {error && <div style={{ textAlign: 'center', padding: '56px 0', color: '#dc2626' }}><div style={{ fontSize: 14 }}>{error}</div></div>}
         {!loading && !error && profile && profileType === 'trainee' && <TraineeReadOnlyView profile={profile} />}
         {!loading && !error && profile && profileType === 'partner' && <PartnerReadOnlyView profile={profile} />}

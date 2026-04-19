@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useApp } from '../../context/AppContext';
 import SavedItemsView from './SavedItemsView';
 import SettingsPage from './SettingsPage';
@@ -74,13 +74,13 @@ const isImageAttachment = (attachmentUrl, attachmentType) => {
 const getCurrencySymbol = (currency = 'PHP') => {
     const code = String(currency || 'PHP').toUpperCase();
     const symbols = {
-        PHP: '₱',
+        PHP: '\u20B1',
         USD: '$',
         EUR: '€',
         GBP: '£',
         JPY: '¥',
     };
-    return symbols[code] || '₱';
+    return symbols[code] || '\u20B1';
 };
 
 const formatSalaryDisplay = (value = '') => {
@@ -446,13 +446,29 @@ const TraineeDashboardHome = ({ setActivePage }) => {
         }
     }, [isLoadingMore]);
 
+    const ADMIN_ID = 'de305d54-75b4-431b-adb2-eb6b9e546014';
     const unifiedFeed = useMemo(() => {
         return [
             ...posts.map(p => ({
                 ...p,
                 feedType: (BULLETIN_TYPES.includes(p.post_type) && p.author_type !== 'industry_partner') ? 'bulletin' : 'post'
             }))
-        ].sort((a, b) => new Date(b.created_at || b.createdAt || b.datePosted) - new Date(a.created_at || a.createdAt || a.datePosted));
+        ]
+        // Community Feed Visibility: Trainees can only see partner + admin posts (not other trainees)
+        .filter(p => {
+            const authorType = String(p.author_type || '').toLowerCase();
+            // Hide job posts (they belong in Opportunities tab)
+            if (p.post_type === 'hiring_update' || p.feedType === 'job') return false;
+            // Always show admin posts (admin bulletins are stored as author_type='student' but with admin author_id)
+            if (String(p.author_id) === ADMIN_ID) return true;
+            // Always show bulletin-type posts (Training Batch, Exam Schedule, Certification Assessment, Announcement from admin)
+            if (BULLETIN_TYPES.includes(p.post_type)) return true;
+            // Hide other trainee/student posts
+            if (authorType === 'student' || authorType === 'trainee') return false;
+            // Show partner posts
+            return true;
+        })
+        .sort((a, b) => new Date(b.created_at || b.createdAt || b.datePosted) - new Date(a.created_at || a.createdAt || a.datePosted));
     }, [posts]);
 
     const filteredFeed = useMemo(() => {
@@ -460,8 +476,6 @@ const TraineeDashboardHome = ({ setActivePage }) => {
         if (feedFilter === 'All' || feedFilter === 'Recommended') {
         } else if (feedFilter === 'Announcement') {
             list = list.filter(item => (item.post_type === 'announcement' || item.feedType === 'bulletin') && ['industry_partner', 'admin', 'partner'].includes(item.author_type || item.role));
-        } else if (feedFilter === 'Job Hiring' || feedFilter === 'Hiring Update') {
-            list = list.filter(item => item.post_type === 'hiring_update' || item.feedType === 'job');
         }
         
         if (feedSearchText.trim()) {
@@ -1200,7 +1214,6 @@ ${postContent.description || ''}
                         >
                             <option value="All">All</option>
                             <option value="Announcement">Announcement</option>
-                            <option value="Job Hiring">Job Hiring</option>
                         </select>
                     </div>
                 </div>
@@ -1244,7 +1257,7 @@ ${postContent.description || ''}
                                                     }
 
                                                     return 'PSTDII Admin';
-                                                })()} • {timeAgo(item.created_at)}
+                                                })()} | {timeAgo(item.created_at)}
                                             </div>
                                         </div>
                                         {item.author_id === currentUser?.id && (
@@ -1257,7 +1270,7 @@ ${postContent.description || ''}
                                                     style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 4, borderRadius: '50%', color: '#65676b' }}
                                                     title="More options"
                                                 >
-                                                    <span style={{ fontSize: 20, fontWeight: 700, letterSpacing: 2, lineHeight: 1 }}>···</span>
+                                                    <span style={{ fontSize: 20, fontWeight: 700, letterSpacing: 2, lineHeight: 1 }}>...</span>
                                                 </button>
                                                 {postMenuId === item.id && (
                                                     <div style={{
@@ -1380,7 +1393,7 @@ ${postContent.description || ''}
                                                     (item.industry && String(item.industry).trim().toLowerCase() !== 'general') ? item.industry : '',
                                                     item.location,
                                                     timeAgo(item.createdAt),
-                                                ].filter(Boolean).join(' • ')}
+                                                ].filter(Boolean).join(' | ')}
                                             </div>
                                         </div>
                                     </div>
@@ -1544,7 +1557,7 @@ ${postContent.description || ''}
                                                     style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 4, borderRadius: '50%', color: '#65676b' }}
                                                     title="More options"
                                                 >
-                                                    <span style={{ fontSize: 20, fontWeight: 700, letterSpacing: 2, lineHeight: 1 }}>···</span>
+                                                    <span style={{ fontSize: 20, fontWeight: 700, letterSpacing: 2, lineHeight: 1 }}>...</span>
                                                 </button>
                                                 {postMenuId === item.id && (
                                                     <div style={{
@@ -1897,7 +1910,7 @@ ${postContent.description || ''}
                                                 jobMediaModal.location,
                                                 formatSalaryDisplay(jobMediaModal.salaryRange),
                                                 timeAgo(jobMediaModal.created_at || jobMediaModal.createdAt || jobMediaModal.datePosted),
-                                            ].filter(Boolean).join(' • ')}
+                                            ].filter(Boolean).join(' | ')}
                                         </div>
                                         <div style={{ marginTop: 8, fontSize: 16, fontWeight: 700, color: '#111827' }}>{jobMediaModal.title}</div>
                                         <div style={{ marginTop: 4, fontSize: 13, color: '#475569', whiteSpace: 'pre-wrap' }}>{jobMediaModal.description}</div>
@@ -1952,7 +1965,7 @@ ${postContent.description || ''}
                                                             style={{ border: 'none', background: 'transparent', color: '#94a3b8', cursor: 'pointer', padding: '0 4px', fontSize: 18, lineHeight: 1, borderRadius: 4 }}
                                                             aria-label="Comment options"
                                                         >
-                                                            ···
+                                                            ...
                                                         </button>
                                                         {isMenuOpen && (
                                                             <div style={{ position: 'absolute', right: 0, top: '100%', zIndex: 200, background: '#fff', border: '1px solid #e2e8f0', borderRadius: 8, boxShadow: '0 4px 14px rgba(0,0,0,0.13)', minWidth: 110, padding: '4px 0' }}>
@@ -2408,7 +2421,7 @@ const ApplicationTimeline = ({ traineeId }) => {
                         <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 20, alignItems: 'flex-start' }}>
                             <div>
                                 <h4 style={{ margin: 0, fontSize: 16, fontWeight: 700, color: '#0f172a' }}>{job?.title || 'Direct Contact'}</h4>
-                                <div style={{ fontSize: 13, color: '#64748b', marginTop: 2 }}>{job?.companyName || 'Industry Partner'} • Applied {timeAgo(app.createdAt)}</div>
+                                <div style={{ fontSize: 13, color: '#64748b', marginTop: 2 }}>{job?.companyName || 'Industry Partner'} | Applied {timeAgo(app.createdAt)}</div>
                             </div>
                             <span className={`ln-badge ${isRejected ? 'ln-badge-red' : (step === 4 ? 'ln-badge-green' : 'ln-badge-blue')}`} style={{ textTransform: 'capitalize' }}>
                                 {app.status || 'Sent'}
@@ -3278,7 +3291,7 @@ export const TraineeProfileContent = ({ viewedProfileId = null, onBack = null, o
                                 {headerLocationParts.length > 0 && (
                                     <p className="ln-profile-header-loc" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                                         {showHeaderAddress && trainee?.address && <MapPin size={14} />}
-                                        <span>{headerLocationParts.join(' • ')}</span>
+                                        <span>{headerLocationParts.join(' | ')}</span>
                                     </p>
                                 )}
                                 {showHeaderEmail && trainee?.email && (
@@ -4078,7 +4091,7 @@ export const TraineeProfileContent = ({ viewedProfileId = null, onBack = null, o
                                 return null;
                             })()}
 
-                            {/* Social & Portfolio Links — add form ONLY in edit mode */}
+                            {/* Social & Portfolio Links - add form ONLY in edit mode */}
                             {isOwnProfile && editing && (
                                 <div className="ln-social-links-edit">
                                     <div className="ln-social-links-header">
@@ -4148,7 +4161,7 @@ export const TraineeProfileContent = ({ viewedProfileId = null, onBack = null, o
                                 </div>
                             )}
 
-                            {/* Social & Portfolio Links list — always visible when links exist */}
+                            {/* Social & Portfolio Links list - always visible when links exist */}
                             {(Array.isArray(documents) ? documents : []).filter(d => d.file_type === 'link').length > 0 && (
                                 <div className="ln-social-links-edit" style={editing ? {} : { borderTop: '1px solid #f1f5f9', marginTop: 12 }}>
                                     {!editing && (
@@ -4201,7 +4214,7 @@ export const TraineeProfileContent = ({ viewedProfileId = null, onBack = null, o
                             <div>
                                 <h3 className="ln-modal-title">Application Form</h3>
                                 <p style={{ fontSize: 14, color: 'rgba(0,0,0,0.6)', marginTop: 4 }}>
-                                    {applyJob.title} • {applyJob.companyName}
+                                    {applyJob.title} | {applyJob.companyName}
                                 </p>
                             </div>
                             <button type="button" className="ln-btn-icon" onClick={() => setApplyJob(null)}><X size={18} /></button>
@@ -4501,7 +4514,7 @@ const Opportunities = () => {
                                             (job.industry && String(job.industry).trim().toLowerCase() !== 'general') ? job.industry : '',
                                             job.location,
                                             timeAgo(job.createdAt),
-                                        ].filter(Boolean).join(' • ')}
+                                        ].filter(Boolean).join(' | ')}
                                     </div>
                                 </div>
                             </div>
@@ -4603,7 +4616,7 @@ const Opportunities = () => {
                                     >
                                         {selectedJob.companyName}
                                     </button>
-                                    {' '}• {selectedJob.location} • {timeAgo(selectedJob.createdAt)}
+                                    {' '}• {selectedJob.location} | {timeAgo(selectedJob.createdAt)}
                                 </p>
                             </div>
                             <button className="ln-btn-icon" onClick={() => setSelectedJob(null)}><X size={18} /></button>

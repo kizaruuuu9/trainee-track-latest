@@ -684,7 +684,7 @@ export default function TrainingBulletin() {
                                     </div>
                                     <div style={{ flex: 1, minWidth: 0 }}>
                                         <div style={{ fontWeight: 700, fontSize: 14, color: '#0f172a', marginBottom: 2 }}>{post.title}</div>
-                                        <div style={{ fontSize: 12, color: '#64748b' }}>{pt.label} · {new Date(post.created_at).toLocaleDateString()}</div>
+                                        <div style={{ fontSize: 12, color: '#64748b' }}> {pt.label} | {new Date(post.created_at).toLocaleDateString()}</div>
                                     </div>
                                     <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
                                         {post.status && (
@@ -818,7 +818,7 @@ export default function TrainingBulletin() {
                                                                 {userName}
                                                             </div>
                                                             <div style={{ fontSize: 11, color: '#94a3b8' }}>
-                                                                {interaction.user_type === 'industry_partner' ? 'Industry Partner' : 'Trainee'} · {new Date(interaction.created_at).toLocaleDateString()}
+                                                                {interaction.user_type === 'industry_partner' ? 'Industry Partner' : 'Trainee'} | {new Date(interaction.created_at).toLocaleDateString()}
                                                             </div>
                                                         </div>
                                                     </div>
