@@ -62,7 +62,38 @@ const compressImageDataUrl = async (dataUrl) => {
 };
 
 export default function RegistrationFlow({ onBackToLogin }) {
-  const { industries } = useApp();
+  const { industries: industriesFromCtx } = useApp();
+
+  const FALLBACK_INDUSTRIES = [
+    'Agriculture & Forestry',
+    'Architecture & Engineering',
+    'Arts, Design & Entertainment',
+    'Automotive',
+    'Banking & Finance',
+    'Business Process Outsourcing (BPO)',
+    'Construction & Real Estate',
+    'Education & Training',
+    'Energy & Utilities',
+    'Food & Beverage',
+    'Government & Public Sector',
+    'Healthcare & Medical',
+    'Hospitality & Tourism',
+    'Information Technology',
+    'Legal & Compliance',
+    'Logistics & Supply Chain',
+    'Manufacturing',
+    'Maritime',
+    'Media & Communications',
+    'Non-Profit & NGO',
+    'Retail & E-Commerce',
+    'Telecommunications',
+    'Transportation',
+    'Other',
+  ];
+
+  const industries = Array.isArray(industriesFromCtx) && industriesFromCtx.length > 0
+    ? industriesFromCtx
+    : FALLBACK_INDUSTRIES;
   const [selectedRole, setSelectedRole] = useState(null); // 'trainee' | 'partner'
   const [currentStep, setCurrentStep] = useState(1);
   const [traineeData, setTraineeData] = useState({

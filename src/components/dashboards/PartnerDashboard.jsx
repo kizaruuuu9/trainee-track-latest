@@ -4215,6 +4215,33 @@ const ViewApplicants = ({ setActivePage }) => {
 };
 
 // --- PAGE: COMPANY PROFILE ----------------------------------------
+const INDUSTRY_OPTIONS = [
+  'Agriculture & Forestry',
+  'Architecture & Engineering',
+  'Arts, Design & Entertainment',
+  'Automotive',
+  'Banking & Finance',
+  'Business Process Outsourcing (BPO)',
+  'Construction & Real Estate',
+  'Education & Training',
+  'Energy & Utilities',
+  'Food & Beverage',
+  'Government & Public Sector',
+  'Healthcare & Medical',
+  'Hospitality & Tourism',
+  'Information Technology',
+  'Legal & Compliance',
+  'Logistics & Supply Chain',
+  'Manufacturing',
+  'Maritime',
+  'Media & Communications',
+  'Non-Profit & NGO',
+  'Retail & E-Commerce',
+  'Telecommunications',
+  'Transportation',
+  'Other',
+];
+
 const PREDEFINED_CULTURE_TAGS = [
   'Hands-on Training', 'Mentorship-Focused', 'Fast-Paced',
   'Team-Oriented', 'Independent Work', 'Output-Based'
@@ -4538,7 +4565,7 @@ export const CompanyProfile = ({ viewedPartnerId = null, onBack = null }) => {
     { label: 'Contact Person', key: 'contactPerson', type: 'text', maxLength: 100 },
     { label: 'Contact Email', key: 'email', type: 'email', maxLength: 100 },
     { label: 'Address', key: 'address', type: 'text', maxLength: 200 },
-    { label: 'Industry', key: 'industry', type: 'text', maxLength: 80 },
+    { label: 'Industry', key: 'industry', type: 'select', options: INDUSTRY_OPTIONS },
     { label: 'Website', key: 'website', type: 'text', maxLength: 200, placeholder: 'e.g. https://example.com' },
   ];
 
@@ -4824,6 +4851,18 @@ export const CompanyProfile = ({ viewedPartnerId = null, onBack = null }) => {
                         <div key={field.key} className="ln-info-item">
                           <label className="ln-info-label">{field.label}</label>
                           {editing ? (
+                            field.type === 'select' ? (
+                              <select
+                                className="form-input"
+                                value={value || ''}
+                                onChange={e => setForm({ ...form, [field.key]: e.target.value })}
+                              >
+                                <option value="">Select {field.label}</option>
+                                {field.options.map(opt => (
+                                  <option key={opt} value={opt}>{opt}</option>
+                                ))}
+                              </select>
+                            ) : (
                             <input
                               type={field.type}
                               className="form-input"
@@ -4832,7 +4871,7 @@ export const CompanyProfile = ({ viewedPartnerId = null, onBack = null }) => {
                               placeholder={field.placeholder}
                               onChange={e => setForm({ ...form, [field.key]: e.target.value })}
                               style={field.key === 'email' && form.email && !isEmailValid(form.email) ? { borderColor: '#cc1016' } : undefined}
-                            />
+                            />)
                           ) : field.key === 'website' ? (
                             <div className="ln-info-value">
                               {partner.website
