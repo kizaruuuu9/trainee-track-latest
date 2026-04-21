@@ -2761,6 +2761,24 @@ export const AppProvider = ({ children }) => {
         if (updates.email !== undefined) dbUpdates.contact_email = updates.email;
         if (updates.programId !== undefined) dbUpdates.program_id = updates.programId;
         if (updates.personalInfoVisibility !== undefined) dbUpdates.personal_info_visibility = updates.personalInfoVisibility;
+        if (updates.llnReading !== undefined) dbUpdates.lln_reading = updates.llnReading || null;
+        if (updates.llnWriting !== undefined) dbUpdates.lln_writing = updates.llnWriting || null;
+        if (updates.llnMath !== undefined) dbUpdates.lln_math = updates.llnMath || null;
+        if (updates.llnComputer !== undefined) dbUpdates.lln_computer = updates.llnComputer || null;
+        if (updates.ethnicGroup !== undefined) dbUpdates.ethnic_group = updates.ethnicGroup || null;
+        if (updates.ethnicGroupOther !== undefined) dbUpdates.ethnic_group_other = updates.ethnicGroupOther || null;
+        if (updates.languageSpoken !== undefined) dbUpdates.language_spoken = updates.languageSpoken || null;
+        if (updates.languageSpokenOther !== undefined) dbUpdates.language_spoken_other = updates.languageSpokenOther || null;
+        if (updates.tribalGroup !== undefined) dbUpdates.tribal_group = updates.tribalGroup || null;
+        if (updates.highestEducation !== undefined) dbUpdates.highest_education = updates.highestEducation || null;
+        if (updates.disability !== undefined) dbUpdates.disability = updates.disability || null;
+        if (updates.disabilityOther !== undefined) dbUpdates.disability_other = updates.disabilityOther || null;
+        if (updates.causeOfDisability !== undefined) dbUpdates.cause_of_disability = updates.causeOfDisability || null;
+        if (updates.healthCondition !== undefined) dbUpdates.health_condition = updates.healthCondition || null;
+        if (updates.healthConditionOther !== undefined) dbUpdates.health_condition_other = updates.healthConditionOther || null;
+        if (updates.learningStyle !== undefined) dbUpdates.learning_style = updates.learningStyle || null;
+        if (updates.otherNeeds !== undefined) dbUpdates.other_needs = updates.otherNeeds || null;
+        if (updates.otherNeedsOther !== undefined) dbUpdates.other_needs_other = updates.otherNeedsOther || null;
 
         if (Object.keys(dbUpdates).length > 0) {
           // If admin role, use server-side API to bypass RLS
@@ -2987,6 +3005,24 @@ export const AppProvider = ({ children }) => {
         skills: student.skills || [],
         interests: student.interests || [],
         bio: student.bio || '',
+        llnReading: student.lln_reading || '',
+        llnWriting: student.lln_writing || '',
+        llnMath: student.lln_math || '',
+        llnComputer: student.lln_computer || '',
+        ethnicGroup: student.ethnic_group || '',
+        ethnicGroupOther: student.ethnic_group_other || '',
+        languageSpoken: student.language_spoken || '',
+        languageSpokenOther: student.language_spoken_other || '',
+        tribalGroup: student.tribal_group || '',
+        highestEducation: student.highest_education || '',
+        disability: student.disability || '',
+        disabilityOther: student.disability_other || '',
+        causeOfDisability: student.cause_of_disability || '',
+        healthCondition: student.health_condition || '',
+        healthConditionOther: student.health_condition_other || '',
+        learningStyle: student.learning_style || '',
+        otherNeeds: student.other_needs || '',
+        otherNeedsOther: student.other_needs_other || '',
         employmentStatus: student.employment_status === 'employed' ? 'Employed'
           : student.employment_status === 'seeking_employment' ? 'Seeking Employment'
             : 'Not Employed',

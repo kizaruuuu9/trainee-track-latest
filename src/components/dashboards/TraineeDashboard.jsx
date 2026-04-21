@@ -108,10 +108,85 @@ const normalizeProfileType = (profileType = '') => {
 const toProfileAuthorType = (authorType = '') => (isStudentAuthorType(authorType) ? 'trainee' : 'partner');
 const toRecipientAuthorType = (authorType = '') => (isStudentAuthorType(authorType) ? 'student' : 'industry_partner');
 const DEFAULT_TRAINEE_PUBLIC_INFO_FIELDS = ['name', 'birthday', 'gender', 'program'];
+const LLN_SCORE_OPTIONS = ['95 and above', '90 to 94', '85 to 89', '80 to 84', '75 to 79'];
+const LLN_FIELDS = [
+    { key: 'llnReading', label: 'Reading Comprehension' },
+    { key: 'llnWriting', label: 'Writing Skills' },
+    { key: 'llnMath', label: 'Solving Math Problems' },
+    { key: 'llnComputer', label: 'Computer Literacy' },
+];
+const ETHNIC_GROUP_OPTIONS = ['Tagalog', 'Kapampangan', 'Cebuano', 'Ilocano', 'Hiligaynon', 'Bicolano', 'Waray', 'Moro', 'Others'];
+const LANGUAGE_SPOKEN_OPTIONS = ['Filipino', 'English', 'Others'];
+const HIGHEST_EDUCATION_OPTIONS = [
+    'ALS Graduate/JHS Graduate',
+    'Senior School Level',
+    'Senior High School Graduate',
+    'Diploma Graduate',
+    'College Level',
+    'College Graduate',
+    "With units in master's degree",
+    "Master's Graduate",
+    "With units in Doctor's degree",
+    'Doctoral Graduate',
+];
+const DISABILITY_OPTIONS = ['None', 'Hearing Disability', 'Speech Impairment', 'Orthopedic (Musculoskeletal) Disability', 'Others'];
+const CAUSE_OF_DISABILITY_OPTIONS = ['Congenital/Inborn', 'Illness', 'Injury'];
+const HEALTH_CONDITION_OPTIONS = ['None', 'Asthma', 'Heart disease', 'Anemia', 'Hypertension', 'Diabetes', 'Others'];
+const LEARNING_STYLE_OPTIONS = ['Visual', 'Kinesthetic', 'Auditory'];
+const OTHER_NEEDS_OPTIONS = ['Financially challenged', 'Working student', 'Solo parent', 'Others'];
+const learnerFieldStyle = {
+    borderRadius: 6,
+    border: '1px solid #e2e8f0',
+    boxShadow: '0 1px 2px rgba(15, 23, 42, 0.06)',
+    background: '#ffffff',
+};
+
 const resolveTraineeVisibility = (profile) => {
     const value = profile?.personalInfoVisibility ?? profile?.personal_info_visibility;
     return Array.isArray(value) ? value : DEFAULT_TRAINEE_PUBLIC_INFO_FIELDS;
 };
+
+const buildLearnerProfileState = (profile = {}) => ({
+    llnReading: profile.llnReading || profile.lln_reading || '',
+    llnWriting: profile.llnWriting || profile.lln_writing || '',
+    llnMath: profile.llnMath || profile.lln_math || '',
+    llnComputer: profile.llnComputer || profile.lln_computer || '',
+    ethnicGroup: profile.ethnicGroup || profile.ethnic_group || '',
+    ethnicGroupOther: profile.ethnicGroupOther || profile.ethnic_group_other || '',
+    languageSpoken: profile.languageSpoken || profile.language_spoken || '',
+    languageSpokenOther: profile.languageSpokenOther || profile.language_spoken_other || '',
+    tribalGroup: profile.tribalGroup || profile.tribal_group || '',
+    highestEducation: profile.highestEducation || profile.highest_education || '',
+    disability: profile.disability || '',
+    disabilityOther: profile.disabilityOther || profile.disability_other || '',
+    causeOfDisability: profile.causeOfDisability || profile.cause_of_disability || '',
+    healthCondition: profile.healthCondition || profile.health_condition || '',
+    healthConditionOther: profile.healthConditionOther || profile.health_condition_other || '',
+    learningStyle: profile.learningStyle || profile.learning_style || '',
+    otherNeeds: profile.otherNeeds || profile.other_needs || '',
+    otherNeedsOther: profile.otherNeedsOther || profile.other_needs_other || '',
+});
+
+const formatLearnerValue = (value) => {
+    const normalized = String(value ?? '').trim();
+    return normalized || '—';
+};
+
+const formatOtherAwareValue = (value, otherValue) => {
+    const normalized = String(value || '').trim();
+    if (!normalized) return '—';
+    if (normalized === 'Others') {
+        return otherValue ? `Others: ${otherValue}` : 'Others';
+    }
+    return normalized;
+};
+
+const LearnerSummaryCard = ({ label, value }) => (
+    <div style={{ padding: '12px 14px', borderRadius: 6, border: '1px solid #e2e8f0', background: '#f8fafc', boxShadow: '0 1px 2px rgba(15, 23, 42, 0.05)' }}>
+        <div style={{ fontSize: 11, fontWeight: 700, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 6 }}>{label}</div>
+        <div style={{ fontSize: 14, fontWeight: 600, color: '#0f172a', lineHeight: 1.5 }}>{formatLearnerValue(value)}</div>
+    </div>
+);
 
 const normalizeTraineeProfile = (profile) => {
     if (!profile) return null;
@@ -151,6 +226,24 @@ const normalizeTraineeProfile = (profile) => {
         workExperience: Array.isArray(profile.workExperience) ? profile.workExperience : (Array.isArray(profile.work_experience) ? profile.work_experience : []),
         skills: Array.isArray(profile.skills) ? profile.skills : [],
         interests: Array.isArray(profile.interests) ? profile.interests : [],
+        llnReading: profile.llnReading || profile.lln_reading || '',
+        llnWriting: profile.llnWriting || profile.lln_writing || '',
+        llnMath: profile.llnMath || profile.lln_math || '',
+        llnComputer: profile.llnComputer || profile.lln_computer || '',
+        ethnicGroup: profile.ethnicGroup || profile.ethnic_group || '',
+        ethnicGroupOther: profile.ethnicGroupOther || profile.ethnic_group_other || '',
+        languageSpoken: profile.languageSpoken || profile.language_spoken || '',
+        languageSpokenOther: profile.languageSpokenOther || profile.language_spoken_other || '',
+        tribalGroup: profile.tribalGroup || profile.tribal_group || '',
+        highestEducation: profile.highestEducation || profile.highest_education || '',
+        disability: profile.disability || '',
+        disabilityOther: profile.disabilityOther || profile.disability_other || '',
+        causeOfDisability: profile.causeOfDisability || profile.cause_of_disability || '',
+        healthCondition: profile.healthCondition || profile.health_condition || '',
+        healthConditionOther: profile.healthConditionOther || profile.health_condition_other || '',
+        learningStyle: profile.learningStyle || profile.learning_style || '',
+        otherNeeds: profile.otherNeeds || profile.other_needs || '',
+        otherNeedsOther: profile.otherNeedsOther || profile.other_needs_other || '',
         employmentStatus,
         employer: profile.employer || profile.employment_work || '',
         jobTitle: profile.jobTitle || profile.job_title || '',
@@ -182,7 +275,7 @@ const BULLETIN_CONFIG = {
 const TraineeSideNav = ({ activePage, setActivePage }) => {
     const { currentUser } = useApp();
     const navigate = useNavigate();
-    
+
     // Trainee-specific data
     const initials = (currentUser?.name || '').split(' ').filter(Boolean).map(n => n[0]).join('').slice(0, 2).toUpperCase() || 'T';
 
@@ -203,7 +296,7 @@ const TraineeSideNav = ({ activePage, setActivePage }) => {
             >
                 <div className="tt-sidenav-avatar">
                     {currentUser?.photo
-                        ? <img src={currentUser.photo} style={{width: '100%', height: '100%', objectFit: 'cover'}} alt={currentUser?.name || 'Profile'} />
+                        ? <img src={currentUser.photo} style={{ width: '100%', height: '100%', objectFit: 'cover' }} alt={currentUser?.name || 'Profile'} />
                         : initials
                     }
                 </div>
@@ -454,21 +547,21 @@ const TraineeDashboardHome = ({ setActivePage }) => {
                 feedType: (BULLETIN_TYPES.includes(p.post_type) && p.author_type !== 'industry_partner') ? 'bulletin' : 'post'
             }))
         ]
-        // Community Feed Visibility: Trainees can only see partner + admin posts (not other trainees)
-        .filter(p => {
-            const authorType = String(p.author_type || '').toLowerCase();
-            // Hide job posts (they belong in Opportunities tab)
-            if (p.post_type === 'hiring_update' || p.feedType === 'job') return false;
-            // Always show admin posts (admin bulletins are stored as author_type='student' but with admin author_id)
-            if (String(p.author_id) === ADMIN_ID) return true;
-            // Always show bulletin-type posts (Training Batch, Exam Schedule, Certification Assessment, Announcement from admin)
-            if (BULLETIN_TYPES.includes(p.post_type)) return true;
-            // Hide other trainee/student posts
-            if (authorType === 'student' || authorType === 'trainee') return false;
-            // Show partner posts
-            return true;
-        })
-        .sort((a, b) => new Date(b.created_at || b.createdAt || b.datePosted) - new Date(a.created_at || a.createdAt || a.datePosted));
+            // Community Feed Visibility: Trainees can only see partner + admin posts (not other trainees)
+            .filter(p => {
+                const authorType = String(p.author_type || '').toLowerCase();
+                // Hide job posts (they belong in Opportunities tab)
+                if (p.post_type === 'hiring_update' || p.feedType === 'job') return false;
+                // Always show admin posts (admin bulletins are stored as author_type='student' but with admin author_id)
+                if (String(p.author_id) === ADMIN_ID) return true;
+                // Always show bulletin-type posts (Training Batch, Exam Schedule, Certification Assessment, Announcement from admin)
+                if (BULLETIN_TYPES.includes(p.post_type)) return true;
+                // Hide other trainee/student posts
+                if (authorType === 'student' || authorType === 'trainee') return false;
+                // Show partner posts
+                return true;
+            })
+            .sort((a, b) => new Date(b.created_at || b.createdAt || b.datePosted) - new Date(a.created_at || a.createdAt || a.datePosted));
     }, [posts]);
 
     const filteredFeed = useMemo(() => {
@@ -477,7 +570,7 @@ const TraineeDashboardHome = ({ setActivePage }) => {
         } else if (feedFilter === 'Announcement') {
             list = list.filter(item => (item.post_type === 'announcement' || item.feedType === 'bulletin') && ['industry_partner', 'admin', 'partner'].includes(item.author_type || item.role));
         }
-        
+
         if (feedSearchText.trim()) {
             const query = feedSearchText.toLowerCase();
             list = list.filter(item => {
@@ -953,16 +1046,16 @@ ${postContent.description || ''}
     return (
         <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: 24, alignItems: 'start', width: '100%' }}>
             <div style={{ minWidth: 0 }}>
-            {/* Dashboard Summary / Stats */}
-            <div className="ln-card ln-stats-row" style={{ marginBottom: 16 }}>
-                {stats.map((s, i) => (
-                    <div key={i} className="ln-stat-item">
-                        <div className="ln-stat-icon" style={{ color: s.color }}>{s.icon}</div>
-                        <div className="ln-stat-value">{s.value}</div>
-                        <div className="ln-stat-label">{s.label}</div>
-                    </div>
-                ))}
-            </div>
+                {/* Dashboard Summary / Stats */}
+                <div className="ln-card ln-stats-row" style={{ marginBottom: 16 }}>
+                    {stats.map((s, i) => (
+                        <div key={i} className="ln-stat-item">
+                            <div className="ln-stat-icon" style={{ color: s.color }}>{s.icon}</div>
+                            <div className="ln-stat-value">{s.value}</div>
+                            <div className="ln-stat-label">{s.label}</div>
+                        </div>
+                    ))}
+                </div>
 
                 {/* Create Post Card (Trigger) */}
                 <div className="ln-card" style={{ padding: '12px 16px', marginBottom: 16 }}>
@@ -1047,21 +1140,21 @@ ${postContent.description || ''}
 
                                 {/* Dynamic Post Fields */}
                                 <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1fr)', gap: 12, marginBottom: 12 }}>
-                                    <input 
-                                        type="text" 
-                                        placeholder="Preferred Role (e.g. Web Developer)" 
+                                    <input
+                                        type="text"
+                                        placeholder="Preferred Role (e.g. Web Developer)"
                                         value={postContent.role || ''}
                                         onChange={e => setPostContent({ ...postContent, role: e.target.value })}
                                         style={{ width: '100%', border: '1px solid #e4e6eb', borderRadius: 6, padding: '8px 12px', fontSize: 14 }}
                                     />
-                                    <input 
-                                        type="text" 
-                                        placeholder="Skills (comma separated)" 
+                                    <input
+                                        type="text"
+                                        placeholder="Skills (comma separated)"
                                         value={postContent.skills || ''}
                                         onChange={e => setPostContent({ ...postContent, skills: e.target.value })}
                                         style={{ width: '100%', border: '1px solid #e4e6eb', borderRadius: 6, padding: '8px 12px', fontSize: 14 }}
                                     />
-                                    <select 
+                                    <select
                                         value={postContent.experience || ''}
                                         onChange={e => setPostContent({ ...postContent, experience: e.target.value })}
                                         style={{ width: '100%', border: '1px solid #e4e6eb', borderRadius: 6, padding: '8px 12px', fontSize: 14 }}
@@ -1071,7 +1164,7 @@ ${postContent.description || ''}
                                         <option value="Intermediate">Intermediate</option>
                                         <option value="Advanced">Advanced</option>
                                     </select>
-                                    <select 
+                                    <select
                                         value={postContent.availability || ''}
                                         onChange={e => setPostContent({ ...postContent, availability: e.target.value })}
                                         style={{ width: '100%', border: '1px solid #e4e6eb', borderRadius: 6, padding: '8px 12px', fontSize: 14 }}
@@ -1081,9 +1174,9 @@ ${postContent.description || ''}
                                         <option value="Part-time">Part-time</option>
                                         <option value="Internship">Internship</option>
                                     </select>
-                                    <input 
-                                        type="text" 
-                                        placeholder="Location (Optional)" 
+                                    <input
+                                        type="text"
+                                        placeholder="Location (Optional)"
                                         value={postContent.location || ''}
                                         onChange={e => setPostContent({ ...postContent, location: e.target.value })}
                                         style={{ width: '100%', border: '1px solid #e4e6eb', borderRadius: 6, padding: '8px 12px', fontSize: 14, gridColumn: 'span 2' }}
@@ -1169,7 +1262,7 @@ ${postContent.description || ''}
                     <div>
                         <h3 style={{ fontSize: 16, fontWeight: 700, margin: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>Community Feed</h3>
                     </div>
-                    
+
                     <div style={{ display: 'flex', justifyContent: 'center' }}>
                         <div style={{ position: 'relative', display: 'flex', alignItems: 'center', minWidth: '150px', maxWidth: '800px', width: 'clamp(200px, 40vw, 800px)' }}>
                             <Search size={16} color="#64748b" style={{ position: 'absolute', left: '10px' }} />
@@ -1191,7 +1284,7 @@ ${postContent.description || ''}
                             />
                         </div>
                     </div>
-                    
+
                     <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
                         <select
                             style={{
@@ -2535,10 +2628,27 @@ export const TraineeProfileContent = ({ viewedProfileId = null, onBack = null, o
     const [trainingForm, setTrainingForm] = useState({
         graduationYear: trainee?.graduationYear || '',
     });
+    const [learnerProfile, setLearnerProfile] = useState(() => buildLearnerProfileState(trainee));
 
     const updateTraining = (idx, field, val) => { const arr = [...trainings]; arr[idx][field] = val; setTrainings(arr); };
     const addTrainingObj = () => setTrainings(prev => [...prev, { program: '', year: '' }]);
     const removeTrainingIdx = (idx) => { setTrainings(prev => prev.filter((_, i) => i !== idx)); };
+    const updateLearnerProfile = (field, value) => {
+        setLearnerProfile(prev => {
+            const next = { ...prev, [field]: value };
+
+            if (field === 'ethnicGroup' && value !== 'Others') next.ethnicGroupOther = '';
+            if (field === 'languageSpoken' && value !== 'Others') next.languageSpokenOther = '';
+            if (field === 'disability') {
+                if (value !== 'Others') next.disabilityOther = '';
+                if (!value || value === 'None') next.causeOfDisability = '';
+            }
+            if (field === 'healthCondition' && value !== 'Others') next.healthConditionOther = '';
+            if (field === 'otherNeeds' && value !== 'Others') next.otherNeedsOther = '';
+
+            return next;
+        });
+    };
 
     // Employment state
     // eslint-disable-next-line no-unused-vars
@@ -2643,6 +2753,7 @@ export const TraineeProfileContent = ({ viewedProfileId = null, onBack = null, o
         setTrainingForm({
             graduationYear: trainee?.graduationYear || '',
         });
+        setLearnerProfile(buildLearnerProfileState(trainee));
 
         // Populate trainings list. If empty, fallback to registration program.
         let initialTrainings = Array.isArray(trainee?.trainings) ? trainee.trainings.map(t => ({
@@ -2900,8 +3011,24 @@ export const TraineeProfileContent = ({ viewedProfileId = null, onBack = null, o
                 errors.push(`Please fill all fields for Work Experience #${i + 1}.`);
             }
         });
-
-
+        if (learnerProfile.ethnicGroup === 'Others' && !String(learnerProfile.ethnicGroupOther || '').trim()) {
+            errors.push('Please specify the ethnic group.');
+        }
+        if (learnerProfile.languageSpoken === 'Others' && !String(learnerProfile.languageSpokenOther || '').trim()) {
+            errors.push('Please specify the language spoken.');
+        }
+        if (learnerProfile.disability === 'Others' && !String(learnerProfile.disabilityOther || '').trim()) {
+            errors.push('Please specify the disability.');
+        }
+        if (learnerProfile.disability && learnerProfile.disability !== 'None' && !String(learnerProfile.causeOfDisability || '').trim()) {
+            errors.push('Cause of Disability is required when a disability is selected.');
+        }
+        if (learnerProfile.healthCondition === 'Others' && !String(learnerProfile.healthConditionOther || '').trim()) {
+            errors.push('Please specify the existing health condition.');
+        }
+        if (learnerProfile.otherNeeds === 'Others' && !String(learnerProfile.otherNeedsOther || '').trim()) {
+            errors.push('Please specify the other learner need.');
+        }
         if (errors.length > 0) {
             alert("Please fix the following issues before saving:\n\n• " + errors.join('\n• '));
             return;
@@ -2909,6 +3036,15 @@ export const TraineeProfileContent = ({ viewedProfileId = null, onBack = null, o
 
         setSaving(true);
         try {
+            const learnerProfilePayload = {
+                ...learnerProfile,
+                ethnicGroupOther: learnerProfile.ethnicGroup === 'Others' ? learnerProfile.ethnicGroupOther : '',
+                languageSpokenOther: learnerProfile.languageSpoken === 'Others' ? learnerProfile.languageSpokenOther : '',
+                disabilityOther: learnerProfile.disability === 'Others' ? learnerProfile.disabilityOther : '',
+                causeOfDisability: learnerProfile.disability && learnerProfile.disability !== 'None' ? learnerProfile.causeOfDisability : '',
+                healthConditionOther: learnerProfile.healthCondition === 'Others' ? learnerProfile.healthConditionOther : '',
+                otherNeedsOther: learnerProfile.otherNeeds === 'Others' ? learnerProfile.otherNeedsOther : '',
+            };
             await updateTrainee(trainee.id, {
                 ...form,
                 trainingStatus: (trainings && trainings.length > 0) ? trainings[0].status : (trainee?.trainingStatus || 'Student'),
@@ -2919,6 +3055,7 @@ export const TraineeProfileContent = ({ viewedProfileId = null, onBack = null, o
                 workExperience,
                 trainings,
                 interests: interestsList,
+                ...learnerProfilePayload,
             });
 
             setEditing(false);
@@ -3635,139 +3772,349 @@ export const TraineeProfileContent = ({ viewedProfileId = null, onBack = null, o
 
                     {/* Training Tab */}
                     {activeTab === 'Training' && (
-                        <div className="ln-card">
-                            <div className="ln-section-header">
-                                <h3>TESDA Trainings and Certifications</h3>
-                                {editing && <button type="button" className="ln-btn-sm ln-btn-primary" onClick={addTrainingObj}><Plus size={12} /> Add Program</button>}
-                            </div>
-                            <div style={{ padding: '0 20px 20px' }}>
-                                {/* Consolidated Programs List */}
-                                {trainings.map((t, i) => (
-                                    <div key={i} style={{ padding: '12px 16px', background: '#f8fafc', borderRadius: 10, border: '1px solid #e2e8f0', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12, position: 'relative' }}>
-                                        <div style={{ flex: 1, width: '100%' }}>
-                                            {editing ? (
-                                                <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-                                                    <div style={{ display: 'grid', gridTemplateColumns: 'minmax(160px, 2fr) 100px 130px 90px', gap: 12 }}>
-                                                        <div>
-                                                            <label style={{ fontSize: 11, fontWeight: 700, color: '#64748b', display: 'block', marginBottom: 4 }}>Program Taken</label>
-                                                            <select className="form-select" value={(programs || []).find(p => p.name === t.program)?.id || ''} onChange={e => {
-                                                                const p = (programs || []).find(p => String(p.id) === e.target.value);
-                                                                updateTraining(i, 'program', p?.name || '');
-                                                                if (p?.nc_level) updateTraining(i, 'ncLevel', p.nc_level);
-                                                            }}>
-                                                                <option value="">Select Program</option>
-                                                                {(programs || []).map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
-                                                            </select>
-                                                        </div>
-                                                        <div>
-                                                            <label style={{ fontSize: 11, fontWeight: 700, color: '#64748b', display: 'block', marginBottom: 4 }}>NC Level</label>
-                                                            <select className="form-select" value={t.ncLevel || ''} onChange={e => updateTraining(i, 'ncLevel', e.target.value)}>
-                                                                <option value="">N/A</option>
-                                                                <option value="NC I">NC I</option>
-                                                                <option value="NC II">NC II</option>
-                                                                <option value="NC III">NC III</option>
-                                                                <option value="NC IV">NC IV</option>
-                                                            </select>
-                                                        </div>
-                                                        <div>
-                                                            <label style={{ fontSize: 11, fontWeight: 700, color: '#64748b', display: 'block', marginBottom: 4 }}>Status</label>
-                                                            <select className="form-select" value={t.status || 'Student'} onChange={e => updateTraining(i, 'status', e.target.value)}>
-                                                                <option value="Student">In Training</option>
-                                                                <option value="Graduated">Completed</option>
-                                                            </select>
-                                                        </div>
-                                                        <div>
-                                                            <label style={{ fontSize: 11, fontWeight: 700, color: '#64748b', display: 'block', marginBottom: 4 }}>Year</label>
-                                                            <input type="number" min="1950" max="2099" className="form-input" placeholder="YYYY" maxLength={4} onInput={e => { if (e.target.value.length > 4) e.target.value = e.target.value.slice(0, 4); }} value={t.year || ''} onChange={e => updateTraining(i, 'year', e.target.value)} />
-                                                        </div>
-                                                    </div>
-
-                                                    {/* NEW: Combined 13-Digit Code & Upload Section for Graduates */}
-                                                    {t.status === 'Graduated' && (
-                                                        <div style={{ padding: '14px', background: '#fff', borderRadius: 8, border: '1px dashed #cbd5e1', display: 'flex', flexDirection: 'column', gap: 12, marginTop: 4 }}>
-
-                                                            {/* 13-Digit Code Input */}
+                        <React.Fragment>
+                            <div className="ln-card">
+                                <div className="ln-section-header">
+                                    <h3>TESDA Trainings and Certifications</h3>
+                                    {editing && <button type="button" className="ln-btn-sm ln-btn-primary" onClick={addTrainingObj}><Plus size={12} /> Add Program</button>}
+                                </div>
+                                <div style={{ padding: '0 20px 20px' }}>
+                                    {/* Consolidated Programs List */}
+                                    {trainings.map((t, i) => (
+                                        <div key={i} style={{ padding: '12px 16px', background: '#f8fafc', borderRadius: 10, border: '1px solid #e2e8f0', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12, position: 'relative' }}>
+                                            <div style={{ flex: 1, width: '100%' }}>
+                                                {editing ? (
+                                                    <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                                                        <div style={{ display: 'grid', gridTemplateColumns: 'minmax(160px, 2fr) 100px 130px 90px', gap: 12 }}>
                                                             <div>
-                                                                <label style={{ fontSize: 11, fontWeight: 700, color: '#64748b', display: 'block', marginBottom: 4 }}>13-Digit Certificate Number (Optional)</label>
-                                                                <input
-                                                                    type="text"
-                                                                    maxLength="13"
-                                                                    className="form-input"
-                                                                    placeholder="e.g. 1234567890123"
-                                                                    value={t.certNumber || ''}
-                                                                    onChange={e => updateTraining(i, 'certNumber', e.target.value.replace(/\D/g, ''))}
-                                                                    style={{ fontFamily: 'monospace', letterSpacing: '1px' }}
-                                                                />
+                                                                <label style={{ fontSize: 11, fontWeight: 700, color: '#64748b', display: 'block', marginBottom: 4 }}>Program Taken</label>
+                                                                <select className="form-select" value={(programs || []).find(p => p.name === t.program)?.id || ''} onChange={e => {
+                                                                    const p = (programs || []).find(p => String(p.id) === e.target.value);
+                                                                    updateTraining(i, 'program', p?.name || '');
+                                                                    if (p?.nc_level) updateTraining(i, 'ncLevel', p.nc_level);
+                                                                }}>
+                                                                    <option value="">Select Program</option>
+                                                                    {(programs || []).map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                                                                </select>
                                                             </div>
+                                                            <div>
+                                                                <label style={{ fontSize: 11, fontWeight: 700, color: '#64748b', display: 'block', marginBottom: 4 }}>NC Level</label>
+                                                                <select className="form-select" value={t.ncLevel || ''} onChange={e => updateTraining(i, 'ncLevel', e.target.value)}>
+                                                                    <option value="">N/A</option>
+                                                                    <option value="NC I">NC I</option>
+                                                                    <option value="NC II">NC II</option>
+                                                                    <option value="NC III">NC III</option>
+                                                                    <option value="NC IV">NC IV</option>
+                                                                </select>
+                                                            </div>
+                                                            <div>
+                                                                <label style={{ fontSize: 11, fontWeight: 700, color: '#64748b', display: 'block', marginBottom: 4 }}>Status</label>
+                                                                <select className="form-select" value={t.status || 'Student'} onChange={e => updateTraining(i, 'status', e.target.value)}>
+                                                                    <option value="Student">In Training</option>
+                                                                    <option value="Graduated">Completed</option>
+                                                                </select>
+                                                            </div>
+                                                            <div>
+                                                                <label style={{ fontSize: 11, fontWeight: 700, color: '#64748b', display: 'block', marginBottom: 4 }}>Year</label>
+                                                                <input type="number" min="1950" max="2099" className="form-input" placeholder="YYYY" maxLength={4} onInput={e => { if (e.target.value.length > 4) e.target.value = e.target.value.slice(0, 4); }} value={t.year || ''} onChange={e => updateTraining(i, 'year', e.target.value)} />
+                                                            </div>
+                                                        </div>
 
-                                                            {/* Proof Upload Area */}
-                                                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingTop: 10, borderTop: '1px solid #f1f5f9' }}>
-                                                                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                                                                    <Award size={16} color="#0a66c2" />
-                                                                    <span style={{ fontSize: 12, fontWeight: 600, color: '#475569' }}>Certificate Proof (QR/Image)</span>
+                                                        {/* NEW: Combined 13-Digit Code & Upload Section for Graduates */}
+                                                        {t.status === 'Graduated' && (
+                                                            <div style={{ padding: '14px', background: '#fff', borderRadius: 8, border: '1px dashed #cbd5e1', display: 'flex', flexDirection: 'column', gap: 12, marginTop: 4 }}>
+
+                                                                {/* 13-Digit Code Input */}
+                                                                <div>
+                                                                    <label style={{ fontSize: 11, fontWeight: 700, color: '#64748b', display: 'block', marginBottom: 4 }}>13-Digit Certificate Number (Optional)</label>
+                                                                    <input
+                                                                        type="text"
+                                                                        maxLength="13"
+                                                                        className="form-input"
+                                                                        placeholder="e.g. 1234567890123"
+                                                                        value={t.certNumber || ''}
+                                                                        onChange={e => updateTraining(i, 'certNumber', e.target.value.replace(/\D/g, ''))}
+                                                                        style={{ fontFamily: 'monospace', letterSpacing: '1px' }}
+                                                                    />
                                                                 </div>
-                                                                {t.certUrl ? (
-                                                                    <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                                                                        <a href={t.certUrl} target="_blank" rel="noreferrer" style={{ fontSize: 12, color: '#0a66c2', fontWeight: 700, textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 5 }}>
-                                                                            <FileText size={14} /> View Document
-                                                                        </a>
-                                                                        <button type="button" className="ln-link-btn" style={{ color: '#cc1016', padding: 0 }} onClick={() => updateTraining(i, 'certUrl', '')}><Trash2 size={13} /></button>
+
+                                                                {/* Proof Upload Area */}
+                                                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingTop: 10, borderTop: '1px solid #f1f5f9' }}>
+                                                                    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                                                                        <Award size={16} color="#0a66c2" />
+                                                                        <span style={{ fontSize: 12, fontWeight: 600, color: '#475569' }}>Certificate Proof (QR/Image)</span>
                                                                     </div>
-                                                                ) : (
-                                                                    <button type="button" className="ln-btn-sm ln-btn-outline" disabled={uploadingCert && uploadingIdx === i} onClick={() => { setUploadingIdx(i); certInputRef.current?.click(); }} style={{ padding: '4px 12px', fontSize: 11 }}>
-                                                                        {uploadingCert && uploadingIdx === i ? ' Uploading...' : ' Upload Proof'}
+                                                                    {t.certUrl ? (
+                                                                        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                                                                            <a href={t.certUrl} target="_blank" rel="noreferrer" style={{ fontSize: 12, color: '#0a66c2', fontWeight: 700, textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 5 }}>
+                                                                                <FileText size={14} /> View Document
+                                                                            </a>
+                                                                            <button type="button" className="ln-link-btn" style={{ color: '#cc1016', padding: 0 }} onClick={() => updateTraining(i, 'certUrl', '')}><Trash2 size={13} /></button>
+                                                                        </div>
+                                                                    ) : (
+                                                                        <button type="button" className="ln-btn-sm ln-btn-outline" disabled={uploadingCert && uploadingIdx === i} onClick={() => { setUploadingIdx(i); certInputRef.current?.click(); }} style={{ padding: '4px 12px', fontSize: 11 }}>
+                                                                            {uploadingCert && uploadingIdx === i ? ' Uploading...' : ' Upload Proof'}
+                                                                        </button>
+                                                                    )}
+                                                                </div>
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                ) : (
+                                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 16 }}>
+                                                        <div style={{ flex: 1, minWidth: 0, paddingBottom: (t.status === 'Graduated' && (t.certUrl || t.certNumber)) ? '36px' : '0' }}>
+                                                            <div style={{ fontWeight: 700, color: '#1e293b', fontSize: 16, marginBottom: 4 }}>{t.program}</div>
+                                                            <div style={{ fontSize: 13, color: '#64748b', display: 'flex', alignItems: 'center', gap: 6 }}>
+                                                                <Award size={14} /> {t.ncLevel}
+                                                            </div>
+                                                        </div>
+                                                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 8 }}>
+                                                            <span className={`ln-badge ${t.status === 'Graduated' ? 'ln-badge-green' : 'ln-badge-blue'}`} style={{ fontSize: 11 }}>
+                                                                {t.status === 'Graduated' ? 'Completed' : 'In Training'}
+                                                            </span>
+                                                            <div style={{ fontWeight: 600, fontSize: 13, color: '#475569' }}>{t.year || '—'}</div>
+                                                        </div>
+
+                                                        {/* Read-Only View for 13-Digit Code & Document Link */}
+                                                        {t.status === 'Graduated' && (t.certUrl || t.certNumber) && (
+                                                            <div style={{ position: 'absolute', bottom: 12, left: 16, display: 'flex', gap: 10, alignItems: 'center' }}>
+                                                                {t.certNumber && (
+                                                                    <div style={{ fontSize: 12, color: '#16a34a', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 4, background: '#f0fdf4', padding: '4px 10px', borderRadius: 6, border: '1px solid #bbf7d0', fontFamily: 'monospace' }}>
+                                                                        <ShieldCheck size={14} />
+                                                                        {t.certNumber.replace(/(\d{3})(\d{4})(\d{6})/, '$1-$2-$3')}
+                                                                    </div>
+                                                                )}
+                                                                {t.certUrl && (
+                                                                    <button type="button" onClick={() => setPreviewImage(t.certUrl)} style={{ fontSize: 12, color: '#0a66c2', fontWeight: 600, border: '1px solid #bae6fd', background: '#f0f9ff', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4, padding: '4px 10px', borderRadius: 6 }}>
+                                                                        <FileText size={14} /> View Certificate Proof (QR)
                                                                     </button>
                                                                 )}
                                                             </div>
-                                                        </div>
-                                                    )}
-                                                </div>
-                                            ) : (
-                                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 16 }}>
-                                                    <div style={{ flex: 1, minWidth: 0, paddingBottom: (t.status === 'Graduated' && (t.certUrl || t.certNumber)) ? '36px' : '0' }}>
-                                                        <div style={{ fontWeight: 700, color: '#1e293b', fontSize: 16, marginBottom: 4 }}>{t.program}</div>
-                                                        <div style={{ fontSize: 13, color: '#64748b', display: 'flex', alignItems: 'center', gap: 6 }}>
-                                                            <Award size={14} /> {t.ncLevel}
-                                                        </div>
+                                                        )}
                                                     </div>
-                                                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 8 }}>
-                                                        <span className={`ln-badge ${t.status === 'Graduated' ? 'ln-badge-green' : 'ln-badge-blue'}`} style={{ fontSize: 11 }}>
-                                                            {t.status === 'Graduated' ? 'Completed' : 'In Training'}
-                                                        </span>
-                                                        <div style={{ fontWeight: 600, fontSize: 13, color: '#475569' }}>{t.year || '—'}</div>
-                                                    </div>
-
-                                                    {/* Read-Only View for 13-Digit Code & Document Link */}
-                                                    {t.status === 'Graduated' && (t.certUrl || t.certNumber) && (
-                                                        <div style={{ position: 'absolute', bottom: 12, left: 16, display: 'flex', gap: 10, alignItems: 'center' }}>
-                                                            {t.certNumber && (
-                                                                <div style={{ fontSize: 12, color: '#16a34a', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 4, background: '#f0fdf4', padding: '4px 10px', borderRadius: 6, border: '1px solid #bbf7d0', fontFamily: 'monospace' }}>
-                                                                    <ShieldCheck size={14} />
-                                                                    {t.certNumber.replace(/(\d{3})(\d{4})(\d{6})/, '$1-$2-$3')}
-                                                                </div>
-                                                            )}
-                                                            {t.certUrl && (
-                                                                <button type="button" onClick={() => setPreviewImage(t.certUrl)} style={{ fontSize: 12, color: '#0a66c2', fontWeight: 600, border: '1px solid #bae6fd', background: '#f0f9ff', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4, padding: '4px 10px', borderRadius: 6 }}>
-                                                                    <FileText size={14} /> View Certificate Proof (QR)
-                                                                </button>
-                                                            )}
-                                                        </div>
-                                                    )}
-                                                </div>
-                                            )}
+                                                )}
+                                            </div>
+                                            {editing && <button type="button" onClick={() => removeTrainingIdx(i)} style={{ marginLeft: 16, background: 'none', border: 'none', color: '#cc1016', cursor: 'pointer', marginTop: 4 }}><Trash2 size={16} /></button>}
                                         </div>
-                                        {editing && <button type="button" onClick={() => removeTrainingIdx(i)} style={{ marginLeft: 16, background: 'none', border: 'none', color: '#cc1016', cursor: 'pointer', marginTop: 4 }}><Trash2 size={16} /></button>}
-                                    </div>
-                                ))}
-                                {!editing && trainings.length === 0 && (
-                                    <EmptyState
-                                        illustration={TrophyIllustration}
-                                        title="No achievements yet"
-                                        description="Start adding your TESDA trainings, certifications, and awards to showcase your expertise."
-                                    />
-                                )}
+                                    ))}
+                                    {!editing && trainings.length === 0 && (
+                                        <EmptyState
+                                            illustration={TrophyIllustration}
+                                            title="No achievements yet"
+                                            description="Start adding your TESDA trainings, certifications, and awards to showcase your expertise."
+                                        />
+                                    )}
+                                </div>
                             </div>
-                        </div>
+                            <div className="ln-card" style={{ marginTop: 16 }}>
+                                <div className="ln-section-header">
+                                    <h3>Learner Profile / Assessment Details</h3>
+                                </div>
+                                <div style={{ padding: '0 20px 20px', display: 'flex', flexDirection: 'column', gap: 16 }}>
+                                    <div style={{ padding: 16, borderRadius: 6, border: '1px solid #e2e8f0', background: '#f8fafc', boxShadow: '0 1px 2px rgba(15, 23, 42, 0.05)' }}>
+                                        <div style={{ fontSize: 15, fontWeight: 800, color: '#1e3a5f', marginBottom: 12 }}>Language, Literacy, and Numeracy (LL&amp;N)</div>
+                                        {editing ? (
+                                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 12 }}>
+                                                {LLN_FIELDS.map(field => (
+                                                    <div key={field.key}>
+                                                        <label style={{ fontSize: 12, fontWeight: 700, color: '#334155', display: 'block', marginBottom: 6 }}>{field.label}</label>
+                                                        <select
+                                                            className="form-select"
+                                                            style={learnerFieldStyle}
+                                                            value={learnerProfile[field.key] || ''}
+                                                            onChange={e => updateLearnerProfile(field.key, e.target.value)}
+                                                        >
+                                                            <option value="">Select rating</option>
+                                                            {LLN_SCORE_OPTIONS.map(option => <option key={option} value={option}>{option}</option>)}
+                                                        </select>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        ) : (
+                                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 12 }}>
+                                                {LLN_FIELDS.map(field => (
+                                                    <LearnerSummaryCard key={field.key} label={field.label} value={learnerProfile[field.key]} />
+                                                ))}
+                                            </div>
+                                        )}
+                                    </div>
+
+                                    <div style={{ padding: 16, borderRadius: 6, border: '1px solid #e2e8f0', background: '#f8fafc', boxShadow: '0 1px 2px rgba(15, 23, 42, 0.05)' }}>
+                                        <div style={{ fontSize: 15, fontWeight: 800, color: '#1e3a5f', marginBottom: 12 }}>Cultural and Language Background</div>
+                                        {editing ? (
+                                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 12 }}>
+                                                <div>
+                                                    <label style={{ fontSize: 12, fontWeight: 700, color: '#334155', display: 'block', marginBottom: 6 }}>Ethnic Group</label>
+                                                    <select className="form-select" style={learnerFieldStyle} value={learnerProfile.ethnicGroup || ''} onChange={e => updateLearnerProfile('ethnicGroup', e.target.value)}>
+                                                        <option value="">Select ethnic group</option>
+                                                        {ETHNIC_GROUP_OPTIONS.map(option => <option key={option} value={option}>{option}</option>)}
+                                                    </select>
+                                                    {learnerProfile.ethnicGroup === 'Others' && (
+                                                        <input
+                                                            type="text"
+                                                            className="form-input"
+                                                            style={{ ...learnerFieldStyle, marginTop: 8 }}
+                                                            placeholder="Specify ethnic group"
+                                                            value={learnerProfile.ethnicGroupOther || ''}
+                                                            onChange={e => updateLearnerProfile('ethnicGroupOther', e.target.value)}
+                                                        />
+                                                    )}
+                                                </div>
+                                                <div>
+                                                    <label style={{ fontSize: 12, fontWeight: 700, color: '#334155', display: 'block', marginBottom: 6 }}>Language Spoken</label>
+                                                    <select className="form-select" style={learnerFieldStyle} value={learnerProfile.languageSpoken || ''} onChange={e => updateLearnerProfile('languageSpoken', e.target.value)}>
+                                                        <option value="">Select language</option>
+                                                        {LANGUAGE_SPOKEN_OPTIONS.map(option => <option key={option} value={option}>{option}</option>)}
+                                                    </select>
+                                                    {learnerProfile.languageSpoken === 'Others' && (
+                                                        <input
+                                                            type="text"
+                                                            className="form-input"
+                                                            style={{ ...learnerFieldStyle, marginTop: 8 }}
+                                                            placeholder="Specify language"
+                                                            value={learnerProfile.languageSpokenOther || ''}
+                                                            onChange={e => updateLearnerProfile('languageSpokenOther', e.target.value)}
+                                                        />
+                                                    )}
+                                                </div>
+                                                <div>
+                                                    <label style={{ fontSize: 12, fontWeight: 700, color: '#334155', display: 'block', marginBottom: 6 }}>Tribal Group</label>
+                                                    <input
+                                                        type="text"
+                                                        className="form-input"
+                                                        style={learnerFieldStyle}
+                                                        placeholder="If any"
+                                                        value={learnerProfile.tribalGroup || ''}
+                                                        onChange={e => updateLearnerProfile('tribalGroup', e.target.value)}
+                                                    />
+                                                </div>
+                                            </div>
+                                        ) : (
+                                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 12 }}>
+                                                <LearnerSummaryCard label="Ethnic Group" value={formatOtherAwareValue(learnerProfile.ethnicGroup, learnerProfile.ethnicGroupOther)} />
+                                                <LearnerSummaryCard label="Language Spoken" value={formatOtherAwareValue(learnerProfile.languageSpoken, learnerProfile.languageSpokenOther)} />
+                                                <LearnerSummaryCard label="Tribal Group" value={learnerProfile.tribalGroup} />
+                                            </div>
+                                        )}
+                                    </div>
+
+                                    <div style={{ padding: 16, borderRadius: 6, border: '1px solid #e2e8f0', background: '#f8fafc', boxShadow: '0 1px 2px rgba(15, 23, 42, 0.05)' }}>
+                                        <div style={{ fontSize: 15, fontWeight: 800, color: '#1e3a5f', marginBottom: 12 }}>Education &amp; General Knowledge</div>
+                                        {editing ? (
+                                            <div>
+                                                <label style={{ fontSize: 12, fontWeight: 700, color: '#334155', display: 'block', marginBottom: 6 }}>Highest Educational Attainment</label>
+                                                <select className="form-select" style={learnerFieldStyle} value={learnerProfile.highestEducation || ''} onChange={e => updateLearnerProfile('highestEducation', e.target.value)}>
+                                                    <option value="">Select attainment</option>
+                                                    {HIGHEST_EDUCATION_OPTIONS.map(option => <option key={option} value={option}>{option}</option>)}
+                                                </select>
+                                            </div>
+                                        ) : (
+                                            <LearnerSummaryCard label="Highest Educational Attainment" value={learnerProfile.highestEducation} />
+                                        )}
+                                    </div>
+
+                                    <div style={{ padding: 16, borderRadius: 6, border: '1px solid #e2e8f0', background: '#f8fafc', boxShadow: '0 1px 2px rgba(15, 23, 42, 0.05)' }}>
+                                        <div style={{ fontSize: 15, fontWeight: 800, color: '#1e3a5f', marginBottom: 12 }}>Demographics &amp; Health</div>
+                                        {editing ? (
+                                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 12 }}>
+                                                <LearnerSummaryCard label="Sex" value={form.gender || trainee?.gender || ''} />
+                                                <div>
+                                                    <label style={{ fontSize: 12, fontWeight: 700, color: '#334155', display: 'block', marginBottom: 6 }}>Disabilities</label>
+                                                    <select className="form-select" style={learnerFieldStyle} value={learnerProfile.disability || ''} onChange={e => updateLearnerProfile('disability', e.target.value)}>
+                                                        <option value="">Select disability</option>
+                                                        {DISABILITY_OPTIONS.map(option => <option key={option} value={option}>{option}</option>)}
+                                                    </select>
+                                                    {learnerProfile.disability === 'Others' && (
+                                                        <input
+                                                            type="text"
+                                                            className="form-input"
+                                                            style={{ ...learnerFieldStyle, marginTop: 8 }}
+                                                            placeholder="Specify disability"
+                                                            value={learnerProfile.disabilityOther || ''}
+                                                            onChange={e => updateLearnerProfile('disabilityOther', e.target.value)}
+                                                        />
+                                                    )}
+                                                </div>
+                                                <div>
+                                                    <label style={{ fontSize: 12, fontWeight: 700, color: '#334155', display: 'block', marginBottom: 6 }}>Cause of Disability</label>
+                                                    <select
+                                                        className="form-select"
+                                                        style={{ ...learnerFieldStyle, background: learnerProfile.disability && learnerProfile.disability !== 'None' ? '#ffffff' : '#f8fafc' }}
+                                                        value={learnerProfile.causeOfDisability || ''}
+                                                        onChange={e => updateLearnerProfile('causeOfDisability', e.target.value)}
+                                                        disabled={!learnerProfile.disability || learnerProfile.disability === 'None'}
+                                                    >
+                                                        <option value="">Select cause</option>
+                                                        {CAUSE_OF_DISABILITY_OPTIONS.map(option => <option key={option} value={option}>{option}</option>)}
+                                                    </select>
+                                                </div>
+                                                <div>
+                                                    <label style={{ fontSize: 12, fontWeight: 700, color: '#334155', display: 'block', marginBottom: 6 }}>Existing Health Conditions</label>
+                                                    <select className="form-select" style={learnerFieldStyle} value={learnerProfile.healthCondition || ''} onChange={e => updateLearnerProfile('healthCondition', e.target.value)}>
+                                                        <option value="">Select condition</option>
+                                                        {HEALTH_CONDITION_OPTIONS.map(option => <option key={option} value={option}>{option}</option>)}
+                                                    </select>
+                                                    {learnerProfile.healthCondition === 'Others' && (
+                                                        <input
+                                                            type="text"
+                                                            className="form-input"
+                                                            style={{ ...learnerFieldStyle, marginTop: 8 }}
+                                                            placeholder="Specify health condition"
+                                                            value={learnerProfile.healthConditionOther || ''}
+                                                            onChange={e => updateLearnerProfile('healthConditionOther', e.target.value)}
+                                                        />
+                                                    )}
+                                                </div>
+                                            </div>
+                                        ) : (
+                                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 12 }}>
+                                                <LearnerSummaryCard label="Sex" value={trainee?.gender} />
+                                                <LearnerSummaryCard label="Disabilities" value={formatOtherAwareValue(learnerProfile.disability, learnerProfile.disabilityOther)} />
+                                                <LearnerSummaryCard label="Cause of Disability" value={learnerProfile.disability && learnerProfile.disability !== 'None' ? learnerProfile.causeOfDisability : ''} />
+                                                <LearnerSummaryCard label="Existing Health Conditions" value={formatOtherAwareValue(learnerProfile.healthCondition, learnerProfile.healthConditionOther)} />
+                                            </div>
+                                        )}
+                                    </div>
+
+                                    <div style={{ padding: 16, borderRadius: 6, border: '1px solid #e2e8f0', background: '#f8fafc', boxShadow: '0 1px 2px rgba(15, 23, 42, 0.05)' }}>
+                                        <div style={{ fontSize: 15, fontWeight: 800, color: '#1e3a5f', marginBottom: 12 }}>Learning &amp; Needs</div>
+                                        {editing ? (
+                                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 12 }}>
+                                                <div>
+                                                    <label style={{ fontSize: 12, fontWeight: 700, color: '#334155', display: 'block', marginBottom: 6 }}>Learning Style</label>
+                                                    <select className="form-select" style={learnerFieldStyle} value={learnerProfile.learningStyle || ''} onChange={e => updateLearnerProfile('learningStyle', e.target.value)}>
+                                                        <option value="">Select learning style</option>
+                                                        {LEARNING_STYLE_OPTIONS.map(option => <option key={option} value={option}>{option}</option>)}
+                                                    </select>
+                                                </div>
+                                                <div>
+                                                    <label style={{ fontSize: 12, fontWeight: 700, color: '#334155', display: 'block', marginBottom: 6 }}>Other Needs</label>
+                                                    <select className="form-select" style={learnerFieldStyle} value={learnerProfile.otherNeeds || ''} onChange={e => updateLearnerProfile('otherNeeds', e.target.value)}>
+                                                        <option value="">Select learner need</option>
+                                                        {OTHER_NEEDS_OPTIONS.map(option => <option key={option} value={option}>{option}</option>)}
+                                                    </select>
+                                                    {learnerProfile.otherNeeds === 'Others' && (
+                                                        <input
+                                                            type="text"
+                                                            className="form-input"
+                                                            style={{ ...learnerFieldStyle, marginTop: 8 }}
+                                                            placeholder="Specify learner need"
+                                                            value={learnerProfile.otherNeedsOther || ''}
+                                                            onChange={e => updateLearnerProfile('otherNeedsOther', e.target.value)}
+                                                        />
+                                                    )}
+                                                </div>
+                                            </div>
+                                        ) : (
+                                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 12 }}>
+                                                <LearnerSummaryCard label="Learning Style" value={learnerProfile.learningStyle} />
+                                                <LearnerSummaryCard label="Other Needs" value={formatOtherAwareValue(learnerProfile.otherNeeds, learnerProfile.otherNeedsOther)} />
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+                            </div>
+                        </React.Fragment>
                     )}
 
                     {/* Match Insights Tab */}
@@ -4510,7 +4857,7 @@ const Opportunities = () => {
                                         <span style={{ fontWeight: 400, color: 'rgba(0,0,0,0.45)', marginLeft: 4 }}>posted a new {job.opportunityType}</span>
                                     </div>
                                     <div className="ln-feed-meta">
-                                        {[ 
+                                        {[
                                             (job.industry && String(job.industry).trim().toLowerCase() !== 'general') ? job.industry : '',
                                             job.location,
                                             timeAgo(job.createdAt),
