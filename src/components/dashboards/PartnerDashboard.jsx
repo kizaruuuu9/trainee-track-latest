@@ -204,7 +204,7 @@ const normalizePartnerProfile = (profile) => {
   if (!profile) return null;
 
   const address = profile.address
-    || [profile.detailed_address, profile.city, profile.province, profile.region].filter(Boolean).join(', ')
+    || [profile.detailed_address, profile.barangay, profile.city, profile.province, profile.region].filter(Boolean).join(', ')
     || '';
 
   const rawVerification = String(profile.verificationStatus || profile.verification_status || '').toLowerCase();
@@ -4270,6 +4270,11 @@ export const CompanyProfile = ({ viewedPartnerId = null, onBack = null }) => {
     contactPerson: '',
     email: '',
     address: '',
+    detailed_address: '',
+    region: '',
+    province: '',
+    city: '',
+    barangay: '',
     website: '',
     industry: '',
     achievements: [],

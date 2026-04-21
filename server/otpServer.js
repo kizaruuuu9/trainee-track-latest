@@ -1333,7 +1333,10 @@ app.post('/api/register', rateLimit, async (req, res) => {
 
 // ─── REGISTER PARTNER ENDPOINT ──────────────────────────────────────
 app.post('/api/register-partner', rateLimit, async (req, res) => {
-    const { email, password, companyName, contactPerson, address, industry } = req.body;
+    const { 
+        email, password, companyName, contactPerson, industry,
+        region, province, city, barangay, detailedAddress 
+    } = req.body;
 
     if (!email || !password || !companyName || !contactPerson || !industry) {
         return res.status(400).json({ error: 'Missing required fields.' });
@@ -1377,7 +1380,11 @@ app.post('/api/register-partner', rateLimit, async (req, res) => {
                 company_name: companyName,
                 contact_person: contactPerson,
                 industry: industry,
-                city: address || null,
+                region: region || null,
+                province: province || null,
+                city: city || null,
+                barangay: barangay || null,
+                detailed_address: detailedAddress || null,
                 verification_status: 'pending',
                 contact_email: email,
             });

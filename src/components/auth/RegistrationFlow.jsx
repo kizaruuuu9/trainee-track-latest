@@ -3,6 +3,7 @@ import { ArrowLeft, ArrowRight, CheckCircle, Loader, Users, Building2, ShieldChe
 import BrandLogo from '../common/BrandLogo';
 import Step1IDUpload from './Step1IDUpload';
 import Step2PersonalInfo from './Step2PersonalInfo';
+import PhilAddressSelector from '../common/PhilAddressSelector';
 import { supabase } from '../../lib/supabase';
 import { useApp } from '../../context/AppContext';
 
@@ -112,7 +113,11 @@ export default function RegistrationFlow({ onBackToLogin }) {
     contactPerson: '',
     industry: '',
     email: '',
-    address: '',
+    region: '', regionCode: '',
+    province: '', provinceCode: '',
+    city: '', cityCode: '',
+    barangay: '', barangayCode: '',
+    detailedAddress: '',
     password: '',
     confirmPassword: '',
   });
@@ -246,8 +251,11 @@ export default function RegistrationFlow({ onBackToLogin }) {
     }
   };
 
-  const isPartnerValid = partnerData.companyName && partnerData.contactPerson &&
-    partnerData.industry && partnerData.email && partnerData.address &&
+  const isPartnerValid =
+    partnerData.companyName && partnerData.contactPerson &&
+    partnerData.industry && partnerData.email &&
+    partnerData.region && partnerData.city &&
+    partnerData.barangay && partnerData.detailedAddress &&
     partnerData.password && partnerData.password === partnerData.confirmPassword &&
     partnerData.password.length >= 8 && otpVerified;
 
@@ -361,12 +369,12 @@ export default function RegistrationFlow({ onBackToLogin }) {
               <Briefcase size={16} style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: '#94a3b8' }} />
             </div>
           </div>
-          <div className="form-group reg-full-width">
-            <label className="form-label">Company Address</label>
-            <div style={{ position: 'relative' }}>
-              <input className="form-input" style={{ paddingLeft: 38 }} placeholder="Full business address" value={partnerData.address} onChange={e => setPartnerData({ ...partnerData, address: e.target.value })} />
-              <MapPin size={16} style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: '#94a3b8' }} />
-            </div>
+          <div className="reg-full-width">
+            <PhilAddressSelector 
+              values={partnerData} 
+              onChange={(updates) => setPartnerData(prev => ({ ...prev, ...updates }))} 
+              required 
+            />
           </div>
 
           <div className="reg-full-width" style={{ fontWeight: 700, fontSize: 14, color: selectedRole === 'partner' ? '#064e3b' : '#1e3a5f', borderBottom: '1px solid #e2e8f0', paddingBottom: 8, marginTop: 12, marginBottom: 16 }}>Account Security</div>

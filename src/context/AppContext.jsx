@@ -2578,9 +2578,12 @@ export const AppProvider = ({ children }) => {
         if (updates.companyName !== undefined) dbUpdates.company_name = updates.companyName;
         if (updates.contactPerson !== undefined) dbUpdates.contact_person = updates.contactPerson;
         if (updates.industry !== undefined) dbUpdates.business_type = updates.industry;
-        if (updates.address !== undefined) {
-          dbUpdates.detailed_address = updates.address;
-        }
+        if (updates.address !== undefined) dbUpdates.detailed_address = updates.address;
+        if (updates.detailed_address !== undefined) dbUpdates.detailed_address = updates.detailed_address;
+        if (updates.region !== undefined) dbUpdates.region = updates.region;
+        if (updates.province !== undefined) dbUpdates.province = updates.province;
+        if (updates.city !== undefined) dbUpdates.city = updates.city;
+        if (updates.barangay !== undefined) dbUpdates.barangay = updates.barangay;
         if (updates.companySize !== undefined) dbUpdates.company_size = updates.companySize;
         if (updates.website !== undefined) dbUpdates.website = updates.website;
         if (updates.email !== undefined) dbUpdates.contact_email = updates.email;
@@ -3273,39 +3276,48 @@ export const AppProvider = ({ children }) => {
 
         if (adminData.partners) {
           const submittedPartnerIds = new Set(adminData.submittedPartnerIds || []);
-          const pMap = adminData.partners.map(p => ({
-            verificationStatus: p.verification_status === 'verified'
-              ? 'Verified'
-              : p.verification_status === 'rejected'
-                ? 'Rejected'
-                : ((p.verification_status === 'pending' && submittedPartnerIds.has(p.id)) || p.verification_status === 'under_review')
-                  ? 'Under Review'
-                  : 'Pending',
-            id: p.id,
-            profileName: p.profile_name || p.company_name || 'Industry Partner',
-            companyName: p.company_name,
-            contactPerson: p.contact_person,
-            industry: p.business_type || 'General',
-            email: p.email || 'None',
-            contactEmail: p.contact_email || '',
-            activityStatus: p.activity_status || 'Offline',
-            lastSeenAt: p.last_seen_at || null,
-            achievements: p.achievements || [],
-            benefits: p.benefits || [],
-            mission: p.mission || '',
-            vision: p.vision || '',
-            culture_tags: Array.isArray(p.culture_tags) ? p.culture_tags : [],
-            perks_tags: Array.isArray(p.perks_tags) ? p.perks_tags : [],
-            poc_name: p.poc_name || '',
-            poc_title: p.poc_title || '',
-            poc_photo_url: p.poc_photo_url || '',
-            office_location_url: p.office_location_url || '',
-            banner_url: p.banner_url || '',
-            company_logo_url: p.company_logo_url || p.photo || '',
-            photo: p.photo || p.company_logo_url || '',
-            accountStatus: p.account_status || 'Active',
-            companyInfoVisibility: resolveVisibilityFields(p.company_info_visibility, DEFAULT_PARTNER_PUBLIC_INFO_FIELDS),
-          }));
+          const pMap = (adminData.partners || []).map(p => {
+            const address = [p.detailed_address, p.barangay, p.city, p.province, p.region].filter(Boolean).join(', ');
+            return {
+              verificationStatus: p.verification_status === 'verified'
+                ? 'Verified'
+                : p.verification_status === 'rejected'
+                  ? 'Rejected'
+                  : ((p.verification_status === 'pending' && submittedPartnerIds.has(p.id)) || p.verification_status === 'under_review')
+                    ? 'Under Review'
+                    : 'Pending',
+              id: p.id,
+              profileName: p.profile_name || p.company_name || 'Industry Partner',
+              companyName: p.company_name,
+              contactPerson: p.contact_person,
+              industry: p.business_type || 'General',
+              email: p.email || 'None',
+              contactEmail: p.contact_email || '',
+              activityStatus: p.activity_status || 'Offline',
+              lastSeenAt: p.last_seen_at || null,
+              address: address || 'Philippines',
+              detailed_address: p.detailed_address,
+              region: p.region,
+              province: p.province,
+              city: p.city,
+              barangay: p.barangay,
+              achievements: p.achievements || [],
+              benefits: p.benefits || [],
+              mission: p.mission || '',
+              vision: p.vision || '',
+              culture_tags: Array.isArray(p.culture_tags) ? p.culture_tags : [],
+              perks_tags: Array.isArray(p.perks_tags) ? p.perks_tags : [],
+              poc_name: p.poc_name || '',
+              poc_title: p.poc_title || '',
+              poc_photo_url: p.poc_photo_url || '',
+              office_location_url: p.office_location_url || '',
+              banner_url: p.banner_url || '',
+              company_logo_url: p.company_logo_url || p.photo || '',
+              photo: p.photo || p.company_logo_url || '',
+              accountStatus: p.account_status || 'Active',
+              companyInfoVisibility: resolveVisibilityFields(p.company_info_visibility, DEFAULT_PARTNER_PUBLIC_INFO_FIELDS),
+            };
+          });
 
           setPartners(pMap);
         }
@@ -3550,6 +3562,11 @@ export const AppProvider = ({ children }) => {
               contactPerson: '',
               email: '',
               address: '',
+              detailed_address: '',
+              region: '',
+              province: '',
+              city: '',
+              barangay: '',
               website: '',
               achievements: [],
               benefits: [],
