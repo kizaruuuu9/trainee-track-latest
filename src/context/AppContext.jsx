@@ -2999,23 +2999,31 @@ export const AppProvider = ({ children }) => {
         if (updates.company_logo_url !== undefined) {
           dbUpdates.company_logo_url = updates.company_logo_url;
         }
+        if (updates.verificationStatus !== undefined) {
+          const statusMap = {
+            'Verified': 'verified',
+            'Rejected': 'rejected',
+            'Under Review': 'pending',
+            'Pending': null
+          };
+          dbUpdates.verification_status = (updates.verificationStatus in statusMap) 
+            ? statusMap[updates.verificationStatus] 
+            : updates.verificationStatus;
+        }
 
         if (Object.keys(dbUpdates).length > 0) {
           const { error } = await supabase
             .from('industry_partners')
             .update(dbUpdates)
             .eq('id', partnerId);
-
           if (error) {
             console.error('Failed to update partner in Supabase:', error);
-            toast.error('Failed to save to database: ' + error.message);
-            return;
+            return { success: false, error: error.message };
           }
         }
       } catch (err) {
         console.error('Supabase update error:', err);
-        toast.error('An error occurred while saving.');
-        return;
+        return { success: false, error: err.message };
       }
     }
 
@@ -3027,6 +3035,7 @@ export const AppProvider = ({ children }) => {
       setCurrentUser(prev => ({ ...prev, ...updates }));
     }
     logActivity('Edit', 'Partners', `Updated company profile`, null, null);
+    return { success: true };
   };
 
   const submitPartnerDocuments = async (partnerId) => {

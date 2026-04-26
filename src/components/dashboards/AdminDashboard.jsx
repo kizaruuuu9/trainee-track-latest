@@ -1354,10 +1354,11 @@ const ManageTesdaPrograms = () => {
 
 // â”€â”€â”€ PAGE 3: MANAGE INDUSTRY PARTNERS â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 const ManagePartners = () => {
-    const { partners, approvePartner, rejectPartner } = useApp();
+    const { partners, approvePartner, rejectPartner, updatePartner } = useApp();
     const [search, setSearch] = useState('');
     const [filterStatus, setFilterStatus] = useState('All');
     const [viewPartner, setViewPartner] = useState(null);
+    const [editPartner, setEditPartner] = useState(null);
     const [partnerDocs, setPartnerDocs] = useState([]);
     const [loadingDocs, setLoadingDocs] = useState(false);
     const [actionReasonById, setActionReasonById] = useState({});
@@ -1486,7 +1487,7 @@ const ManagePartners = () => {
             )}
             <div className="card">
                 <div style={{ marginBottom: 14 }}><div className="search-bar" style={{ maxWidth: 320 }}><Search size={14} color="#94a3b8" /><input placeholder="Search company or contact..." value={search} onChange={e => setSearch(e.target.value)} /></div></div>
-                <div style={{ overflow: 'visible' }}>
+                <div style={{ overflowX: 'auto' }}>
                     <table className="data-table">
                         <thead><tr><th>Company</th><th>Profile Name</th><th>Contact Person</th><th>Industry</th><th>Auth Email</th><th>Activity</th><th>Verification</th><th>Account</th><th className="account-actions-column">Actions</th></tr></thead>
                         <tbody>
@@ -1514,6 +1515,9 @@ const ManagePartners = () => {
                                                     <div className="account-actions-header">Partner Actions</div>
                                                     <button className="account-actions-item" onClick={() => { openPartnerView(p); setOpenPartnerMenuKey(null); }}>
                                                         <Eye size={14} /> View Details
+                                                    </button>
+                                                    <button className="account-actions-item" onClick={() => { setEditPartner({ ...p }); setOpenPartnerMenuKey(null); }}>
+                                                        <Edit size={14} /> Edit Profile
                                                     </button>
                                                 </div>
                                             )}
@@ -1607,13 +1611,48 @@ const ManagePartners = () => {
                     </div>
                 </div>
             )}
+            {editPartner && (
+                <div className="modal-overlay" onClick={() => setEditPartner(null)}>
+                    <div className="modal" style={{ maxWidth: 600 }} onClick={e => e.stopPropagation()}>
+                        <div className="modal-header">
+                            <h3 className="modal-title">Edit Partner Verification</h3>
+                            <button className="btn btn-outline btn-icon" onClick={() => setEditPartner(null)}><X size={16} /></button>
+                        </div>
+                        <div className="form-group">
+                            <label className="form-label">Verification Status</label>
+                            <select 
+                                className="form-select" 
+                                value={editPartner.verificationStatus || ''} 
+                                onChange={e => setEditPartner({ ...editPartner, verificationStatus: e.target.value })}
+                            >
+                                <option value="Pending">Pending</option>
+                                <option value="Under Review">Under Review</option>
+                                <option value="Verified">Verified</option>
+                                <option value="Rejected">Rejected</option>
+                            </select>
+                        </div>
+                        <div style={{ display: 'flex', gap: 10, marginTop: 20 }}>
+                            <button className="btn btn-outline" style={{ flex: 1 }} onClick={() => setEditPartner(null)}>Cancel</button>
+                            <button className="btn btn-primary" style={{ flex: 1 }} onClick={async () => { 
+                                const res = await updatePartner(editPartner.id, editPartner); 
+                                if (res?.success) {
+                                    setEditPartner(null); 
+                                    toast.success('Partner updated successfully');
+                                } else {
+                                    toast.error('Failed to update partner: ' + (res?.error || 'Unknown error'));
+                                }
+                            }}><CheckCircle size={15} /> Save Changes</button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };
 
 // â”€â”€â”€ PAGE 4: OPPORTUNITIES OVERSIGHT â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 const OpportunitiesOversight = () => {
-    const { posts, updatePost, deletePost, adminDeletePost, adminUpdatePost } = useApp();
+    const { jobPostings, updatePartnerJobPosting, deleteJobPosting } = useApp();
     const [search, setSearch] = useState('');
     const [filterStatus, setFilterStatus] = useState('All');
     const [filterType, setFilterType] = useState('All');
@@ -1639,12 +1678,12 @@ const OpportunitiesOversight = () => {
 
     const handleDelete = async (job) => {
         if (!window.confirm(`Delete opportunity "${job.title}"? This action cannot be undone.`)) return;
-        await adminDeletePost(job.id);
+        await deleteJobPosting(job.id);
         setOpenMenuId(null);
     };
 
-    const hiringUpdates = posts.filter(p => p.post_type === 'hiring_update');
-    const filtered = hiringUpdates.filter(j => {
+    const opportunities = jobPostings;
+    const filtered = opportunities.filter(j => {
         const q = search.toLowerCase();
         return ((j.title || '').toLowerCase().includes(q) || (j.companyName || '').toLowerCase().includes(q)) && (filterStatus === 'All' || j.status === filterStatus) && (filterType === 'All' || j.opportunityType === filterType);
     });
@@ -1660,7 +1699,7 @@ const OpportunitiesOversight = () => {
                 <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                     {['All', 'Open', 'Closed', 'Filled'].map(s => (
                         <button key={s} className={`btn btn-${filterStatus === s ? 'primary' : 'outline'} btn-sm`} onClick={() => setFilterStatus(s)}>
-                            {s} ({s === 'All' ? hiringUpdates.length : hiringUpdates.filter(j => j.status === s).length})
+                            {s} ({s === 'All' ? opportunities.length : opportunities.filter(j => j.status === s).length})
                         </button>
                     ))}
                 </div>
@@ -1698,11 +1737,11 @@ const OpportunitiesOversight = () => {
                                                 <div className="account-actions-panel" style={{ right: 0 }}>
                                                     <div className="account-actions-header">Opportunity Actions</div>
                                                     {j.status === 'Open' ? (
-                                                        <button className="account-actions-item" onClick={() => { adminUpdatePost(j.id, { status: 'Closed' }); setOpenMenuId(null); }}>
+                                                        <button className="account-actions-item" onClick={() => { updatePartnerJobPosting(j.id, { status: 'Closed' }); setOpenMenuId(null); }}>
                                                             <XCircle size={14} /> Close Posting
                                                         </button>
                                                     ) : (
-                                                        <button className="account-actions-item" onClick={() => { adminUpdatePost(j.id, { status: 'Open' }); setOpenMenuId(null); }}>
+                                                        <button className="account-actions-item" onClick={() => { updatePartnerJobPosting(j.id, { status: 'Open' }); setOpenMenuId(null); }}>
                                                             <CheckCircle size={14} /> Re-open Posting
                                                         </button>
                                                     )}
@@ -2076,7 +2115,7 @@ const AccountManagement = () => {
                         {['All', 'trainee', 'partner'].map(r => <option key={r} value={r}>{r === 'All' ? 'All Roles' : r === 'trainee' ? 'Student' : 'Partner'}</option>)}
                     </select>
                 </div>
-                <div style={{ overflow: 'visible' }}>
+                <div style={{ overflowX: 'auto' }}>
                     <table className="data-table">
                         <thead><tr><th>Profile Name</th><th>Auth Email</th><th>Role</th><th>Activity</th><th>Account</th><th className="account-actions-column">Actions</th></tr></thead>
                         <tbody>
