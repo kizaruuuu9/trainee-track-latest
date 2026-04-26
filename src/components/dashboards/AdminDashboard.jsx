@@ -1398,7 +1398,7 @@ const ManagePartners = () => {
     }, [openPartnerMenuKey]);
 
     // Only show partners who submitted for verification (not just registered)
-    const submittedPartners = partners.filter(p => p.verificationStatus !== 'Pending');
+    const submittedPartners = partners;
 
     const filtered = submittedPartners.filter(p => {
         const q = search.toLowerCase();
@@ -1475,7 +1475,7 @@ const ManagePartners = () => {
                     <div className="page-subtitle">Manage and verify industry partner accounts</div>
                 </div>
                 <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                    {['All', 'Under Review', 'Verified', 'Rejected'].map(s => (
+                    {['All', 'Under Review', 'Verified', 'Rejected', 'Pending'].map(s => (
                         <button key={s} className={`btn btn-${filterStatus === s ? 'primary' : 'outline'} btn-sm`} onClick={() => setFilterStatus(s)}>
                             {s} ({s === 'All' ? submittedPartners.length : submittedPartners.filter(p => p.verificationStatus === s).length})
                         </button>
