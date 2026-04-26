@@ -1409,6 +1409,11 @@ app.post('/api/register-partner', rateLimit, async (req, res) => {
         return res.status(400).json({ error: 'Missing required fields.' });
     }
 
+    const passwordRegex = /^(?=.*[A-Z])(?=.*[0-9])(?=.*[!@#$%^&*(),.?":{}|<>]).{8,}$/;
+    if (!passwordRegex.test(password)) {
+        return res.status(400).json({ error: 'Password must be at least 8 characters long and contain at least one uppercase letter, one number, and one special character.' });
+    }
+
     if (!process.env.SUPABASE_SERVICE_ROLE_KEY) {
         return res.status(500).json({ error: 'Server misconfiguration: SUPABASE_SERVICE_ROLE_KEY not set' });
     }
@@ -1446,7 +1451,7 @@ app.post('/api/register-partner', rateLimit, async (req, res) => {
                 id: userId,
                 company_name: companyName,
                 contact_person: contactPerson,
-                industry: industry,
+                business_type: industry,
                 region: region || null,
                 province: province || null,
                 city: city || null,
@@ -1454,7 +1459,8 @@ app.post('/api/register-partner', rateLimit, async (req, res) => {
                 detailed_address: detailedAddress || null,
                 verification_status: 'pending',
                 contact_email: email,
-            });
+            })
+            .select('id');
 
         if (partnerError) throw new Error(`Partner record creation failed: ${partnerError.message}`);
 

@@ -212,13 +212,14 @@ export default function RegistrationFlow({ onBackToLogin }) {
     }
   };
 
+  const passwordRegex = /^(?=.*[A-Z])(?=.*[0-9])(?=.*[!@#$%^&*(),.?":{}|<>]).{8,}$/;
   const isPartnerValid =
     partnerData.companyName && partnerData.contactPerson &&
     partnerData.industry && partnerData.email &&
     partnerData.region && partnerData.city &&
     partnerData.barangay && partnerData.detailedAddress &&
     partnerData.password && partnerData.password === partnerData.confirmPassword &&
-    partnerData.password.length >= 8 && otpVerified;
+    passwordRegex.test(partnerData.password) && otpVerified;
 
   // ─── Final Submit ────────────────────────────────────────────
   const handleFinalSubmit = async () => {
@@ -442,6 +443,24 @@ export default function RegistrationFlow({ onBackToLogin }) {
               >
                 {showPartnerPassword ? <EyeOff size={16} /> : <Eye size={16} />}
               </button>
+            </div>
+            <div style={{ marginTop: 6, fontSize: 11, color: '#64748b', display: 'flex', flexDirection: 'column', gap: 2 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                <div style={{ width: 4, height: 4, borderRadius: '50%', background: partnerData.password.length >= 8 ? '#10b981' : '#94a3b8' }} />
+                At least 8 characters
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                <div style={{ width: 4, height: 4, borderRadius: '50%', background: /[A-Z]/.test(partnerData.password) ? '#10b981' : '#94a3b8' }} />
+                One capital letter
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                <div style={{ width: 4, height: 4, borderRadius: '50%', background: /[0-9]/.test(partnerData.password) ? '#10b981' : '#94a3b8' }} />
+                One number
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                <div style={{ width: 4, height: 4, borderRadius: '50%', background: /[!@#$%^&*(),.?":{}|<>]/.test(partnerData.password) ? '#10b981' : '#94a3b8' }} />
+                One special character
+              </div>
             </div>
           </div>
           <div className="form-group">

@@ -647,7 +647,7 @@ const ManageTrainees = () => {
                                     <td><div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', minWidth: 180 }}>
                                         <button className="btn btn-outline btn-sm" onClick={() => setViewT(t)}><Eye size={12} /> View</button>
                                         <button className="btn btn-outline btn-sm" onClick={() => setEditT({ ...t })}><Edit size={12} /></button>
-                                        <button className="btn btn-danger btn-sm" onClick={() => { confirmAction({ message: 'Delete trainee?', onConfirm: () => deleteTrainee(t.id) }); }}><Trash2 size={12} /></button>
+                                        <button className="btn btn-danger btn-sm" onClick={() => { confirmAction({ message: 'Delete trainee?', type: 'danger', onConfirm: () => deleteTrainee(t.id) }); }}><Trash2 size={12} /></button>
                                     </div></td>
                                 </tr>
                             ))}

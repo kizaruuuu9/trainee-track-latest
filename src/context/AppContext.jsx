@@ -401,7 +401,7 @@ export const AppProvider = ({ children }) => {
     onConfirm: () => { },
     confirmText: 'Confirm',
     cancelText: 'Cancel',
-    type: 'danger'
+    type: 'primary'
   });
 
   const confirmAction = (options) => {
@@ -415,7 +415,7 @@ export const AppProvider = ({ children }) => {
       },
       confirmText: options.confirmText || 'Confirm',
       cancelText: options.cancelText || 'Cancel',
-      type: options.type || 'danger'
+      type: options.type || 'primary'
     });
   };
 

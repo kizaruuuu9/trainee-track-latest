@@ -6,7 +6,7 @@ import NotificationsPage from './NotificationsPage';
 import {
     User, Briefcase, FileText, CheckCircle, Bell, ChevronDown, Search, Filter, MapPin, Clock, Building2,
     Award, Send, CheckSquare, Check, X, Eye, EyeOff, Plus, Menu, Home, Settings, LogOut, MessageSquare, Bookmark,
-    Trash2, Camera, Loader, GraduationCap, MoveRight, ExternalLink, ShieldCheck, Mail, Calendar, AlignLeft, Users, ChevronRight, ChevronLeft, Edit, Upload, Link, Star, Heart, MoreVertical, Info, LayoutDashboard, Target, FileCheck
+    Trash2, Camera, Loader, GraduationCap, MoveRight, ExternalLink, ShieldCheck, Mail, Calendar, AlignLeft, Users, ChevronRight, ChevronLeft, Edit, Upload, Link, Star, Heart, MoreVertical, Info, LayoutDashboard, Target, FileCheck, AlertCircle
 } from 'lucide-react';
 import ProfileActivityTab from './ProfileActivityTab';
 import EmptyState, {
@@ -2669,7 +2669,11 @@ export const TraineeProfileContent = ({ viewedProfileId = null, onBack = null, o
     });
     const [learnerProfile, setLearnerProfile] = useState(() => buildLearnerProfileState(trainee));
 
-    const updateTraining = (idx, field, val) => { const arr = [...trainings]; arr[idx][field] = val; setTrainings(arr); };
+    const updateTraining = (idx, field, val) => { 
+        const arr = [...trainings]; 
+        arr[idx] = { ...arr[idx], [field]: val }; 
+        setTrainings(arr); 
+    };
     const addTrainingObj = () => setTrainings(prev => [...prev, { program: '', year: '' }]);
     const removeTrainingIdx = (idx) => { setTrainings(prev => prev.filter((_, i) => i !== idx)); };
     const updateLearnerProfile = (field, value) => {
@@ -2973,6 +2977,7 @@ export const TraineeProfileContent = ({ viewedProfileId = null, onBack = null, o
 
     const validateEducRow = (edu) => {
         if (!edu.school?.trim() || !edu.from || !edu.to) return false;
+        if (String(edu.from).trim().length !== 4 || String(edu.to).trim().length !== 4) return false;
         if (Number(edu.from) > Number(edu.to)) return false;
         if (!edu.level && edu.degree?.trim()) return true; // legacy fallback
         if (!edu.level) return false;
@@ -2981,7 +2986,11 @@ export const TraineeProfileContent = ({ viewedProfileId = null, onBack = null, o
         return true;
     };
 
-    const updateEduc = (idx, field, val) => { const arr = [...educHistory]; arr[idx][field] = val; setEducHistory(arr); };
+    const updateEduc = (idx, field, val) => { 
+        const arr = [...educHistory]; 
+        arr[idx] = { ...arr[idx], [field]: val }; 
+        setEducHistory(arr); 
+    };
     const addEducObj = () => {
         for (let i = 0; i < educHistory.length; i++) {
             if (!validateEducRow(educHistory[i])) {
@@ -2999,7 +3008,11 @@ export const TraineeProfileContent = ({ viewedProfileId = null, onBack = null, o
     // eslint-disable-next-line no-unused-vars
     const saveEduc = async () => { if (!isOwnProfile) return; setSavingEduc(true); await updateTrainee(trainee.id, { educHistory }); setSavingEduc(false); };
 
-    const updateWork = (idx, field, val) => { const arr = [...workExperience]; arr[idx][field] = val; setWorkExperience(arr); };
+    const updateWork = (idx, field, val) => { 
+        const arr = [...workExperience]; 
+        arr[idx] = { ...arr[idx], [field]: val }; 
+        setWorkExperience(arr); 
+    };
     const addWorkObj = () => setWorkExperience(prev => [{ company: '', position: '', from: '', to: '', description: '' }, ...prev]);
     const removeWorkIdx = (idx) => { setWorkExperience(prev => prev.filter((_, i) => i !== idx)); };
     // eslint-disable-next-line no-unused-vars
@@ -3181,8 +3194,10 @@ export const TraineeProfileContent = ({ viewedProfileId = null, onBack = null, o
                     for (let i = 0; i < educHistory.length; i++) {
                         const edu = educHistory[i];
                         if (!validateEducRow(edu)) {
-                            if (edu.from && edu.to && Number(edu.from) > Number(edu.to)) {
-                                toast.error(`Invalid year range for Education #${i + 1} (From year cannot be greater than To year).`);
+                            if (!edu.from || String(edu.from).trim().length !== 4 || !edu.to || String(edu.to).trim().length !== 4) {
+                                toast.error(`Please enter a valid 4-digit year for Education #${i + 1}.`);
+                            } else if (edu.from && edu.to && Number(edu.from) > Number(edu.to)) {
+                                toast.error(`Invalid year range for Education #${i + 1} (From year must be before To year).`);
                             } else {
                                 toast.error(`Please fill all required fields for Education #${i + 1}.`);
                             }
@@ -3198,17 +3213,32 @@ export const TraineeProfileContent = ({ viewedProfileId = null, onBack = null, o
                         if (!String(work.company || '').trim() || !String(work.position || '').trim() || !String(work.from || '').trim() || !String(work.to || '').trim()) {
                             toast.error(`Please fill all fields for Work Experience #${i + 1}.`); setSaving(false); return;
                         }
+                        if (work.from && work.to && new Date(work.from) > new Date(work.to)) {
+                            toast.error(`Start Date cannot be after End Date for Work Experience #${i + 1}.`); setSaving(false); return;
+                        }
                     }
                     payload = { workExperience };
                     break;
                 }
-                case 'training':
+                case 'training': {
+                    for (let i = 0; i < trainings.length; i++) {
+                        const t = trainings[i];
+                        if (!String(t.program || '').trim()) {
+                            toast.error(`Please select a Program for Training #${i + 1}.`);
+                            setSaving(false); return;
+                        }
+                        if (!String(t.year || '').trim() || String(t.year || '').trim().length !== 4) {
+                            toast.error(`Please enter a valid 4-digit year for Training #${i + 1}.`);
+                            setSaving(false); return;
+                        }
+                    }
                     payload = {
                         trainings,
                         trainingStatus: (trainings && trainings.length > 0) ? trainings[0].status : (trainee?.trainingStatus || 'Student'),
                         graduationYear: (trainings && trainings.length > 0 && trainings[0].status === 'Graduated') ? trainings[0].year : (trainee?.graduationYear || ''),
                     };
                     break;
+                }
                 case 'learner': {
                     const lerrors = [];
                     if (learnerProfile.ethnicGroup === 'Others' && !String(learnerProfile.ethnicGroupOther || '').trim()) lerrors.push('Please specify the ethnic group.');
@@ -3832,11 +3862,23 @@ export const TraineeProfileContent = ({ viewedProfileId = null, onBack = null, o
                                                                 </select>
                                                             )
                                                         ) : (
-                                                            <input type={f.type} className="form-input" maxLength={f.maxLength} value={form[f.key] || ''} onChange={e => setForm({ ...form, [f.key]: e.target.value })} />
+                                                            <input type={f.type} className="form-input" maxLength={f.maxLength} max={f.max} placeholder={f.placeholder} value={form[f.key] || ''} onChange={e => setForm({ ...form, [f.key]: e.target.value })} />
                                                         )
                                                     ) : (
                                                         <div className="ln-info-value">{trainee?.[f.key] || '—'}</div>
                                                     )}
+                                                    {editingSection === 'personalInfo' && f.required && !String(form[f.key] || '').trim() && (
+                                                        <div style={{ fontSize: 12, color: '#cc1016', marginTop: 4, display: 'flex', alignItems: 'center', gap: 4 }}><AlertCircle size={12} /> {f.label} is required</div>
+                                                    )}
+                                                    {editingSection === 'personalInfo' && f.key === 'birthday' && form.birthday && (function() {
+                                                        const bd = new Date(form.birthday);
+                                                        const today = new Date();
+                                                        let age = today.getFullYear() - bd.getFullYear();
+                                                        const m = today.getMonth() - bd.getMonth();
+                                                        if (m < 0 || (m === 0 && today.getDate() < bd.getDate())) age--;
+                                                        if (age < 15) return <div style={{ fontSize: 12, color: '#cc1016', marginTop: 4, display: 'flex', alignItems: 'center', gap: 4 }}><AlertCircle size={12} /> Must be 15 years or older</div>;
+                                                        return null;
+                                                    })()}
                                                     {isOwnProfile && (editingSection === 'personalInfo') && (
                                                         <label style={{ marginTop: 8, display: 'inline-flex', alignItems: 'center', gap: 8, fontSize: 12, color: isVisible ? '#166534' : '#64748b', fontWeight: 600 }}>
                                                             <input type="checkbox" checked={isVisible} onChange={() => togglePersonalInfoVisibility(f.key)} style={{ width: 14, height: 14 }} />
@@ -3901,22 +3943,30 @@ export const TraineeProfileContent = ({ viewedProfileId = null, onBack = null, o
                                                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
                                                         <div className="ln-info-item" style={{ gridColumn: '1 / -1' }}>
                                                             <label className="ln-info-label" style={{ fontWeight: 700 }}>School / University{(editingSection === 'educHistory') && <span style={{ color: '#cc1016', marginLeft: 4 }}>*</span>}</label>
-                                                            {(editingSection === 'educHistory') ? <input type="text" required className="form-input" placeholder="Enter school name" maxLength={100} value={edu.school || ''} onChange={e => updateEduc(i, 'school', e.target.value)} /> : <div className="ln-info-value" style={{ fontSize: 15, fontWeight: 700, color: '#1e293b' }}>{edu.school || '—'}</div>}
+                                                            {(editingSection === 'educHistory') ? (
+                                                                <>
+                                                                    <input type="text" required className="form-input" placeholder="e.g. University of the Philippines" maxLength={100} value={edu.school || ''} onChange={e => updateEduc(i, 'school', e.target.value)} />
+                                                                    {!String(edu.school || '').trim() && <div style={{ fontSize: 12, color: '#cc1016', marginTop: 4, display: 'flex', alignItems: 'center', gap: 4 }}><AlertCircle size={12} /> School / University is required</div>}
+                                                                </>
+                                                            ) : <div className="ln-info-value" style={{ fontSize: 15, fontWeight: 700, color: '#1e293b' }}>{edu.school || '—'}</div>}
                                                         </div>
                                                         
                                                         {/* Education Level */}
                                                         <div className="ln-info-item" style={{ gridColumn: '1 / -1' }}>
                                                             <label className="ln-info-label" style={{ fontWeight: 700 }}>Education Level{(editingSection === 'educHistory') && <span style={{ color: '#cc1016', marginLeft: 4 }}>*</span>}</label>
                                                             {(editingSection === 'educHistory') ? (
-                                                                <select className="form-select" value={edu.level || ''} onChange={e => {
-                                                                    const newLevel = e.target.value;
-                                                                    updateEduc(i, 'level', newLevel);
-                                                                    if (newLevel !== 'Senior High School') updateEduc(i, 'strand', '');
-                                                                    if (newLevel !== 'College') { updateEduc(i, 'degreeLevel', ''); updateEduc(i, 'course', ''); }
-                                                                }}>
-                                                                    <option value="" disabled>Select Level</option>
-                                                                    {['Elementary', 'Junior High School', 'Senior High School', 'College', 'Vocational'].map(l => <option key={l} value={l}>{l}</option>)}
-                                                                </select>
+                                                                <>
+                                                                    <select className="form-select" value={edu.level || ''} onChange={e => {
+                                                                        const newLevel = e.target.value;
+                                                                        updateEduc(i, 'level', newLevel);
+                                                                        if (newLevel !== 'Senior High School') updateEduc(i, 'strand', '');
+                                                                        if (newLevel !== 'College') { updateEduc(i, 'degreeLevel', ''); updateEduc(i, 'course', ''); }
+                                                                    }}>
+                                                                        <option value="" disabled>Select Level</option>
+                                                                        {['Elementary', 'Junior High School', 'Senior High School', 'College', 'Vocational'].map(l => <option key={l} value={l}>{l}</option>)}
+                                                                    </select>
+                                                                    {!edu.level && <div style={{ fontSize: 12, color: '#cc1016', marginTop: 4, display: 'flex', alignItems: 'center', gap: 4 }}><AlertCircle size={12} /> Education Level is required</div>}
+                                                                </>
                                                             ) : (
                                                                 <div className="ln-info-value" style={{ fontSize: 14, color: '#475569' }}>
                                                                     {edu.level ? edu.level : (edu.degree ? 'Legacy Entry' : '—')} 
@@ -3929,10 +3979,13 @@ export const TraineeProfileContent = ({ viewedProfileId = null, onBack = null, o
                                                             <div className="ln-info-item" style={{ gridColumn: '1 / -1' }}>
                                                                 <label className="ln-info-label" style={{ fontWeight: 700 }}>Strand{(editingSection === 'educHistory') && <span style={{ color: '#cc1016', marginLeft: 4 }}>*</span>}</label>
                                                                 {(editingSection === 'educHistory') ? (
-                                                                    <select className="form-select" value={edu.strand || ''} onChange={e => updateEduc(i, 'strand', e.target.value)}>
-                                                                        <option value="" disabled>Select Strand</option>
-                                                                        {pqfStrands.map(s => <option key={s} value={s}>{s}</option>)}
-                                                                    </select>
+                                                                    <>
+                                                                        <select className="form-select" value={edu.strand || ''} onChange={e => updateEduc(i, 'strand', e.target.value)}>
+                                                                            <option value="" disabled>Select Strand</option>
+                                                                            {pqfStrands.map(s => <option key={s} value={s}>{s}</option>)}
+                                                                        </select>
+                                                                        {!edu.strand && <div style={{ fontSize: 12, color: '#cc1016', marginTop: 4, display: 'flex', alignItems: 'center', gap: 4 }}><AlertCircle size={12} /> Strand is required</div>}
+                                                                    </>
                                                                 ) : <div className="ln-info-value" style={{ fontSize: 14, color: '#475569' }}>{edu.strand || '—'}</div>}
                                                             </div>
                                                         )}
@@ -3943,19 +3996,25 @@ export const TraineeProfileContent = ({ viewedProfileId = null, onBack = null, o
                                                                 <div className="ln-info-item">
                                                                     <label className="ln-info-label" style={{ fontWeight: 700 }}>Degree Level{(editingSection === 'educHistory') && <span style={{ color: '#cc1016', marginLeft: 4 }}>*</span>}</label>
                                                                     {(editingSection === 'educHistory') ? (
-                                                                        <select className="form-select" value={edu.degreeLevel || ''} onChange={e => updateEduc(i, 'degreeLevel', e.target.value)}>
-                                                                            <option value="" disabled>Select Degree Level</option>
-                                                                            {pqfDegreeLevels.map(dl => <option key={dl} value={dl}>{dl}</option>)}
-                                                                        </select>
+                                                                        <>
+                                                                            <select className="form-select" value={edu.degreeLevel || ''} onChange={e => updateEduc(i, 'degreeLevel', e.target.value)}>
+                                                                                <option value="" disabled>Select Degree Level</option>
+                                                                                {pqfDegreeLevels.map(dl => <option key={dl} value={dl}>{dl}</option>)}
+                                                                            </select>
+                                                                            {!edu.degreeLevel && <div style={{ fontSize: 12, color: '#cc1016', marginTop: 4, display: 'flex', alignItems: 'center', gap: 4 }}><AlertCircle size={12} /> Degree Level is required</div>}
+                                                                        </>
                                                                     ) : <div className="ln-info-value" style={{ fontSize: 14, color: '#475569' }}>{edu.degreeLevel || '—'}</div>}
                                                                 </div>
                                                                 <div className="ln-info-item">
                                                                     <label className="ln-info-label" style={{ fontWeight: 700 }}>Course / Degree Taken{(editingSection === 'educHistory') && <span style={{ color: '#cc1016', marginLeft: 4 }}>*</span>}</label>
                                                                     {(editingSection === 'educHistory') ? (
-                                                                        <select className="form-select" value={edu.course || ''} onChange={e => updateEduc(i, 'course', e.target.value)}>
-                                                                            <option value="" disabled>Select Course</option>
-                                                                            {pqfCourses.map(c => <option key={c} value={c}>{c}</option>)}
-                                                                        </select>
+                                                                        <>
+                                                                            <select className="form-select" value={edu.course || ''} onChange={e => updateEduc(i, 'course', e.target.value)}>
+                                                                                <option value="" disabled>Select Course</option>
+                                                                                {pqfCourses.map(c => <option key={c} value={c}>{c}</option>)}
+                                                                            </select>
+                                                                            {!edu.course && <div style={{ fontSize: 12, color: '#cc1016', marginTop: 4, display: 'flex', alignItems: 'center', gap: 4 }}><AlertCircle size={12} /> Course / Degree is required</div>}
+                                                                        </>
                                                                     ) : <div className="ln-info-value" style={{ fontSize: 14, color: '#475569' }}>{edu.course || '—'}</div>}
                                                                 </div>
                                                             </>
@@ -3971,11 +4030,32 @@ export const TraineeProfileContent = ({ viewedProfileId = null, onBack = null, o
 
                                                         <div className="ln-info-item">
                                                             <label className="ln-info-label" style={{ fontWeight: 700 }}>Year From{(editingSection === 'educHistory') && <span style={{ color: '#cc1016', marginLeft: 4 }}>*</span>}</label>
-                                                            {(editingSection === 'educHistory') ? <input type="number" min="1950" max="2099" required className="form-input" placeholder="YYYY" maxLength={4} onInput={e => { if (e.target.value.length > 4) e.target.value = e.target.value.slice(0, 4); }} value={edu.from || ''} onChange={e => updateEduc(i, 'from', e.target.value)} /> : <div className="ln-info-value" style={{ fontSize: 13, color: '#64748b' }}>{edu.from ? `Started in ${edu.from}` : '—'}</div>}
+                                                            {(editingSection === 'educHistory') ? (
+                                                                <>
+                                                                    <input type="text" required className="form-input" placeholder="e.g. 2018" value={edu.from || ''} onChange={e => {
+                                                                        const val = e.target.value.replace(/\D/g, '').slice(0, 4);
+                                                                        updateEduc(i, 'from', val);
+                                                                    }} />
+                                                                    <div style={{ fontSize: 11, color: '#64748b', marginTop: 4 }}>Enter a 4-digit year (1950–2099)</div>
+                                                                    {!String(edu.from || '').trim() && <div style={{ fontSize: 12, color: '#cc1016', marginTop: 4, display: 'flex', alignItems: 'center', gap: 4 }}><AlertCircle size={12} /> Year From is required</div>}
+                                                                </>
+                                                            ) : <div className="ln-info-value" style={{ fontSize: 13, color: '#64748b' }}>{edu.from ? `Started in ${edu.from}` : '—'}</div>}
                                                         </div>
                                                         <div className="ln-info-item">
                                                             <label className="ln-info-label" style={{ fontWeight: 700 }}>Year To (or expected){(editingSection === 'educHistory') && <span style={{ color: '#cc1016', marginLeft: 4 }}>*</span>}</label>
-                                                            {(editingSection === 'educHistory') ? <input type="number" min="1950" max="2099" required className="form-input" placeholder="YYYY" maxLength={4} onInput={e => { if (e.target.value.length > 4) e.target.value = e.target.value.slice(0, 4); }} value={edu.to || ''} onChange={e => updateEduc(i, 'to', e.target.value)} /> : <div className="ln-info-value" style={{ fontSize: 13, color: '#64748b' }}>{edu.to ? `Graduated in ${edu.to}` : '—'}</div>}
+                                                            {(editingSection === 'educHistory') ? (
+                                                                <>
+                                                                    <input type="text" required className="form-input" placeholder="e.g. 2022" value={edu.to || ''} onChange={e => {
+                                                                        const val = e.target.value.replace(/\D/g, '').slice(0, 4);
+                                                                        updateEduc(i, 'to', val);
+                                                                    }} />
+                                                                    <div style={{ fontSize: 11, color: '#64748b', marginTop: 4 }}>Enter a 4-digit year (1950–2099)</div>
+                                                                    {!String(edu.to || '').trim() && <div style={{ fontSize: 12, color: '#cc1016', marginTop: 4, display: 'flex', alignItems: 'center', gap: 4 }}><AlertCircle size={12} /> Year To is required</div>}
+                                                                    {edu.from && edu.to && Number(edu.from) > Number(edu.to) && (
+                                                                        <div style={{ fontSize: 12, color: '#cc1016', marginTop: 4, display: 'flex', alignItems: 'center', gap: 4 }}><AlertCircle size={12} /> Year From must be before Year To</div>
+                                                                    )}
+                                                                </>
+                                                            ) : <div className="ln-info-value" style={{ fontSize: 13, color: '#64748b' }}>{edu.to ? `Graduated in ${edu.to}` : '—'}</div>}
                                                         </div>
                                                     </div>
                                                 </div>
@@ -4048,31 +4128,58 @@ export const TraineeProfileContent = ({ viewedProfileId = null, onBack = null, o
                                                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
                                                         <div className="ln-info-item" style={{ gridColumn: '1 / -1' }}>
                                                             <label className="ln-info-label" style={{ fontWeight: 700 }}>Company / Organization{(editingSection === 'workExp') && <span style={{ color: '#cc1016', marginLeft: 4 }}>*</span>}</label>
-                                                            {(editingSection === 'workExp') ? <input type="text" required className="form-input" placeholder="e.g. Google, TESDA, Local Shop" maxLength={100} value={work.company || ''} onChange={e => updateWork(i, 'company', e.target.value)} /> : <div className="ln-info-value" style={{ fontSize: 15, fontWeight: 700, color: '#1e293b' }}>{work.company || '—'}</div>}
+                                                            {(editingSection === 'workExp') ? (
+                                                                <>
+                                                                    <input type="text" required className="form-input" placeholder="e.g. Google, TESDA, Local Shop" maxLength={100} value={work.company || ''} onChange={e => updateWork(i, 'company', e.target.value)} />
+                                                                    {!String(work.company || '').trim() && <div style={{ fontSize: 12, color: '#cc1016', marginTop: 4, display: 'flex', alignItems: 'center', gap: 4 }}><AlertCircle size={12} /> Company name is required</div>}
+                                                                </>
+                                                            ) : <div className="ln-info-value" style={{ fontSize: 15, fontWeight: 700, color: '#1e293b' }}>{work.company || '—'}</div>}
                                                         </div>
                                                         <div className="ln-info-item" style={{ gridColumn: '1 / -1' }}>
                                                             <label className="ln-info-label" style={{ fontWeight: 700 }}>Position / Role{(editingSection === 'workExp') && <span style={{ color: '#cc1016', marginLeft: 4 }}>*</span>}</label>
-                                                            {(editingSection === 'workExp') ? <input type="text" required className="form-input" placeholder="e.g. IT Technician, Admin Assistant" maxLength={50} value={work.position || ''} onChange={e => updateWork(i, 'position', e.target.value)} /> : <div className="ln-info-value" style={{ fontSize: 14, color: '#475569' }}>{work.position || '—'}</div>}
+                                                            {(editingSection === 'workExp') ? (
+                                                                <>
+                                                                    <input type="text" required className="form-input" placeholder="e.g. IT Technician, Admin Assistant" maxLength={50} value={work.position || ''} onChange={e => updateWork(i, 'position', e.target.value)} />
+                                                                    {!String(work.position || '').trim() && <div style={{ fontSize: 12, color: '#cc1016', marginTop: 4, display: 'flex', alignItems: 'center', gap: 4 }}><AlertCircle size={12} /> Position is required</div>}
+                                                                </>
+                                                            ) : <div className="ln-info-value" style={{ fontSize: 14, color: '#475569' }}>{work.position || '—'}</div>}
                                                         </div>
                                                         <div className="ln-info-item">
                                                             <label className="ln-info-label" style={{ fontWeight: 700 }}>Start Date{(editingSection === 'workExp') && <span style={{ color: '#cc1016', marginLeft: 4 }}>*</span>}</label>
-                                                            {(editingSection === 'workExp') ? <input type="date" required className="form-input" value={work.from || ''} onChange={e => updateWork(i, 'from', e.target.value)} /> : <div className="ln-info-value" style={{ fontSize: 13, color: '#64748b' }}>{work.from || '—'}</div>}
+                                                            {(editingSection === 'workExp') ? (
+                                                                <>
+                                                                    <input type="date" required className="form-input" max={new Date().toISOString().split('T')[0]} value={work.from || ''} onChange={e => updateWork(i, 'from', e.target.value)} />
+                                                                    {!String(work.from || '').trim() && <div style={{ fontSize: 12, color: '#cc1016', marginTop: 4, display: 'flex', alignItems: 'center', gap: 4 }}><AlertCircle size={12} /> Start Date is required</div>}
+                                                                </>
+                                                            ) : <div className="ln-info-value" style={{ fontSize: 13, color: '#64748b' }}>{work.from || '—'}</div>}
                                                         </div>
                                                         <div className="ln-info-item">
                                                             <label className="ln-info-label" style={{ fontWeight: 700 }}>End Date{(editingSection === 'workExp') && <span style={{ color: '#cc1016', marginLeft: 4 }}>*</span>}</label>
-                                                            {(editingSection === 'workExp') ? <input type="date" required className="form-input" value={work.to || ''} onChange={e => updateWork(i, 'to', e.target.value)} /> : <div className="ln-info-value" style={{ fontSize: 13, color: '#64748b' }}>{work.to || 'Present'}</div>}
+                                                            {(editingSection === 'workExp') ? (
+                                                                <>
+                                                                    <input type="date" required className="form-input" max={new Date().toISOString().split('T')[0]} value={work.to || ''} onChange={e => updateWork(i, 'to', e.target.value)} />
+                                                                    {!String(work.to || '').trim() && <div style={{ fontSize: 12, color: '#cc1016', marginTop: 4, display: 'flex', alignItems: 'center', gap: 4 }}><AlertCircle size={12} /> End Date is required</div>}
+                                                                    {work.from && work.to && new Date(work.from) > new Date(work.to) && (
+                                                                        <div style={{ fontSize: 12, color: '#cc1016', marginTop: 4, display: 'flex', alignItems: 'center', gap: 4 }}><AlertCircle size={12} /> Start Date must be before End Date</div>
+                                                                    )}
+                                                                </>
+                                                            ) : <div className="ln-info-value" style={{ fontSize: 13, color: '#64748b' }}>{work.to || 'Present'}</div>}
                                                         </div>
                                                         <div className="ln-info-item" style={{ gridColumn: '1 / -1' }}>
                                                             <label className="ln-info-label" style={{ fontWeight: 700 }}>Description / Contributions</label>
                                                             {(editingSection === 'workExp') ? (
-                                                                <textarea
-                                                                    className="form-input"
-                                                                    placeholder="Briefly describe your role, responsibilities, and achievements..."
-                                                                    rows={3}
-                                                                    style={{ resize: 'vertical' }}
-                                                                    value={work.description || ''}
-                                                                    onChange={e => updateWork(i, 'description', e.target.value)}
-                                                                />
+                                                                <>
+                                                                    <textarea
+                                                                        className="form-input"
+                                                                        placeholder="Briefly describe your role, responsibilities, and achievements..."
+                                                                        rows={3}
+                                                                        maxLength={500}
+                                                                        style={{ resize: 'vertical' }}
+                                                                        value={work.description || ''}
+                                                                        onChange={e => updateWork(i, 'description', e.target.value)}
+                                                                    />
+                                                                    <div style={{ fontSize: 12, color: '#94a3b8', textAlign: 'right', marginTop: 4 }}>{(work.description || '').length}/500</div>
+                                                                </>
                                                             ) : (
                                                                 <div className="ln-info-value" style={{ fontSize: 13, color: '#4b5563', lineHeight: 1.5, whiteSpace: 'pre-wrap' }}>
                                                                     {work.description || 'No description provided.'}
@@ -4158,6 +4265,7 @@ export const TraineeProfileContent = ({ viewedProfileId = null, onBack = null, o
                                                                     <option value="">Select Program</option>
                                                                     {(programs || []).map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
                                                                 </select>
+                                                                {!String(t.program || '').trim() && <div style={{ fontSize: 12, color: '#cc1016', marginTop: 4, display: 'flex', alignItems: 'center', gap: 4 }}><AlertCircle size={12} /> Program is required</div>}
                                                             </div>
                                                             <div>
                                                                 <label style={{ fontSize: 11, fontWeight: 700, color: '#64748b', display: 'block', marginBottom: 4 }}>NC Level</label>
@@ -4178,7 +4286,12 @@ export const TraineeProfileContent = ({ viewedProfileId = null, onBack = null, o
                                                             </div>
                                                             <div>
                                                                 <label style={{ fontSize: 11, fontWeight: 700, color: '#64748b', display: 'block', marginBottom: 4 }}>Year</label>
-                                                                <input type="number" min="1950" max="2099" className="form-input" placeholder="YYYY" maxLength={4} onInput={e => { if (e.target.value.length > 4) e.target.value = e.target.value.slice(0, 4); }} value={t.year || ''} onChange={e => updateTraining(i, 'year', e.target.value)} />
+                                                                <input type="text" className="form-input" placeholder="e.g. 2022" value={t.year || ''} onChange={e => {
+                                                                    const val = e.target.value.replace(/\D/g, '').slice(0, 4);
+                                                                    updateTraining(i, 'year', val);
+                                                                }} />
+                                                                <div style={{ fontSize: 11, color: '#64748b', marginTop: 4 }}>4-digit year</div>
+                                                                {(!String(t.year || '').trim() || String(t.year || '').trim().length !== 4) && <div style={{ fontSize: 12, color: '#cc1016', marginTop: 4, display: 'flex', alignItems: 'center', gap: 4 }}><AlertCircle size={12} /> 4-digit year is required</div>}
                                                             </div>
                                                         </div>
 

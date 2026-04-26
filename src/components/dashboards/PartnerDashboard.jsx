@@ -325,7 +325,7 @@ const PartnerSideNav = ({ activePage, setActivePage }) => {
                         className={`tt-sidenav-item ${activePage === item.id ? 'active' : ''}`}
                         onClick={() => {
                             if (item.locked && !verified) {
-                                confirmAction({ message: "Verification Required. Go to Verification page?", onConfirm: () => {
+                                confirmAction({ message: "Verification Required. Go to Verification page?", type: 'warning', onConfirm: () => {
                                     setActivePage('verification');
                                 } })
                             } else {
@@ -717,6 +717,7 @@ const PartnerHome = ({ setActivePage }) => {
     if (!commentId) return;
     confirmAction({ 
       message: 'Delete this comment?', 
+      type: 'danger',
       onConfirm: async () => {
         const result = await deleteJobPostingComment(commentId);
         if (!result.success) {
@@ -908,6 +909,7 @@ const PartnerHome = ({ setActivePage }) => {
   const handleDeletePost = async (postId) => {
     confirmAction({ 
             message: 'Delete this post?', 
+            type: 'danger',
             onConfirm: async () => {
                 const res = await deletePost(postId);
                 if (!res.success) {
@@ -921,6 +923,7 @@ const PartnerHome = ({ setActivePage }) => {
   const handleDeleteOpportunity = async (jobId) => {
     confirmAction({ 
             message: 'Delete this post?', 
+            type: 'danger',
             onConfirm: async () => {
                 const res = await deleteJobPosting(jobId);
                 if (!res.success) {
@@ -1388,7 +1391,7 @@ const PartnerHome = ({ setActivePage }) => {
                             </button>
                             <button
                               onClick={() => {
-                                confirmAction({ message: 'Delete this post?', onConfirm: () => {
+                                confirmAction({ message: 'Delete this post?', type: 'danger', onConfirm: () => {
                                   deletePost(item.id);
                                 } })
                                 setPostMenuId(null);
@@ -2743,7 +2746,7 @@ const VerificationPage = ({ setActivePage }) => {
   };
 
   const handleWithdraw = () => {
-    confirmAction({ message: 'Are you sure you want to withdraw your submission? You can edit your documents and resubmit later.', onConfirm: () => {
+    confirmAction({ message: 'Are you sure you want to withdraw your submission? You can edit your documents and resubmit later.', type: 'warning', onConfirm: () => {
       withdrawPartnerSubmission(livePartner.id);
     } })
   };
