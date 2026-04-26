@@ -166,7 +166,7 @@ export default function PhilAddressSelector({
             <option value="">Select Region</option>
             {regions.map(r => <option key={r.code} value={r.code}>{r.name}</option>)}
           </select>
-          <MapPin size={16} style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: '#94a3b8' }} />
+          <MapPin size={16} style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: '#94a3b8', pointerEvents: 'none' }} />
           {loading.regions && <Loader size={14} style={{ position: 'absolute', right: 30, top: '50%', transform: 'translateY(-50%)', animation: 'ocr-spin 1s linear infinite', color: '#94a3b8' }} />}
         </div>
       </div>
@@ -246,7 +246,7 @@ export default function PhilAddressSelector({
             disabled={disabled}
             required={required}
           />
-          <MapPin size={16} style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: '#94a3b8' }} />
+          <MapPin size={16} style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: '#94a3b8', pointerEvents: 'none' }} />
         </div>
       </div>
 

@@ -23,8 +23,10 @@ import EmptyState, {
 import BrandLogo from '../common/BrandLogo';
 import { supabase } from '../../lib/supabase';
 import { Routes, Route, useNavigate, useLocation, Navigate, useParams } from 'react-router-dom';
+import PhilAddressSelector from '../common/PhilAddressSelector';
 import ProfilePage from '../ProfilePage';
 import TopNavBar from '../common/TopNavBar';
+import ImageCropModal from '../common/ImageCropModal';
 import toast from 'react-hot-toast';
 
 const TraineeProfileContent = React.lazy(() =>
@@ -250,6 +252,15 @@ const normalizePartnerProfile = (profile) => {
     company_logo_url: profile.company_logo_url || profile.photo || null,
     companyInfoVisibility: resolvePartnerVisibility(profile),
     verificationStatus,
+    region: profile.region || '',
+    province: profile.province || '',
+    city: profile.city || '',
+    barangay: profile.barangay || '',
+    detailed_address: profile.detailed_address || '',
+    regionCode: profile.regionCode || '',
+    provinceCode: profile.provinceCode || '',
+    cityCode: profile.cityCode || '',
+    barangayCode: profile.barangayCode || '',
   };
 };
 
@@ -1844,7 +1855,12 @@ const PartnerHome = ({ setActivePage }) => {
           {isLoadingMore && (
             <div style={{ textAlign: 'center', padding: '20px 0', marginTop: 10, color: '#64748b' }}>
                 <Loader size={24} style={{ animation: 'ln-spin 1s linear infinite', margin: '0 auto' }} />
-                <style>{`@keyframes ln-spin { 100% { transform: rotate(360deg); } }`}</style>
+                <style>{`
+                   @keyframes ln-spin { 100% { transform: rotate(360deg); } }
+                   @keyframes ocr-spin { 100% { transform: rotate(360deg); } }
+                   .no-scrollbar::-webkit-scrollbar { display: none; }
+                   .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+                 `}</style>
             </div>
           )}
           {!isLoadingMore && visibleFeedCount < filteredFeed.length && (
@@ -4287,7 +4303,7 @@ const PREDEFINED_PERKS_TAGS = [
 ];
 
 export const CompanyProfile = ({ viewedPartnerId = null, onBack = null }) => {
-  const { currentUser, partners, updatePartner, jobPostings, createPostInteraction, fetchPostInteractions } = useApp();
+  const { currentUser, partners, updatePartner, jobPostings, createPostInteraction, fetchPostInteractions, uploadOptimizedImage } = useApp();
   const navigate = useNavigate();
   const isOwnProfile = !viewedPartnerId || String(viewedPartnerId) === String(currentUser?.id);
   const [viewedPartner, setViewedPartner] = useState(null);
@@ -4296,8 +4312,9 @@ export const CompanyProfile = ({ viewedPartnerId = null, onBack = null }) => {
     ? (partners.find(p => String(p.id) === String(currentUser?.id)) || currentUser)
     : (viewedPartner || partners.find(p => String(p.id) === String(viewedPartnerId)));
 
-  const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [editingSection, setEditingSection] = useState(null);
+  const [activeMenu, setActiveMenu] = useState(null);
   const [activeTab, setActiveTab] = useState('About'); // About | Saved
   const [form, setForm] = useState({
     companyName: '',
@@ -4332,6 +4349,48 @@ export const CompanyProfile = ({ viewedPartnerId = null, onBack = null }) => {
   const [confirmDialog, setConfirmDialog] = useState({ open: false, message: '', onConfirm: null });
   const showConfirm = (message, onConfirm) => setConfirmDialog({ open: true, message, onConfirm });
   const closeConfirm = () => setConfirmDialog({ open: false, message: '', onConfirm: null });
+
+  // URL real-time validation state
+  const [urlValidation, setUrlValidation] = useState({ companyInfo: null, location: null });
+  const checkWebsiteReachability = async (url, section) => {
+    if (!url?.trim()) {
+      setUrlValidation(prev => ({ ...prev, [section]: null }));
+      return;
+    }
+    const pattern = new RegExp('^(https?:\\/\\/)?((([a-z\\d]([a-z\\d-]*[a-z\\d])*)\\.)+[a-z]{2,}|((\\d{1,3}\\.){3}\\d{1,3}))(\\:\\d+)?(\\/[-a-z\\d%_.~+]*)*(\\?[;&a-z\\d%_.~+=-]*)?(\\#[-a-z\\d_]*)?$','i');
+    if (!pattern.test(url)) {
+      setUrlValidation(prev => ({ ...prev, [section]: 'invalid' }));
+      return;
+    }
+    setUrlValidation(prev => ({ ...prev, [section]: 'checking' }));
+    try {
+      const res = await fetch('http://localhost:3001/api/check-website', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url: url.trim() })
+      });
+      const data = await res.json();
+      setUrlValidation(prev => ({ ...prev, [section]: data.exists ? 'valid' : 'unreachable' }));
+    } catch {
+      setUrlValidation(prev => ({ ...prev, [section]: 'error' }));
+    }
+  };
+
+  const urlCheckTimeoutRef = useRef({ companyInfo: null, location: null });
+  const handleUrlChange = (value, section, updateStateCallback) => {
+    updateStateCallback(value);
+    setUrlValidation(prev => ({ ...prev, [section]: value.trim() ? 'checking' : null }));
+    
+    if (urlCheckTimeoutRef.current[section]) {
+      clearTimeout(urlCheckTimeoutRef.current[section]);
+    }
+    urlCheckTimeoutRef.current[section] = setTimeout(() => {
+      checkWebsiteReachability(value, section);
+    }, 1500);
+  };
+
+  // Crop modal state
+  const [cropModal, setCropModal] = useState({ open: false, image: null, aspect: 1, type: null });
 
   // Bulletin modal state (for Saved tab View button)
   const [bulletinModal, setBulletinModal] = useState(null);
@@ -4416,6 +4475,15 @@ export const CompanyProfile = ({ viewedPartnerId = null, onBack = null }) => {
         contactPerson: partner.contactPerson || '',
         email: partner.email || '',
         address: partner.address || '',
+        detailed_address: partner.detailed_address || '',
+        region: partner.region || '',
+        province: partner.province || '',
+        city: partner.city || '',
+        barangay: partner.barangay || '',
+        regionCode: partner.regionCode || '',
+        provinceCode: partner.provinceCode || '',
+        cityCode: partner.cityCode || '',
+        barangayCode: partner.barangayCode || '',
         website: partner.website || '',
         industry: partner.industry || '',
         achievements: partner.achievements || [],
@@ -4431,7 +4499,8 @@ export const CompanyProfile = ({ viewedPartnerId = null, onBack = null }) => {
         banner_url: partner.banner_url || ''
       });
       setCompanyInfoVisibility(resolvePartnerVisibility(partner));
-      setEditing(false);
+      setEditingSection(null);
+      setActiveMenu(null);
       setShowUploadForm(false);
     }
   }, [partner]);
@@ -4504,59 +4573,71 @@ export const CompanyProfile = ({ viewedPartnerId = null, onBack = null }) => {
   const handleBannerUpload = async (e) => {
     const file = e.target.files[0];
     if (!file || !isOwnProfile) return;
-    setSaving(true);
-    try {
-      const path = `partner-banners/${partner.id}/${Date.now()}_${file.name}`;
-      const res = await uploadOptimizedImage('registration-uploads', path, file);
-      if (!res.success) throw new Error(res.error);
-      const publicUrl = res.url;
-      await updatePartner(partner.id, { banner_url: publicUrl });
-      // Update form state if we are currently editing
-      setForm(prev => ({ ...prev, banner_url: publicUrl }));
-      showBulletinToast('Banner updated successfully!');
-    } catch (err) {
-      console.error('Banner upload error:', err);
-      toast.error('Failed to upload banner: ' + err.message);
-    } finally {
-      setSaving(false);
+    if (!file.type.startsWith('image/')) {
+      toast.error('Please upload an image file (PNG, JPG, etc.)');
+      return;
     }
+    const reader = new FileReader();
+    reader.onload = () => setCropModal({ open: true, image: reader.result, aspect: 3, type: 'banner' });
+    reader.readAsDataURL(file);
+    e.target.value = ''; // Reset input
   };
 
   const handleLogoUpload = async (e) => {
     const file = e.target.files[0];
     if (!file || !isOwnProfile) return;
-    setSaving(true);
-    try {
-      const path = `partner-logos/${partner.id}/${Date.now()}_${file.name}`;
-      const res = await uploadOptimizedImage('registration-uploads', path, file);
-      if (!res.success) throw new Error(res.error);
-      const publicUrl = res.url;
-      await updatePartner(partner.id, { company_logo_url: publicUrl });
-      // Update form state if we are currently editing
-      setForm(prev => ({ ...prev, company_logo_url: publicUrl }));
-      showBulletinToast('Logo updated successfully!');
-    } catch (err) {
-      console.error('Logo upload error:', err);
-      toast.error('Failed to upload logo: ' + err.message);
-    } finally {
-      setSaving(false);
+    if (!file.type.startsWith('image/')) {
+      toast.error('Please upload an image file (PNG, JPG, etc.)');
+      return;
     }
+    const reader = new FileReader();
+    reader.onload = () => setCropModal({ open: true, image: reader.result, aspect: 1, type: 'logo' });
+    reader.readAsDataURL(file);
+    e.target.value = ''; // Reset input
   };
 
   const handlePOCPhotoUpload = async (e) => {
     const file = e.target.files[0];
     if (!file || !isOwnProfile) return;
+    if (!file.type.startsWith('image/')) {
+      toast.error('Please upload an image file (PNG, JPG, etc.)');
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => setCropModal({ open: true, image: reader.result, aspect: 1, type: 'poc' });
+    reader.readAsDataURL(file);
+    e.target.value = ''; // Reset input
+  };
+
+  const onCropComplete = async (croppedBlob) => {
+    const type = cropModal.type;
+    setCropModal({ open: false, image: null, aspect: 1, type: null });
     setSaving(true);
     try {
-      const path = `partner-poc/${partner.id}/${Date.now()}_${file.name}`;
-      const res = await uploadOptimizedImage('registration-uploads', path, file);
+      let path = '';
+      if (type === 'banner') path = `partner-banners/${partner.id}/${Date.now()}_banner.jpg`;
+      else if (type === 'logo') path = `partner-logos/${partner.id}/${Date.now()}_logo.jpg`;
+      else if (type === 'poc') path = `partner-poc/${partner.id}/${Date.now()}_poc.jpg`;
+
+      const res = await uploadOptimizedImage('registration-uploads', path, croppedBlob);
       if (!res.success) throw new Error(res.error);
       const publicUrl = res.url;
-      setForm(prev => ({ ...prev, poc_photo_url: publicUrl }));
-      showBulletinToast('POC photo updated!');
+
+      if (type === 'banner') {
+        await updatePartner(partner.id, { banner_url: publicUrl });
+        setForm(prev => ({ ...prev, banner_url: publicUrl }));
+        showBulletinToast('Banner updated!');
+      } else if (type === 'logo') {
+        await updatePartner(partner.id, { company_logo_url: publicUrl });
+        setForm(prev => ({ ...prev, company_logo_url: publicUrl }));
+        showBulletinToast('Logo updated!');
+      } else if (type === 'poc') {
+        setForm(prev => ({ ...prev, poc_photo_url: publicUrl }));
+        showBulletinToast('POC photo prepared!');
+      }
     } catch (err) {
-      console.error('POC photo upload error:', err);
-      toast.error('Failed to upload photo: ' + err.message);
+      console.error('Upload error:', err);
+      toast.error('Failed to upload: ' + err.message);
     } finally {
       setSaving(false);
     }
@@ -4580,16 +4661,140 @@ export const CompanyProfile = ({ viewedPartnerId = null, onBack = null }) => {
 
   const activeJobs = jobPostings.filter(j => j.partnerId === partner.id && j.status === 'Open');
 
-  const save = async () => {
-    if (!isOwnProfile) return;
-    if (form.email && !isEmailValid(form.email)) {
-      toast.error('Please enter a valid email address.');
-      return;
+  // URL validation (gibberish check)
+  const isValidUrl = (url) => {
+    if (!url) return true;
+    try {
+      const pattern = new RegExp('^(https?:\\/\\/)?'+ // protocol
+        '((([a-z\\d]([a-z\\d-]*[a-z\\d])*)\\.)+[a-z]{2,}|'+ // domain name
+        '((\\d{1,3}\\.){3}\\d{1,3}))'+ // OR ip (v4) address
+        '(\\:\\d+)?(\\/[-a-z\\d%_.~+]*)*'+ // port and path
+        '(\\?[;&a-z\\d%_.~+=-]*)?'+ // query string
+        '(\\#[-a-z\\d_]*)?$','i'); // fragment locator
+      return !!pattern.test(url);
+    } catch (e) {
+      return false;
     }
+  };
+
+  const validateSection = async (section) => {
+    if (section === 'companyInfo') {
+      if (!form.companyName?.trim()) { toast.error('Company Name is required'); return false; }
+      if (form.companyName.length > 50) { toast.error('Company Name must be 50 characters or less'); return false; }
+      if (!form.email?.trim()) { toast.error('Contact Email is required'); return false; }
+      if (form.email.length > 40) { toast.error('Contact Email must be 40 characters or less'); return false; }
+      if (!isEmailValid(form.email)) { toast.error('Please enter a valid email address'); return false; }
+      if (!form.industry) { toast.error('Please select an Industry'); return false; }
+      if (form.contactPerson && form.contactPerson.length > 40) { toast.error('Contact Person must be 40 characters or less'); return false; }
+      
+      if (form.website && urlValidation.companyInfo !== 'valid') {
+        if (urlValidation.companyInfo === 'unreachable' || urlValidation.companyInfo === 'error' || urlValidation.companyInfo === 'invalid') {
+          toast.error('Cannot save. Website is unreachable or invalid.');
+        } else {
+          toast.error('Please wait for website verification to complete.');
+        }
+        return false;
+      }
+    }
+    if (section === 'location') {
+      if (form.office_location_url && urlValidation.location !== 'valid') {
+        if (urlValidation.location === 'unreachable' || urlValidation.location === 'error' || urlValidation.location === 'invalid') {
+          toast.error('Cannot save. Location URL is unreachable or invalid.');
+        } else {
+          toast.error('Please wait for location verification to complete.');
+        }
+        return false;
+      }
+    }
+    return true;
+  };
+
+  const handleCancelEdit = (section) => {
+    if (partner) {
+      setForm({
+        ...form,
+        companyName: partner.companyName || '',
+        contactPerson: partner.contactPerson || '',
+        email: partner.email || '',
+        address: partner.address || '',
+        detailed_address: partner.detailed_address || '',
+        region: partner.region || '',
+        province: partner.province || '',
+        city: partner.city || '',
+        barangay: partner.barangay || '',
+        regionCode: partner.regionCode || '',
+        provinceCode: partner.provinceCode || '',
+        cityCode: partner.cityCode || '',
+        barangayCode: partner.barangayCode || '',
+        website: partner.website || '',
+        industry: partner.industry || '',
+        mission: partner.mission || '',
+        vision: partner.vision || '',
+        achievements: partner.achievements || [],
+        benefits: partner.benefits || [],
+        poc_name: partner.poc_name || '',
+        poc_title: partner.poc_title || '',
+        office_location_url: partner.office_location_url || ''
+      });
+    }
+    setEditingSection(null);
+  };
+
+  const saveSection = async (section) => {
+    if (!(await validateSection(section))) return;
     setSaving(true);
-    await updatePartner(partner.id, { ...form, companyInfoVisibility });
-    setSaving(false);
-    setEditing(false);
+    try {
+      let payload = {};
+      if (section === 'companyInfo') {
+        payload = {
+          companyName: form.companyName.trim(),
+          contactPerson: form.contactPerson?.trim(),
+          email: form.email.trim(),
+          industry: form.industry,
+          website: form.website?.trim(),
+          region: form.region,
+          province: form.province,
+          city: form.city,
+          barangay: form.barangay,
+          detailed_address: form.detailed_address?.trim(),
+          address: [form.detailed_address, form.barangay, form.city, form.province, form.region].filter(Boolean).join(', '),
+          regionCode: form.regionCode,
+          provinceCode: form.provinceCode,
+          cityCode: form.cityCode,
+          barangayCode: form.barangayCode
+        };
+      } else if (section === 'mission') {
+        payload = { mission: form.mission.trim() };
+      } else if (section === 'vision') {
+        payload = { vision: form.vision.trim() };
+      } else if (section === 'benefits') {
+        payload = { benefits: form.benefits };
+      } else if (section === 'poc') {
+        payload = { 
+          poc_name: form.poc_name.trim(), 
+          poc_title: form.poc_title.trim(),
+          poc_photo_url: form.poc_photo_url
+        };
+      } else if (section === 'achievements') {
+        payload = { achievements: form.achievements };
+      } else if (section === 'location') {
+        payload = { office_location_url: form.office_location_url.trim() };
+      } else if (section === 'culture') {
+          payload = { culture_tags: form.culture_tags, perks_tags: form.perks_tags };
+      }
+
+      const res = await updatePartner(partner.id, payload);
+      if (res.success) {
+        toast.success('Section updated successfully');
+        setEditingSection(null);
+      } else {
+        toast.error(res.error || 'Failed to update section');
+      }
+    } catch (err) {
+      toast.error('An error occurred while saving');
+    } finally {
+      setSaving(false);
+    }
   };
 
   const initials = partner.companyName?.charAt(0)?.toUpperCase() || 'P';
@@ -4731,40 +4936,7 @@ export const CompanyProfile = ({ viewedPartnerId = null, onBack = null }) => {
                     {isHeaderEmailHiddenFromOthers && <EyeOff size={14} color="#94a3b8" title="Hidden from others" />}
                   </p>
                 )}
-              </div>
-              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 12 }}>
                 <StatusBadge status={partner.verificationStatus} />
-                {isOwnProfile && (
-                  <button
-                    className={`ln-btn ${editing ? 'ln-btn-success' : 'ln-btn-primary'}`}
-                    onClick={editing ? save : () => {
-                      setForm({
-                        companyName: partner?.companyName || '',
-                        contactPerson: partner?.contactPerson || '',
-                        email: partner?.email || '',
-                        address: partner?.address || '',
-                        website: partner?.website || '',
-                        industry: partner?.industry || '',
-                        achievements: partner?.achievements || [],
-                        benefits: partner?.benefits || [],
-                        mission: partner?.mission || '',
-                        vision: partner?.vision || '',
-                        culture_tags: Array.isArray(partner?.culture_tags) ? partner.culture_tags : [],
-                        perks_tags: Array.isArray(partner?.perks_tags) ? partner.perks_tags : [],
-                        poc_name: partner?.poc_name || '',
-                        poc_title: partner?.poc_title || '',
-                        poc_photo_url: partner?.poc_photo_url || '',
-                        office_location_url: partner?.office_location_url || '',
-                        banner_url: partner?.banner_url || ''
-                      });
-                      setCompanyInfoVisibility(resolvePartnerVisibility(partner));
-                      setEditing(true);
-                    }}
-                    disabled={saving || (editing && form.email && !isEmailValid(form.email))}
-                  >
-                    {saving ? <><Loader size={15} style={{ animation: 'ocr-spin 0.8s linear infinite' }} /> Saving...</> : editing ? <><CheckCircle size={15} /> Save Changes</> : <><Edit size={15} /> Edit Profile</>}
-                  </button>
-                )}
               </div>
             </div>
           </div>
@@ -4832,127 +5004,245 @@ export const CompanyProfile = ({ viewedPartnerId = null, onBack = null }) => {
               )}
 
               {/* Company Information */}
-              <div className="ln-card">
-                <div className="ln-section-header">
+              <div className="ln-card" style={{ position: 'relative' }}>
+                <div className="ln-section-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                   <h3>Company Information</h3>
-                  {isOwnProfile && editing && (
-                    <button
-                      className="ln-btn-sm ln-btn-outline"
-                      onClick={() => {
-                        setForm({
-                          companyName: partner?.companyName || '',
-                          contactPerson: partner?.contactPerson || '',
-                          email: partner?.email || '',
-                          address: partner?.address || '',
-                          website: partner?.website || '',
-                          industry: partner?.industry || '',
-                          achievements: partner?.achievements || [],
-                          benefits: partner?.benefits || [],
-                          mission: partner?.mission || '',
-                          vision: partner?.vision || '',
-                          culture_tags: Array.isArray(partner?.culture_tags) ? partner.culture_tags : [],
-                          perks_tags: Array.isArray(partner?.perks_tags) ? partner.perks_tags : [],
-                          poc_name: partner?.poc_name || '',
-                          poc_title: partner?.poc_title || '',
-                          poc_photo_url: partner?.poc_photo_url || '',
-                          office_location_url: partner?.office_location_url || '',
-                          banner_url: partner?.banner_url || ''
-                        });
-                        setCompanyInfoVisibility(resolvePartnerVisibility(partner));
-                        setEditing(false);
-                      }}
-                      disabled={saving}
-                    >
-                      Cancel
-                    </button>
+                  {isOwnProfile && (
+                    editingSection === 'companyInfo' ? (
+                      <div style={{ display: 'flex', gap: 8 }}>
+                        <button className="ln-btn-sm ln-btn-outline" onClick={() => handleCancelEdit('companyInfo')} disabled={saving}>Cancel</button>
+                        <button className="ln-btn-sm ln-btn-primary" onClick={() => saveSection('companyInfo')} disabled={saving}>
+                          {saving ? 'Saving...' : 'Save'}
+                        </button>
+                      </div>
+                    ) : (
+                      <div style={{ position: 'relative' }}>
+                        <button 
+                          className="ln-btn-icon" 
+                          onClick={() => setActiveMenu(activeMenu === 'companyInfo' ? null : 'companyInfo')}
+                        >
+                          <MoreVertical size={18} />
+                        </button>
+                        {activeMenu === 'companyInfo' && (
+                          <div className="ln-popover-menu" style={{ 
+                            position: 'absolute', right: 0, top: '100%', zIndex: 10,
+                            background: '#fff', border: '1px solid #e2e8f0', 
+                            borderRadius: 8, boxShadow: '0 4px 20px rgba(0,0,0,0.15)',
+                            padding: '4px', minWidth: 160, marginTop: 8
+                          }}>
+                            <button 
+                              onClick={() => { setEditingSection('companyInfo'); setActiveMenu(null); }}
+                              style={{ 
+                                width: '100%', textAlign: 'left', padding: '8px 12px',
+                                background: 'none', border: 'none', borderRadius: 6,
+                                display: 'flex', alignItems: 'center', gap: 8,
+                                fontSize: 13, color: '#334155', cursor: 'pointer'
+                              }}
+                              className="ln-popover-item"
+                            >
+                              <Edit size={14} /> Edit Information
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    )
                   )}
                 </div>
+
                 <div className="ln-info-grid">
-                  {(() => {
-                    const visibleSet = new Set(resolvePartnerVisibility(partner));
-                    const fieldsToRender = companyInfoFields.filter(field => isOwnProfile || visibleSet.has(field.key));
-
-                    if (fieldsToRender.length === 0) {
-                      return <div style={{ gridColumn: '1 / -1', fontSize: 13, color: '#94a3b8' }}>This company chose to hide company information.</div>;
-                    }
-
-                    return fieldsToRender.map(field => {
-                      const isVisible = companyInfoVisibility.includes(field.key);
-                      const value = editing ? form[field.key] : partner[field.key];
-
-                      return (
-                        <div key={field.key} className="ln-info-item">
-                          <label className="ln-info-label">{field.label}</label>
-                          {editing ? (
-                            field.type === 'select' ? (
-                              <select
-                                className="form-input"
-                                value={value || ''}
-                                onChange={e => setForm({ ...form, [field.key]: e.target.value })}
-                              >
-                                <option value="">Select {field.label}</option>
-                                {field.options.map(opt => (
-                                  <option key={opt} value={opt}>{opt}</option>
-                                ))}
-                              </select>
-                            ) : (
-                            <input
-                              type={field.type}
-                              className="form-input"
-                              value={value || ''}
-                              maxLength={field.maxLength}
-                              placeholder={field.placeholder}
-                              onChange={e => setForm({ ...form, [field.key]: e.target.value })}
-                              style={field.key === 'email' && form.email && !isEmailValid(form.email) ? { borderColor: '#cc1016' } : undefined}
-                            />)
-                          ) : field.key === 'website' ? (
-                            <div className="ln-info-value">
-                              {partner.website
-                                ? <a href={partner.website.startsWith('http') ? partner.website : `https://${partner.website}`} target="_blank" rel="noreferrer" style={{ color: '#0a66c2', display: 'flex', alignItems: 'center', gap: 4 }}>{partner.website} <ExternalLink size={12} /></a>
-                                : '—'}
-                            </div>
-                          ) : (
-                            <div className="ln-info-value">{value || '—'}</div>
-                          )}
-
-                          {isOwnProfile && editing && (
-                            <label style={{ marginTop: 8, display: 'inline-flex', alignItems: 'center', gap: 8, fontSize: 12, color: isVisible ? '#166534' : '#64748b', fontWeight: 600 }}>
-                              <input
-                                type="checkbox"
-                                checked={isVisible}
-                                onChange={() => toggleCompanyInfoVisibility(field.key)}
-                                style={{ width: 14, height: 14 }}
-                              />
-                              {isVisible ? 'Shown to others' : 'Hidden from others'}
-                            </label>
-                          )}
+                  {editingSection === 'companyInfo' ? (
+                    <>
+                      <div className="ln-info-item">
+                        <label className="ln-info-label">Company Name</label>
+                        <input 
+                          type="text" 
+                          className="form-input" 
+                          value={form.companyName} 
+                          onChange={e => setForm({...form, companyName: e.target.value.slice(0, 50)})} 
+                          placeholder="Enter company name"
+                          style={!form.companyName?.trim() ? { borderColor: '#ef4444' } : form.companyName.length >= 50 ? { borderColor: '#f59e0b' } : {}}
+                        />
+                        {!form.companyName?.trim() && <div style={{ fontSize: 11, color: '#ef4444', marginTop: 4 }}>Company name is required</div>}
+                        {form.companyName.length >= 50 && <div style={{ fontSize: 11, color: '#f59e0b', marginTop: 4 }}>Maximum 50 characters reached</div>}
+                      </div>
+                      <div className="ln-info-item">
+                        <label className="ln-info-label">Contact Email</label>
+                        <input 
+                          type="email" 
+                          className="form-input" 
+                          value={form.email} 
+                          onChange={e => setForm({...form, email: e.target.value.slice(0, 40)})} 
+                          placeholder="Enter contact email"
+                          style={(!form.email?.trim() || (form.email && !isEmailValid(form.email))) ? { borderColor: '#ef4444' } : form.email.length >= 40 ? { borderColor: '#f59e0b' } : {}}
+                        />
+                        {!form.email?.trim() && <div style={{ fontSize: 11, color: '#ef4444', marginTop: 4 }}>Contact email is required</div>}
+                        {form.email?.trim() && !isEmailValid(form.email) && <div style={{ fontSize: 11, color: '#ef4444', marginTop: 4 }}>Please enter a valid email address</div>}
+                        {form.email.length >= 40 && <div style={{ fontSize: 11, color: '#f59e0b', marginTop: 4 }}>Maximum 40 characters reached</div>}
+                      </div>
+                      <div className="ln-info-item">
+                        <label className="ln-info-label">Industry</label>
+                        <select 
+                          className="form-input" 
+                          value={form.industry} 
+                          onChange={e => setForm({...form, industry: e.target.value})}
+                        >
+                          <option value="">Select Industry</option>
+                          {INDUSTRY_OPTIONS.map(opt => <option key={opt} value={opt}>{opt}</option>)}
+                        </select>
+                      </div>
+                      <div className="ln-info-item">
+                        <label className="ln-info-label">Contact Person</label>
+                        <input 
+                          type="text" 
+                          className="form-input" 
+                          value={form.contactPerson} 
+                          onChange={e => setForm({...form, contactPerson: e.target.value.slice(0, 40)})} 
+                          placeholder="Enter contact person"
+                          style={form.contactPerson.length >= 40 ? { borderColor: '#f59e0b' } : {}}
+                        />
+                        {form.contactPerson.length >= 40 && <div style={{ fontSize: 11, color: '#f59e0b', marginTop: 4 }}>Maximum 40 characters reached</div>}
+                      </div>
+                      <div className="ln-info-item">
+                        <label className="ln-info-label">Website</label>
+                        <input 
+                          type="url" 
+                          className="form-input" 
+                          value={form.website} 
+                          onChange={e => handleUrlChange(e.target.value, 'companyInfo', val => setForm({...form, website: val}))} 
+                          placeholder="https://example.com"
+                          style={urlValidation.companyInfo === 'invalid' || urlValidation.companyInfo === 'error' || urlValidation.companyInfo === 'unreachable' ? { borderColor: '#ef4444' } : urlValidation.companyInfo === 'valid' ? { borderColor: '#10b981' } : {}}
+                        />
+                        {urlValidation.companyInfo === 'checking' && <div style={{ fontSize: 11, color: '#3b82f6', marginTop: 4 }}>Verifying website reachability...</div>}
+                        {urlValidation.companyInfo === 'invalid' && <div style={{ fontSize: 11, color: '#ef4444', marginTop: 4 }}>Please enter a valid URL (e.g. https://example.com)</div>}
+                        {urlValidation.companyInfo === 'unreachable' && <div style={{ fontSize: 11, color: '#ef4444', marginTop: 4 }}>Website is unreachable or does not exist.</div>}
+                        {urlValidation.companyInfo === 'error' && <div style={{ fontSize: 11, color: '#ef4444', marginTop: 4 }}>Could not verify website. Check your connection.</div>}
+                        {urlValidation.companyInfo === 'valid' && <div style={{ fontSize: 11, color: '#10b981', marginTop: 4 }}>Website verified successfully.</div>}
+                      </div>
+                      
+                      <div className="ln-info-item" style={{ gridColumn: '1 / -1', marginTop: 12 }}>
+                        <label className="ln-info-label" style={{ marginBottom: 12, display: 'block', fontSize: 14, fontWeight: 700 }}>Office Address</label>
+                        <PhilAddressSelector 
+                          values={{
+                            region: form.region,
+                            province: form.province,
+                            city: form.city,
+                            barangay: form.barangay,
+                            detailedAddress: form.detailed_address,
+                            regionCode: form.regionCode,
+                            provinceCode: form.provinceCode,
+                            cityCode: form.cityCode,
+                            barangayCode: form.barangayCode
+                          }}
+                          onChange={(vals) => setForm({
+                            ...form,
+                            ...vals,
+                            // Map detailedAddress back to detailed_address if it was changed
+                            detailed_address: vals.detailedAddress !== undefined ? vals.detailedAddress : form.detailed_address
+                          })}
+                        />
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <div className="ln-info-item">
+                        <label className="ln-info-label">Company Name</label>
+                        <div className="ln-info-value">{partner.companyName}</div>
+                      </div>
+                      <div className="ln-info-item">
+                        <label className="ln-info-label">Industry</label>
+                        <div className="ln-info-value">{partner.industry}</div>
+                      </div>
+                      <div className="ln-info-item">
+                        <label className="ln-info-label">Contact Person</label>
+                        <div className="ln-info-value">{partner.contactPerson || '—'}</div>
+                      </div>
+                      <div className="ln-info-item">
+                        <label className="ln-info-label">Contact Email</label>
+                        <div className="ln-info-value">{partner.email || '—'}</div>
+                      </div>
+                      <div className="ln-info-item">
+                        <label className="ln-info-label">Website</label>
+                        <div className="ln-info-value">
+                          {partner.website ? (
+                            <a href={partner.website.startsWith('http') ? partner.website : `https://${partner.website}`} target="_blank" rel="noopener noreferrer" style={{ color: '#0a66c2', textDecoration: 'none' }}>
+                              {partner.website} <ExternalLink size={12} />
+                            </a>
+                          ) : '—'}
                         </div>
-                      );
-                    });
-                  })()}
-
-                  {isOwnProfile && editing && form.email && !isEmailValid(form.email) && (
-                    <div style={{ gridColumn: '1 / -1', fontSize: 12, color: '#cc1016', marginTop: -8 }}>Please enter a valid email address</div>
+                      </div>
+                      <div className="ln-info-item" style={{ gridColumn: '1 / -1' }}>
+                        <label className="ln-info-label">Address</label>
+                        <div className="ln-info-value">{partner.address || '—'}</div>
+                      </div>
+                    </>
                   )}
                 </div>
               </div>
 
               {/* Mission & Vision Section */}
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20, marginTop: 20 }}>
-                <div className="ln-card" style={{ height: '100%' }}>
-                  <div className="ln-section-header">
+                <div className="ln-card no-scrollbar" style={{ position: 'relative', overflow: 'hidden' }}>
+                  <div className="ln-section-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <h3>Our Mission</h3>
+                    {isOwnProfile && (
+                      editingSection === 'mission' ? (
+                        <div style={{ display: 'flex', gap: 8 }}>
+                          <button className="ln-btn-sm ln-btn-outline" onClick={() => handleCancelEdit('mission')} disabled={saving}>Cancel</button>
+                          <button className="ln-btn-sm ln-btn-primary" onClick={() => saveSection('mission')} disabled={saving}>
+                            {saving ? 'Saving...' : 'Save'}
+                          </button>
+                        </div>
+                      ) : (
+                        <div style={{ position: 'relative' }}>
+                          <button className="ln-btn-icon" onClick={() => setActiveMenu(activeMenu === 'mission' ? null : 'mission')}>
+                            <MoreVertical size={18} />
+                          </button>
+                          {activeMenu === 'mission' && (
+                            <div className="ln-popover-menu" style={{ 
+                              position: 'absolute', right: 0, top: '100%', zIndex: 10,
+                              background: '#fff', border: '1px solid #e2e8f0', 
+                              borderRadius: 8, boxShadow: '0 4px 20px rgba(0,0,0,0.15)',
+                              padding: '4px', minWidth: 160, marginTop: 8
+                            }}>
+                              <button 
+                                onClick={() => { setEditingSection('mission'); setActiveMenu(null); }}
+                                style={{ 
+                                  width: '100%', textAlign: 'left', padding: '8px 12px',
+                                  background: 'none', border: 'none', borderRadius: 6,
+                                  display: 'flex', alignItems: 'center', gap: 8,
+                                  fontSize: 13, color: '#334155', cursor: 'pointer'
+                                }}
+                                className="ln-popover-item"
+                              >
+                                <Edit size={14} /> Edit Mission
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      )
+                    )}
                   </div>
                   <div style={{ padding: '0 16px 16px' }}>
-                    {editing ? (
-                      <textarea
-                        className="form-input"
-                        style={{ minHeight: 120, resize: 'none' }}
-                        placeholder="Define your company's core mission..."
-                        value={form.mission}
-                        onChange={e => setForm({ ...form, mission: e.target.value })}
-                        maxLength={1000}
-                      />
+                    {editingSection === 'mission' ? (
+                      <>
+                        <textarea
+                          className="form-input no-scrollbar"
+                          style={{ minHeight: 120, width: '100%', resize: 'none', display: 'block', height: 'auto' }}
+                          placeholder="Define your company's core mission..."
+                          value={form.mission}
+                          onChange={e => {
+                            setForm({ ...form, mission: e.target.value.slice(0, 500) });
+                            e.target.style.height = 'auto';
+                            e.target.style.height = e.target.scrollHeight + 'px';
+                          }}
+                          onFocus={e => {
+                            e.target.style.height = 'auto';
+                            e.target.style.height = e.target.scrollHeight + 'px';
+                          }}
+                          maxLength={500}
+                        />
+                        {form.mission.length >= 500 && <div style={{ fontSize: 11, color: '#f59e0b', marginTop: 4 }}>Maximum 500 characters reached</div>}
+                      </>
                     ) : (
                       <p style={{ fontSize: 14, color: '#334155', lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>
                         {partner.mission || 'No mission statement provided yet.'}
@@ -4960,20 +5250,68 @@ export const CompanyProfile = ({ viewedPartnerId = null, onBack = null }) => {
                     )}
                   </div>
                 </div>
-                <div className="ln-card" style={{ height: '100%' }}>
-                  <div className="ln-section-header">
+                <div className="ln-card no-scrollbar" style={{ position: 'relative', overflow: 'hidden' }}>
+                  <div className="ln-section-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <h3>Our Vision</h3>
+                    {isOwnProfile && (
+                      editingSection === 'vision' ? (
+                        <div style={{ display: 'flex', gap: 8 }}>
+                          <button className="ln-btn-sm ln-btn-outline" onClick={() => handleCancelEdit('vision')} disabled={saving}>Cancel</button>
+                          <button className="ln-btn-sm ln-btn-primary" onClick={() => saveSection('vision')} disabled={saving}>
+                            {saving ? 'Saving...' : 'Save'}
+                          </button>
+                        </div>
+                      ) : (
+                        <div style={{ position: 'relative' }}>
+                          <button className="ln-btn-icon" onClick={() => setActiveMenu(activeMenu === 'vision' ? null : 'vision')}>
+                            <MoreVertical size={18} />
+                          </button>
+                          {activeMenu === 'vision' && (
+                            <div className="ln-popover-menu" style={{ 
+                              position: 'absolute', right: 0, top: '100%', zIndex: 10,
+                              background: '#fff', border: '1px solid #e2e8f0', 
+                              borderRadius: 8, boxShadow: '0 4px 20px rgba(0,0,0,0.15)',
+                              padding: '4px', minWidth: 160, marginTop: 8
+                            }}>
+                              <button 
+                                onClick={() => { setEditingSection('vision'); setActiveMenu(null); }}
+                                style={{ 
+                                  width: '100%', textAlign: 'left', padding: '8px 12px',
+                                  background: 'none', border: 'none', borderRadius: 6,
+                                  display: 'flex', alignItems: 'center', gap: 8,
+                                  fontSize: 13, color: '#334155', cursor: 'pointer'
+                                }}
+                                className="ln-popover-item"
+                              >
+                                <Edit size={14} /> Edit Vision
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      )
+                    )}
                   </div>
                   <div style={{ padding: '0 16px 16px' }}>
-                    {editing ? (
-                      <textarea
-                        className="form-input"
-                        style={{ minHeight: 120, resize: 'none' }}
-                        placeholder="Share your long-term goal for the company..."
-                        value={form.vision}
-                        onChange={e => setForm({ ...form, vision: e.target.value })}
-                        maxLength={1000}
-                      />
+                    {editingSection === 'vision' ? (
+                      <>
+                        <textarea
+                          className="form-input no-scrollbar"
+                          style={{ minHeight: 120, width: '100%', resize: 'none', display: 'block', height: 'auto' }}
+                          placeholder="Share your long-term goal for the company..."
+                          value={form.vision}
+                          onChange={e => {
+                            setForm({ ...form, vision: e.target.value.slice(0, 500) });
+                            e.target.style.height = 'auto';
+                            e.target.style.height = e.target.scrollHeight + 'px';
+                          }}
+                          onFocus={e => {
+                            e.target.style.height = 'auto';
+                            e.target.style.height = e.target.scrollHeight + 'px';
+                          }}
+                          maxLength={500}
+                        />
+                        {form.vision.length >= 500 && <div style={{ fontSize: 11, color: '#f59e0b', marginTop: 4 }}>Maximum 500 characters reached</div>}
+                      </>
                     ) : (
                       <p style={{ fontSize: 14, color: '#334155', lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>
                         {partner.vision || 'No vision statement provided yet.'}
@@ -4987,9 +5325,46 @@ export const CompanyProfile = ({ viewedPartnerId = null, onBack = null }) => {
               <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) 300px', gap: 20, marginTop: 20 }}>
                 <div>
                   {/* Unified Work Environment & Benefits Section */}
-                  <div className="ln-card">
-                    <div className="ln-section-header">
+                  <div className="ln-card" style={{ position: 'relative' }}>
+                    <div className="ln-section-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                       <h3>Work Environment & Benefits</h3>
+                      {isOwnProfile && (
+                        editingSection === 'culture' ? (
+                          <div style={{ display: 'flex', gap: 8 }}>
+                            <button className="ln-btn-sm ln-btn-outline" onClick={() => handleCancelEdit('culture')} disabled={saving}>Cancel</button>
+                            <button className="ln-btn-sm ln-btn-primary" onClick={() => saveSection('culture')} disabled={saving}>
+                              {saving ? 'Saving...' : 'Save'}
+                            </button>
+                          </div>
+                        ) : (
+                          <div style={{ position: 'relative' }}>
+                            <button className="ln-btn-icon" onClick={() => setActiveMenu(activeMenu === 'culture' ? null : 'culture')}>
+                              <MoreVertical size={18} />
+                            </button>
+                            {activeMenu === 'culture' && (
+                              <div className="ln-popover-menu" style={{ 
+                                position: 'absolute', right: 0, top: '100%', zIndex: 10,
+                                background: '#fff', border: '1px solid #e2e8f0', 
+                                borderRadius: 8, boxShadow: '0 4px 20px rgba(0,0,0,0.15)',
+                                padding: '4px', minWidth: 160, marginTop: 8
+                              }}>
+                                <button 
+                                  onClick={() => { setEditingSection('culture'); setActiveMenu(null); }}
+                                  style={{ 
+                                    width: '100%', textAlign: 'left', padding: '8px 12px',
+                                    background: 'none', border: 'none', borderRadius: 6,
+                                    display: 'flex', alignItems: 'center', gap: 8,
+                                    fontSize: 13, color: '#334155', cursor: 'pointer'
+                                  }}
+                                  className="ln-popover-item"
+                                >
+                                  <Edit size={14} /> Edit Environment
+                                </button>
+                              </div>
+                            )}
+                          </div>
+                        )
+                      )}
                     </div>
                     <div style={{ padding: '0 16px 16px' }}>
                       {/* Culture Tags Subsection */}
@@ -4997,19 +5372,21 @@ export const CompanyProfile = ({ viewedPartnerId = null, onBack = null }) => {
                         <div style={{ fontSize: 11, fontWeight: 700, color: '#64748b', textTransform: 'uppercase', marginBottom: 8, letterSpacing: '0.025em' }}>Work Culture</div>
                         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
                           {PREDEFINED_CULTURE_TAGS.map(tag => {
-                            const isSelected = (editing ? form.culture_tags : partner.culture_tags)?.includes(tag);
+                            const isSelected = (editingSection === 'culture' ? form.culture_tags : partner.culture_tags)?.includes(tag);
                             return (
                               <button
                                 key={tag}
                                 type="button"
                                 onClick={() => {
-                                  if (!editing) return;
+                                  if (editingSection !== 'culture') return;
                                   const current = form.culture_tags || [];
                                   setForm({
                                     ...form,
                                     culture_tags: isSelected
                                       ? current.filter(t => t !== tag)
-                                      : [...current, tag]
+                                      : current.length < 20 
+                                        ? [...current, tag]
+                                        : (toast.error('Maximum 20 culture tags allowed'), current)
                                   });
                                 }}
                                 style={{
@@ -5021,7 +5398,7 @@ export const CompanyProfile = ({ viewedPartnerId = null, onBack = null }) => {
                                   borderRadius: 20,
                                   fontSize: 12,
                                   fontWeight: isSelected ? 600 : 500,
-                                  cursor: editing ? 'pointer' : 'default',
+                                  cursor: editingSection === 'culture' ? 'pointer' : 'default',
                                   transition: 'all 0.2s'
                                 }}
                               >
@@ -5030,14 +5407,14 @@ export const CompanyProfile = ({ viewedPartnerId = null, onBack = null }) => {
                             );
                           })}
                           {/* Custom Culture Tags */}
-                          {(editing ? form.culture_tags : partner.culture_tags)?.filter(t => !PREDEFINED_CULTURE_TAGS.includes(t)).map(tag => (
+                          {(editingSection === 'culture' ? form.culture_tags : partner.culture_tags)?.filter(t => !PREDEFINED_CULTURE_TAGS.includes(t)).map(tag => (
                             <div key={tag} style={{ padding: '6px 14px', background: '#f0fdf4', border: '1px solid #bbf7d0', color: '#166534', borderRadius: 20, fontSize: 12, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6 }}>
                               {tag}
-                              {editing && <X size={12} style={{ cursor: 'pointer' }} onClick={() => setForm({ ...form, culture_tags: form.culture_tags.filter(t => t !== tag) })} />}
+                              {editingSection === 'culture' && <X size={12} style={{ cursor: 'pointer' }} onClick={() => setForm({ ...form, culture_tags: form.culture_tags.filter(t => t !== tag) })} />}
                             </div>
                           ))}
                         </div>
-                        {editing && (
+                        {editingSection === 'culture' && (
                           <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
                             <input
                               className="form-input"
@@ -5047,6 +5424,8 @@ export const CompanyProfile = ({ viewedPartnerId = null, onBack = null }) => {
                               onKeyDown={e => {
                                 if (e.key === 'Enter' && e.target.value.trim()) {
                                   const val = e.target.value.trim();
+                                  if (val.length > 30) { toast.error('Tag must be 30 characters or less'); return; }
+                                  if (form.culture_tags?.length >= 20) { toast.error('Maximum 20 culture tags allowed'); return; }
                                   if (!form.culture_tags.includes(val)) {
                                     setForm({ ...form, culture_tags: [...form.culture_tags, val] });
                                   }
@@ -5054,6 +5433,7 @@ export const CompanyProfile = ({ viewedPartnerId = null, onBack = null }) => {
                                   e.preventDefault();
                                 }
                               }}
+                              maxLength={30}
                             />
                           </div>
                         )}
@@ -5064,19 +5444,21 @@ export const CompanyProfile = ({ viewedPartnerId = null, onBack = null }) => {
                         <div style={{ fontSize: 11, fontWeight: 700, color: '#64748b', textTransform: 'uppercase', marginBottom: 8, letterSpacing: '0.025em' }}>Perks & Benefits</div>
                         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
                           {PREDEFINED_PERKS_TAGS.map(tag => {
-                            const isSelected = (editing ? form.perks_tags : partner.perks_tags)?.includes(tag);
+                            const isSelected = (editingSection === 'culture' ? form.perks_tags : partner.perks_tags)?.includes(tag);
                             return (
                               <button
                                 key={tag}
                                 type="button"
                                 onClick={() => {
-                                  if (!editing) return;
+                                  if (editingSection !== 'culture') return;
                                   const current = form.perks_tags || [];
                                   setForm({
                                     ...form,
                                     perks_tags: isSelected
                                       ? current.filter(t => t !== tag)
-                                      : [...current, tag]
+                                      : current.length < 20 
+                                        ? [...current, tag]
+                                        : (toast.error('Maximum 20 perks tags allowed'), current)
                                   });
                                 }}
                                 style={{
@@ -5088,7 +5470,7 @@ export const CompanyProfile = ({ viewedPartnerId = null, onBack = null }) => {
                                   borderRadius: 20,
                                   fontSize: 12,
                                   fontWeight: isSelected ? 600 : 500,
-                                  cursor: editing ? 'pointer' : 'default',
+                                  cursor: editingSection === 'culture' ? 'pointer' : 'default',
                                   transition: 'all 0.2s'
                                 }}
                               >
@@ -5097,14 +5479,14 @@ export const CompanyProfile = ({ viewedPartnerId = null, onBack = null }) => {
                             );
                           })}
                           {/* Custom Perks Tags */}
-                          {(editing ? form.perks_tags : partner.perks_tags)?.filter(t => !PREDEFINED_PERKS_TAGS.includes(t)).map(tag => (
+                          {(editingSection === 'culture' ? form.perks_tags : partner.perks_tags)?.filter(t => !PREDEFINED_PERKS_TAGS.includes(t)).map(tag => (
                             <div key={tag} style={{ padding: '6px 14px', background: '#fdf2f8', border: '1px solid #fbcfe8', color: '#9d174d', borderRadius: 20, fontSize: 12, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6 }}>
                               {tag}
-                              {editing && <X size={12} style={{ cursor: 'pointer' }} onClick={() => setForm({ ...form, perks_tags: form.perks_tags.filter(t => t !== tag) })} />}
+                              {editingSection === 'culture' && <X size={12} style={{ cursor: 'pointer' }} onClick={() => setForm({ ...form, perks_tags: form.perks_tags.filter(t => t !== tag) })} />}
                             </div>
                           ))}
                         </div>
-                        {editing && (
+                        {editingSection === 'culture' && (
                           <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
                             <input
                               className="form-input"
@@ -5114,6 +5496,8 @@ export const CompanyProfile = ({ viewedPartnerId = null, onBack = null }) => {
                               onKeyDown={e => {
                                 if (e.key === 'Enter' && e.target.value.trim()) {
                                   const val = e.target.value.trim();
+                                  if (val.length > 30) { toast.error('Tag must be 30 characters or less'); return; }
+                                  if (form.perks_tags?.length >= 20) { toast.error('Maximum 20 perks tags allowed'); return; }
                                   if (!form.perks_tags.includes(val)) {
                                     setForm({ ...form, perks_tags: [...form.perks_tags, val] });
                                   }
@@ -5121,6 +5505,7 @@ export const CompanyProfile = ({ viewedPartnerId = null, onBack = null }) => {
                                   e.preventDefault();
                                 }
                               }}
+                              maxLength={30}
                             />
                           </div>
                         )}
@@ -5131,9 +5516,46 @@ export const CompanyProfile = ({ viewedPartnerId = null, onBack = null }) => {
 
                 {/* Point of Contact Card */}
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-                  <div className="ln-card" style={{ height: 'fit-content' }}>
-                    <div className="ln-section-header">
+                  <div className="ln-card" style={{ height: 'fit-content', position: 'relative' }}>
+                    <div className="ln-section-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                       <h3>Point of Contact</h3>
+                      {isOwnProfile && (
+                        editingSection === 'poc' ? (
+                          <div style={{ display: 'flex', gap: 8 }}>
+                            <button className="ln-btn-sm ln-btn-outline" onClick={() => handleCancelEdit('poc')} disabled={saving}>Cancel</button>
+                            <button className="ln-btn-sm ln-btn-primary" onClick={() => saveSection('poc')} disabled={saving}>
+                              {saving ? 'Saving...' : 'Save'}
+                            </button>
+                          </div>
+                        ) : (
+                          <div style={{ position: 'relative' }}>
+                            <button className="ln-btn-icon" onClick={() => setActiveMenu(activeMenu === 'poc' ? null : 'poc')}>
+                              <MoreVertical size={18} />
+                            </button>
+                            {activeMenu === 'poc' && (
+                              <div className="ln-popover-menu" style={{ 
+                                position: 'absolute', right: 0, top: '100%', zIndex: 10,
+                                background: '#fff', border: '1px solid #e2e8f0', 
+                                borderRadius: 8, boxShadow: '0 4px 20px rgba(0,0,0,0.15)',
+                                padding: '4px', minWidth: 160, marginTop: 8
+                              }}>
+                                <button 
+                                  onClick={() => { setEditingSection('poc'); setActiveMenu(null); }}
+                                  style={{ 
+                                    width: '100%', textAlign: 'left', padding: '8px 12px',
+                                    background: 'none', border: 'none', borderRadius: 6,
+                                    display: 'flex', alignItems: 'center', gap: 8,
+                                    fontSize: 13, color: '#334155', cursor: 'pointer'
+                                  }}
+                                  className="ln-popover-item"
+                                >
+                                  <Edit size={14} /> Edit POC
+                                </button>
+                              </div>
+                            )}
+                          </div>
+                        )
+                      )}
                     </div>
                     <div style={{ padding: '0 16px 20px', textAlign: 'center' }}>
                       <div style={{ position: 'relative', width: 100, height: 100, margin: '0 auto 16px' }}>
@@ -5143,13 +5565,13 @@ export const CompanyProfile = ({ viewedPartnerId = null, onBack = null }) => {
                           display: 'flex', alignItems: 'center', justifyContent: 'center',
                           overflow: 'hidden'
                         }}>
-                          {(editing ? form.poc_photo_url : partner.poc_photo_url) ? (
-                            <img src={editing ? form.poc_photo_url : partner.poc_photo_url} alt="POC" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                          {(editingSection === 'poc' ? form.poc_photo_url : partner.poc_photo_url) ? (
+                            <img src={editingSection === 'poc' ? form.poc_photo_url : partner.poc_photo_url} alt="POC" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                           ) : (
                             <User size={40} color="#94a3b8" />
                           )}
                         </div>
-                        {editing && (
+                        {editingSection === 'poc' && (
                           <button
                             onClick={() => pocPhotoInputRef.current?.click()}
                             style={{
@@ -5166,22 +5588,30 @@ export const CompanyProfile = ({ viewedPartnerId = null, onBack = null }) => {
                         <input type="file" ref={pocPhotoInputRef} onChange={handlePOCPhotoUpload} style={{ display: 'none' }} accept="image/*" />
                       </div>
 
-                      {editing ? (
+                      {editingSection === 'poc' ? (
                         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                          <input
-                            className="form-input"
-                            style={{ textAlign: 'center', fontWeight: 700 }}
-                            placeholder="Full Name"
-                            value={form.poc_name}
-                            onChange={e => setForm({ ...form, poc_name: e.target.value })}
-                          />
-                          <input
-                            className="form-input"
-                            style={{ textAlign: 'center', fontSize: 13 }}
-                            placeholder="Designation / Title"
-                            value={form.poc_title}
-                            onChange={e => setForm({ ...form, poc_title: e.target.value })}
-                          />
+                          <div>
+                            <input
+                              className="form-input"
+                              style={{ textAlign: 'center', fontWeight: 700, ...(form.poc_name.length >= 50 ? { borderColor: '#f59e0b' } : {}) }}
+                              placeholder="Full Name"
+                              maxLength={50}
+                              value={form.poc_name}
+                              onChange={e => setForm({ ...form, poc_name: e.target.value.slice(0, 50) })}
+                            />
+                            {form.poc_name.length >= 50 && <div style={{ fontSize: 11, color: '#f59e0b', marginTop: 4, textAlign: 'center' }}>Maximum 50 characters reached</div>}
+                          </div>
+                          <div>
+                            <input
+                              className="form-input"
+                              style={{ textAlign: 'center', fontSize: 13, ...(form.poc_title.length >= 50 ? { borderColor: '#f59e0b' } : {}) }}
+                              placeholder="Designation / Title"
+                              maxLength={50}
+                              value={form.poc_title}
+                              onChange={e => setForm({ ...form, poc_title: e.target.value.slice(0, 50) })}
+                            />
+                            {form.poc_title.length >= 50 && <div style={{ fontSize: 11, color: '#f59e0b', marginTop: 4, textAlign: 'center' }}>Maximum 50 characters reached</div>}
+                          </div>
                         </div>
                       ) : (
                         <div>
@@ -5194,18 +5624,63 @@ export const CompanyProfile = ({ viewedPartnerId = null, onBack = null }) => {
                   </div>
 
                   {/* Office Location Link */}
-                  <div className="ln-card">
-                    <div className="ln-section-header">
+                  <div className="ln-card" style={{ position: 'relative' }}>
+                    <div className="ln-section-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                       <h3>Office Location</h3>
+                      {isOwnProfile && (
+                        editingSection === 'location' ? (
+                          <div style={{ display: 'flex', gap: 8 }}>
+                            <button className="ln-btn-sm ln-btn-outline" onClick={() => handleCancelEdit('location')} disabled={saving}>Cancel</button>
+                            <button className="ln-btn-sm ln-btn-primary" onClick={() => saveSection('location')} disabled={saving}>
+                              {saving ? 'Saving...' : 'Save'}
+                            </button>
+                          </div>
+                        ) : (
+                          <div style={{ position: 'relative' }}>
+                            <button className="ln-btn-icon" onClick={() => setActiveMenu(activeMenu === 'location' ? null : 'location')}>
+                              <MoreVertical size={18} />
+                            </button>
+                            {activeMenu === 'location' && (
+                              <div className="ln-popover-menu" style={{ 
+                                position: 'absolute', right: 0, top: '100%', zIndex: 10,
+                                background: '#fff', border: '1px solid #e2e8f0', 
+                                borderRadius: 8, boxShadow: '0 4px 20px rgba(0,0,0,0.15)',
+                                padding: '4px', minWidth: 160, marginTop: 8
+                              }}>
+                                <button 
+                                  onClick={() => { setEditingSection('location'); setActiveMenu(null); }}
+                                  style={{ 
+                                    width: '100%', textAlign: 'left', padding: '8px 12px',
+                                    background: 'none', border: 'none', borderRadius: 6,
+                                    display: 'flex', alignItems: 'center', gap: 8,
+                                    fontSize: 13, color: '#334155', cursor: 'pointer'
+                                  }}
+                                  className="ln-popover-item"
+                                >
+                                  <Edit size={14} /> Edit Location
+                                </button>
+                              </div>
+                            )}
+                          </div>
+                        )
+                      )}
                     </div>
                     <div style={{ padding: '0 16px 16px' }}>
-                      {editing ? (
-                        <input
-                          className="form-input"
-                          placeholder="Google Maps URL..."
-                          value={form.office_location_url}
-                          onChange={e => setForm({ ...form, office_location_url: e.target.value })}
-                        />
+                      {editingSection === 'location' ? (
+                        <div>
+                          <input
+                            className="form-input"
+                            placeholder="Google Maps URL..."
+                            value={form.office_location_url}
+                            onChange={e => handleUrlChange(e.target.value, 'location', val => setForm({ ...form, office_location_url: val }))}
+                            style={urlValidation.location === 'invalid' || urlValidation.location === 'error' || urlValidation.location === 'unreachable' ? { borderColor: '#ef4444' } : urlValidation.location === 'valid' ? { borderColor: '#10b981' } : {}}
+                          />
+                          {urlValidation.location === 'checking' && <div style={{ fontSize: 11, color: '#3b82f6', marginTop: 4 }}>Verifying location link...</div>}
+                          {urlValidation.location === 'invalid' && <div style={{ fontSize: 11, color: '#ef4444', marginTop: 4 }}>Please enter a valid Google Maps URL</div>}
+                          {urlValidation.location === 'unreachable' && <div style={{ fontSize: 11, color: '#ef4444', marginTop: 4 }}>Link is unreachable or does not exist.</div>}
+                          {urlValidation.location === 'error' && <div style={{ fontSize: 11, color: '#ef4444', marginTop: 4 }}>Could not verify link. Check your connection.</div>}
+                          {urlValidation.location === 'valid' && <div style={{ fontSize: 11, color: '#10b981', marginTop: 4 }}>Link verified successfully.</div>}
+                        </div>
                       ) : (
                         <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
                           <p style={{ fontSize: 13, color: '#64748b', display: 'flex', alignItems: 'center', gap: 6 }}>
@@ -5230,15 +5705,54 @@ export const CompanyProfile = ({ viewedPartnerId = null, onBack = null }) => {
               </div>
 
               {/* Company Achievements */}
-              <div className="ln-card" style={{ marginTop: 20 }}>
-                <div className="ln-section-header">
+              <div className="ln-card" style={{ marginTop: 20, position: 'relative' }}>
+                <div className="ln-section-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                   <h3>Company Achievements & Awards</h3>
-                  {isOwnProfile && editing && (
-                    <div style={{ display: 'flex', gap: 8 }}>
+                  {isOwnProfile && (
+                    editingSection === 'achievements' ? (
+                      <div style={{ display: 'flex', gap: 8 }}>
+                        <button className="ln-btn-sm ln-btn-outline" onClick={() => handleCancelEdit('achievements')} disabled={saving}>Cancel</button>
+                        <button className="ln-btn-sm ln-btn-primary" onClick={() => saveSection('achievements')} disabled={saving}>
+                          {saving ? 'Saving...' : 'Save'}
+                        </button>
+                      </div>
+                    ) : (
+                      <div style={{ position: 'relative' }}>
+                        <button className="ln-btn-icon" onClick={() => setActiveMenu(activeMenu === 'achievements' ? null : 'achievements')}>
+                          <MoreVertical size={18} />
+                        </button>
+                        {activeMenu === 'achievements' && (
+                          <div className="ln-popover-menu" style={{ 
+                            position: 'absolute', right: 0, top: '100%', zIndex: 10,
+                            background: '#fff', border: '1px solid #e2e8f0', 
+                            borderRadius: 8, boxShadow: '0 4px 20px rgba(0,0,0,0.15)',
+                            padding: '4px', minWidth: 160, marginTop: 8
+                          }}>
+                            <button 
+                              onClick={() => { setEditingSection('achievements'); setActiveMenu(null); }}
+                              style={{ 
+                                width: '100%', textAlign: 'left', padding: '8px 12px',
+                                background: 'none', border: 'none', borderRadius: 6,
+                                display: 'flex', alignItems: 'center', gap: 8,
+                                fontSize: 13, color: '#334155', cursor: 'pointer'
+                              }}
+                              className="ln-popover-item"
+                            >
+                              <Edit size={14} /> Edit Achievements
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    )
+                  )}
+                </div>
+                <div style={{ padding: '0 16px 16px' }}>
+                  {isOwnProfile && editingSection === 'achievements' && (
+                    <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
                       <input
                         className="form-input"
                         placeholder="Add award/achievement..."
-                        style={{ margin: 0, height: 32, fontSize: 12 }}
+                        style={{ margin: 0, height: 38, fontSize: 13 }}
                         maxLength={100}
                         value={newAchievement}
                         onChange={e => setNewAchievement(e.target.value)}
@@ -5246,10 +5760,11 @@ export const CompanyProfile = ({ viewedPartnerId = null, onBack = null }) => {
                           if (e.key === 'Enter' && newAchievement.trim()) {
                             setForm({ ...form, achievements: [...form.achievements, newAchievement.trim()] });
                             setNewAchievement('');
+                            e.preventDefault();
                           }
                         }}
                       />
-                      <button className="ln-btn-sm ln-btn-primary" onClick={() => {
+                      <button className="ln-btn-sm ln-btn-primary" style={{ height: 38, padding: '0 16px' }} onClick={() => {
                         if (newAchievement.trim()) {
                           setForm({ ...form, achievements: [...form.achievements, newAchievement.trim()] });
                           setNewAchievement('');
@@ -5259,12 +5774,12 @@ export const CompanyProfile = ({ viewedPartnerId = null, onBack = null }) => {
                   )}
                 </div>
                 <div style={{ padding: '0 16px 16px' }}>
-                  {(editing ? form.achievements : partner.achievements)?.length > 0 ? (
+                  {(editingSection === 'achievements' ? form.achievements : partner.achievements)?.length > 0 ? (
                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-                      {(editing ? form.achievements : partner.achievements).map((ach, idx) => (
+                      {(editingSection === 'achievements' ? form.achievements : partner.achievements).map((ach, idx) => (
                         <div key={idx} style={{ padding: '6px 14px', background: '#fffbeb', border: '1px solid #fef3c7', color: '#92400e', borderRadius: 20, fontSize: 13, display: 'flex', alignItems: 'center', gap: 8 }}>
                           <Award size={14} /> {ach}
-                          {isOwnProfile && editing && <X size={12} style={{ cursor: 'pointer' }} onClick={() => showConfirm('Are you sure you want to remove this achievement?', () => setForm({ ...form, achievements: form.achievements.filter((_, i) => i !== idx) }))} />}
+                          {isOwnProfile && editingSection === 'achievements' && <X size={12} style={{ cursor: 'pointer' }} onClick={() => showConfirm('Are you sure you want to remove this achievement?', () => setForm({ ...form, achievements: form.achievements.filter((_, i) => i !== idx) }))} />}
                         </div>
                       ))}
                     </div>
@@ -5280,54 +5795,87 @@ export const CompanyProfile = ({ viewedPartnerId = null, onBack = null }) => {
               </div>
 
               {/* Documents (Moved from Sidebar) */}
-              <div className="ln-card" style={{ marginTop: 20 }}>
-                <div className="ln-section-header">
+              <div className="ln-card" style={{ marginTop: 20, position: 'relative' }}>
+                <div className="ln-section-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                   <h3>Documents</h3>
-                  {isOwnProfile && editing && (
-                    <button className="ln-btn-sm ln-btn-primary" onClick={() => setShowUploadForm(!showUploadForm)}>
-                      {showUploadForm ? <><X size={12} /> Cancel</> : <><Plus size={12} /> Add</>}
-                    </button>
+                  {isOwnProfile && (
+                    editingSection === 'documents' ? (
+                      <button className="ln-btn-sm ln-btn-outline" onClick={() => setEditingSection(null)}>Done</button>
+                    ) : (
+                      <div style={{ position: 'relative' }}>
+                        <button className="ln-btn-icon" onClick={() => setActiveMenu(activeMenu === 'documents' ? null : 'documents')}>
+                          <MoreVertical size={18} />
+                        </button>
+                        {activeMenu === 'documents' && (
+                          <div className="ln-popover-menu" style={{ 
+                            position: 'absolute', right: 0, top: '100%', zIndex: 10,
+                            background: '#fff', border: '1px solid #e2e8f0', 
+                            borderRadius: 8, boxShadow: '0 4px 20px rgba(0,0,0,0.15)',
+                            padding: '4px', minWidth: 160, marginTop: 8
+                          }}>
+                            <button 
+                              onClick={() => { setEditingSection('documents'); setActiveMenu(null); }}
+                              style={{ 
+                                width: '100%', textAlign: 'left', padding: '8px 12px',
+                                background: 'none', border: 'none', borderRadius: 6,
+                                display: 'flex', alignItems: 'center', gap: 8,
+                                fontSize: 13, color: '#334155', cursor: 'pointer'
+                              }}
+                              className="ln-popover-item"
+                            >
+                              <Edit size={14} /> Manage Documents
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    )
                   )}
                 </div>
 
-                {isOwnProfile && editing && showUploadForm && (
-                  <div style={{ marginBottom: 16, padding: 16, background: '#f8fafc', borderRadius: 10, border: '1px solid #e2e8f0' }}>
-                    <div style={{ marginBottom: 10 }}>
-                      <label className="ln-info-label" style={{ marginBottom: 4, display: 'block' }}>Document Label <span style={{ color: '#cc1016' }}>*</span></label>
-                      <input type="text" className="form-input" placeholder="e.g. Business Permit, SEC Registration..." maxLength={40} value={docLabel} onChange={e => setDocLabel(e.target.value)} style={{ fontSize: 13 }} />
+                <div style={{ padding: '0 16px 16px' }}>
+                  {isOwnProfile && editingSection === 'documents' && (
+                    <div style={{ marginBottom: 16, padding: 16, background: '#f8fafc', borderRadius: 10, border: '1px solid #e2e8f0' }}>
+                      <div style={{ marginBottom: 10 }}>
+                        <label className="ln-info-label" style={{ marginBottom: 4, display: 'block' }}>Document Label <span style={{ color: '#cc1016' }}>*</span></label>
+                        <input type="text" className="ln-search-input" placeholder="e.g. Business Permit, SEC Registration..." maxLength={40} value={docLabel} onChange={e => setDocLabel(e.target.value)} style={{ fontSize: 13 }} />
+                      </div>
+                      <div style={{ marginBottom: 10 }}>
+                        <label className="ln-info-label" style={{ marginBottom: 4, display: 'block' }}>File (PDF, DOC, DOCX only) <span style={{ color: '#cc1016' }}>*</span></label>
+                        <input ref={fileInputRef} type="file" accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document" onChange={e => setDocFile(e.target.files[0] || null)} style={{ fontSize: 13 }} />
+                      </div>
+                      <button className="ln-btn-sm ln-btn-primary" onClick={handleDocUpload} disabled={uploading || !docFile || !docLabel.trim()} style={{ width: '100%', height: 38 }}>
+                        {uploading ? 'Uploading...' : <><Upload size={12} /> Upload Document</>}
+                      </button>
                     </div>
-                    <div style={{ marginBottom: 10 }}>
-                      <label className="ln-info-label" style={{ marginBottom: 4, display: 'block' }}>File (PDF, DOC, DOCX only) <span style={{ color: '#cc1016' }}>*</span></label>
-                      <input ref={fileInputRef} type="file" accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document" onChange={e => setDocFile(e.target.files[0] || null)} style={{ fontSize: 13 }} />
-                    </div>
-                    <button className="ln-btn-sm ln-btn-success" onClick={handleDocUpload} disabled={uploading || !docFile || !docLabel.trim()} style={{ width: '100%' }}>
-                      {uploading ? 'Uploading...' : <><Upload size={12} /> Upload Document</>}
-                    </button>
-                  </div>
-                )}
+                  )}
 
-                {documents.length > 0 ? documents.map(doc => (
-                  <div key={doc.id} className="ln-doc-item">
-                    <div className="ln-doc-info">
-                      <FileText size={16} color="rgba(0,0,0,0.5)" />
-                      <div>
-                        <span style={{ fontWeight: 600, fontSize: 13 }}>{doc.label}</span>
-                        <div style={{ fontSize: 11, color: 'rgba(0,0,0,0.4)' }}>{doc.file_name}</div>
+                  {documents.length > 0 ? documents.map(doc => (
+                    <div key={doc.id} className="ln-doc-item">
+                      <div className="ln-doc-info">
+                        <FileText size={16} color="rgba(0,0,0,0.5)" />
+                        <div>
+                          <span style={{ fontWeight: 600, fontSize: 13 }}>{doc.label}</span>
+                          <div style={{ fontSize: 11, color: 'rgba(0,0,0,0.4)' }}>{doc.file_name}</div>
+                        </div>
+                      </div>
+                      <div style={{ display: 'flex', gap: 6 }}>
+                        <a href={doc.file_url} target="_blank" rel="noreferrer" className="ln-btn-sm ln-btn-outline"><Eye size={12} /> View</a>
+                        {isOwnProfile && editingSection === 'documents' && (
+                          <button className="ln-btn-sm ln-btn-outline" onClick={() => showConfirm('Are you sure you want to delete this document?', () => deleteDoc(doc.id))} style={{ color: '#cc1016' }}>
+                            <Trash2 size={12} />
+                          </button>
+                        )}
                       </div>
                     </div>
-                    <div style={{ display: 'flex', gap: 6 }}>
-                      <a href={doc.file_url} target="_blank" rel="noreferrer" className="ln-btn-sm ln-btn-outline"><Eye size={12} /> View</a>
-                      {isOwnProfile && editing && <button className="ln-btn-sm ln-btn-outline" onClick={() => showConfirm('Are you sure you want to delete this document?', () => deleteDoc(doc.id))} style={{ color: '#cc1016' }}><Trash2 size={12} /></button>}
-                    </div>
-                  </div>
-                )) : !showUploadForm && (
-                  <EmptyState
-                    illustration={DocumentIllustration}
-                    title="No documents yet"
-                    description="Upload company brochures, policies, or registration documents for verification and profile completeness."
-                    style={{ padding: '24px 20px' }}
-                  />
-                )}
+                  )) : editingSection !== 'documents' && (
+                    <EmptyState
+                      illustration={DocumentIllustration}
+                      title="No documents yet"
+                      description="Upload company brochures, policies, or registration documents for verification and profile completeness."
+                      style={{ padding: '24px 20px' }}
+                    />
+                  )}
+                </div>
               </div>
 
               {/* Active Openings (Moved from Sidebar) */}
@@ -5471,6 +6019,15 @@ export const CompanyProfile = ({ viewedPartnerId = null, onBack = null }) => {
         );
       })()}
 
+      {/* Image Crop Modal */}
+      {cropModal.open && (
+        <ImageCropModal 
+          image={cropModal.image}
+          aspect={cropModal.aspect}
+          onCropComplete={onCropComplete}
+          onCancel={() => setCropModal({ open: false, image: null, aspect: 1, type: null })}
+        />
+      )}
     </div>
   );
 };

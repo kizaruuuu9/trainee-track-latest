@@ -90,6 +90,39 @@ const uploadRateLimit = createRateLimit({ windowMs: 60 * 1000, max: 60, keyPrefi
 const presenceRateLimit = createRateLimit({ windowMs: 60 * 1000, max: 300, keyPrefix: 'presence' });
 const adminLimiter = createRateLimit({ windowMs: 60 * 1000, max: 300, keyPrefix: 'admin' });
 
+// ─── Website Existence Check ───────────────────────────────────
+app.post('/api/check-website', rateLimit, async (req, res) => {
+    const { url } = req.body;
+    if (!url) return res.status(400).json({ error: 'URL is required' });
+
+    let normalizedUrl = String(url).trim();
+    if (!/^https?:\/\//i.test(normalizedUrl)) {
+        normalizedUrl = 'https://' + normalizedUrl;
+    }
+
+    try {
+        // Try HEAD first (lightweight — no body download)
+        const headRes = await fetch(normalizedUrl, {
+            method: 'HEAD',
+            signal: AbortSignal.timeout(5000),
+            redirect: 'follow',
+        });
+        return res.json({ exists: headRes.ok, status: headRes.status });
+    } catch {
+        // Fallback to GET (some servers block HEAD requests)
+        try {
+            const getRes = await fetch(normalizedUrl, {
+                method: 'GET',
+                signal: AbortSignal.timeout(5000),
+                redirect: 'follow',
+            });
+            return res.json({ exists: getRes.ok, status: getRes.status });
+        } catch {
+            return res.json({ exists: false, error: 'Website is unreachable' });
+        }
+    }
+});
+
 // OTP expiry in minutes (default to 5)
 const OTP_EXPIRY_MIN = parseInt(process.env.OTP_EXPIRY_MIN || '5', 10);
 

@@ -2981,6 +2981,10 @@ export const AppProvider = ({ children }) => {
         if (updates.province !== undefined) dbUpdates.province = updates.province;
         if (updates.city !== undefined) dbUpdates.city = updates.city;
         if (updates.barangay !== undefined) dbUpdates.barangay = updates.barangay;
+        if (updates.regionCode !== undefined) dbUpdates.regionCode = updates.regionCode;
+        if (updates.provinceCode !== undefined) dbUpdates.provinceCode = updates.provinceCode;
+        if (updates.cityCode !== undefined) dbUpdates.cityCode = updates.cityCode;
+        if (updates.barangayCode !== undefined) dbUpdates.barangayCode = updates.barangayCode;
         if (updates.companySize !== undefined) dbUpdates.company_size = updates.companySize;
         if (updates.website !== undefined) dbUpdates.website = updates.website;
         if (updates.email !== undefined) dbUpdates.contact_email = updates.email;

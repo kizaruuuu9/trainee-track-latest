@@ -238,6 +238,45 @@ export const TraineeProfileContent = ({ viewedProfileId = null, onBack = null, o
         if (!value) return true;
         try { new URL(value); return /^https?:\/\//i.test(value); } catch { return false; }
     };
+    
+    // URL real-time validation state
+    const [urlValidation, setUrlValidation] = useState({ work: null, social: null });
+    const checkWebsiteReachability = async (url, section) => {
+        if (!url?.trim()) {
+            setUrlValidation(prev => ({ ...prev, [section]: null }));
+            return;
+        }
+        if (!isValidUrl(url)) {
+            setUrlValidation(prev => ({ ...prev, [section]: 'invalid' }));
+            return;
+        }
+        setUrlValidation(prev => ({ ...prev, [section]: 'checking' }));
+        try {
+            const res = await fetch('http://localhost:3001/api/check-website', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ url: url.trim() })
+            });
+            const data = await res.json();
+            setUrlValidation(prev => ({ ...prev, [section]: data.exists ? 'valid' : 'unreachable' }));
+        } catch {
+            setUrlValidation(prev => ({ ...prev, [section]: 'error' }));
+        }
+    };
+
+    const urlCheckTimeoutRef = useRef({ work: null, social: null });
+    const handleUrlChange = (value, section, updateStateCallback) => {
+        updateStateCallback(value);
+        setUrlValidation(prev => ({ ...prev, [section]: value.trim() ? 'checking' : null }));
+        
+        if (urlCheckTimeoutRef.current[section]) {
+            clearTimeout(urlCheckTimeoutRef.current[section]);
+        }
+        urlCheckTimeoutRef.current[section] = setTimeout(() => {
+            checkWebsiteReachability(value, section);
+        }, 1500);
+    };
+
     const getAgeFromBirthday = (bd) => {
         if (!bd) return null;
         const today = new Date();
@@ -1034,10 +1073,15 @@ export const TraineeProfileContent = ({ viewedProfileId = null, onBack = null, o
                                                     style={{ gridColumn: '1 / -1', minHeight: 60, resize: 'none' }} />
                                                 <div style={{ gridColumn: '1 / -1' }}>
                                                     <input type="url" className="form-input" placeholder="Company Website (optional, e.g. https://example.com)"
-                                                        value={newWork.website} onChange={e => setNewWork({ ...newWork, website: e.target.value })} />
-                                                    {newWork.website && !isValidUrl(newWork.website) && (
-                                                        <div style={{ fontSize: 11, color: '#dc2626', marginTop: 4 }}>Must be a valid URL starting with https:// or http://</div>
-                                                    )}
+                                                        value={newWork.website} 
+                                                        onChange={e => handleUrlChange(e.target.value, 'work', val => setNewWork({ ...newWork, website: val }))}
+                                                        style={urlValidation.work === 'invalid' || urlValidation.work === 'error' || urlValidation.work === 'unreachable' ? { borderColor: '#ef4444' } : urlValidation.work === 'valid' ? { borderColor: '#10b981' } : {}}
+                                                    />
+                                                    {urlValidation.work === 'checking' && <div style={{ fontSize: 11, color: '#3b82f6', marginTop: 4 }}>Verifying website...</div>}
+                                                    {urlValidation.work === 'invalid' && <div style={{ fontSize: 11, color: '#ef4444', marginTop: 4 }}>Please enter a valid URL (e.g. https://example.com)</div>}
+                                                    {urlValidation.work === 'unreachable' && <div style={{ fontSize: 11, color: '#ef4444', marginTop: 4 }}>Website is unreachable or does not exist.</div>}
+                                                    {urlValidation.work === 'error' && <div style={{ fontSize: 11, color: '#ef4444', marginTop: 4 }}>Could not verify website. Check your connection.</div>}
+                                                    {urlValidation.work === 'valid' && <div style={{ fontSize: 11, color: '#10b981', marginTop: 4 }}>Website verified successfully.</div>}
                                                 </div>
                                             </div>
                                             {newWork.yearFrom && newWork.yearTo && parseInt(newWork.yearTo) < parseInt(newWork.yearFrom) && (
@@ -1049,7 +1093,7 @@ export const TraineeProfileContent = ({ viewedProfileId = null, onBack = null, o
                                                 <span style={{ fontSize: 11, color: '#94a3b8' }}>Desc: {newWork.description.length}/200</span>
                                             </div>
                                             <button type="button" className="ln-btn-sm ln-btn-primary" style={{ marginTop: 10 }}
-                                                disabled={!newWork.company.trim() || !newWork.role.trim() || !newWork.yearFrom || !newWork.yearTo || (parseInt(newWork.yearTo) < parseInt(newWork.yearFrom)) || (newWork.website && !isValidUrl(newWork.website))}
+                                                disabled={!newWork.company.trim() || !newWork.role.trim() || !newWork.yearFrom || !newWork.yearTo || (parseInt(newWork.yearTo) < parseInt(newWork.yearFrom)) || (newWork.website && urlValidation.work !== 'valid') || saving}
                                                 onClick={() => {
                                                     setForm({ ...form, workExperience: [...form.workExperience, { ...newWork }] });
                                                     setNewWork({ company: '', role: '', yearFrom: '', yearTo: '', description: '', website: '' });
@@ -1072,7 +1116,7 @@ export const TraineeProfileContent = ({ viewedProfileId = null, onBack = null, o
                                             <ExternalLink size={14} color="#0a66c2" />
                                             <div style={{ flex: 1, minWidth: 0 }}>
                                                 <div style={{ fontWeight: 600, fontSize: 12, color: '#475569', textTransform: 'capitalize' }}>{link.platform || 'Link'}</div>
-                                                <a href={link.url} target="_blank" rel="noreferrer" style={{ fontSize: 12, color: '#0a66c2', wordBreak: 'break-all' }}>{link.url}</a>
+                                                <a href={/^https?:\/\//i.test(link.url) ? link.url : `https://${link.url}`} target="_blank" rel="noreferrer" style={{ fontSize: 12, color: '#0a66c2', wordBreak: 'break-all' }}>{link.url}</a>
                                             </div>
                                             {isOwnProfile && editing && (
                                                 <button type="button" className="ln-btn-sm ln-btn-outline" style={{ color: '#cc1016', padding: '4px' }}
@@ -1095,16 +1139,20 @@ export const TraineeProfileContent = ({ viewedProfileId = null, onBack = null, o
                                                 ))}
                                             </select>
                                             <div style={{ flex: 1, minWidth: 200 }}>
-                                                <input type="url" className="form-input" placeholder="https://..." style={{ height: 36, fontSize: 12 }}
-                                                    value={newSocialLink.url} onChange={e => setNewSocialLink({ ...newSocialLink, url: e.target.value })} />
-                                                {newSocialLink.url && !isValidUrl(newSocialLink.url) && (
-                                                    <div style={{ fontSize: 11, color: '#dc2626', marginTop: 4 }}>Invalid URL. Must start with https:// or http://</div>
-                                                )}
+                                                <input type="url" className="form-input" placeholder="https://..." style={{ height: 36, fontSize: 12, ...(urlValidation.social === 'invalid' || urlValidation.social === 'error' || urlValidation.social === 'unreachable' ? { borderColor: '#ef4444' } : urlValidation.social === 'valid' ? { borderColor: '#10b981' } : {}) }}
+                                                    value={newSocialLink.url} 
+                                                    onChange={e => handleUrlChange(e.target.value, 'social', val => setNewSocialLink({ ...newSocialLink, url: val }))}
+                                                />
+                                                {urlValidation.social === 'checking' && <div style={{ fontSize: 11, color: '#3b82f6', marginTop: 4 }}>Verifying link...</div>}
+                                                {urlValidation.social === 'invalid' && <div style={{ fontSize: 11, color: '#ef4444', marginTop: 4 }}>Please enter a valid URL</div>}
+                                                {urlValidation.social === 'unreachable' && <div style={{ fontSize: 11, color: '#ef4444', marginTop: 4 }}>Link is unreachable or does not exist.</div>}
+                                                {urlValidation.social === 'error' && <div style={{ fontSize: 11, color: '#ef4444', marginTop: 4 }}>Could not verify link. Check connection.</div>}
+                                                {urlValidation.social === 'valid' && <div style={{ fontSize: 11, color: '#10b981', marginTop: 4 }}>Link verified successfully.</div>}
                                             </div>
                                             <button type="button" className="ln-btn-sm ln-btn-primary" style={{ height: 36 }}
-                                                disabled={!newSocialLink.platform || !newSocialLink.url || !isValidUrl(newSocialLink.url)}
+                                                disabled={!newSocialLink.platform || !newSocialLink.url || urlValidation.social !== 'valid'}
                                                 onClick={() => {
-                                                    setForm({ ...form, socialLinks: [...(form.socialLinks || []), { ...newSocialLink }] });
+                                                    setForm({ ...form, socialLinks: [...(form.socialLinks || []), { ...newSocialLink, url: /^https?:\/\//i.test(newSocialLink.url.trim()) ? newSocialLink.url.trim() : `https://${newSocialLink.url.trim()}` }] });
                                                     setNewSocialLink({ platform: '', url: '' });
                                                 }}>
                                                 <Plus size={14} /> Add

@@ -2761,6 +2761,45 @@ export const TraineeProfileContent = ({ viewedProfileId = null, onBack = null, o
     const [docFile, setDocFile] = useState(null);
     const [linkTitle, setLinkTitle] = useState('');
     const [docLinkUrl, setDocLinkUrl] = useState('');
+    
+    // URL real-time validation state for links
+    const [urlValidation, setUrlValidation] = useState({ social: null });
+    const checkWebsiteReachability = async (url, section) => {
+        if (!url?.trim()) {
+            setUrlValidation(prev => ({ ...prev, [section]: null }));
+            return;
+        }
+        const pattern = new RegExp('^(https?:\\/\\/)?((([a-z\\d]([a-z\\d-]*[a-z\\d])*)\\.)+[a-z]{2,}|((\\d{1,3}\\.){3}\\d{1,3}))(\\:\\d+)?(\\/[-a-z\\d%_.~+]*)*(\\?[;&a-z\\d%_.~+=-]*)?(\\#[-a-z\\d_]*)?$','i');
+        if (!pattern.test(url)) {
+            setUrlValidation(prev => ({ ...prev, [section]: 'invalid' }));
+            return;
+        }
+        setUrlValidation(prev => ({ ...prev, [section]: 'checking' }));
+        try {
+            const res = await fetch('http://localhost:3001/api/check-website', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ url: url.trim() })
+            });
+            const data = await res.json();
+            setUrlValidation(prev => ({ ...prev, [section]: data.exists ? 'valid' : 'unreachable' }));
+        } catch {
+            setUrlValidation(prev => ({ ...prev, [section]: 'error' }));
+        }
+    };
+
+    const urlCheckTimeoutRef = useRef({ social: null });
+    const handleUrlChange = (value, section, updateStateCallback) => {
+        updateStateCallback(value);
+        setUrlValidation(prev => ({ ...prev, [section]: value.trim() ? 'checking' : null }));
+        
+        if (urlCheckTimeoutRef.current[section]) {
+            clearTimeout(urlCheckTimeoutRef.current[section]);
+        }
+        urlCheckTimeoutRef.current[section] = setTimeout(() => {
+            checkWebsiteReachability(value, section);
+        }, 1500);
+    };
     const [uploading, setUploading] = useState(false);
     const [showUploadForm, setShowUploadForm] = useState(false);
     const fileInputRef = useRef(null);
@@ -4928,7 +4967,10 @@ export const TraineeProfileContent = ({ viewedProfileId = null, onBack = null, o
                                     editingSection === 'documents' ? (
                                         <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
                                             <button type="button" className="ln-btn-sm" style={{ background: '#e2e8f0', color: '#475569' }} onClick={() => { handleCancelEdit(editingSection); setShowUploadForm(false); }} disabled={saving}>
-                                                <X size={14} /> Done
+                                                <X size={14} /> Cancel
+                                            </button>
+                                            <button type="button" className="ln-btn-sm ln-btn-success" onClick={() => { setEditingSection(null); setShowUploadForm(false); }} disabled={saving}>
+                                                <CheckCircle size={14} /> Save
                                             </button>
                                         </div>
                                     ) : (
@@ -5026,59 +5068,70 @@ export const TraineeProfileContent = ({ viewedProfileId = null, onBack = null, o
                                                 type="text"
                                                 className="form-input"
                                                 placeholder="Title (e.g. Portfolio, GitHub...)"
+                                                maxLength={50}
                                                 value={linkTitle}
                                                 onChange={e => setLinkTitle(e.target.value)}
-                                                style={{ fontSize: 13 }}
+                                                style={{ fontSize: 13, ...(Array.isArray(documents) && documents.some(d => d.file_type === 'link' && d.label?.toLowerCase() === linkTitle.trim().toLowerCase()) ? { borderColor: '#ef4444' } : {}) }}
                                             />
+                                            {Array.isArray(documents) && documents.some(d => d.file_type === 'link' && d.label?.toLowerCase() === linkTitle.trim().toLowerCase()) && (
+                                                <div style={{ fontSize: 11, color: '#ef4444', marginTop: 4 }}>This title already exists.</div>
+                                            )}
                                         </div>
-                                        <div className="ln-social-input-group">
-                                            <input
-                                                type="url"
-                                                className="form-input"
-                                                placeholder="URL (https://...)"
-                                                value={docLinkUrl}
-                                                onChange={e => setDocLinkUrl(e.target.value)}
-                                                style={{ fontSize: 13, flex: 1 }}
-                                            />
-                                            <button
-                                                type="button"
-                                                className="ln-btn-sm ln-btn-primary"
-                                                onClick={async () => {
-                                                    if (!linkTitle.trim() || !docLinkUrl.trim()) return;
-                                                    setUploading(true);
-                                                    try {
-                                                        const res = await fetch(`/api/documents/upload`, {
-                                                            method: 'POST',
-                                                            headers: { 'Content-Type': 'application/json' },
-                                                            body: JSON.stringify({
-                                                                traineeId: trainee.id,
-                                                                label: linkTitle.trim(),
-                                                                fileName: 'Link',
-                                                                fileType: 'link',
-                                                                fileData: docLinkUrl.trim(),
-                                                                category: 'link'
-                                                            }),
-                                                        });
-                                                        const result = await res.json();
-                                                        if (result.success) {
-                                                            setDocuments(prev => Array.isArray(prev) ? [result.document, ...prev] : [result.document]);
-                                                            setLinkTitle('');
-                                                            setDocLinkUrl('');
-                                                        } else {
-                                                            alert(result.error || 'Failed to add link');
+                                        <div className="ln-social-input-group" style={{ flexDirection: 'column', alignItems: 'stretch' }}>
+                                            <div style={{ display: 'flex', gap: 8, width: '100%' }}>
+                                                <input
+                                                    type="url"
+                                                    className="form-input"
+                                                    placeholder="URL (https://...)"
+                                                    value={docLinkUrl}
+                                                    onChange={e => handleUrlChange(e.target.value, 'social', val => setDocLinkUrl(val))}
+                                                    style={{ fontSize: 13, flex: 1, ...(urlValidation.social === 'invalid' || urlValidation.social === 'error' || urlValidation.social === 'unreachable' ? { borderColor: '#ef4444' } : urlValidation.social === 'valid' ? { borderColor: '#10b981' } : {}) }}
+                                                />
+                                                <button
+                                                    type="button"
+                                                    className="ln-btn-sm ln-btn-primary"
+                                                    onClick={async () => {
+                                                        if (!linkTitle.trim() || !docLinkUrl.trim()) return;
+                                                        setUploading(true);
+                                                        try {
+                                                            const res = await fetch(`/api/documents/upload`, {
+                                                                method: 'POST',
+                                                                headers: { 'Content-Type': 'application/json' },
+                                                                body: JSON.stringify({
+                                                                    traineeId: trainee.id,
+                                                                    label: linkTitle.trim(),
+                                                                    fileName: 'Link',
+                                                                    fileType: 'link',
+                                                                    fileData: /^https?:\/\//i.test(docLinkUrl.trim()) ? docLinkUrl.trim() : `https://${docLinkUrl.trim()}`,
+                                                                    category: 'link'
+                                                                }),
+                                                            });
+                                                            const result = await res.json();
+                                                            if (result.success) {
+                                                                setDocuments(prev => Array.isArray(prev) ? [result.document, ...prev] : [result.document]);
+                                                                setLinkTitle('');
+                                                                setDocLinkUrl('');
+                                                            } else {
+                                                                alert(result.error || 'Failed to add link');
+                                                            }
+                                                        } catch (err) {
+                                                            console.error('Link upload error:', err);
+                                                            alert('Error connecting to server');
                                                         }
-                                                    } catch (err) {
-                                                        console.error('Link upload error:', err);
-                                                        alert('Error connecting to server');
-                                                    }
-                                                    setUploading(false);
-                                                }}
-                                                disabled={uploading || !linkTitle.trim() || !docLinkUrl.trim()}
-                                                style={{ width: 40, padding: 0, justifyContent: 'center' }}
-                                                title="Add Link"
-                                            >
-                                                <Plus size={18} />
-                                            </button>
+                                                        setUploading(false);
+                                                    }}
+                                                    disabled={uploading || !linkTitle.trim() || !docLinkUrl.trim() || urlValidation.social !== 'valid' || (Array.isArray(documents) && documents.some(d => d.file_type === 'link' && d.label?.toLowerCase() === linkTitle.trim().toLowerCase()))}
+                                                    style={{ width: 40, padding: 0, justifyContent: 'center', alignSelf: 'flex-start', height: 36 }}
+                                                    title="Add Link"
+                                                >
+                                                    <Plus size={18} />
+                                                </button>
+                                            </div>
+                                            {urlValidation.social === 'checking' && <div style={{ fontSize: 11, color: '#3b82f6', marginTop: 4 }}>Verifying link...</div>}
+                                            {urlValidation.social === 'invalid' && <div style={{ fontSize: 11, color: '#ef4444', marginTop: 4 }}>Please enter a valid URL</div>}
+                                            {urlValidation.social === 'unreachable' && <div style={{ fontSize: 11, color: '#ef4444', marginTop: 4 }}>Link is unreachable or does not exist.</div>}
+                                            {urlValidation.social === 'error' && <div style={{ fontSize: 11, color: '#ef4444', marginTop: 4 }}>Could not verify link. Check connection.</div>}
+                                            {urlValidation.social === 'valid' && <div style={{ fontSize: 11, color: '#10b981', marginTop: 4 }}>Link verified successfully.</div>}
                                         </div>
                                     </div>
                                 </div>
@@ -5100,15 +5153,15 @@ export const TraineeProfileContent = ({ viewedProfileId = null, onBack = null, o
                                                 </div>
                                                 <div className="ln-doc-text-wrap">
                                                     <span className="ln-doc-label-text">{link.label}</span>
-                                                    <span className="ln-doc-filename-text" style={{ color: '#0a66c2', wordBreak: 'break-all' }}>{link.file_url}</span>
+                                                    <a href={/^https?:\/\//i.test(link.file_url) ? link.file_url : `https://${link.file_url}`} target="_blank" rel="noreferrer" className="ln-doc-filename-text" style={{ color: '#0a66c2', wordBreak: 'break-all', textDecoration: 'none' }}>{link.file_url}</a>
                                                 </div>
                                             </div>
                                             <div className="ln-doc-actions">
-                                                <a href={link.file_url} target="_blank" rel="noreferrer" className="ln-btn-sm ln-btn-outline" title="Open Link">
+                                                <a href={/^https?:\/\//i.test(link.file_url) ? link.file_url : `https://${link.file_url}`} target="_blank" rel="noreferrer" className="ln-btn-sm ln-btn-outline" title="Open Link">
                                                     <ExternalLink size={12} />
                                                     <span style={{ marginLeft: 4 }}>Open</span>
                                                 </a>
-                                                {isOwnProfile && (editingSection === 'learner') && (
+                                                {isOwnProfile && (editingSection === 'documents') && (
                                                     <button
                                                         type="button"
                                                         className="ln-btn-sm ln-btn-outline"
