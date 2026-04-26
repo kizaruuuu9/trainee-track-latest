@@ -1,5 +1,62 @@
 import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
 import { supabase } from '../lib/supabase';
+import toast from 'react-hot-toast';
+
+// Utility for image compression to maximize Supabase storage (500MB limit)
+const compressImage = async (file, maxWidth = 1000, quality = 0.7) => {
+  // Don't compress non-images
+  if (!file.type.startsWith('image/')) return file;
+  // Don't compress small images (under 150KB)
+  if (file.size < 150 * 1024) return file;
+
+  try {
+    return new Promise((resolve) => {
+      const reader = new FileReader();
+      reader.readAsDataURL(file);
+      reader.onload = (event) => {
+        const img = new Image();
+        img.src = event.target.result;
+        img.onload = () => {
+          const canvas = document.createElement('canvas');
+          let width = img.width;
+          let height = img.height;
+
+          // Resize if too large
+          if (width > maxWidth) {
+            height = Math.round((maxWidth / width) * height);
+            width = maxWidth;
+          }
+
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext('2d');
+          ctx.drawImage(img, 0, 0, width, height);
+
+          canvas.toBlob((blob) => {
+            // Return a new File object (WebP is very efficient)
+            const compressedFile = new File([blob], file.name.replace(/\.[^/.]+$/, "") + ".webp", {
+              type: 'image/webp',
+              lastModified: Date.now(),
+            });
+            console.log(`[Storage] Optimized ${file.name}: ${(file.size / 1024).toFixed(1)}KB -> ${(compressedFile.size / 1024).toFixed(1)}KB (${Math.round((1 - compressedFile.size / file.size) * 100)}% savings)`);
+            resolve(compressedFile);
+          }, 'image/webp', quality);
+        };
+      };
+    });
+  } catch (err) {
+    console.error('[Storage] Compression failed, using original file:', err);
+    return file;
+  }
+};
+
+const formatFileSize = (bytes) => {
+  if (!bytes || bytes === 0) return '0 Bytes';
+  const k = 1024;
+  const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
+};
 
 const AppContext = createContext();
 
@@ -205,9 +262,13 @@ export const AppProvider = ({ children }) => {
   // ΓöÇΓöÇΓöÇ INDUSTRY PARTNERS ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
   const [partners, setPartners] = useState([]);
 
-  // ΓöÇΓöÇΓöÇ TESDA PROGRAMS (DB-DRIVEN) ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+  // ─── TESDA PROGRAMS (DB-DRIVEN) ────────────────────────────────────
   const [programs, setPrograms] = useState([]);
   const [industries, setIndustries] = useState([]);
+
+  // ─── PQF EDUCATION FRAMEWORK (DB-DRIVEN) ──────────────────────────
+  const [pqfLevels, setPqfLevels] = useState([]);
+  const [pqfPrograms, setPqfPrograms] = useState([]);
 
   // ΓöÇΓöÇΓöÇ JOB / OPPORTUNITY POSTINGS ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
   const [jobPostings, setJobPostings] = useState([]);
@@ -323,32 +384,253 @@ export const AppProvider = ({ children }) => {
       window.location.href = '/login';
     } catch (err) {
       console.error('Account deletion error:', err);
-      alert('Failed to delete account: ' + err.message);
+      toast.error('Failed to delete account: ' + err.message);
     }
   };
 
-  // ΓöÇΓöÇΓöÇ NOTIFICATIONS LOGIC ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
-  const [notifications, setNotifications] = useState([
-    { id: 1, type: 'job', text: 'New opportunity match: Junior IT Technician', created_at: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(), read: false },
-    { id: 2, type: 'application', text: 'Your application was reviewed by TechSolutions', created_at: new Date(Date.now() - 5 * 60 * 60 * 1000).toISOString(), read: false },
-    { id: 3, type: 'view', text: 'Profile viewed by 3 industry partners', created_at: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(), read: true },
-    { id: 4, type: 'system', text: 'A new announcement was posted by PSTDII', created_at: new Date(Date.now() - 48 * 60 * 60 * 1000).toISOString(), read: true },
-    { id: 5, type: 'job', text: 'New opportunity match: Web Developer', created_at: new Date(Date.now() - 72 * 60 * 60 * 1000).toISOString(), read: true },
-    { id: 6, type: 'application', text: 'Interview scheduled for tomorrow at 10 AM', created_at: new Date(Date.now() - 96 * 60 * 60 * 1000).toISOString(), read: false },
-    { id: 7, type: 'system', text: 'Welcome to TraineeTrack!', created_at: new Date(Date.now() - 168 * 60 * 60 * 1000).toISOString(), read: true },
-    { id: 8, type: 'system', text: 'Please complete your profile to 100%.', created_at: new Date(Date.now() - 200 * 60 * 60 * 1000).toISOString(), read: true },
-    { id: 9, type: 'view', text: 'Your post received 15 new views.', created_at: new Date(Date.now() - 240 * 60 * 60 * 1000).toISOString(), read: true },
-    { id: 10, type: 'job', text: 'Opportunity closing soon: Software Engineer.', created_at: new Date(Date.now() - 400 * 60 * 60 * 1000).toISOString(), read: true },
-    { id: 11, type: 'system', text: 'Reminder: Upload your ID verification.', created_at: new Date(Date.now() - 500 * 60 * 60 * 1000).toISOString(), read: true },
-    { id: 12, type: 'application', text: 'Application rejected: Graphic Designer.', created_at: new Date(Date.now() - 600 * 60 * 60 * 1000).toISOString(), read: true },
-  ]);
+  // ─── NOTIFICATIONS LOGIC ──────────────────────────────────────────────────────
+  const [notifications, setNotifications] = useState([]);
+  const [lastSeenNotificationsAt, setLastSeenNotificationsAt] = useState(null);
+  const [adminUserId, setAdminUserId] = useState(null);
 
-  const markNotificationRead = (id) => setNotifications(prev => prev.map(n => n.id === id ? { ...n, read: true } : n));
-  const markAllNotificationsRead = () => setNotifications(prev => prev.map(n => ({ ...n, read: true })));
-  const deleteNotification = (id) => setNotifications(prev => prev.filter(n => n.id !== id));
-  const clearAllNotifications = () => setNotifications([]);
+  // --- GLOBAL CONFIRM MODAL ---
+  const [globalConfirm, setGlobalConfirm] = useState({
+    isOpen: false,
+    title: 'Confirm Action',
+    message: '',
+    onConfirm: () => { },
+    confirmText: 'Confirm',
+    cancelText: 'Cancel',
+    type: 'danger'
+  });
 
-  // ΓöÇΓöÇΓöÇ INTERVIEW SCHEDULING ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+  const confirmAction = (options) => {
+    setGlobalConfirm({
+      isOpen: true,
+      title: options.title || 'Confirm Action',
+      message: options.message || 'Are you sure you want to proceed?',
+      onConfirm: () => {
+        if (options.onConfirm) options.onConfirm();
+        setGlobalConfirm(prev => ({ ...prev, isOpen: false }));
+      },
+      confirmText: options.confirmText || 'Confirm',
+      cancelText: options.cancelText || 'Cancel',
+      type: options.type || 'danger'
+    });
+  };
+
+  const closeGlobalConfirm = () => {
+    setGlobalConfirm(prev => ({ ...prev, isOpen: false }));
+  };
+
+
+  // Dynamically resolve the admin user ID from the profiles table on mount
+  useEffect(() => {
+    const resolveAdminId = async () => {
+      try {
+        const { data, error } = await supabase
+          .from('profiles')
+          .select('id')
+          .eq('user_type', 'admin')
+          .limit(1)
+          .maybeSingle();
+        if (!error && data) {
+          console.log('[Notifications] Resolved admin user ID:', data.id);
+          setAdminUserId(data.id);
+        } else {
+          console.warn('[Notifications] Could not resolve admin ID, falling back to hardcoded.');
+          setAdminUserId(null);
+        }
+      } catch (err) {
+        console.warn('[Notifications] Admin ID resolution failed:', err);
+        setAdminUserId(null);
+      }
+    };
+    resolveAdminId();
+  }, []);
+
+  const fetchNotifications = async () => {
+    if (!currentUser) return;
+    try {
+      const { data, error } = await supabase
+        .from('notifications')
+        .select('*')
+        .eq('user_id', currentUser.id)
+        .order('created_at', { ascending: false });
+
+      if (error) {
+        if (error.code === '42P01') {
+          console.warn('notifications table not found. Please run the SQL migration.');
+          return;
+        }
+        throw error;
+      }
+      setNotifications(data || []);
+    } catch (err) {
+      console.error('Error fetching notifications:', err);
+    }
+  };
+
+  const fetchLastSeenNotificationsAt = async () => {
+    if (!currentUser) return;
+    try {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('last_seen_notifications_at')
+        .eq('id', currentUser.id)
+        .maybeSingle();
+
+      if (error) throw error;
+      if (data && data.last_seen_notifications_at) {
+        setLastSeenNotificationsAt(new Date(data.last_seen_notifications_at).getTime());
+      }
+    } catch (err) {
+      console.error('Error fetching last_seen_notifications_at:', err);
+    }
+  };
+
+  const updateLastSeenNotificationsAt = async () => {
+    if (!currentUser) return;
+    try {
+      const nowRaw = new Date().toISOString();
+      const { data, error, count } = await supabase
+        .from('profiles')
+        .update({ last_seen_notifications_at: nowRaw })
+        .eq('id', currentUser.id)
+        .select('last_seen_notifications_at');
+
+      if (error) {
+        console.error('[NOTIF-BADGE] DB update FAILED:', error);
+        toast.error(`Notification badge save failed: ${error.message}. Please run the profile_persistence_fix.sql migration in Supabase.`);
+        return;
+      }
+
+      if (!data || data.length === 0) {
+        console.warn('[NOTIF-BADGE] DB update returned no rows. RLS might be blocking the UPDATE.');
+        toast.error('Notification badge save failed: No rows updated. Please run the profile_persistence_fix.sql migration in Supabase.');
+        return;
+      }
+
+      const newTs = new Date(nowRaw).getTime();
+      setLastSeenNotificationsAt(newTs);
+      console.log('[NOTIF-BADGE] Successfully saved last_seen_notifications_at:', nowRaw, 'DB returned:', data);
+    } catch (err) {
+      console.error('[NOTIF-BADGE] Exception:', err);
+    }
+  };
+
+  useEffect(() => {
+    if (currentUser) {
+      fetchNotifications();
+      fetchLastSeenNotificationsAt();
+    } else {
+      setNotifications([]);
+      setLastSeenNotificationsAt(null);
+    }
+  }, [currentUser]);
+
+  const markNotificationRead = async (id) => {
+    if (!currentUser) return;
+    setNotifications(prev => prev.map(n => n.id === id ? { ...n, read: true } : n));
+    try { await supabase.from('notifications').update({ read: true }).eq('id', id).eq('user_id', currentUser.id); }
+    catch (err) { console.error(err); }
+  };
+
+  const markAllNotificationsRead = async () => {
+    if (!currentUser) return;
+    setNotifications(prev => prev.map(n => ({ ...n, read: true })));
+    try { await supabase.from('notifications').update({ read: true }).eq('user_id', currentUser.id); }
+    catch (err) { console.error(err); }
+  };
+
+  const deleteNotification = async (id) => {
+    if (!currentUser) return;
+    setNotifications(prev => prev.filter(n => n.id !== id));
+    try { await supabase.from('notifications').delete().eq('id', id).eq('user_id', currentUser.id); }
+    catch (err) { console.error(err); }
+  };
+
+  const clearAllNotifications = async () => {
+    if (!currentUser) return;
+    setNotifications([]);
+    try { await supabase.from('notifications').delete().eq('user_id', currentUser.id); }
+    catch (err) { console.error(err); }
+  };
+
+  const createNotification = async (userId, type, text, metadata = {}) => {
+    if (!userId) return;
+    try {
+      let query = supabase.from('notifications').insert([{
+        user_id: userId,
+        type,
+        text,
+        metadata,
+      }]);
+
+      // Only select if the notification is for OURSELVES
+      const isForMe = currentUser && userId === currentUser.id;
+      if (isForMe) {
+        query = query.select().single();
+      }
+
+      const { data, error } = await query;
+
+      if (error) {
+        console.error('[Notifications] Failed to create record in DB:', error);
+        if (error.code === '42P01') return; // Table not found
+        throw error;
+      }
+
+      console.log('[Notifications] Successfully created notification for user:', userId, type, 'with metadata:', metadata);
+
+      if (isForMe && data) {
+        setNotifications(prev => [data, ...prev]);
+      }
+
+      // Fire-and-forget background email dispatch (skip for Admin to prevent spam)
+      if (adminUserId && userId === adminUserId) {
+        return;
+      }
+
+      fetch('/api/send-notification-email', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId, type, text, metadata })
+      }).catch(err => console.error('[Notifications] Background email error:', err));
+
+    } catch (err) {
+      console.error('[Notifications] Exception in createNotification:', err);
+    }
+  };
+
+  const uploadOptimizedImage = async (bucket, path, file, maxWidth = 1000) => {
+    try {
+      const originalSize = file.size;
+      const optimizedFile = await compressImage(file, maxWidth);
+      const finalSize = optimizedFile.size;
+
+      const { data, error } = await supabase.storage.from(bucket).upload(path, optimizedFile, {
+        contentType: optimizedFile.type,
+        upsert: true
+      });
+      if (error) throw error;
+
+      const { data: { publicUrl } } = supabase.storage.from(bucket).getPublicUrl(path);
+      return {
+        success: true,
+        url: publicUrl,
+        path,
+        size: finalSize,
+        originalSize,
+        sizeLabel: formatFileSize(finalSize)
+      };
+    } catch (err) {
+      console.error('[Storage] Upload failed:', err);
+      return { success: false, error: err.message };
+    }
+  };
+
+  // ─── INTERVIEW SCHEDULING ──────────────────────────────────────────
   const [availabilitySlots, setAvailabilitySlots] = useState([]);
   const [interviewBookings, setInterviewBookings] = useState([]);
 
@@ -435,6 +717,10 @@ export const AppProvider = ({ children }) => {
         throw error;
       }
       setInterviewBookings(prev => [...prev, data]);
+
+      // Notify the Trainee
+      createNotification(payload.trainee_id, 'application', `An interview has been scheduled with you for ${new Date(payload.start_time).toLocaleString()}`);
+
       return { success: true, data };
     } catch (err) { console.error('Error creating booking:', err); return { success: false, error: err.message }; }
   };
@@ -525,7 +811,7 @@ export const AppProvider = ({ children }) => {
     const newLimit = feedLimit + 10;
     setFeedLimit(newLimit);
     await Promise.all([fetchPosts(newLimit), fetchJobPostings(newLimit)]);
-    return 10; 
+    return 10;
   };
 
   const fetchPostComments = async () => {
@@ -580,7 +866,7 @@ export const AppProvider = ({ children }) => {
       const payload = {
         post_id: postId,
         author_id: currentUser.id,
-        author_type: userRole === 'partner' ? 'industry_partner' : 'student',
+        author_type: userRole === 'admin' ? 'admin' : (userRole === 'partner' ? 'industry_partner' : 'student'),
         content: trimmed,
         created_at: new Date().toISOString(),
       };
@@ -593,6 +879,19 @@ export const AppProvider = ({ children }) => {
 
       if (error) throw error;
       setPostComments(prev => [...prev, data]);
+
+      // Notify the post author if it's not the commenter
+      const post = posts.find(p => p.id === postId);
+      if (post && post.author_id !== currentUser.id) {
+        const target = post.author_type === 'admin' ? '/admin' : (isStudentAuthorType(post.author_type) ? '/trainee' : '/partner');
+        createNotification(post.author_id, 'system', `Someone commented on your post: "${post.title || post.content?.substring(0, 20)}..."`, { target, postId });
+      }
+
+      // Notify the Admin if it's not the admin's own comment
+      if (adminUserId && currentUser.id !== adminUserId) {
+        createNotification(adminUserId, 'system', `New comment on a post by ${post?.author_type === 'admin' ? 'the Admin' : 'a user'}`, { target: '/admin', postId });
+      }
+
       return { success: true, data };
     } catch (err) {
       console.error('Error adding post comment:', err);
@@ -613,7 +912,7 @@ export const AppProvider = ({ children }) => {
       const payload = {
         job_posting_id: jobPostingId,
         author_id: currentUser.id,
-        author_type: userRole === 'partner' ? 'industry_partner' : 'student',
+        author_type: userRole === 'admin' ? 'admin' : (userRole === 'partner' ? 'industry_partner' : 'student'),
         content: trimmed,
         created_at: new Date().toISOString(),
       };
@@ -632,6 +931,18 @@ export const AppProvider = ({ children }) => {
       }
 
       setJobPostingComments(prev => [...prev, data]);
+
+      // Notify the author of the job posting
+      const job = jobPostings.find(j => j.id === payload.job_posting_id);
+      if (job && job.partnerId !== currentUser.id) {
+        createNotification(job.partnerId, 'system', `Someone commented on your job posting: "${job.title}"`, { target: '/admin/jobs', jobId: job.id });
+      }
+
+      // Notify the Admin
+      if (adminUserId && currentUser.id !== adminUserId) {
+        createNotification(adminUserId, 'system', `New comment on a job posting: ${job?.title || 'Job'}`, { target: '/admin/jobs', jobId: job?.id });
+      }
+
       return { success: true, data };
     } catch (err) {
       console.error('Error adding job posting comment:', err);
@@ -718,7 +1029,7 @@ export const AppProvider = ({ children }) => {
         post_id: contactData.postId || null,
         job_posting_id: contactData.jobPostingId || null,
         sender_id: currentUser.id,
-        sender_type: userRole === 'partner' ? 'industry_partner' : 'student',
+        sender_type: userRole === 'admin' ? 'admin' : (userRole === 'partner' ? 'industry_partner' : 'student'),
         recipient_id: contactData.recipientId,
         recipient_type: contactData.recipientType,
         message,
@@ -749,6 +1060,14 @@ export const AppProvider = ({ children }) => {
       setContactRequests(prev => [...prev, savedRecord]);
       logActivity('Create', 'Contact', `Contact request sent to ${contactData.recipientType}`);
 
+      // Notify the recipient
+      createNotification(contactData.recipientId, 'system', `You have received a new contact request regarding: ${contactData.postTitle || 'General Inquiry'}`, { target: '/admin/activity-log' });
+
+      // Notify the Admin about the contact request
+      if (adminUserId && currentUser.id !== adminUserId && contactData.recipientId !== adminUserId) {
+        createNotification(adminUserId, 'system', `New contact request from ${userRole === 'partner' ? 'a partner' : 'a trainee'} regarding: ${contactData.postTitle || 'General Inquiry'}`, { target: '/admin/activity-log' });
+      }
+
       return { success: true, data: savedRecord };
     } catch (err) {
       console.error('Error sending contact request:', err);
@@ -766,13 +1085,13 @@ export const AppProvider = ({ children }) => {
       if (!session) {
         // If there is no active session, Supabase sends the request as an "anon" user.
         // This causes the database Row Level Security (RLS) to immediately reject the post.
-        alert("Your authentication session has expired or is invalid. Please sign out and log in again to post.");
+        toast.error("Your authentication session has expired or is invalid. Please sign out and log in again to post.");
         throw new Error("Missing active Supabase authentication token.");
       }
 
       const actualUserId = session.user.id;
 
-      const authorType = userRole === 'partner' ? 'industry_partner' : 'student';
+      const authorType = userRole === 'admin' ? 'admin' : (userRole === 'partner' ? 'industry_partner' : 'student');
 
       const newPost = {
         author_id: actualUserId,
@@ -793,6 +1112,12 @@ export const AppProvider = ({ children }) => {
       if (error) throw error;
 
       setPosts(prev => [data, ...prev]);
+
+      // Notify the Admin if it's not the admin's own post
+      if (adminUserId && currentUser.id !== adminUserId) {
+        createNotification(adminUserId, 'system', `New post in community by ${authorType === 'industry_partner' ? 'a partner' : 'a trainee'}: "${data.title || data.content?.substring(0, 20)}..."`, { target: '/admin', postId: data.id });
+      }
+
       return { success: true, data };
     } catch (err) {
       console.error('Error creating post:', err);
@@ -919,6 +1244,27 @@ export const AppProvider = ({ children }) => {
         throw error;
       }
       setPostInteractions(prev => [data, ...prev]);
+
+      // Notify the post author and Admin about interactions (register, inquire, apply, refer)
+      if (['register', 'inquire', 'apply', 'refer'].includes(interactionType)) {
+        const post = posts.find(p => p.id === postId);
+        const actionLabels = { register: 'registered for', inquire: 'inquired about', apply: 'applied to', refer: 'referred someone to' };
+        const actionText = actionLabels[interactionType] || interactionType;
+        const notificationMsg = `${userName} ${actionText} your post: "${post?.title || 'Bulletin'}"`;
+
+        console.log('[Notifications] Post interaction trigger:', interactionType, notificationMsg);
+
+        // Notify post author
+        if (post && post.author_id !== currentUser.id) {
+          createNotification(post.author_id, 'system', notificationMsg, { target: '/admin/bulletin', postId });
+        }
+
+        // Also notify the Admin if they aren't already the post author
+        if (adminUserId && currentUser.id !== adminUserId && post?.author_id !== adminUserId) {
+          createNotification(adminUserId, 'system', notificationMsg, { target: '/admin/bulletin', postId });
+        }
+      }
+
       return { success: true, data, action: 'added' };
     } catch (err) {
       console.error('Error creating post interaction:', err);
@@ -995,7 +1341,10 @@ export const AppProvider = ({ children }) => {
 
   useEffect(() => {
     fetchPosts();
+    fetchJobPostings();
     fetchPostComments();
+    fetchJobPostingComments();
+    fetchPostInteractions();
 
     const fetchProgramsCatalog = async () => {
       try {
@@ -1043,7 +1392,31 @@ export const AppProvider = ({ children }) => {
     };
 
     fetchProgramsCatalog();
-  }, []);
+
+    // ─── Fetch PQF Education Levels & Programs ────────────────
+    const fetchPqfData = async () => {
+      try {
+        const { data: levels, error: levelsErr } = await supabase
+          .from('pqf_education_levels')
+          .select('*')
+          .eq('is_active', true)
+          .order('sort_order', { ascending: true });
+        if (levelsErr) throw levelsErr;
+        setPqfLevels(levels || []);
+
+        const { data: progs, error: progsErr } = await supabase
+          .from('pqf_programs')
+          .select('*')
+          .eq('is_active', true)
+          .order('sort_order', { ascending: true });
+        if (progsErr) throw progsErr;
+        setPqfPrograms(progs || []);
+      } catch (err) {
+        console.warn('Failed to fetch PQF data:', err);
+      }
+    };
+    fetchPqfData();
+  }, [currentUser?.id]);
 
   // ΓöÇΓöÇΓöÇ ML-INSPIRED RECOMMENDATION ENGINE ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
   // Hybrid cold-start ranker with explainable signals and ML-ready metadata
@@ -1805,6 +2178,17 @@ export const AppProvider = ({ children }) => {
     }
 
     logActivity('Create', 'Applications', `${trainee?.name || 'Trainee'} applied to ${job?.title || 'opportunity'}`, null, 'Pending');
+
+    // Notify the Partner
+    if (job?.partnerId) {
+      createNotification(job.partnerId, 'application', `A new application was received for your posting: ${job.title || 'Job'}`, { target: '/partner/applications' });
+    }
+
+    // Notify the Admin
+    if (adminUserId && currentUser.id !== adminUserId) {
+      createNotification(adminUserId, 'system', `${trainee?.name || 'A trainee'} applied to ${job?.title || 'a job'} at ${job?.companyName || 'Partner'}`, { target: '/admin/jobs' });
+    }
+
     return { success: true };
   };
 
@@ -1852,10 +2236,10 @@ export const AppProvider = ({ children }) => {
 
       if (!persisted) {
         console.error('Failed to persist status update:', lastErrorMessage || 'No matching record found in candidate tables.');
-        alert(`Error: Your decision was not saved to the database. ${lastErrorMessage ? `Details: ${lastErrorMessage}` : 'Please ensure you have run the required SQL migration for contact_requests.'}`);
+        toast.error(`Error: Your decision was not saved to the database. ${lastErrorMessage ? `Details: ${lastErrorMessage}` : 'Please ensure you have run the required SQL migration for contact_requests.'}`);
         return { success: false, error: lastErrorMessage || 'Persistence failed.' };
       }
-      
+
       // Automatic Trainee Employment DB Sync
       if (status.toLowerCase() === 'hired') {
         const studentId = targetRec?.traineeId;
@@ -1865,7 +2249,7 @@ export const AppProvider = ({ children }) => {
             const opportunity = opportunities.find(o => String(o.id) === String(jobId));
             const partnerId = opportunity?.partnerId;
             const partner = partners.find(p => String(p.id) === String(partnerId));
-            
+
             const employerName = partner?.companyName || opportunity?.companyName || 'Unknown Employer';
             const jobTitle = opportunity?.title || 'Unknown Position';
 
@@ -1882,13 +2266,13 @@ export const AppProvider = ({ children }) => {
             if (syncError) {
               console.error('Failed to auto-sync trainee employment status:', syncError);
             } else {
-              setTrainees(prev => prev.map(t => 
+              setTrainees(prev => prev.map(t =>
                 String(t.id) === String(studentId)
                   ? { ...t, employmentStatus: 'Employed', employer: employerName, jobTitle: jobTitle, dateHired: new Date().toISOString() }
                   : t
               ));
             }
-          } catch(err) {
+          } catch (err) {
             console.error('Exception during employment sync:', err);
           }
         }
@@ -1902,6 +2286,13 @@ export const AppProvider = ({ children }) => {
       String(r.id) === String(applicationId) ? { ...r, status, notes, reviewed_at: reviewedAt } : r
     ));
     logActivity('Status Change', 'Recruitment', `Record #${applicationId} status changed`, prevStatus, status);
+
+    // Notify the Trainee/Sender
+    if (targetRec?.traineeId || targetRec?.sender_id || targetRec?.student_id) {
+      const targetUserId = targetRec.traineeId || targetRec.sender_id || targetRec.student_id;
+      createNotification(targetUserId, 'application', `Update on your application: Status changed to ${status}`, { target: '/trainee/applications' });
+    }
+
     return { success: true };
   };
 
@@ -2480,9 +2871,12 @@ export const AppProvider = ({ children }) => {
         p.id === partnerId ? { ...p, verificationStatus: 'Verified' } : p
       ));
       logActivity('Status Change', 'Partners', `Verified partner: ${partner?.companyName}`, partner?.verificationStatus, 'Verified');
+
+      // Notify the Partner
+      createNotification(partnerId, 'system', 'Your account has been officially verified! You can now post jobs.', { target: '/partner' });
     } catch (err) {
       console.error('Approve partner error:', err);
-      alert(`Failed to approve partner: ${err.message}`);
+      toast.error(`Failed to approve partner: ${err.message}`);
     }
   };
 
@@ -2514,9 +2908,12 @@ export const AppProvider = ({ children }) => {
       ));
       const reasonText = reason?.trim() ? ` (Reason: ${reason.trim()})` : '';
       logActivity('Status Change', 'Partners', `Rejected partner: ${partner?.companyName}${reasonText}`, partner?.verificationStatus, 'Rejected');
+
+      // Notify the Partner
+      createNotification(partnerId, 'system', `Your verification request was rejected.${reasonText}`, { target: '/partner' });
     } catch (err) {
       console.error('Reject partner error:', err);
-      alert(`Failed to reject partner: ${err.message}`);
+      toast.error(`Failed to reject partner: ${err.message}`);
     }
   };
 
@@ -2611,13 +3008,13 @@ export const AppProvider = ({ children }) => {
 
           if (error) {
             console.error('Failed to update partner in Supabase:', error);
-            alert('Failed to save to database: ' + error.message);
+            toast.error('Failed to save to database: ' + error.message);
             return;
           }
         }
       } catch (err) {
         console.error('Supabase update error:', err);
-        alert('An error occurred while saving.');
+        toast.error('An error occurred while saving.');
         return;
       }
     }
@@ -2661,7 +3058,7 @@ export const AppProvider = ({ children }) => {
       logActivity('Status Change', 'Partners', `${partner?.companyName} submitted documents for verification`, partner?.verificationStatus, 'Under Review');
     } catch (err) {
       console.error('Submit partner documents error:', err);
-      alert(`Failed to submit for review: ${err.message}`);
+      toast.error(`Failed to submit for review: ${err.message}`);
     }
   };
 
@@ -2693,7 +3090,7 @@ export const AppProvider = ({ children }) => {
       logActivity('Status Change', 'Partners', `${partner?.companyName} withdrew verification submission`, 'Under Review', 'Pending');
     } catch (err) {
       console.error('Withdraw submission error:', err);
-      alert(`Failed to withdraw submission: ${err.message}`);
+      toast.error(`Failed to withdraw submission: ${err.message}`);
     }
   };
 
@@ -2739,10 +3136,10 @@ export const AppProvider = ({ children }) => {
         if (updates.skills !== undefined) dbUpdates.skills = updates.skills;
         if (updates.interests !== undefined) dbUpdates.interests = updates.interests;
         if (updates.employmentStatus !== undefined) {
-          const statusMap = { 
-            'Employed': 'employed', 
-            'Seeking Employment': 'seeking_employment', 
-            'Not Employed': 'not_employed' 
+          const statusMap = {
+            'Employed': 'employed',
+            'Seeking Employment': 'seeking_employment',
+            'Not Employed': 'not_employed'
           };
           dbUpdates.employment_status = statusMap[updates.employmentStatus] || 'not_employed';
         }
@@ -2750,6 +3147,11 @@ export const AppProvider = ({ children }) => {
         if (updates.jobTitle !== undefined) dbUpdates.job_title = updates.jobTitle;
         if (updates.dateHired !== undefined) dbUpdates.date_hired = updates.dateHired || null;
         if (updates.address !== undefined) dbUpdates.detailed_address = updates.address;
+        if (updates.region !== undefined) dbUpdates.region = updates.region || null;
+        if (updates.province !== undefined) dbUpdates.province = updates.province || null;
+        if (updates.city !== undefined) dbUpdates.city = updates.city || null;
+        if (updates.barangay !== undefined) dbUpdates.barangay = updates.barangay || null;
+        if (updates.detailedAddress !== undefined) dbUpdates.detailed_address = updates.detailedAddress || null;
         if (updates.trainingStatus !== undefined) dbUpdates.training_status = updates.trainingStatus;
         if (updates.graduationYear !== undefined) dbUpdates.graduation_year = updates.graduationYear || null;
         if (updates.photo !== undefined) dbUpdates.profile_picture_url = updates.photo;
@@ -2761,6 +3163,7 @@ export const AppProvider = ({ children }) => {
         if (updates.email !== undefined) dbUpdates.contact_email = updates.email;
         if (updates.programId !== undefined) dbUpdates.program_id = updates.programId;
         if (updates.personalInfoVisibility !== undefined) dbUpdates.personal_info_visibility = updates.personalInfoVisibility;
+        if (updates.socialLinks !== undefined) dbUpdates.social_links = updates.socialLinks;
         if (updates.llnReading !== undefined) dbUpdates.lln_reading = updates.llnReading || null;
         if (updates.llnWriting !== undefined) dbUpdates.lln_writing = updates.llnWriting || null;
         if (updates.llnMath !== undefined) dbUpdates.lln_math = updates.llnMath || null;
@@ -2791,7 +3194,7 @@ export const AppProvider = ({ children }) => {
             const result = await resp.json();
             if (!resp.ok) {
               console.error('Admin update failed:', result.error);
-              alert('Failed to save: ' + result.error);
+              toast.error('Failed to save: ' + result.error);
               return;
             }
           } else {
@@ -2801,14 +3204,14 @@ export const AppProvider = ({ children }) => {
               .eq('id', traineeId);
             if (error) {
               console.error('Profile update failed:', error.message);
-              alert('Failed to save profile: ' + error.message);
+              toast.error('Failed to save profile: ' + error.message);
               return;
             }
           }
         }
       } catch (err) {
         console.error('Profile update error:', err);
-        alert('Unable to save profile. Please check your connection.');
+        toast.error('Unable to save profile. Please check your connection.');
         return;
       }
     } else {
@@ -2848,13 +3251,13 @@ export const AppProvider = ({ children }) => {
         if (!res.ok) {
           const msg = json.error || res.statusText;
           console.error('[deleteAccount] Server error:', msg);
-          alert(`Failed to delete account from database:\n\n${msg}`);
+          toast.error(`Failed to delete account from database:\n\n${msg}`);
           return;
         }
 
       } catch (err) {
         console.error('[deleteAccount] Network error:', err);
-        alert('Could not reach the server to delete the account from the database. Is the otp-server running?');
+        toast.success('Could not reach the server to delete the account from the database. Is the otp-server running?');
         return;
       }
     }
@@ -3744,7 +4147,18 @@ export const AppProvider = ({ children }) => {
       .on('postgres_changes', { event: '*', schema: 'public', table: 'job_posting_comments' }, fetchJobPostingComments)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'contact_requests' }, fetchContactRequests)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'job_applications' }, fetchApplications)
-      .subscribe();
+      .on('postgres_changes', {
+        event: 'INSERT',
+        schema: 'public',
+        table: 'notifications',
+        filter: `user_id=eq.${currentUser.id}`
+      }, (payload) => {
+        console.log('[Realtime] New notification detected for current user:', payload);
+        fetchNotifications();
+      })
+      .subscribe((status) => {
+        console.log(`[Realtime] Sync channel status: ${status}`);
+      });
 
     if (userRole !== 'admin') {
       return () => {
@@ -3958,6 +4372,12 @@ export const AppProvider = ({ children }) => {
       getPartnerAvailability,
       // Notifications
       notifications,
+      createNotification,
+      uploadOptimizedImage,
+      compressImage,
+      formatFileSize,
+      lastSeenNotificationsAt,
+      updateLastSeenNotificationsAt,
       markNotificationRead,
       markAllNotificationsRead,
       deleteNotification,
@@ -3965,12 +4385,17 @@ export const AppProvider = ({ children }) => {
       // Settings
       isDarkMode,
       toggleDarkMode,
+      pqfLevels,
+      pqfPrograms,
       resetPassword,
       exportMyData,
       deleteMyAccount,
       loadMoreFeeds,
       feedLimit,
       fetchJobPostings,
+      globalConfirm,
+      confirmAction,
+      closeGlobalConfirm,
     }}>
       {children}
     </AppContext.Provider>

@@ -3,20 +3,31 @@ import BrandLogo from './BrandLogo';
 import { Search, Menu, Bell, Settings, LogOut } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { useNavigate } from 'react-router-dom';
+import NotificationsDropdown from './NotificationsDropdown';
 
 const TopNavBar = ({ activePage, setActivePage }) => {
-    const { logout, notifications } = useApp();
+    const { logout, notifications, lastSeenNotificationsAt, updateLastSeenNotificationsAt } = useApp();
     const navigate = useNavigate();
     const [menuOpen, setMenuOpen] = useState(false);
+    const [notificationsOpen, setNotificationsOpen] = useState(false);
     const dropdownRef = useRef(null);
+    const notifRef = useRef(null);
 
-    const unreadCount = notifications?.filter(n => !n.read).length || 0;
+    const unreadNotifications = notifications?.filter(n => !n.read) || [];
+    
+    // The badge reflects ONLY notifications that are unread AND newer than the user's last_seen timestamp
+    const unseenCount = lastSeenNotificationsAt 
+        ? unreadNotifications.filter(n => new Date(n.created_at).getTime() > lastSeenNotificationsAt).length
+        : unreadNotifications.length;
 
-    // Close menu when clicking outside
+    // Close menus when clicking outside
     useEffect(() => {
         const handleClickOutside = (event) => {
             if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
                 setMenuOpen(false);
+            }
+            if (notifRef.current && !notifRef.current.contains(event.target)) {
+                setNotificationsOpen(false);
             }
         };
         document.addEventListener('mousedown', handleClickOutside);
@@ -26,6 +37,7 @@ const TopNavBar = ({ activePage, setActivePage }) => {
     const handleNavigate = (page) => {
         if (setActivePage) setActivePage(page);
         setMenuOpen(false);
+        setNotificationsOpen(false);
     };
 
     return (
@@ -37,20 +49,37 @@ const TopNavBar = ({ activePage, setActivePage }) => {
 
             <div className="tt-topbar-right">
                 <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                    {/* Notification Button beside Menu */}
-                    <button 
-                        className="tt-hamburger-btn" 
-                        onClick={() => handleNavigate('notifications')}
-                        title="Notifications"
-                    >
-                        <Bell size={24} color="white" />
-                        {unreadCount > 0 && <span className="tt-hamburger-badge">{unreadCount > 9 ? '9+' : unreadCount}</span>}
-                    </button>
+                    {/* Notification Button & Dropdown */}
+                    <div className="tt-hamburger-container" ref={notifRef}>
+                        <button 
+                            className="tt-hamburger-btn" 
+                            onClick={() => {
+                                setNotificationsOpen(!notificationsOpen);
+                                setMenuOpen(false); // Close other menu
+                                // Globally sync that the user has seen their notifications board
+                                if (!notificationsOpen && unseenCount > 0) {
+                                    updateLastSeenNotificationsAt();
+                                }
+                            }}
+                            title="Notifications"
+                        >
+                            <Bell size={24} color="white" />
+                            {unseenCount > 0 && <span className="tt-hamburger-badge">{unseenCount > 9 ? '9+' : unseenCount}</span>}
+                        </button>
 
+                        {notificationsOpen && (
+                            <NotificationsDropdown onClose={() => setNotificationsOpen(false)} />
+                        )}
+                    </div>
+
+                    {/* Main Menu Container */}
                     <div className="tt-hamburger-container" ref={dropdownRef}>
                         <button 
                             className="tt-hamburger-btn" 
-                            onClick={() => setMenuOpen(!menuOpen)}
+                            onClick={() => {
+                                setMenuOpen(!menuOpen);
+                                setNotificationsOpen(false); // Close other menu
+                            }}
                             title="Menu"
                         >
                             <Menu size={24} color="white" />

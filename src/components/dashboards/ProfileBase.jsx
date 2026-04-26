@@ -5,11 +5,12 @@ import {
     Award, Send, X, Eye, EyeOff, Plus, Trash2, Camera, Loader, 
     GraduationCap, ExternalLink, ShieldCheck, Mail, Calendar, 
     Users, ChevronRight, Edit, Upload, Star, Heart, Info, 
-    CheckCircle2, UserPlus, Navigation, FileCheck, Bookmark, AlertTriangle
+    CheckCircle2, UserPlus, Navigation, FileCheck, Bookmark, AlertTriangle, Target
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { supabase } from '../../lib/supabase';
 import SavedItemsView from './SavedItemsView';
+import PhilAddressSelector from '../common/PhilAddressSelector';
 import ProfileActivityTab from './ProfileActivityTab';
 import EmptyState, {
     TrophyIllustration,
@@ -18,6 +19,7 @@ import EmptyState, {
     StarIllustration,
     FolderIllustration
 } from '../EmptyState';
+import toast from 'react-hot-toast';
 import { 
     isVerified,
     resolvePartnerVisibility,
@@ -176,7 +178,12 @@ export const PREDEFINED_PERKS_TAGS = [
 // ─── COMPONENTS ──────────────────────────────────────────────────
 
 export const TraineeProfileContent = ({ viewedProfileId = null, onBack = null, openBulletinModal }) => {
-    const { currentUser, userRole, trainees, updateTrainee, getSkillInterestRecommendations, programs, getSkillsDemand, applyToJob } = useApp();
+    const { 
+        currentUser, userRole, trainees, updateTrainee, 
+        getSkillInterestRecommendations, programs, getSkillsDemand, 
+        applyToJob, uploadOptimizedImage,
+        pqfLevels, pqfPrograms
+    } = useApp();
     const isOwnProfile = !viewedProfileId || String(viewedProfileId) === String(currentUser?.id);
     const isEmployer = userRole === 'partner';
     const [viewedTrainee, setViewedTrainee] = useState(null);
@@ -191,7 +198,9 @@ export const TraineeProfileContent = ({ viewedProfileId = null, onBack = null, o
     const [form, setForm] = useState({
         name: '', program: '', ncLevel: '', email: '', birthday: '', address: '', graduationYear: '', trainingStatus: '',
         trainings: [], certifications: [], educHistory: [], workExperience: [], skills: [], interests: [],
-        employmentStatus: '', employer: '', jobTitle: '', dateHired: '', gender: ''
+        employmentStatus: '', employer: '', jobTitle: '', dateHired: '', gender: '',
+        socialLinks: [],
+        region: '', regionCode: '', province: '', provinceCode: '', city: '', cityCode: '', barangay: '', barangayCode: '', detailedAddress: ''
     });
     const [personalInfoVisibility, setPersonalInfoVisibility] = useState([]);
 
@@ -223,6 +232,63 @@ export const TraineeProfileContent = ({ viewedProfileId = null, onBack = null, o
     const [submittingApplication, setSubmittingApplication] = useState(false);
 
     const isEmailValid = (e) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e);
+
+    // ─── Validation Helpers ─────────────────────────────────
+    const isValidUrl = (value) => {
+        if (!value) return true;
+        try { new URL(value); return /^https?:\/\//i.test(value); } catch { return false; }
+    };
+    const getAgeFromBirthday = (bd) => {
+        if (!bd) return null;
+        const today = new Date();
+        const birth = new Date(bd);
+        let age = today.getFullYear() - birth.getFullYear();
+        const m = today.getMonth() - birth.getMonth();
+        if (m < 0 || (m === 0 && today.getDate() < birth.getDate())) age--;
+        return age;
+    };
+
+    // ─── New entry state for educ/work/social ────────────────
+    const [newEduc, setNewEduc] = useState({ level: '', school: '', program: '', yearFrom: '', yearTo: '' });
+    const [newWork, setNewWork] = useState({ company: '', role: '', yearFrom: '', yearTo: '', description: '', website: '' });
+    const [newSocialLink, setNewSocialLink] = useState({ platform: '', url: '' });
+
+    // Education level labels for dropdown
+    const EDUCATION_LEVEL_LABELS = [
+        'Elementary',
+        'Junior High School',
+        'Senior High School',
+        'Vocational / TESDA',
+        'Diploma / Associate',
+        'College / Bachelor\'s',
+        'Master\'s / Post-Graduate',
+        'Doctoral / Post-Doctoral'
+    ];
+
+    // Map education label to PQF levels for program filtering
+    const EDUC_LABEL_TO_PQF = {
+        'Elementary': [],
+        'Junior High School': [1],
+        'Senior High School': [2],
+        'Vocational / TESDA': [1, 2, 3, 4],
+        'Diploma / Associate': [5],
+        'College / Bachelor\'s': [6],
+        'Master\'s / Post-Graduate': [7],
+        'Doctoral / Post-Doctoral': [8]
+    };
+
+    // Check if selected education level should show program dropdown
+    const educLevelShowsProgram = (level) => {
+        return ['Senior High School', 'Vocational / TESDA', 'Diploma / Associate', "College / Bachelor's", "Master's / Post-Graduate", "Doctoral / Post-Doctoral"].includes(level);
+    };
+
+    // Get filtered PQF programs for an education level
+    const getPqfProgramsForEducLevel = (level) => {
+        const pqfNums = EDUC_LABEL_TO_PQF[level] || [];
+        if (pqfNums.length === 0) return [];
+        const levelIds = pqfLevels.filter(l => pqfNums.includes(l.pqf_level)).map(l => l.id);
+        return pqfPrograms.filter(p => levelIds.includes(p.pqf_level_id));
+    };
 
     useEffect(() => {
         if (isOwnProfile || !viewedProfileId) {
@@ -295,7 +361,13 @@ export const TraineeProfileContent = ({ viewedProfileId = null, onBack = null, o
                 employer: trainee.employer || '',
                 jobTitle: trainee.jobTitle || '',
                 dateHired: trainee.dateHired || '',
-                gender: trainee.gender || ''
+                gender: trainee.gender || '',
+                socialLinks: Array.isArray(trainee.socialLinks || trainee.social_links) ? (trainee.socialLinks || trainee.social_links) : [],
+                region: trainee.region || '', regionCode: trainee.regionCode || trainee.region_code || '',
+                province: trainee.province || '', provinceCode: trainee.provinceCode || trainee.province_code || '',
+                city: trainee.city || '', cityCode: trainee.cityCode || trainee.city_code || '',
+                barangay: trainee.barangay || '', barangayCode: trainee.barangayCode || trainee.barangay_code || '',
+                detailedAddress: trainee.detailedAddress || trainee.detailed_address || ''
             });
             setPersonalInfoVisibility(resolveTraineeVisibility(trainee));
             setEditing(false);
@@ -304,14 +376,44 @@ export const TraineeProfileContent = ({ viewedProfileId = null, onBack = null, o
 
     const save = async () => {
         if (!isOwnProfile) return;
+        // ─── Validation ────────────────────────────────────────
+        if (form.name && form.name.length > 100) {
+            toast.error('Full name must be 100 characters or less.'); return;
+        }
+        if (form.email && form.email.length > 50) {
+            toast.error('Email must be 50 characters or less.'); return;
+        }
         if (form.email && !isEmailValid(form.email)) {
-            alert('Please enter a valid email address.');
-            return;
+            toast.error('Please enter a valid email address.'); return;
+        }
+        if (form.birthday) {
+            const age = getAgeFromBirthday(form.birthday);
+            if (age !== null && age < 15) {
+                toast.error('Trainee must be at least 15 years old.'); return;
+            }
+        }
+        if (form.skills.length > 20) {
+            toast.error('Maximum 20 skills allowed.'); return;
+        }
+        if (form.interests.length > 20) {
+            toast.error('Maximum 20 interests allowed.'); return;
+        }
+        if (form.educHistory.length > 15) {
+            toast.error('Maximum 15 education entries allowed.'); return;
+        }
+        if (form.workExperience.length > 15) {
+            toast.error('Maximum 15 work experience entries allowed.'); return;
+        }
+        // Validate social links
+        const invalidLinks = (form.socialLinks || []).filter(l => l.url && !isValidUrl(l.url));
+        if (invalidLinks.length > 0) {
+            toast.error('One or more social/portfolio links are invalid. Links must start with https:// or http://'); return;
         }
         setSaving(true);
         await updateTrainee(trainee.id, { ...form, personalInfoVisibility });
         setSaving(false);
         setEditing(false);
+        toast.success('Profile saved successfully!');
     };
 
     const handlePhotoUpload = async (e) => {
@@ -320,13 +422,12 @@ export const TraineeProfileContent = ({ viewedProfileId = null, onBack = null, o
         setSaving(true);
         try {
             const path = `trainee-photos/${trainee.id}/${Date.now()}_${file.name}`;
-            const { error: uploadErr } = await supabase.storage.from('registration-uploads').upload(path, file);
-            if (uploadErr) throw uploadErr;
-            const { data: { publicUrl } } = supabase.storage.from('registration-uploads').getPublicUrl(path);
-            await updateTrainee(trainee.id, { photo: publicUrl });
+            const res = await uploadOptimizedImage('registration-uploads', path, file, 600); // Small for profile pics
+            if (!res.success) throw new Error(res.error);
+            await updateTrainee(trainee.id, { photo: res.url });
         } catch (err) {
             console.error('Photo upload error:', err);
-            alert('Failed to upload photo: ' + err.message);
+            toast.error('Failed to upload photo: ' + err.message);
         } finally { setSaving(false); }
     };
 
@@ -336,13 +437,12 @@ export const TraineeProfileContent = ({ viewedProfileId = null, onBack = null, o
         setSaving(true);
         try {
             const path = `trainee-banners/${trainee.id}/${Date.now()}_${file.name}`;
-            const { error: uploadErr } = await supabase.storage.from('registration-uploads').upload(path, file);
-            if (uploadErr) throw uploadErr;
-            const { data: { publicUrl } } = supabase.storage.from('registration-uploads').getPublicUrl(path);
-            await updateTrainee(trainee.id, { bannerUrl: publicUrl });
+            const res = await uploadOptimizedImage('registration-uploads', path, file, 1200); // Wider for banners
+            if (!res.success) throw new Error(res.error);
+            await updateTrainee(trainee.id, { bannerUrl: res.url });
         } catch (err) {
             console.error('Banner upload error:', err);
-            alert('Failed to upload banner: ' + err.message);
+            toast.error('Failed to upload banner: ' + err.message);
         } finally { setSaving(false); }
     };
 
@@ -352,13 +452,12 @@ export const TraineeProfileContent = ({ viewedProfileId = null, onBack = null, o
         setUploadingCert(true);
         try {
             const path = `trainee-certs/${trainee.id}/${Date.now()}_${file.name}`;
-            const { error: uploadErr } = await supabase.storage.from('registration-uploads').upload(path, file);
-            if (uploadErr) throw uploadErr;
-            const { data: { publicUrl } } = supabase.storage.from('registration-uploads').getPublicUrl(path);
-            setNewCert(prev => ({ ...prev, proof_url: publicUrl }));
+            const res = await uploadOptimizedImage('registration-uploads', path, file, 1000);
+            if (!res.success) throw new Error(res.error);
+            setNewCert(prev => ({ ...prev, proof_url: res.url }));
         } catch (err) {
             console.error('Cert file upload error:', err);
-            alert('Failed to upload proof: ' + err.message);
+            toast.error('Failed to upload proof: ' + err.message);
         } finally { setUploadingCert(false); }
     };
 
@@ -370,9 +469,9 @@ export const TraineeProfileContent = ({ viewedProfileId = null, onBack = null, o
         if (res.success) {
             setApplyJob(null);
             setApplicationMessage('');
-            alert('Application submitted successfully!');
+            toast.success('Application submitted successfully!');
         } else {
-            alert(res.error || 'Failed to submit application.');
+            toast.error(res.error || 'Failed to submit application.');
         }
     };
 
@@ -387,11 +486,11 @@ export const TraineeProfileContent = ({ viewedProfileId = null, onBack = null, o
                     certifications: prev.certifications.filter(c => c.id !== docId)
                 }));
             } else {
-                alert(`Delete failed: ${result.error}`);
+                toast.error(`Delete failed: ${result.error}`);
             }
         } catch (err) {
             console.error('Delete error:', err);
-            alert('Failed to delete document.');
+            toast.error('Failed to delete document.');
         }
     };
 
@@ -424,18 +523,16 @@ export const TraineeProfileContent = ({ viewedProfileId = null, onBack = null, o
     };
 
     const infoFields = [
-        { label: 'Full Name', key: 'name', type: 'text' },
+        { label: 'Full Name', key: 'name', type: 'text', maxLength: 100 },
         { label: 'Birthdate', key: 'birthday', type: 'date' },
         { label: 'Gender', key: 'gender', type: 'select', options: ['Male', 'Female', 'Other', 'Prefer not to say'] },
-        { label: 'Email', key: 'email', type: 'email' },
-        { label: 'Current Address', key: 'address', type: 'text' },
+        { label: 'Email', key: 'email', type: 'email', maxLength: 50 },
         { label: 'Training Program', key: 'program', type: 'select', options: programs.map(p => p.name) },
         { label: 'Qualification Level', key: 'ncLevel', type: 'select', options: ['NC I', 'NC II', 'NC III', 'NC IV', 'Certificate of Competency (COC)'] },
         { label: 'Graduation Year', key: 'graduationYear', type: 'text' },
     ];
 
     const experienceFields = [
-        { label: 'Employment Status', key: 'employmentStatus', type: 'select', options: ['Seeking Employment', 'Employed', 'Not Employed'] },
         { label: 'Current Employer', key: 'employer', type: 'text' },
         { label: 'Job Title', key: 'jobTitle', type: 'text' },
         { label: 'Date Hired', key: 'dateHired', type: 'date' },
@@ -505,9 +602,26 @@ export const TraineeProfileContent = ({ viewedProfileId = null, onBack = null, o
                                 )}
                             </div>
                             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 12 }}>
-                                <div className={`ln-badge ${trainee.employmentStatus === 'Employed' ? 'ln-badge-green' : 'ln-badge-blue'}`}>
-                                    {trainee.employmentStatus || 'Seeking Employment'}
-                                </div>
+                                {isOwnProfile && editing ? (
+                                    <select
+                                        className="form-input"
+                                        value={form.employmentStatus}
+                                        onChange={e => setForm({ ...form, employmentStatus: e.target.value })}
+                                        style={{ padding: '4px 10px', fontSize: 12, fontWeight: 700, borderRadius: 20, height: 30, minWidth: 160 }}
+                                    >
+                                        <option value="">Select Status</option>
+                                        <option value="Seeking Employment">Seeking Employment</option>
+                                        <option value="Employed">Employed</option>
+                                        <option value="Not Employed">Not Employed</option>
+                                        <option value="Seeking OJT">Seeking OJT</option>
+                                        <option value="OJT In Progress">OJT In Progress</option>
+                                        <option value="Certified">Certified</option>
+                                    </select>
+                                ) : (
+                                    <div className={`ln-badge ${(form.employmentStatus || trainee.employmentStatus) === 'Employed' ? 'ln-badge-green' : 'ln-badge-blue'}`}>
+                                        {form.employmentStatus || trainee.employmentStatus || 'Seeking Employment'}
+                                    </div>
+                                )}
                                 {isOwnProfile && (
                                     <button
                                         type="button"
@@ -570,7 +684,22 @@ export const TraineeProfileContent = ({ viewedProfileId = null, onBack = null, o
                                                             {field.options.map(opt => <option key={opt} value={opt}>{opt}</option>)}
                                                         </select>
                                                     ) : (
-                                                        <input type={field.type} className="form-input" value={val} onChange={e => setForm({ ...form, [field.key]: e.target.value })} />
+                                                        <>
+                                                            <input type={field.type} className="form-input" value={val}
+                                                                onChange={e => setForm({ ...form, [field.key]: e.target.value })}
+                                                                maxLength={field.maxLength || undefined}
+                                                            />
+                                                            {field.maxLength && editing && (
+                                                                <div style={{ fontSize: 11, color: (val || '').length > field.maxLength * 0.9 ? '#dc2626' : '#94a3b8', marginTop: 4, textAlign: 'right' }}>
+                                                                    {(val || '').length}/{field.maxLength}
+                                                                </div>
+                                                            )}
+                                                            {field.key === 'birthday' && val && getAgeFromBirthday(val) !== null && getAgeFromBirthday(val) < 15 && (
+                                                                <div style={{ fontSize: 11, color: '#dc2626', marginTop: 4 }}>
+                                                                    ⚠️ Trainee must be at least 15 years old
+                                                                </div>
+                                                            )}
+                                                        </>
                                                     )
                                                 ) : (
                                                     <div className="ln-info-value">{val || '—'}</div>
@@ -588,6 +717,34 @@ export const TraineeProfileContent = ({ viewedProfileId = null, onBack = null, o
                                 {isOwnProfile && editing && form.email && !isEmailValid(form.email) && (
                                     <div style={{ fontSize: 12, color: '#cc1016', marginTop: 12, padding: '0 20px' }}>Please enter a valid email address</div>
                                 )}
+                                {isOwnProfile && editing && form.email && form.email.length > 50 && (
+                                    <div style={{ fontSize: 12, color: '#cc1016', marginTop: 4, padding: '0 20px' }}>Email must be 50 characters or less</div>
+                                )}
+                            </div>
+
+                            {/* Address Section */}
+                            <div className="ln-card" style={{ marginTop: 20 }}>
+                                <div className="ln-section-header">
+                                    <h3>Address (PSGC)</h3>
+                                </div>
+                                <div style={{ padding: '0 20px 20px' }}>
+                                    {editing ? (
+                                        <PhilAddressSelector
+                                            values={{
+                                                region: form.region, regionCode: form.regionCode,
+                                                province: form.province, provinceCode: form.provinceCode,
+                                                city: form.city, cityCode: form.cityCode,
+                                                barangay: form.barangay, barangayCode: form.barangayCode,
+                                                detailedAddress: form.detailedAddress
+                                            }}
+                                            onChange={(updates) => setForm(prev => ({ ...prev, ...updates }))}
+                                        />
+                                    ) : (
+                                        <div className="ln-info-value">
+                                            {[form.detailedAddress, form.barangay, form.city, form.province, form.region].filter(Boolean).join(', ') || form.address || '—'}
+                                        </div>
+                                    )}
+                                </div>
                             </div>
 
                             <div className="ln-card" style={{ marginTop: 20 }}>
@@ -624,15 +781,24 @@ export const TraineeProfileContent = ({ viewedProfileId = null, onBack = null, o
                         <React.Fragment>
                             <div className="ln-card">
                                 <div className="ln-section-header">
-                                    <h3>Skills & Expertise</h3>
-                                    {isOwnProfile && editing && (
+                                    <h3>Skills & Expertise <span style={{ fontSize: 11, color: '#94a3b8', fontWeight: 400 }}>({form.skills.length}/20)</span></h3>
+                                    {isOwnProfile && editing && form.skills.length < 20 && (
                                         <div style={{ display: 'flex', gap: 8 }}>
                                             <input
                                                 type="text" className="form-input" placeholder="Add skill..." style={{ margin: 0, height: 32, fontSize: 12 }}
-                                                value={newSkill} onChange={e => setNewSkill(e.target.value)}
-                                                onKeyDown={e => { if (e.key === 'Enter' && newSkill.trim()) { setForm({ ...form, skills: [...form.skills, newSkill.trim()] }); setNewSkill(''); } }}
+                                                value={newSkill} onChange={e => setNewSkill(e.target.value.slice(0, 30))}
+                                                maxLength={30}
+                                                onKeyDown={e => {
+                                                    if (e.key === 'Enter' && newSkill.trim()) {
+                                                        if (form.skills.some(s => s.toLowerCase() === newSkill.trim().toLowerCase())) { toast.error('Skill already added'); return; }
+                                                        setForm({ ...form, skills: [...form.skills, newSkill.trim()] }); setNewSkill('');
+                                                    }
+                                                }}
                                             />
                                         </div>
+                                    )}
+                                    {isOwnProfile && editing && form.skills.length >= 20 && (
+                                        <span style={{ fontSize: 11, color: '#dc2626', fontWeight: 600 }}>Max 20 skills reached</span>
                                     )}
                                 </div>
                                 <div style={{ padding: '0 20px 20px' }}>
@@ -644,6 +810,42 @@ export const TraineeProfileContent = ({ viewedProfileId = null, onBack = null, o
                                             </div>
                                         ))}
                                         {form.skills.length === 0 && <div style={{ fontSize: 14, color: '#94a3b8' }}>No skills added yet.</div>}
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Interests */}
+                            <div className="ln-card">
+                                <div className="ln-section-header">
+                                    <h3>Interests <span style={{ fontSize: 11, color: '#94a3b8', fontWeight: 400 }}>({form.interests.length}/20)</span></h3>
+                                    {isOwnProfile && editing && form.interests.length < 20 && (
+                                        <div style={{ display: 'flex', gap: 8 }}>
+                                            <input
+                                                type="text" className="form-input" placeholder="Add interest..." style={{ margin: 0, height: 32, fontSize: 12 }}
+                                                value={newInterest} onChange={e => setNewInterest(e.target.value.slice(0, 30))}
+                                                maxLength={30}
+                                                onKeyDown={e => {
+                                                    if (e.key === 'Enter' && newInterest.trim()) {
+                                                        if (form.interests.some(s => s.toLowerCase() === newInterest.trim().toLowerCase())) { toast.error('Interest already added'); return; }
+                                                        setForm({ ...form, interests: [...form.interests, newInterest.trim()] }); setNewInterest('');
+                                                    }
+                                                }}
+                                            />
+                                        </div>
+                                    )}
+                                    {isOwnProfile && editing && form.interests.length >= 20 && (
+                                        <span style={{ fontSize: 11, color: '#dc2626', fontWeight: 600 }}>Max 20 interests reached</span>
+                                    )}
+                                </div>
+                                <div style={{ padding: '0 20px 20px' }}>
+                                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
+                                        {form.interests.map((s, i) => (
+                                            <div key={i} className="ln-skill-tag" style={{ background: '#fef3c7', color: '#92400e', border: '1px solid #fde68a' }}>
+                                                {s}
+                                                {isOwnProfile && editing && <X size={12} style={{ marginLeft: 6, cursor: 'pointer' }} onClick={() => setForm({ ...form, interests: form.interests.filter((_, idx) => idx !== i) })} />}
+                                            </div>
+                                        ))}
+                                        {form.interests.length === 0 && <div style={{ fontSize: 14, color: '#94a3b8' }}>No interests added yet.</div>}
                                     </div>
                                 </div>
                             </div>
@@ -709,6 +911,205 @@ export const TraineeProfileContent = ({ viewedProfileId = null, onBack = null, o
                                             description="Showcase your professional certifications and training programs to stand out."
                                             style={{ padding: '24px 20px' }}
                                         />
+                                    )}
+                                </div>
+                            </div>
+
+                            {/* Educational History */}
+                            <div className="ln-card">
+                                <div className="ln-section-header">
+                                    <h3>Educational History <span style={{ fontSize: 11, color: '#94a3b8', fontWeight: 400 }}>({form.educHistory.length}/15)</span></h3>
+                                </div>
+                                <div style={{ padding: '0 20px 20px' }}>
+                                    {form.educHistory.map((ed, i) => (
+                                        <div key={i} style={{ display: 'flex', gap: 12, alignItems: 'flex-start', padding: '12px 0', borderBottom: i < form.educHistory.length - 1 ? '1px solid #f1f5f9' : 'none' }}>
+                                            <div className="ln-cert-icon"><GraduationCap size={20} color="#0a66c2" /></div>
+                                            <div style={{ flex: 1, minWidth: 0 }}>
+                                                <div style={{ fontWeight: 700, fontSize: 14, color: '#1e293b' }}>{ed.school || 'School'}</div>
+                                                <div style={{ fontSize: 12, color: '#64748b', marginTop: 2 }}>{ed.level}{ed.program ? ` — ${ed.program}` : ''}</div>
+                                                <div style={{ fontSize: 12, color: '#94a3b8', marginTop: 2 }}>{ed.yearFrom}{ed.yearTo ? ` – ${ed.yearTo}` : ''}</div>
+                                            </div>
+                                            {isOwnProfile && editing && (
+                                                <button type="button" className="ln-btn-sm ln-btn-outline" style={{ color: '#cc1016', padding: '6px' }}
+                                                    onClick={() => setForm({ ...form, educHistory: form.educHistory.filter((_, idx) => idx !== i) })}>
+                                                    <Trash2 size={12} />
+                                                </button>
+                                            )}
+                                        </div>
+                                    ))}
+                                    {form.educHistory.length === 0 && !editing && (
+                                        <EmptyState illustration={FolderIllustration} title="No education history" description="Add your educational background." style={{ padding: '24px 0' }} />
+                                    )}
+                                    {isOwnProfile && editing && form.educHistory.length < 15 && (
+                                        <div style={{ marginTop: 16, padding: 16, border: '1px dashed #cbd5e1', borderRadius: 10, background: '#f8fafc' }}>
+                                            <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 12, color: '#475569' }}>Add Education</div>
+                                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                                                <select className="form-input" value={newEduc.level} onChange={e => setNewEduc({ ...newEduc, level: e.target.value, program: '' })}>
+                                                    <option value="">Education Level</option>
+                                                    {EDUCATION_LEVEL_LABELS.map(l => <option key={l} value={l}>{l}</option>)}
+                                                </select>
+                                                <input type="text" className="form-input" placeholder="School / University" maxLength={100}
+                                                    value={newEduc.school} onChange={e => setNewEduc({ ...newEduc, school: e.target.value })} />
+                                                {educLevelShowsProgram(newEduc.level) && (
+                                                    <select className="form-input" style={{ gridColumn: '1 / -1' }} value={newEduc.program}
+                                                        onChange={e => setNewEduc({ ...newEduc, program: e.target.value })}>
+                                                        <option value="">Degree / Program / Strand</option>
+                                                        {(() => {
+                                                            const progs = getPqfProgramsForEducLevel(newEduc.level);
+                                                            const sectors = [...new Set(progs.map(p => p.sector))];
+                                                            return sectors.map(sec => (
+                                                                <optgroup key={sec} label={sec}>
+                                                                    {progs.filter(p => p.sector === sec).map(p => (
+                                                                        <option key={p.id} value={p.program_name}>{p.program_name}</option>
+                                                                    ))}
+                                                                </optgroup>
+                                                            ));
+                                                        })()}
+                                                    </select>
+                                                )}
+                                                <input type="number" className="form-input" placeholder="Year From" min="1950" max={new Date().getFullYear()}
+                                                    value={newEduc.yearFrom} onChange={e => setNewEduc({ ...newEduc, yearFrom: e.target.value })} />
+                                                <input type="number" className="form-input" placeholder="Year To" min="1950" max={new Date().getFullYear() + 10}
+                                                    value={newEduc.yearTo} onChange={e => setNewEduc({ ...newEduc, yearTo: e.target.value })} />
+                                            </div>
+                                            {newEduc.yearFrom && newEduc.yearTo && parseInt(newEduc.yearTo) < parseInt(newEduc.yearFrom) && (
+                                                <div style={{ fontSize: 11, color: '#dc2626', marginTop: 6 }}>⚠️ "Year To" cannot be before "Year From"</div>
+                                            )}
+                                            <button type="button" className="ln-btn-sm ln-btn-primary" style={{ marginTop: 10 }}
+                                                disabled={!newEduc.level || !newEduc.school.trim() || !newEduc.yearFrom || !newEduc.yearTo || (parseInt(newEduc.yearTo) < parseInt(newEduc.yearFrom)) || (educLevelShowsProgram(newEduc.level) && !newEduc.program)}
+                                                onClick={() => {
+                                                    setForm({ ...form, educHistory: [...form.educHistory, { ...newEduc }] });
+                                                    setNewEduc({ level: '', school: '', program: '', yearFrom: '', yearTo: '' });
+                                                }}>
+                                                <Plus size={14} /> Add Education
+                                            </button>
+                                        </div>
+                                    )}
+                                    {isOwnProfile && editing && form.educHistory.length >= 15 && (
+                                        <div style={{ fontSize: 12, color: '#dc2626', marginTop: 8 }}>Maximum 15 education entries reached.</div>
+                                    )}
+                                </div>
+                            </div>
+
+                            {/* Work Experience */}
+                            <div className="ln-card">
+                                <div className="ln-section-header">
+                                    <h3>Work Experience <span style={{ fontSize: 11, color: '#94a3b8', fontWeight: 400 }}>({form.workExperience.length}/15)</span></h3>
+                                </div>
+                                <div style={{ padding: '0 20px 20px' }}>
+                                    {form.workExperience.map((w, i) => (
+                                        <div key={i} style={{ display: 'flex', gap: 12, alignItems: 'flex-start', padding: '12px 0', borderBottom: i < form.workExperience.length - 1 ? '1px solid #f1f5f9' : 'none' }}>
+                                            <div className="ln-cert-icon"><Briefcase size={20} color="#0a66c2" /></div>
+                                            <div style={{ flex: 1, minWidth: 0 }}>
+                                                <div style={{ fontWeight: 700, fontSize: 14, color: '#1e293b' }}>{w.role || 'Position'}</div>
+                                                <div style={{ fontSize: 12, color: '#64748b', marginTop: 2 }}>{w.company}{w.website ? <> · <a href={w.website.startsWith('http') ? w.website : `https://${w.website}`} target="_blank" rel="noreferrer" style={{ color: '#0a66c2' }}><ExternalLink size={10} /></a></> : ''}</div>
+                                                <div style={{ fontSize: 12, color: '#94a3b8', marginTop: 2 }}>{w.yearFrom}{w.yearTo ? ` – ${w.yearTo}` : ''}</div>
+                                                {w.description && <div style={{ fontSize: 12, color: '#64748b', marginTop: 4 }}>{w.description}</div>}
+                                            </div>
+                                            {isOwnProfile && editing && (
+                                                <button type="button" className="ln-btn-sm ln-btn-outline" style={{ color: '#cc1016', padding: '6px' }}
+                                                    onClick={() => setForm({ ...form, workExperience: form.workExperience.filter((_, idx) => idx !== i) })}>
+                                                    <Trash2 size={12} />
+                                                </button>
+                                            )}
+                                        </div>
+                                    ))}
+                                    {form.workExperience.length === 0 && !editing && (
+                                        <EmptyState illustration={BriefcaseIllustration} title="No work experience" description="Add your work history." style={{ padding: '24px 0' }} />
+                                    )}
+                                    {isOwnProfile && editing && form.workExperience.length < 15 && (
+                                        <div style={{ marginTop: 16, padding: 16, border: '1px dashed #cbd5e1', borderRadius: 10, background: '#f8fafc' }}>
+                                            <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 12, color: '#475569' }}>Add Work Experience</div>
+                                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                                                <input type="text" className="form-input" placeholder="Company / Organization" maxLength={100}
+                                                    value={newWork.company} onChange={e => setNewWork({ ...newWork, company: e.target.value })} />
+                                                <input type="text" className="form-input" placeholder="Position / Role" maxLength={30}
+                                                    value={newWork.role} onChange={e => setNewWork({ ...newWork, role: e.target.value })} />
+                                                <input type="number" className="form-input" placeholder="Year From" min="1950" max={new Date().getFullYear()}
+                                                    value={newWork.yearFrom} onChange={e => setNewWork({ ...newWork, yearFrom: e.target.value })} />
+                                                <input type="number" className="form-input" placeholder="Year To" min="1950" max={new Date().getFullYear() + 10}
+                                                    value={newWork.yearTo} onChange={e => setNewWork({ ...newWork, yearTo: e.target.value })} />
+                                                <textarea className="form-input" placeholder="Description / Contributions (optional)" maxLength={200}
+                                                    value={newWork.description} onChange={e => setNewWork({ ...newWork, description: e.target.value })}
+                                                    style={{ gridColumn: '1 / -1', minHeight: 60, resize: 'none' }} />
+                                                <div style={{ gridColumn: '1 / -1' }}>
+                                                    <input type="url" className="form-input" placeholder="Company Website (optional, e.g. https://example.com)"
+                                                        value={newWork.website} onChange={e => setNewWork({ ...newWork, website: e.target.value })} />
+                                                    {newWork.website && !isValidUrl(newWork.website) && (
+                                                        <div style={{ fontSize: 11, color: '#dc2626', marginTop: 4 }}>Must be a valid URL starting with https:// or http://</div>
+                                                    )}
+                                                </div>
+                                            </div>
+                                            {newWork.yearFrom && newWork.yearTo && parseInt(newWork.yearTo) < parseInt(newWork.yearFrom) && (
+                                                <div style={{ fontSize: 11, color: '#dc2626', marginTop: 6 }}>⚠️ "Year To" cannot be before "Year From"</div>
+                                            )}
+                                            <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
+                                                <span style={{ fontSize: 11, color: '#94a3b8' }}>Company: {newWork.company.length}/100</span>
+                                                <span style={{ fontSize: 11, color: '#94a3b8' }}>Role: {newWork.role.length}/30</span>
+                                                <span style={{ fontSize: 11, color: '#94a3b8' }}>Desc: {newWork.description.length}/200</span>
+                                            </div>
+                                            <button type="button" className="ln-btn-sm ln-btn-primary" style={{ marginTop: 10 }}
+                                                disabled={!newWork.company.trim() || !newWork.role.trim() || !newWork.yearFrom || !newWork.yearTo || (parseInt(newWork.yearTo) < parseInt(newWork.yearFrom)) || (newWork.website && !isValidUrl(newWork.website))}
+                                                onClick={() => {
+                                                    setForm({ ...form, workExperience: [...form.workExperience, { ...newWork }] });
+                                                    setNewWork({ company: '', role: '', yearFrom: '', yearTo: '', description: '', website: '' });
+                                                }}>
+                                                <Plus size={14} /> Add Work Experience
+                                            </button>
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+
+                            {/* Social & Portfolio Links */}
+                            <div className="ln-card">
+                                <div className="ln-section-header">
+                                    <h3>Social & Portfolio Links</h3>
+                                </div>
+                                <div style={{ padding: '0 20px 20px' }}>
+                                    {(form.socialLinks || []).map((link, i) => (
+                                        <div key={i} style={{ display: 'flex', gap: 10, alignItems: 'center', padding: '8px 0', borderBottom: '1px solid #f1f5f9' }}>
+                                            <ExternalLink size={14} color="#0a66c2" />
+                                            <div style={{ flex: 1, minWidth: 0 }}>
+                                                <div style={{ fontWeight: 600, fontSize: 12, color: '#475569', textTransform: 'capitalize' }}>{link.platform || 'Link'}</div>
+                                                <a href={link.url} target="_blank" rel="noreferrer" style={{ fontSize: 12, color: '#0a66c2', wordBreak: 'break-all' }}>{link.url}</a>
+                                            </div>
+                                            {isOwnProfile && editing && (
+                                                <button type="button" className="ln-btn-sm ln-btn-outline" style={{ color: '#cc1016', padding: '4px' }}
+                                                    onClick={() => setForm({ ...form, socialLinks: form.socialLinks.filter((_, idx) => idx !== i) })}>
+                                                    <Trash2 size={12} />
+                                                </button>
+                                            )}
+                                        </div>
+                                    ))}
+                                    {(form.socialLinks || []).length === 0 && !editing && (
+                                        <div style={{ fontSize: 14, color: '#94a3b8', padding: '12px 0' }}>No social or portfolio links added.</div>
+                                    )}
+                                    {isOwnProfile && editing && (
+                                        <div style={{ marginTop: 12, display: 'flex', gap: 8, alignItems: 'flex-start', flexWrap: 'wrap' }}>
+                                            <select className="form-input" style={{ width: 140, height: 36, fontSize: 12 }}
+                                                value={newSocialLink.platform} onChange={e => setNewSocialLink({ ...newSocialLink, platform: e.target.value })}>
+                                                <option value="">Platform</option>
+                                                {['LinkedIn', 'GitHub', 'Portfolio', 'Facebook', 'Twitter/X', 'Instagram', 'YouTube', 'Behance', 'Dribbble', 'Other'].map(p => (
+                                                    <option key={p} value={p}>{p}</option>
+                                                ))}
+                                            </select>
+                                            <div style={{ flex: 1, minWidth: 200 }}>
+                                                <input type="url" className="form-input" placeholder="https://..." style={{ height: 36, fontSize: 12 }}
+                                                    value={newSocialLink.url} onChange={e => setNewSocialLink({ ...newSocialLink, url: e.target.value })} />
+                                                {newSocialLink.url && !isValidUrl(newSocialLink.url) && (
+                                                    <div style={{ fontSize: 11, color: '#dc2626', marginTop: 4 }}>Invalid URL. Must start with https:// or http://</div>
+                                                )}
+                                            </div>
+                                            <button type="button" className="ln-btn-sm ln-btn-primary" style={{ height: 36 }}
+                                                disabled={!newSocialLink.platform || !newSocialLink.url || !isValidUrl(newSocialLink.url)}
+                                                onClick={() => {
+                                                    setForm({ ...form, socialLinks: [...(form.socialLinks || []), { ...newSocialLink }] });
+                                                    setNewSocialLink({ platform: '', url: '' });
+                                                }}>
+                                                <Plus size={14} /> Add
+                                            </button>
+                                        </div>
                                     )}
                                 </div>
                             </div>
@@ -950,7 +1351,7 @@ export const CompanyProfile = ({ viewedPartnerId = null, onBack = null }) => {
       showBulletinToast(bulletinModal.type === 'inquire' ? 'Inquiry sent!' : 'Submitted!');
       fetchPostInteractions();
     } else {
-      alert(res.error || 'Failed to submit.');
+      toast.error(res.error || 'Failed to submit.');
     }
   };
 
@@ -1061,11 +1462,11 @@ export const CompanyProfile = ({ viewedPartnerId = null, onBack = null }) => {
         if (result.success) {
           setDocuments(prev => [result.document, ...prev]);
           setDocLabel(''); setDocFile(null); setShowUploadForm(false);
-        } else { alert(result.error || 'Upload failed.'); }
+        } else { toast.error(result.error || 'Upload failed.'); }
         setUploading(false);
       };
       reader.readAsDataURL(docFile);
-    } catch (err) { console.error('Upload error:', err); alert('Failed to upload document.'); setUploading(false); }
+    } catch (err) { console.error('Upload error:', err); toast.error('Failed to upload document.'); setUploading(false); }
   };
 
   const deleteDoc = async (docId) => {
@@ -1074,8 +1475,8 @@ export const CompanyProfile = ({ viewedPartnerId = null, onBack = null }) => {
       const res = await fetch(`/api/documents/${docId}`, { method: 'DELETE' });
       const result = await res.json();
       if (result.success) { setDocuments(prev => prev.filter(d => d.id !== docId)); }
-      else { alert(`Delete failed: ${result.error}`); }
-    } catch (err) { console.error('Delete error:', err); alert('Failed to delete document.'); }
+      else { toast.error(`Delete failed: ${result.error}`); }
+    } catch (err) { console.error('Delete error:', err); toast.error('Failed to delete document.'); }
   };
 
   const handleBannerUpload = async (e) => {
@@ -1090,7 +1491,7 @@ export const CompanyProfile = ({ viewedPartnerId = null, onBack = null }) => {
       await updatePartner(partner.id, { banner_url: publicUrl });
       setForm(prev => ({ ...prev, banner_url: publicUrl }));
       showBulletinToast('Banner updated successfully!');
-    } catch (err) { console.error('Banner upload error:', err); alert('Failed to upload banner: ' + err.message); }
+    } catch (err) { console.error('Banner upload error:', err); toast.error('Failed to upload banner: ' + err.message); }
     finally { setSaving(false); }
   };
 
@@ -1106,7 +1507,7 @@ export const CompanyProfile = ({ viewedPartnerId = null, onBack = null }) => {
       await updatePartner(partner.id, { company_logo_url: publicUrl });
       setForm(prev => ({ ...prev, company_logo_url: publicUrl }));
       showBulletinToast('Logo updated successfully!');
-    } catch (err) { console.error('Logo upload error:', err); alert('Failed to upload logo: ' + err.message); }
+    } catch (err) { console.error('Logo upload error:', err); toast.error('Failed to upload logo: ' + err.message); }
     finally { setSaving(false); }
   };
 
@@ -1121,7 +1522,7 @@ export const CompanyProfile = ({ viewedPartnerId = null, onBack = null }) => {
       const { data: { publicUrl } } = supabase.storage.from('registration-uploads').getPublicUrl(path);
       setForm(prev => ({ ...prev, poc_photo_url: publicUrl }));
       showBulletinToast('POC photo updated!');
-    } catch (err) { console.error('POC photo upload error:', err); alert('Failed to upload photo: ' + err.message); }
+    } catch (err) { console.error('POC photo upload error:', err); toast.error('Failed to upload photo: ' + err.message); }
     finally { setSaving(false); }
   };
 
@@ -1146,7 +1547,7 @@ export const CompanyProfile = ({ viewedPartnerId = null, onBack = null }) => {
   const saveProfile = async () => {
     if (!isOwnProfile) return;
     if (form.email && !isEmailValid(form.email)) {
-      alert('Please enter a valid email address.');
+      toast.error('Please enter a valid email address.');
       return;
     }
     setSaving(true);

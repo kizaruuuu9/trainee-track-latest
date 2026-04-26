@@ -3,7 +3,6 @@ import { useApp } from '../../context/AppContext';
 import SavedItemsView from './SavedItemsView';
 import ProfileActivityTab from './ProfileActivityTab';
 import SettingsPage from './SettingsPage';
-import NotificationsPage from './NotificationsPage';
 import {
   LayoutDashboard, Briefcase, FileText, Users, Building2, LogOut,
   ChevronDown, Search, Plus, Eye, X, CheckCircle, XCircle,
@@ -26,6 +25,7 @@ import { supabase } from '../../lib/supabase';
 import { Routes, Route, useNavigate, useLocation, Navigate, useParams } from 'react-router-dom';
 import ProfilePage from '../ProfilePage';
 import TopNavBar from '../common/TopNavBar';
+import toast from 'react-hot-toast';
 
 const TraineeProfileContent = React.lazy(() =>
   import('./TraineeDashboard').then(module => ({ default: module.TraineeProfileContent }))
@@ -192,8 +192,16 @@ const normalizeProfileType = (profileType = '') => {
   return '';
 };
 
-const toProfileAuthorType = (authorType = '') => (isStudentAuthorType(authorType) ? 'trainee' : 'partner');
-const toRecipientAuthorType = (authorType = '') => (isStudentAuthorType(authorType) ? 'student' : 'industry_partner');
+const toProfileAuthorType = (authorType = '') => {
+  const norm = String(authorType || '').toLowerCase();
+  if (norm === 'admin') return 'admin';
+  return isStudentAuthorType(authorType) ? 'trainee' : 'partner';
+};
+const toRecipientAuthorType = (authorType = '') => {
+  const norm = String(authorType || '').toLowerCase();
+  if (norm === 'admin') return 'admin';
+  return isStudentAuthorType(authorType) ? 'student' : 'industry_partner';
+};
 const DEFAULT_PARTNER_PUBLIC_INFO_FIELDS = ['companyName', 'contactPerson', 'industry'];
 const resolvePartnerVisibility = (profile) => {
   const value = profile?.companyInfoVisibility ?? profile?.company_info_visibility;
@@ -269,7 +277,7 @@ const StatusBadge = ({ status }) => {
 // --- TOP NAVIGATION BAR (LinkedIn-style for Partners) -------------
 // --- LEFT NAVIGATION BAR -------------
 const PartnerSideNav = ({ activePage, setActivePage }) => {
-    const { currentUser, partners } = useApp();
+    const { currentUser, partners, confirmAction } = useApp();
     const navigate = useNavigate();
 
     // Partner-specific data
@@ -279,7 +287,7 @@ const PartnerSideNav = ({ activePage, setActivePage }) => {
 
     const navItems = [
         { id: 'dashboard', label: 'Home', icon: <Home size={18} /> },
-        { id: 'verification', label: 'Verification', icon: <ShieldCheck size={18} /> },
+        ...(!verified ? [{ id: 'verification', label: 'Verification', icon: <ShieldCheck size={18} /> }] : []),
         { id: 'post-job', label: 'Post Opportunities', icon: <Plus size={18} />, locked: !verified },
         { id: 'calendar', label: 'Calendar', icon: <Calendar size={18} />, locked: !verified },
         { id: 'applicants', label: 'Recruit', icon: <Users size={18} />, locked: !verified },
@@ -317,9 +325,9 @@ const PartnerSideNav = ({ activePage, setActivePage }) => {
                         className={`tt-sidenav-item ${activePage === item.id ? 'active' : ''}`}
                         onClick={() => {
                             if (item.locked && !verified) {
-                                if (window.confirm("Verification Required. Go to Verification page?")) {
+                                confirmAction({ message: "Verification Required. Go to Verification page?", onConfirm: () => {
                                     setActivePage('verification');
-                                }
+                                } })
                             } else {
                                 setActivePage(item.id);
                             }
@@ -408,7 +416,7 @@ const QuickActionsWidget = ({ setActivePage, verified }) => (
       { label: 'Post Opportunities', icon: <Plus size={16} />, page: 'post-job', locked: !verified },
       { label: 'Calendar', icon: <Calendar size={16} />, page: 'calendar', locked: !verified },
       { label: 'Recruit', icon: <Users size={16} />, page: 'applicants', locked: !verified },
-      { label: 'Verification', icon: <ShieldCheck size={16} />, page: 'verification', locked: false },
+      ...(!verified ? [{ label: 'Verification', icon: <ShieldCheck size={16} />, page: 'verification', locked: false }] : []),
     ].map(link => (
       <button
         key={link.page}
@@ -448,6 +456,11 @@ const RecruitmentStatsWidget = ({ myJobs, myApplicants }) => (
 
 // --- PAGE 1: PARTNER DASHBOARD HOME ------------------------------
 const PartnerHome = ({ setActivePage }) => {
+  const { fetchPosts, fetchJobPostings } = useApp();
+  useEffect(() => {
+    fetchPosts();
+    fetchJobPostings();
+  }, []);
   const [feedFilter, setFeedFilter] = useState('All');
   const [feedSearchText, setFeedSearchText] = useState('');
   const [visibleFeedCount, setVisibleFeedCount] = useState(20);
@@ -482,7 +495,7 @@ const PartnerHome = ({ setActivePage }) => {
       }
   }, [isLoadingMore]);
 
-  const { currentUser, partners, jobPostings, programs, updatePartnerJobPosting, getPartnerApplicants, posts, createPost, updatePost, deletePost, deleteJobPosting, trainees, addPostComment, getPostComments, addJobPostingComment, getJobPostingComments, updateJobPostingComment, deleteJobPostingComment, sendContactRequest, createPostInteraction, getUserPostInteraction, fetchPostInteractions } = useApp();
+  const { currentUser, partners, jobPostings, programs, updatePartnerJobPosting, getPartnerApplicants, posts, createPost, updatePost, deletePost, deleteJobPosting, trainees, addPostComment, getPostComments, addJobPostingComment, getJobPostingComments, updateJobPostingComment, deleteJobPostingComment, sendContactRequest, createPostInteraction, getUserPostInteraction, fetchPostInteractions, uploadOptimizedImage } = useApp();
   const navigate = useNavigate();
   const partner = getLivePartner(currentUser, partners);
   const verified = isVerified(partner);
@@ -662,7 +675,7 @@ const PartnerHome = ({ setActivePage }) => {
 
     const result = await addJobPostingComment(jobMediaModal.id, trimmed);
     if (!result.success) {
-      alert(result.error || 'Failed to add comment.');
+      toast.error(result.error || 'Failed to add comment.');
       return;
     }
 
@@ -684,7 +697,7 @@ const PartnerHome = ({ setActivePage }) => {
     if (!editingJobMediaCommentId) return;
     const trimmed = jobMediaEditInput.trim();
     if (!trimmed) {
-      alert('Comment cannot be empty.');
+      toast.success('Comment cannot be empty.');
       return;
     }
 
@@ -692,7 +705,7 @@ const PartnerHome = ({ setActivePage }) => {
     const result = await updateJobPostingComment(editingJobMediaCommentId, trimmed);
     setJobMediaCommentSaving(false);
     if (!result.success) {
-      alert(result.error || 'Failed to update comment.');
+      toast.error(result.error || 'Failed to update comment.');
       return;
     }
 
@@ -702,12 +715,25 @@ const PartnerHome = ({ setActivePage }) => {
 
   const handleDeleteJobMediaComment = async (commentId) => {
     if (!commentId) return;
-    const confirmed = window.confirm('Delete this comment?');
-    if (!confirmed) return;
+    confirmAction({ 
+      message: 'Delete this comment?', 
+      onConfirm: async () => {
+        const result = await deleteJobPostingComment(commentId);
+        if (!result.success) {
+          toast.error(result.error || 'Failed to delete comment.');
+          return;
+        }
+        if (editingJobMediaCommentId === commentId) {
+          setEditingJobMediaCommentId(null);
+          setJobMediaEditInput('');
+        }
+      } 
+    });
+    return;
 
     const result = await deleteJobPostingComment(commentId);
     if (!result.success) {
-      alert(result.error || 'Failed to delete comment.');
+      toast.error(result.error || 'Failed to delete comment.');
       return;
     }
 
@@ -732,16 +758,15 @@ const PartnerHome = ({ setActivePage }) => {
     if (!postContent.trim() && !selectedFile) return;
     setIsPosting(true);
     let media_url = null;
+    let attachmentType = 'general';
 
     try {
       if (selectedFile) {
         const path = `post-media/${currentUser.id}/${Date.now()}_${selectedFile.name}`;
-        const { error: uploadErr } = await supabase.storage
-          .from('registration-uploads')
-          .upload(path, selectedFile, { contentType: selectedFile.type });
-        if (uploadErr) throw uploadErr;
-        const { data: urlData } = supabase.storage.from('registration-uploads').getPublicUrl(path);
-        media_url = urlData?.publicUrl;
+        const res = await uploadOptimizedImage('registration-uploads', path, selectedFile);
+        if (!res.success) throw new Error(res.error);
+        media_url = res.url;
+        attachmentType = `${selectedFile.type || 'image/jpeg'} (${res.sizeLabel})`;
       }
 
       const res = await createPost({
@@ -749,6 +774,7 @@ const PartnerHome = ({ setActivePage }) => {
         content: postContent,
         post_type: postType,
         media_url: media_url,
+        attachment_type: attachmentType || null,
         expires_at: postExpiryEnabled && postExpiryDate ? new Date(postExpiryDate + 'T23:59:59').toISOString() : null,
         tags: []
       });
@@ -763,11 +789,11 @@ const PartnerHome = ({ setActivePage }) => {
         setFilePreview(null);
         setShowPostModal(false);
       } else {
-        alert(res.error || 'Failed to post');
+        toast.error(res.error || 'Failed to post');
       }
     } catch (err) {
       console.error('Posting error:', err);
-      alert('Failed to post: ' + err.message);
+      toast.error('Failed to post: ' + err.message);
     } finally {
       setIsPosting(false);
     }
@@ -803,7 +829,7 @@ const PartnerHome = ({ setActivePage }) => {
 
     const trimmed = contactMessage.trim();
     if (!trimmed) {
-      alert('Message is required.');
+      toast.error('Message is required.');
       return;
     }
 
@@ -815,14 +841,9 @@ const PartnerHome = ({ setActivePage }) => {
     try {
       if (contactAttachment) {
         const path = `contact-files/${currentUser.id}/${Date.now()}_${contactAttachment.name}`;
-        const { error: uploadError } = await supabase.storage
-          .from('registration-uploads')
-          .upload(path, contactAttachment, { contentType: contactAttachment.type, upsert: true });
-
-        if (uploadError) throw uploadError;
-
-        const { data: urlData } = supabase.storage.from('registration-uploads').getPublicUrl(path);
-        attachmentUrl = urlData?.publicUrl || null;
+        const res = await uploadOptimizedImage('registration-uploads', path, contactAttachment);
+        if (!res.success) throw new Error(res.error);
+        attachmentUrl = res.url;
         attachmentName = contactAttachment.name;
       }
 
@@ -838,15 +859,15 @@ const PartnerHome = ({ setActivePage }) => {
       });
 
       if (!result.success) {
-        alert(result.error || 'Failed to send contact request.');
+        toast.error(result.error || 'Failed to send contact request.');
         return;
       }
 
       closeContactModal();
-      alert('Contact request sent.');
+      toast.success('Contact request sent.');
     } catch (err) {
       console.error('Contact submit error:', err);
-      alert(err.message || 'Failed to send contact request.');
+      toast.error(err.message || 'Failed to send contact request.');
     } finally {
       setContactSubmitting(false);
     }
@@ -861,7 +882,7 @@ const PartnerHome = ({ setActivePage }) => {
     const res = await addPostComment(commentModalPost.id, trimmed);
     setCommentSubmitting(false);
     if (!res.success) {
-      alert(res.error || 'Failed to add comment.');
+      toast.error(res.error || 'Failed to add comment.');
       return;
     }
     setCommentInput('');
@@ -880,28 +901,34 @@ const PartnerHome = ({ setActivePage }) => {
       setEditingPostId(null);
       setEditContent('');
     } else {
-      alert(res.error || 'Failed to update post');
+      toast.error(res.error || 'Failed to update post');
     }
   };
 
   const handleDeletePost = async (postId) => {
-    const confirmed = window.confirm('Delete this post?');
-    if (!confirmed) return;
-    const res = await deletePost(postId);
-    if (!res.success) {
-      alert(res.error || 'Failed to delete post');
-    }
-    setPostMenuId(null);
+    confirmAction({ 
+            message: 'Delete this post?', 
+            onConfirm: async () => {
+                const res = await deletePost(postId);
+                if (!res.success) {
+                    toast.error(res.error || 'Failed to delete post');
+                }
+                setPostMenuId(null);
+            } 
+        })
   };
 
   const handleDeleteOpportunity = async (jobId) => {
-    const confirmed = window.confirm('Delete this post?');
-    if (!confirmed) return;
-    const res = await deleteJobPosting(jobId);
-    if (!res.success) {
-      alert(res.error || 'Failed to delete post');
-    }
-    setJobPostMenuId(null);
+    confirmAction({ 
+            message: 'Delete this post?', 
+            onConfirm: async () => {
+                const res = await deleteJobPosting(jobId);
+                if (!res.success) {
+                    toast.error(res.error || 'Failed to delete post');
+                }
+                setJobPostMenuId(null);
+            } 
+        })
   };
 
   const handleEditJobAttachmentChange = (event) => {
@@ -916,7 +943,7 @@ const PartnerHome = ({ setActivePage }) => {
     ].includes(file.type);
 
     if (!isImage && !isDocument) {
-      alert('Only image files, PDF, DOC, and DOCX are allowed.');
+      toast.error('Only image files, PDF, DOC, and DOCX are allowed.');
       event.target.value = '';
       return;
     }
@@ -984,24 +1011,24 @@ const PartnerHome = ({ setActivePage }) => {
     if (!editJobModal?.id) return;
 
     if (!editJobForm.title.trim() || !editJobForm.location.trim()) {
-      alert('Title and location are required.');
+      toast.error('Title and location are required.');
       return;
     }
     if (!editJobForm.ncLevel) {
-      alert('Please select an NC level.');
+      toast.error('Please select an NC level.');
       return;
     }
 
     const hasSalaryInput = Boolean(editJobForm.salaryMin || editJobForm.salaryMax);
     if (hasSalaryInput && (!editJobForm.salaryMin || !editJobForm.salaryMax)) {
-      alert('Please provide both minimum and maximum salary.');
+      toast.error('Please provide both minimum and maximum salary.');
       return;
     }
 
     const salaryMinNumber = Number(editJobForm.salaryMin || 0);
     const salaryMaxNumber = Number(editJobForm.salaryMax || 0);
     if (hasSalaryInput && salaryMinNumber > salaryMaxNumber) {
-      alert('Minimum salary cannot be greater than maximum salary.');
+      toast.success('Minimum salary cannot be greater than maximum salary.');
       return;
     }
 
@@ -1017,19 +1044,9 @@ const PartnerHome = ({ setActivePage }) => {
         const safeName = editJobAttachmentFile.name.replace(/[^a-zA-Z0-9._-]/g, '_');
         const storagePath = `opportunity-attachments/${currentUser.id}/${timestamp}_${safeName}`;
 
-        const { error: uploadError } = await supabase.storage
-          .from('registration-uploads')
-          .upload(storagePath, editJobAttachmentFile, {
-            contentType: editJobAttachmentFile.type,
-            upsert: true,
-          });
-
-        if (uploadError) {
-          throw new Error(uploadError.message || 'Failed to upload attachment.');
-        }
-
-        const { data: urlData } = supabase.storage.from('registration-uploads').getPublicUrl(storagePath);
-        finalAttachmentUrl = urlData?.publicUrl || '';
+        const res = await uploadOptimizedImage('registration-uploads', storagePath, editJobAttachmentFile);
+        if (!res.success) throw new Error(res.error);
+        finalAttachmentUrl = res.url;
         finalAttachmentName = editJobAttachmentFile.name;
         finalAttachmentType = editJobAttachmentFile.type || '';
       }
@@ -1051,14 +1068,14 @@ const PartnerHome = ({ setActivePage }) => {
 
       const result = await updatePartnerJobPosting(editJobModal.id, payload);
       if (!result?.success) {
-        alert(result?.error || 'Failed to update opportunity.');
+        toast.error(result?.error || 'Failed to update opportunity.');
         return;
       }
 
-      alert('Opportunity updated successfully!');
+      toast.success('Opportunity updated successfully!');
       closeEditJobModal();
     } catch (error) {
-      alert(error?.message || 'Failed to update opportunity.');
+      toast.error(error?.message || 'Failed to update opportunity.');
     } finally {
       setEditJobSaving(false);
     }
@@ -1161,7 +1178,7 @@ const PartnerHome = ({ setActivePage }) => {
       showBulletinToast(isRefer ? 'Referral submitted!' : bulletinModal.type === 'register' ? 'Registration submitted!' : 'Inquiry sent!');
       fetchPostInteractions();
     } else {
-      alert(res.error || 'Failed to submit.');
+      toast.error(res.error || 'Failed to submit.');
     }
   };
 
@@ -1180,12 +1197,17 @@ const PartnerHome = ({ setActivePage }) => {
   ];
 
   const modalComments = commentModalPost ? getPostComments(commentModalPost.id) : [];
+  const modalAuthorId = commentModalPost?.author_id;
+  const isModalAdmin = commentModalPost?.author_type === 'admin' || modalAuthorId === 'de305d54-75b4-431b-adb2-eb6b9e546014';
+
   const modalAuthor = commentModalPost
-    ? (commentModalPost.author_id === currentUser?.id
+    ? (modalAuthorId === currentUser?.id
       ? currentUser
-      : isStudentAuthorType(commentModalPost.author_type)
-        ? trainees.find(t => t.id === commentModalPost.author_id)
-        : partners.find(p => p.id === commentModalPost.author_id))
+      : (isModalAdmin
+        ? { name: 'PSTDII Admin' }
+        : (isStudentAuthorType(commentModalPost.author_type)
+          ? trainees.find(t => t.id === modalAuthorId)
+          : partners.find(p => p.id === modalAuthorId))))
     : null;
   const modalAuthorName = modalAuthor?.name || modalAuthor?.profileName || modalAuthor?.companyName || 'Community User';
   const canContactModalAuthor = Boolean(commentModalPost && commentModalPost.author_id !== currentUser?.id);
@@ -1323,9 +1345,7 @@ const PartnerHome = ({ setActivePage }) => {
 
                           if (item.author_type === 'student' || item.author_type === 'trainee') {
                             const t = trainees.find(t => String(t.id) === authorId);
-                            // If it's a generic 'Trainee' record or not found, it's likely an admin post saved as student
-                            if (!t || t.name === 'Trainee' || t.profileName === 'Trainee') return 'PSTDII Admin';
-                            return t.name || t.profileName;
+                            return t?.name || t?.profileName || 'PSTDII Admin';
                           }
 
                           return 'PSTDII Admin';
@@ -1368,9 +1388,9 @@ const PartnerHome = ({ setActivePage }) => {
                             </button>
                             <button
                               onClick={() => {
-                                if (window.confirm('Delete this post?')) {
+                                confirmAction({ message: 'Delete this post?', onConfirm: () => {
                                   deletePost(item.id);
-                                }
+                                } })
                                 setPostMenuId(null);
                               }}
                               style={{
@@ -1576,9 +1596,17 @@ const PartnerHome = ({ setActivePage }) => {
                 </div>
               );
             } else {
-              const author = isStudentAuthorType(item.author_type)
-                ? trainees.find(t => t.id === item.author_id)
-                : (partners.find(p => p.id === item.author_id) || (item.author_id === currentUser?.id ? currentUser : null));
+              const authorId = String(item.author_id || '');
+              const ADMIN_ID = 'de305d54-75b4-431b-adb2-eb6b9e546014';
+              const isAdminItem = item.author_type === 'admin' || authorId === ADMIN_ID;
+
+              const author = (item.author_id === currentUser?.id)
+                ? currentUser
+                : (isAdminItem
+                  ? { name: 'PSTDII Admin' }
+                  : (isStudentAuthorType(item.author_type)
+                    ? trainees.find(t => t.id === authorId)
+                    : partners.find(p => p.id === authorId)));
               const authorProfileType = toProfileAuthorType(item.author_type);
 
               const authorInitial = author?.name?.charAt(0) || author?.companyName?.charAt(0) || '?';
@@ -1586,6 +1614,7 @@ const PartnerHome = ({ setActivePage }) => {
               const comments = getPostComments(item.id);
               const getCommentAuthorName = (comment) => {
                 if (comment.author_id === currentUser?.id) return partner?.companyName || currentUser.companyName || currentUser.name || 'You';
+                if (comment.author_type === 'admin' || comment.author_id === 'de305d54-75b4-431b-adb2-eb6b9e546014') return 'PSTDII Admin';
                 if (isStudentAuthorType(comment.author_type)) {
                   const student = trainees.find(t => t.id === comment.author_id);
                   return student?.name || 'Trainee';
@@ -1651,7 +1680,7 @@ const PartnerHome = ({ setActivePage }) => {
                           )}
                         </div>
                         <div className="ln-feed-meta">
-                          {isStudentAuthorType(item.author_type) ? 'TESDA Trainee' : 'Industry Partner'} &bull; {timeAgo(item.created_at)}
+                          {isAdminItem ? 'Official Account' : (isStudentAuthorType(item.author_type) ? 'TESDA Trainee' : 'Industry Partner')} &bull; {timeAgo(item.created_at)}
                           {item.updated_at && item.updated_at !== item.created_at && ' (edited)'}
                         </div>
                       </div>
@@ -2650,11 +2679,11 @@ const VerificationPage = ({ setActivePage }) => {
 
     const allowedTypes = ['application/pdf', 'image/jpeg', 'image/png', 'image/jpg'];
     if (!allowedTypes.includes(file.type)) {
-      alert('Only PDF, JPG, and PNG files are allowed.');
+      toast.error('Only PDF, JPG, and PNG files are allowed.');
       return;
     }
     if (file.size > 3 * 1024 * 1024) {
-      alert('File size must be under 3MB.');
+      toast.success('File size must be under 3MB.');
       return;
     }
 
@@ -2680,14 +2709,14 @@ const VerificationPage = ({ setActivePage }) => {
           setDocLabel('');
         } else {
           const err = await res.json();
-          alert(err.error || 'Upload failed.');
+          toast.error(err.error || 'Upload failed.');
         }
         setUploading(false);
       };
       reader.readAsDataURL(file);
     } catch (err) {
       console.error('Upload error:', err);
-      alert('Failed to upload document.');
+      toast.error('Failed to upload document.');
       setUploading(false);
     }
     if (fileInputRef.current) fileInputRef.current.value = '';
@@ -2707,16 +2736,16 @@ const VerificationPage = ({ setActivePage }) => {
 
   const handleSubmitForReview = () => {
     if (documents.length === 0) {
-      alert('Please upload at least one document before submitting.');
+      toast.error('Please upload at least one document before submitting.');
       return;
     }
     submitPartnerDocuments(livePartner.id);
   };
 
   const handleWithdraw = () => {
-    if (window.confirm('Are you sure you want to withdraw your submission? You can edit your documents and resubmit later.')) {
+    confirmAction({ message: 'Are you sure you want to withdraw your submission? You can edit your documents and resubmit later.', onConfirm: () => {
       withdrawPartnerSubmission(livePartner.id);
-    }
+    } })
   };
 
   const hasUploaded = documents.length > 0;
@@ -2831,20 +2860,25 @@ const VerificationPage = ({ setActivePage }) => {
           {documents.length > 0 && (
             <div style={{ marginBottom: status === 'Verified' ? 0 : 20 }}>
               {documents.map(doc => (
-                <div key={doc.id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 14px', background: '#f8fafc', borderRadius: 10, border: '1px solid #e2e8f0', marginBottom: 8 }}>
-                  <FileCheck size={18} color="#16a34a" style={{ flexShrink: 0 }} />
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontSize: 13, fontWeight: 700, color: '#1e293b' }}>{doc.label}</div>
-                    <div style={{ fontSize: 11, color: '#94a3b8', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{doc.file_name}</div>
+                <div key={doc.id} className="ln-doc-info" style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 14px', background: '#f8fafc', borderRadius: 10, border: '1px solid #e2e8f0', marginBottom: 8 }}>
+                  <div className="ln-doc-icon-wrap" style={{ width: 36, height: 36, borderRadius: 8, background: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#64748b', border: '1px solid #e2e8f0' }}><FileText size={18} /></div>
+                  <div className="ln-doc-text" style={{ flex: 1, minWidth: 0 }}>
+                    <div className="ln-doc-label" style={{ fontSize: 13, fontWeight: 700, color: '#1e293b' }}>{doc.label}</div>
+                    <div className="ln-doc-meta" style={{ fontSize: 11, color: '#94a3b8', display: 'flex', alignItems: 'center', gap: 6 }}>
+                      {doc.file_name}
+                      {doc.file_type && doc.file_type.includes('(') && (
+                        <span style={{ color: '#16a34a', fontWeight: 600 }}>
+                          ({doc.file_type.split('(').pop().replace(')', '')})
+                        </span>
+                      )}
+                    </div>
                   </div>
-                  <a href={doc.file_url} target="_blank" rel="noopener noreferrer" style={{ color: '#0ea5e9', flexShrink: 0 }} title="View">
-                    <Eye size={16} />
-                  </a>
-                  {!isSubmitted && (
-                    <button onClick={() => setConfirmDeleteId(doc.id)} style={{ padding: 4, color: '#dc2626', background: 'none', border: 'none', cursor: 'pointer', flexShrink: 0 }} title="Remove">
-                      <Trash2 size={16} />
-                    </button>
-                  )}
+                  <div className="ln-doc-actions" style={{ display: 'flex', gap: 8 }}>
+                    <a href={doc.file_url} target="_blank" rel="noopener noreferrer" style={{ padding: 6, color: '#0ea5e9', background: 'none', border: 'none', cursor: 'pointer' }} title="View"><Eye size={16} /></a>
+                    {!isSubmitted && (
+                      <button onClick={() => setConfirmDeleteId(doc.id)} style={{ padding: 6, color: '#dc2626', background: 'none', border: 'none', cursor: 'pointer' }} title="Delete"><Trash2 size={16} /></button>
+                    )}
+                  </div>
                 </div>
               ))}
             </div>
@@ -2968,7 +3002,7 @@ const VerificationPage = ({ setActivePage }) => {
 const ncLevelOptions = ['NC I', 'NC II', 'NC III', 'NC IV'];
 const PostJob = ({ setActivePage, opportunityType = 'Job' }) => {
   const location = useLocation();
-  const { addJobPosting, updatePartnerJobPosting, currentUser, partners, programs, jobPostings } = useApp();
+  const { addJobPosting, updatePartnerJobPosting, currentUser, partners, programs, jobPostings, uploadOptimizedImage, formatFileSize } = useApp();
   const livePartner = getLivePartner(currentUser, partners);
   const programOptions = React.useMemo(() => Array.isArray(programs) ? programs : [], [programs]);
   const firstProgram = programOptions[0] || null;
@@ -3074,7 +3108,7 @@ const PostJob = ({ setActivePage, opportunityType = 'Job' }) => {
     ].includes(file.type);
 
     if (!isImage && !isDocument) {
-      alert('Only image files, PDF, DOC, and DOCX are allowed.');
+      toast.error('Only image files, PDF, DOC, and DOCX are allowed.');
       e.target.value = '';
       return;
     }
@@ -3114,18 +3148,18 @@ const PostJob = ({ setActivePage, opportunityType = 'Job' }) => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!form.title || !form.location) return alert('Title and location are required.');
-    if (!form.ncLevel) return alert('Please select a TESDA program.');
+    if (!form.title || !form.location) return toast.error('Title and location are required.');
+    if (!form.ncLevel) return toast.error('Please select a TESDA program.');
 
     const hasSalaryInput = Boolean(form.salaryMin || form.salaryMax);
     if (hasSalaryInput && (!form.salaryMin || !form.salaryMax)) {
-      return alert('Please provide both minimum and maximum salary.');
+      return toast.error('Please provide both minimum and maximum salary.');
     }
 
     const salaryMinNumber = Number(form.salaryMin || 0);
     const salaryMaxNumber = Number(form.salaryMax || 0);
     if (hasSalaryInput && salaryMinNumber > salaryMaxNumber) {
-      return alert('Minimum salary cannot be greater than maximum salary.');
+      return toast.success('Minimum salary cannot be greater than maximum salary.');
     }
 
     const formattedSalaryRange = formatSalaryRangeValue(form.salaryMin, form.salaryMax, form.salaryCurrency);
@@ -3142,18 +3176,15 @@ const PostJob = ({ setActivePage, opportunityType = 'Job' }) => {
         const safeName = attachmentFile.name.replace(/[^a-zA-Z0-9._-]/g, '_');
         const storagePath = `opportunity-attachments/${currentUser.id}/${timestamp}_${safeName}`;
 
-        const { error: uploadError } = await supabase.storage
-          .from('registration-uploads')
-          .upload(storagePath, attachmentFile, { contentType: attachmentFile.type, upsert: true });
+        const res = await uploadOptimizedImage('registration-uploads', storagePath, attachmentFile);
 
-        if (uploadError) {
-          throw new Error(uploadError.message || 'Failed to upload attachment.');
+        if (!res.success) {
+          throw new Error(res.error || 'Failed to upload attachment.');
         }
 
-        const { data: urlData } = supabase.storage.from('registration-uploads').getPublicUrl(storagePath);
-        finalAttachmentUrl = urlData?.publicUrl || '';
+        finalAttachmentUrl = res.url || '';
         finalAttachmentName = attachmentFile.name;
-        finalAttachmentType = attachmentFile.type || '';
+        finalAttachmentType = `${attachmentFile.type || ''} (${res.sizeLabel})`;
       }
 
       const payload = {
@@ -3175,14 +3206,14 @@ const PostJob = ({ setActivePage, opportunityType = 'Job' }) => {
         : await addJobPosting(payload);
 
       if (!result?.success) {
-        alert(result?.error || `Failed to ${isEditMode ? 'update' : 'post'} opportunity.`);
+        toast.error(result?.error || `Failed to ${isEditMode ? 'update' : 'post'} opportunity.`);
         return;
       }
 
-      alert(isEditMode ? 'Opportunity updated successfully!' : 'Opportunity posted successfully!');
+      toast.success(isEditMode ? 'Opportunity updated successfully!' : 'Opportunity posted successfully!');
       setActivePage('dashboard');
     } catch (error) {
-      alert(error?.message || `Failed to ${isEditMode ? 'update' : 'post'} opportunity.`);
+      toast.error(error?.message || `Failed to ${isEditMode ? 'update' : 'post'} opportunity.`);
     } finally {
       setPosting(false);
     }
@@ -3679,7 +3710,7 @@ const ViewApplicants = ({ setActivePage }) => {
     setSendingRecruit(false);
 
     if (!result.success) {
-      alert(result.error || 'Failed to send recruit message.');
+      toast.error(result.error || 'Failed to send recruit message.');
       return;
     }
 
@@ -4317,7 +4348,7 @@ export const CompanyProfile = ({ viewedPartnerId = null, onBack = null }) => {
       showBulletinToast(bulletinModal.type === 'inquire' ? 'Inquiry sent!' : 'Submitted!');
       fetchPostInteractions();
     } else {
-      alert(res.error || 'Failed to submit.');
+      toast.error(res.error || 'Failed to submit.');
     }
   };
 
@@ -4439,14 +4470,14 @@ export const CompanyProfile = ({ viewedPartnerId = null, onBack = null }) => {
           setShowUploadForm(false);
           if (fileInputRef.current) fileInputRef.current.value = '';
         } else {
-          alert(result.error || 'Upload failed.');
+          toast.error(result.error || 'Upload failed.');
         }
         setUploading(false);
       };
       reader.readAsDataURL(docFile);
     } catch (err) {
       console.error('Upload error:', err);
-      alert('Failed to upload document.');
+      toast.error('Failed to upload document.');
       setUploading(false);
     }
   };
@@ -4459,11 +4490,11 @@ export const CompanyProfile = ({ viewedPartnerId = null, onBack = null }) => {
       if (result.success) {
         setDocuments(prev => prev.filter(d => d.id !== docId));
       } else {
-        alert(`Delete failed: ${result.error}`);
+        toast.error(`Delete failed: ${result.error}`);
       }
     } catch (err) {
       console.error('Delete error:', err);
-      alert('Failed to delete document.');
+      toast.error('Failed to delete document.');
     }
   };
 
@@ -4473,18 +4504,16 @@ export const CompanyProfile = ({ viewedPartnerId = null, onBack = null }) => {
     setSaving(true);
     try {
       const path = `partner-banners/${partner.id}/${Date.now()}_${file.name}`;
-      const { error: uploadErr } = await supabase.storage
-        .from('registration-uploads')
-        .upload(path, file);
-      if (uploadErr) throw uploadErr;
-      const { data: { publicUrl } } = supabase.storage.from('registration-uploads').getPublicUrl(path);
+      const res = await uploadOptimizedImage('registration-uploads', path, file);
+      if (!res.success) throw new Error(res.error);
+      const publicUrl = res.url;
       await updatePartner(partner.id, { banner_url: publicUrl });
       // Update form state if we are currently editing
       setForm(prev => ({ ...prev, banner_url: publicUrl }));
       showBulletinToast('Banner updated successfully!');
     } catch (err) {
       console.error('Banner upload error:', err);
-      alert('Failed to upload banner: ' + err.message);
+      toast.error('Failed to upload banner: ' + err.message);
     } finally {
       setSaving(false);
     }
@@ -4496,18 +4525,16 @@ export const CompanyProfile = ({ viewedPartnerId = null, onBack = null }) => {
     setSaving(true);
     try {
       const path = `partner-logos/${partner.id}/${Date.now()}_${file.name}`;
-      const { error: uploadErr } = await supabase.storage
-        .from('registration-uploads')
-        .upload(path, file);
-      if (uploadErr) throw uploadErr;
-      const { data: { publicUrl } } = supabase.storage.from('registration-uploads').getPublicUrl(path);
+      const res = await uploadOptimizedImage('registration-uploads', path, file);
+      if (!res.success) throw new Error(res.error);
+      const publicUrl = res.url;
       await updatePartner(partner.id, { company_logo_url: publicUrl });
       // Update form state if we are currently editing
       setForm(prev => ({ ...prev, company_logo_url: publicUrl }));
       showBulletinToast('Logo updated successfully!');
     } catch (err) {
       console.error('Logo upload error:', err);
-      alert('Failed to upload logo: ' + err.message);
+      toast.error('Failed to upload logo: ' + err.message);
     } finally {
       setSaving(false);
     }
@@ -4519,16 +4546,14 @@ export const CompanyProfile = ({ viewedPartnerId = null, onBack = null }) => {
     setSaving(true);
     try {
       const path = `partner-poc/${partner.id}/${Date.now()}_${file.name}`;
-      const { error: uploadErr } = await supabase.storage
-        .from('registration-uploads')
-        .upload(path, file);
-      if (uploadErr) throw uploadErr;
-      const { data: { publicUrl } } = supabase.storage.from('registration-uploads').getPublicUrl(path);
+      const res = await uploadOptimizedImage('registration-uploads', path, file);
+      if (!res.success) throw new Error(res.error);
+      const publicUrl = res.url;
       setForm(prev => ({ ...prev, poc_photo_url: publicUrl }));
       showBulletinToast('POC photo updated!');
     } catch (err) {
       console.error('POC photo upload error:', err);
-      alert('Failed to upload photo: ' + err.message);
+      toast.error('Failed to upload photo: ' + err.message);
     } finally {
       setSaving(false);
     }
@@ -4555,7 +4580,7 @@ export const CompanyProfile = ({ viewedPartnerId = null, onBack = null }) => {
   const save = async () => {
     if (!isOwnProfile) return;
     if (form.email && !isEmailValid(form.email)) {
-      alert('Please enter a valid email address.');
+      toast.error('Please enter a valid email address.');
       return;
     }
     setSaving(true);
@@ -5505,7 +5530,7 @@ const CalendarView = ({ setActivePage }) => {
 
     // Prevent deleting a slot if there are already bookings for it this week
     if (bookedCount > 0) {
-      alert("You cannot remove availability for a slot that already has scheduled interviews. Please cancel the interviews first.");
+      toast.error("You cannot remove availability for a slot that already has scheduled interviews. Please cancel the interviews first.");
       return;
     }
 
@@ -5664,10 +5689,10 @@ ${livePartner?.companyName}`);
 
     setSendingInvite(false);
     if (result.success) {
-      alert(inviteModal.isGeneral ? 'Calendar link and invitation sent!' : 'Specific time invitation sent!');
+      toast.success(inviteModal.isGeneral ? 'Calendar link and invitation sent!' : 'Specific time invitation sent!');
       setInviteModal(null);
     } else {
-      alert(result.error || 'Failed to send invitation.');
+      toast.error(result.error || 'Failed to send invitation.');
     }
   };
 
@@ -5724,7 +5749,7 @@ ${livePartner?.companyName}`);
         </div>
 
         <div style={{ display: 'flex', gap: 10 }}>
-          <button className="ln-btn ln-btn-outline" style={{ display: 'flex', alignItems: 'center', gap: 8, background: '#fff' }} onClick={() => alert("Calendar link copied to clipboard!")}>
+          <button className="ln-btn ln-btn-outline" style={{ display: 'flex', alignItems: 'center', gap: 8, background: '#fff' }} onClick={() => toast.success("Calendar link copied to clipboard!")}>
             <Share2 size={14} color="#475569" />
             <span style={{ fontWeight: 600, color: '#475569' }}>Copy Booking Link</span>
           </button>
@@ -6089,6 +6114,16 @@ const PartnerProfileViewRoute = () => {
   );
 };
 
+// --- VERIFICATION ROUTE GUARD ------------------------------------
+const VerificationRouteGuard = ({ setActivePage }) => {
+  const { currentUser, partners } = useApp();
+  const livePartner = getLivePartner(currentUser, partners);
+  if (isVerified(livePartner)) {
+    return <Navigate to="/partner" replace />;
+  }
+  return <VerificationPage setActivePage={setActivePage} />;
+};
+
 // --- MAIN EXPORT --------------------------------------------------
 export default function PartnerDashboard() {
   const { currentUser } = useApp();
@@ -6121,9 +6156,8 @@ export default function PartnerDashboard() {
           <Route path="/calendar" element={<CalendarView setActivePage={setActivePage} />} />
           <Route path="/applicants" element={<ViewApplicants setActivePage={setActivePage} />} />
           <Route path="/profile" element={<CompanyProfile />} />
-          <Route path="/verification" element={<VerificationPage setActivePage={setActivePage} />} />
+          <Route path="/verification" element={<VerificationRouteGuard setActivePage={setActivePage} />} />
           <Route path="/settings" element={<SettingsPage />} />
-          <Route path="/notifications" element={<NotificationsPage />} />
           <Route path="/profile-view/:profileType/:profileId" element={<PartnerProfileViewRoute />} />
           <Route path="*" element={<Navigate to="/partner" replace />} />
         </Routes>

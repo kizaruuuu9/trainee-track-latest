@@ -18,6 +18,7 @@ import EmptyState, {
 } from '../EmptyState';
 import BrandLogo from '../common/BrandLogo';
 import { supabase } from '../../lib/supabase';
+import toast from 'react-hot-toast';
 import { Routes, Route, useNavigate, useLocation, Navigate, useParams } from 'react-router-dom';
 import TopNavBar from '../common/TopNavBar';
 
@@ -2576,7 +2577,10 @@ export const TraineeProfileContent = ({ viewedProfileId = null, onBack = null, o
     const trainee = isOwnProfile
         ? (currentUser || trainees[0])
         : (viewedTrainee || trainees.find(t => String(t.id) === String(viewedProfileId)));
-    const [editing, setEditing] = useState(false);
+    const [editingSection, setEditingSection] = useState(null);
+    const [activeMenu, setActiveMenu] = useState(null);
+    const editing = editingSection !== null;
+    const setEditing = (val) => setEditingSection(val ? "all" : null);
     const [saving, setSaving] = useState(false);
     const [activeTab, setActiveTab] = useState('About'); // About | Training | Match Insights | Saved
     const [previewImage, setPreviewImage] = useState(null);
@@ -2603,9 +2607,44 @@ export const TraineeProfileContent = ({ viewedProfileId = null, onBack = null, o
     // const [certs, setCerts] = useState([]); 
 
     // Education state
-    const [educHistory, setEducHistory] = useState(trainee?.educHistory || []);
+    const [educHistory, setEducHistory] = useState(() => {
+        const hist = trainee?.educHistory || [];
+        return hist.map(h => ({
+            school: h.school || '',
+            level: h.level || '',
+            strand: h.strand || '',
+            degreeLevel: h.degreeLevel || '',
+            course: h.course || '',
+            degree: h.degree || '', // legacy fallback
+            from: h.from || '',
+            to: h.to || ''
+        }));
+    });
     // eslint-disable-next-line no-unused-vars
     const [savingEduc, setSavingEduc] = useState(false);
+    
+    // PQF Education Options
+    const [pqfStrands, setPqfStrands] = useState([]);
+    const [pqfDegreeLevels, setPqfDegreeLevels] = useState([]);
+    const [pqfCourses, setPqfCourses] = useState([]);
+
+    useEffect(() => {
+        const fetchPqfData = async () => {
+            try {
+                const [strandsRes, coursesRes, levelsRes] = await Promise.all([
+                    supabase.from('pqf_programs').select('program_name').eq('program_type', 'strand').order('program_name'),
+                    supabase.from('pqf_programs').select('program_name').in('program_type', ['degree', 'diploma']).order('program_name'),
+                    supabase.from('pqf_education_levels').select('type').gte('pqf_level', 5).order('pqf_level')
+                ]);
+                if (strandsRes.data) setPqfStrands(strandsRes.data.map(d => d.program_name));
+                if (coursesRes.data) setPqfCourses(coursesRes.data.map(d => d.program_name));
+                if (levelsRes.data) setPqfDegreeLevels(levelsRes.data.map(d => d.type));
+            } catch (err) {
+                console.error("Error fetching PQF data", err);
+            }
+        };
+        fetchPqfData();
+    }, []);
 
     // Work Experience state
     const [workExperience, setWorkExperience] = useState(trainee?.workExperience || []);
@@ -2661,6 +2700,47 @@ export const TraineeProfileContent = ({ viewedProfileId = null, onBack = null, o
         jobTitle: trainee?.jobTitle || '',
         dateHired: trainee?.dateHired || '',
     });
+
+    const [isEditingCareerStatus, setIsEditingCareerStatus] = useState(false);
+    const [pendingCareerStatus, setPendingCareerStatus] = useState('');
+
+    const handleCareerStatusChange = (newStatus) => {
+        setPendingCareerStatus(newStatus);
+        
+        toast((t) => (
+            <div>
+                <p style={{ margin: '0 0 10px', fontSize: 14, fontWeight: 500, color: '#1e293b' }}>
+                    Do you want to save changes to your career status?
+                </p>
+                <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+                    <button 
+                        onClick={() => {
+                            toast.dismiss(t.id);
+                            setIsEditingCareerStatus(false);
+                        }}
+                        style={{ padding: '6px 12px', background: '#e2e8f0', color: '#475569', border: 'none', borderRadius: 6, fontSize: 13, cursor: 'pointer', fontWeight: 600 }}
+                    >
+                        Cancel
+                    </button>
+                    <button 
+                        onClick={async () => {
+                            toast.dismiss(t.id);
+                            try {
+                                await updateTrainee(trainee.id, { employmentStatus: newStatus });
+                                toast.success('Career status updated!');
+                                setIsEditingCareerStatus(false);
+                            } catch(err) {
+                                toast.error('Failed to update status.');
+                            }
+                        }}
+                        style={{ padding: '6px 12px', background: '#0a66c2', color: '#fff', border: 'none', borderRadius: 6, fontSize: 13, cursor: 'pointer', fontWeight: 600 }}
+                    >
+                        Confirm / Save
+                    </button>
+                </div>
+            </div>
+        ), { duration: Infinity, id: 'career-status-toast' });
+    };
 
     // Profile photo & banner state
     const profilePicRef = useRef(null);
@@ -2891,8 +2971,30 @@ export const TraineeProfileContent = ({ viewedProfileId = null, onBack = null, o
         }
     };
 
+    const validateEducRow = (edu) => {
+        if (!edu.school?.trim() || !edu.from || !edu.to) return false;
+        if (Number(edu.from) > Number(edu.to)) return false;
+        if (!edu.level && edu.degree?.trim()) return true; // legacy fallback
+        if (!edu.level) return false;
+        if (edu.level === 'Senior High School' && !edu.strand) return false;
+        if (edu.level === 'College' && (!edu.degreeLevel || !edu.course)) return false;
+        return true;
+    };
+
     const updateEduc = (idx, field, val) => { const arr = [...educHistory]; arr[idx][field] = val; setEducHistory(arr); };
-    const addEducObj = () => setEducHistory(prev => [...prev, { school: '', degree: '', from: '', to: '' }]);
+    const addEducObj = () => {
+        for (let i = 0; i < educHistory.length; i++) {
+            if (!validateEducRow(educHistory[i])) {
+                toast.error(`Please complete Education Entry #${i + 1} correctly before adding a new one.`);
+                return;
+            }
+        }
+        if (educHistory.length >= 15) {
+            toast.error('Maximum of 15 entries allowed.');
+            return;
+        }
+        setEducHistory(prev => [...prev, { school: '', level: '', strand: '', degreeLevel: '', course: '', degree: '', from: '', to: '' }]);
+    };
     const removeEducIdx = (idx) => { setEducHistory(prev => prev.filter((_, i) => i !== idx)); };
     // eslint-disable-next-line no-unused-vars
     const saveEduc = async () => { if (!isOwnProfile) return; setSavingEduc(true); await updateTrainee(trainee.id, { educHistory }); setSavingEduc(false); };
@@ -2972,98 +3074,194 @@ export const TraineeProfileContent = ({ viewedProfileId = null, onBack = null, o
         }
     }, [trainee?.id]);
 
-    const save = async () => {
+    
+    // Click outside listener for 3-dot menus
+    useEffect(() => {
+        const handleClickOutside = (e) => {
+            if (!e.target.closest('.ln-menu-container')) {
+                setActiveMenu(null);
+            }
+        };
+        if (activeMenu) {
+            document.addEventListener('mousedown', handleClickOutside);
+        }
+        return () => {
+            document.removeEventListener('mousedown', handleClickOutside);
+        };
+    }, [activeMenu]);
+
+
+    const handleCancelEdit = (section) => {
+        switch (section) {
+            case 'summary':
+                setForm(prev => ({ ...prev, bio: trainee?.bio || '' }));
+                break;
+            case 'personalInfo':
+                setForm(prev => ({
+                    ...prev,
+                    name: trainee?.fullName || trainee?.name || '',
+                    email: trainee?.contactEmail || trainee?.email || '',
+                    address: trainee?.detailedAddress || '',
+                    birthday: trainee?.birthdate || '',
+                    gender: trainee?.gender || '',
+                    program: trainee?.program?.name || trainee?.program || '',
+                    programId: trainee?.programId || ''
+                }));
+                // setPersonalInfoVisibility if needed, but it's okay to skip
+                break;
+            case 'educHistory':
+                setEducHistory(() => {
+                    const hist = trainee?.educHistory || [];
+                    return hist.map(h => ({ ...h }));
+                });
+                break;
+            case 'workExp':
+                setWorkExperience(() => {
+                    const exp = trainee?.workExperience || [];
+                    return exp.map(w => ({ ...w }));
+                });
+                break;
+            case 'training':
+                setTrainings(() => {
+                    const tArr = Array.isArray(trainee?.trainings) ? trainee.trainings.map(t => ({ ...t, status: t.status || trainee.trainingStatus || 'Student' })) : [];
+                    if (tArr.length === 0 && trainee?.program) {
+                        return [{ program: trainee.program, year: trainee.graduationYear || '', ncLevel: trainee.ncLevel || '', status: trainee.trainingStatus || 'Student' }];
+                    }
+                    return tArr;
+                });
+                setTrainingForm({ graduationYear: trainee?.graduationYear || '' });
+                break;
+            case 'learner':
+                // For learner profile, buildLearnerProfileState is already in scope but wait, is it?
+                // Yes, buildLearnerProfileState is outside the component.
+                setLearnerProfile(buildLearnerProfileState(trainee));
+                break;
+            case 'skills':
+                setNewSkill('');
+                break;
+            case 'interests':
+                setNewInterest('');
+                setInterestsList(trainee?.interests || []);
+                break;
+            case 'documents':
+                break;
+            default:
+                break;
+        }
+        setEditingSection(null);
+    };
+
+    const SECTION_LABELS = { summary: 'Professional Summary', personalInfo: 'Personal Information', educHistory: 'Educational History', workExp: 'Work Experience', training: 'Training & Certifications', learner: 'Learner Profile', skills: 'Skills', interests: 'Interests', documents: 'Documents' };
+
+    const saveSection = async (sectionName) => {
         if (!isOwnProfile) return;
-        // --- VALIDATION ---
-        const errors = [];
-
-        // 1. Basic Info
-        if (!form.name?.trim()) errors.push('Full Name is required.');
-        if (!form.email?.trim()) errors.push('Contact Email is required.');
-
-        // 2. Birthday validation
-        if (form.birthday) {
-            const bd = new Date(form.birthday);
-            const today = new Date();
-            let age = today.getFullYear() - bd.getFullYear();
-            const m = today.getMonth() - bd.getMonth();
-            if (m < 0 || (m === 0 && today.getDate() < bd.getDate())) age--;
-            if (age < 15) errors.push('You must be at least 15 years old.');
-        }
-
-        // 3. Employment Info
-        if (empForm.employmentStatus === 'Employed') {
-            if (!empForm.employer?.trim()) errors.push('Employer/Company is required when Employed.');
-            if (!empForm.jobTitle?.trim()) errors.push('Job Title is required when Employed.');
-            if (!empForm.dateHired) errors.push('Date Hired is required when Employed.');
-        }
-
-        // 4. Educational History
-        educHistory.forEach((edu, i) => {
-            if (!String(edu.school || '').trim() || !String(edu.degree || '').trim() || !String(edu.from || '').trim() || !String(edu.to || '').trim()) {
-                errors.push(`Please fill all fields for Education #${i + 1}.`);
-            }
-        });
-
-        // 5. Work Experience
-        workExperience.forEach((work, i) => {
-            if (!String(work.company || '').trim() || !String(work.position || '').trim() || !String(work.from || '').trim() || !String(work.to || '').trim()) {
-                errors.push(`Please fill all fields for Work Experience #${i + 1}.`);
-            }
-        });
-        if (learnerProfile.ethnicGroup === 'Others' && !String(learnerProfile.ethnicGroupOther || '').trim()) {
-            errors.push('Please specify the ethnic group.');
-        }
-        if (learnerProfile.languageSpoken === 'Others' && !String(learnerProfile.languageSpokenOther || '').trim()) {
-            errors.push('Please specify the language spoken.');
-        }
-        if (learnerProfile.disability === 'Others' && !String(learnerProfile.disabilityOther || '').trim()) {
-            errors.push('Please specify the disability.');
-        }
-        if (learnerProfile.disability && learnerProfile.disability !== 'None' && !String(learnerProfile.causeOfDisability || '').trim()) {
-            errors.push('Cause of Disability is required when a disability is selected.');
-        }
-        if (learnerProfile.healthCondition === 'Others' && !String(learnerProfile.healthConditionOther || '').trim()) {
-            errors.push('Please specify the existing health condition.');
-        }
-        if (learnerProfile.otherNeeds === 'Others' && !String(learnerProfile.otherNeedsOther || '').trim()) {
-            errors.push('Please specify the other learner need.');
-        }
-        if (errors.length > 0) {
-            alert("Please fix the following issues before saving:\n\n• " + errors.join('\n• '));
-            return;
-        }
-
         setSaving(true);
         try {
-            const learnerProfilePayload = {
-                ...learnerProfile,
-                ethnicGroupOther: learnerProfile.ethnicGroup === 'Others' ? learnerProfile.ethnicGroupOther : '',
-                languageSpokenOther: learnerProfile.languageSpoken === 'Others' ? learnerProfile.languageSpokenOther : '',
-                disabilityOther: learnerProfile.disability === 'Others' ? learnerProfile.disabilityOther : '',
-                causeOfDisability: learnerProfile.disability && learnerProfile.disability !== 'None' ? learnerProfile.causeOfDisability : '',
-                healthConditionOther: learnerProfile.healthCondition === 'Others' ? learnerProfile.healthConditionOther : '',
-                otherNeedsOther: learnerProfile.otherNeeds === 'Others' ? learnerProfile.otherNeedsOther : '',
-            };
-            await updateTrainee(trainee.id, {
-                ...form,
-                trainingStatus: (trainings && trainings.length > 0) ? trainings[0].status : (trainee?.trainingStatus || 'Student'),
-                graduationYear: (trainings && trainings.length > 0 && trainings[0].status === 'Graduated') ? trainings[0].year : (trainee?.graduationYear || ''),
-                personalInfoVisibility,
-                ...empForm,
-                educHistory,
-                workExperience,
-                trainings,
-                interests: interestsList,
-                ...learnerProfilePayload,
-            });
+            let payload = {};
 
-            setEditing(false);
+            switch (sectionName) {
+                case 'summary':
+                    payload = { bio: form.bio };
+                    break;
+                case 'personalInfo': {
+                    if (!form.name?.trim()) { toast.error('Full Name is required.'); setSaving(false); return; }
+                    if (!form.email?.trim()) { toast.error('Contact Email is required.'); setSaving(false); return; }
+                    if (form.birthday) {
+                        const bd = new Date(form.birthday);
+                        const today = new Date();
+                        let age = today.getFullYear() - bd.getFullYear();
+                        const m = today.getMonth() - bd.getMonth();
+                        if (m < 0 || (m === 0 && today.getDate() < bd.getDate())) age--;
+                        if (age < 15) { toast.error('You must be at least 15 years old.'); setSaving(false); return; }
+                    }
+                    payload = { name: form.name, email: form.email, address: form.address, birthday: form.birthday, gender: form.gender, program: form.program, programId: form.programId, personalInfoVisibility };
+                    break;
+                }
+                case 'educHistory': {
+                    for (let i = 0; i < educHistory.length; i++) {
+                        const edu = educHistory[i];
+                        if (!validateEducRow(edu)) {
+                            if (edu.from && edu.to && Number(edu.from) > Number(edu.to)) {
+                                toast.error(`Invalid year range for Education #${i + 1} (From year cannot be greater than To year).`);
+                            } else {
+                                toast.error(`Please fill all required fields for Education #${i + 1}.`);
+                            }
+                            setSaving(false); return;
+                        }
+                    }
+                    payload = { educHistory };
+                    break;
+                }
+                case 'workExp': {
+                    for (let i = 0; i < workExperience.length; i++) {
+                        const work = workExperience[i];
+                        if (!String(work.company || '').trim() || !String(work.position || '').trim() || !String(work.from || '').trim() || !String(work.to || '').trim()) {
+                            toast.error(`Please fill all fields for Work Experience #${i + 1}.`); setSaving(false); return;
+                        }
+                    }
+                    payload = { workExperience };
+                    break;
+                }
+                case 'training':
+                    payload = {
+                        trainings,
+                        trainingStatus: (trainings && trainings.length > 0) ? trainings[0].status : (trainee?.trainingStatus || 'Student'),
+                        graduationYear: (trainings && trainings.length > 0 && trainings[0].status === 'Graduated') ? trainings[0].year : (trainee?.graduationYear || ''),
+                    };
+                    break;
+                case 'learner': {
+                    const lerrors = [];
+                    if (learnerProfile.ethnicGroup === 'Others' && !String(learnerProfile.ethnicGroupOther || '').trim()) lerrors.push('Please specify the ethnic group.');
+                    if (learnerProfile.languageSpoken === 'Others' && !String(learnerProfile.languageSpokenOther || '').trim()) lerrors.push('Please specify the language spoken.');
+                    if (learnerProfile.disability === 'Others' && !String(learnerProfile.disabilityOther || '').trim()) lerrors.push('Please specify the disability.');
+                    if (learnerProfile.disability && learnerProfile.disability !== 'None' && !String(learnerProfile.causeOfDisability || '').trim()) lerrors.push('Cause of Disability is required.');
+                    if (learnerProfile.healthCondition === 'Others' && !String(learnerProfile.healthConditionOther || '').trim()) lerrors.push('Please specify the health condition.');
+                    if (learnerProfile.otherNeeds === 'Others' && !String(learnerProfile.otherNeedsOther || '').trim()) lerrors.push('Please specify the learner need.');
+                    if (lerrors.length > 0) { toast.error(lerrors[0]); setSaving(false); return; }
+                    payload = {
+                        ...learnerProfile,
+                        ethnicGroupOther: learnerProfile.ethnicGroup === 'Others' ? learnerProfile.ethnicGroupOther : '',
+                        languageSpokenOther: learnerProfile.languageSpoken === 'Others' ? learnerProfile.languageSpokenOther : '',
+                        disabilityOther: learnerProfile.disability === 'Others' ? learnerProfile.disabilityOther : '',
+                        causeOfDisability: learnerProfile.disability && learnerProfile.disability !== 'None' ? learnerProfile.causeOfDisability : '',
+                        healthConditionOther: learnerProfile.healthCondition === 'Others' ? learnerProfile.healthConditionOther : '',
+                        otherNeedsOther: learnerProfile.otherNeeds === 'Others' ? learnerProfile.otherNeedsOther : '',
+                    };
+                    break;
+                }
+                case 'skills':
+                    payload = { skills: form.skills };
+                    break;
+                case 'interests':
+                    payload = { interests: interestsList };
+                    break;
+                case 'documents':
+                    // Documents are saved via upload/delete directly, no profile payload needed
+                    setEditingSection(null);
+                    setActiveMenu(null);
+                    setSaving(false);
+                    toast.success('Documents section closed.');
+                    return;
+                default:
+                    break;
+            }
+
+            await updateTrainee(trainee.id, payload);
+            setEditingSection(null);
+            setActiveMenu(null);
+            toast.success(`${SECTION_LABELS[sectionName] || 'Section'} saved successfully!`);
         } catch (err) {
             console.error('Save error:', err);
-            alert('Failed to save profile. Please try again.');
+            toast.error('Failed to save. Please try again.');
         } finally {
             setSaving(false);
+        }
+    };
+
+    // Keep legacy save for form onSubmit compatibility
+    const save = async () => {
+        if (editingSection) {
+            await saveSection(editingSection);
         }
     };
 
@@ -3169,14 +3367,14 @@ export const TraineeProfileContent = ({ viewedProfileId = null, onBack = null, o
                     setShowUploadForm(false);
                     if (fileInputRef.current) fileInputRef.current.value = '';
                 } else {
-                    alert(result.error || 'Upload failed.');
+                    toast.error(result.error || 'Upload failed.');
                 }
                 setUploading(false);
             };
             reader.readAsDataURL(docFile);
         } catch (err) {
             console.error('Upload error:', err);
-            alert('Failed to upload document.');
+            toast.error('Failed to upload document.');
             setUploading(false);
         }
     };
@@ -3189,13 +3387,13 @@ export const TraineeProfileContent = ({ viewedProfileId = null, onBack = null, o
             const result = await res.json();
             if (result.success) {
                 setDocuments(prev => Array.isArray(prev) ? prev.filter(d => d.id !== docId) : []);
-                alert('Document successfully deleted.');
+                toast.success('Document successfully deleted.');
             } else {
-                alert(`Delete failed: ${result.error}`);
+                toast.error(`Delete failed: ${result.error}`);
             }
         } catch (err) {
             console.error('Delete error:', err);
-            alert('Failed to connect to the server to delete document.');
+            toast.error('Failed to connect to the server to delete document.');
         }
     };
 
@@ -3411,12 +3609,55 @@ export const TraineeProfileContent = ({ viewedProfileId = null, onBack = null, o
                                 <h1 className="ln-profile-header-name" style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                                     {showHeaderName ? trainee?.name : 'Trainee'}
                                     {trainee?.employmentStatus && (
-                                        <span className="ln-badge" style={{
-                                            background: statusColors[trainee.employmentStatus] || '#0a66c2',
-                                            color: 'white', fontSize: 11, padding: '2px 10px', borderRadius: 12, fontWeight: 700
-                                        }}>
-                                            {trainee.employmentStatus}
-                                        </span>
+                                        <div style={{ position: 'relative', display: 'inline-flex', alignItems: 'center' }}>
+                                            <span 
+                                                className="ln-badge" 
+                                                onClick={() => {
+                                                    if (isOwnProfile) {
+                                                        setIsEditingCareerStatus(!isEditingCareerStatus);
+                                                    }
+                                                }}
+                                                style={{
+                                                    background: statusColors[trainee.employmentStatus] || '#0a66c2',
+                                                    color: 'white', fontSize: 11, padding: '2px 10px', borderRadius: 12, fontWeight: 700,
+                                                    cursor: isOwnProfile ? 'pointer' : 'default', marginLeft: 12, verticalAlign: 'middle',
+                                                    display: 'inline-flex', alignItems: 'center'
+                                                }}
+                                                title={isOwnProfile ? "Click to edit career status" : ""}
+                                            >
+                                                {trainee.employmentStatus}
+                                                {isOwnProfile && <ChevronDown size={12} style={{ marginLeft: 4, opacity: 0.9 }} />}
+                                            </span>
+                                            
+                                            {isEditingCareerStatus && (
+                                                <div style={{
+                                                    position: 'absolute', top: '100%', left: 12, marginTop: 4,
+                                                    background: '#0a66c2', borderRadius: 4, overflow: 'hidden',
+                                                    boxShadow: '0 4px 12px rgba(0,0,0,0.15)', zIndex: 100, minWidth: 140
+                                                }}>
+                                                    {['Seeking Employment', 'Employed', 'Not Employed'].map(status => (
+                                                        <div 
+                                                            key={status}
+                                                            onClick={() => {
+                                                                setIsEditingCareerStatus(false);
+                                                                if (status !== trainee.employmentStatus) {
+                                                                    handleCareerStatusChange(status);
+                                                                }
+                                                            }}
+                                                            style={{
+                                                                padding: '6px 12px', fontSize: 11, color: 'white',
+                                                                cursor: 'pointer', fontWeight: 600, textAlign: 'center',
+                                                                borderBottom: status === 'Not Employed' ? 'none' : '1px solid rgba(255,255,255,0.15)'
+                                                            }}
+                                                            onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.1)'}
+                                                            onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                                                        >
+                                                            {status}
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            )}
+                                        </div>
                                     )}
                                 </h1>
                                 <p className="ln-profile-header-headline">
@@ -3437,37 +3678,6 @@ export const TraineeProfileContent = ({ viewedProfileId = null, onBack = null, o
                                     </p>
                                 )}
                             </div>
-                            {isOwnProfile && (!editing ? (
-                                <button type="button" className="ln-btn ln-btn-primary" onClick={() => setEditing(true)} disabled={saving}>
-                                    <Edit size={15} /> Edit Profile
-                                </button>
-                            ) : (
-                                <div style={{ display: 'flex', gap: 8 }}>
-                                    <button type="button" className="ln-btn" style={{ background: '#e2e8f0', color: '#475569' }} onClick={() => {
-                                        setForm({ ...trainee });
-                                        setTrainingForm({ trainingStatus: trainee?.trainingStatus || 'Student', graduationYear: trainee?.graduationYear || '' });
-                                        setEmpForm({ employmentStatus: (trainee?.employmentStatus === 'Unemployed' ? 'Not Employed' : trainee?.employmentStatus) || 'Not Employed', employer: trainee?.employer || '', jobTitle: trainee?.jobTitle || '', dateHired: trainee?.dateHired || '' });
-                                        setEducHistory(trainee?.educHistory || []);
-                                        setWorkExperience(trainee?.workExperience || []);
-                                        setInterestsList(trainee?.interests || []);
-                                        setPersonalInfoVisibility(resolveTraineeVisibility(trainee));
-                                        setEditing(false);
-                                    }} disabled={saving}>
-                                        <X size={15} /> Cancel
-                                    </button>
-                                    <button type="submit" className="ln-btn ln-btn-success" disabled={saving}>
-                                        {saving ? (
-                                            <React.Fragment>
-                                                <Loader size={15} style={{ animation: 'ocr-spin 0.8s linear infinite' }} /> Saving...
-                                            </React.Fragment>
-                                        ) : (
-                                            <React.Fragment>
-                                                <CheckCircle size={15} /> Save Changes
-                                            </React.Fragment>
-                                        )}
-                                    </button>
-                                </div>
-                            ))}
                         </div>
                         {/* Resume section removed as per cleanup requirements */}
                     </div>
@@ -3513,9 +3723,34 @@ export const TraineeProfileContent = ({ viewedProfileId = null, onBack = null, o
                             <div className="ln-card">
                                 <div className="ln-section-header">
                                     <h3>Professional Summary</h3>
+                                    {isOwnProfile && (!editingSection || editingSection === 'summary') && (
+                                        editingSection === 'summary' ? (
+                                            <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                                                <button type="button" className="ln-btn-sm" style={{ background: '#e2e8f0', color: '#475569' }} onClick={() => handleCancelEdit(editingSection)} disabled={saving}>
+                                                    <X size={14} /> Cancel
+                                                </button>
+                                                <button type="button" className="ln-btn-sm ln-btn-success" onClick={() => saveSection(editingSection)} disabled={saving}>
+                                                    <CheckCircle size={14} /> Save
+                                                </button>
+                                            </div>
+                                        ) : (
+                                            <div className="ln-menu-container" style={{ position: 'relative' }}>
+                                                <button type="button" className="ln-link-btn" style={{ padding: 4 }} onClick={() => setActiveMenu(activeMenu === 'summary' ? null : 'summary')}>
+                                                    <MoreVertical size={16} color="#64748b" />
+                                                </button>
+                                                {activeMenu === 'summary' && (
+                                                    <div style={{ position: 'absolute', top: 28, right: 0, background: 'white', border: '1px solid #e2e8f0', borderRadius: 8, boxShadow: '0 10px 25px -5px rgba(0,0,0,0.15), 0 8px 10px -6px rgba(0,0,0,0.1)', zIndex: 100, padding: 6, minWidth: 140, animation: 'fadeInScale 0.15s ease-out', transformOrigin: 'top right' }}>
+                                                        <button type="button" style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', padding: '8px 12px', background: 'none', border: 'none', cursor: 'pointer', fontSize: 13, color: '#334155', textAlign: 'left' }} onClick={() => { setActiveMenu(null); setEditingSection('summary'); }}>
+                                                            <Edit size={14} /> Edit
+                                                        </button>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        )
+                                    )}
                                 </div>
                                 <div style={{ padding: '0 20px 20px' }}>
-                                    {editing ? (
+                                    {(editingSection === 'summary') ? (
                                         <textarea
                                             className="form-input"
                                             placeholder="Share a brief overview of your professional background, skills, and career goals..."
@@ -3532,7 +3767,7 @@ export const TraineeProfileContent = ({ viewedProfileId = null, onBack = null, o
                                             whiteSpace: 'pre-wrap',
                                             fontStyle: trainee?.bio ? 'normal' : 'italic'
                                         }}>
-                                            {trainee?.bio || (isOwnProfile ? "No professional summary added yet. Click 'Edit Profile' to add one." : "No professional summary provided.")}
+                                            {trainee?.bio || (isOwnProfile ? "No professional summary added yet. Use the ⋯ menu to add one." : "No professional summary provided.")}
                                         </div>
                                     )}
                                 </div>
@@ -3541,7 +3776,32 @@ export const TraineeProfileContent = ({ viewedProfileId = null, onBack = null, o
 
                             {/* Personal Information Section */}
                             <div className="ln-card">
-                                <div className="ln-section-header"><h3>Personal Information</h3></div>
+                                <div className="ln-section-header"><h3>Personal Information</h3>
+                                    {isOwnProfile && (!editingSection || editingSection === 'personalInfo') && (
+                                        editingSection === 'personalInfo' ? (
+                                            <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                                                <button type="button" className="ln-btn-sm" style={{ background: '#e2e8f0', color: '#475569' }} onClick={() => handleCancelEdit(editingSection)} disabled={saving}>
+                                                    <X size={14} /> Cancel
+                                                </button>
+                                                <button type="button" className="ln-btn-sm ln-btn-success" onClick={() => saveSection(editingSection)} disabled={saving}>
+                                                    <CheckCircle size={14} /> Save
+                                                </button>
+                                            </div>
+                                        ) : (
+                                            <div className="ln-menu-container" style={{ position: 'relative' }}>
+                                                <button type="button" className="ln-link-btn" style={{ padding: 4 }} onClick={() => setActiveMenu(activeMenu === 'personalInfo' ? null : 'personalInfo')}>
+                                                    <MoreVertical size={16} color="#64748b" />
+                                                </button>
+                                                {activeMenu === 'personalInfo' && (
+                                                    <div style={{ position: 'absolute', top: 28, right: 0, background: 'white', border: '1px solid #e2e8f0', borderRadius: 8, boxShadow: '0 10px 25px -5px rgba(0,0,0,0.15), 0 8px 10px -6px rgba(0,0,0,0.1)', zIndex: 100, padding: 6, minWidth: 140, animation: 'fadeInScale 0.15s ease-out', transformOrigin: 'top right' }}>
+                                                        <button type="button" style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', padding: '8px 12px', background: 'none', border: 'none', cursor: 'pointer', fontSize: 13, color: '#334155', textAlign: 'left' }} onClick={() => { setActiveMenu(null); setEditingSection('personalInfo'); }}>
+                                                            <Edit size={14} /> Edit
+                                                        </button>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        )
+                                    )}</div>
                                 <div className="ln-info-grid">
                                     {(function () {
                                         const visibleSet = new Set(resolveTraineeVisibility(trainee));
@@ -3554,9 +3814,9 @@ export const TraineeProfileContent = ({ viewedProfileId = null, onBack = null, o
                                             return (
                                                 <div key={f.key} className="ln-info-item">
                                                     <label className="ln-info-label">
-                                                        {f.label}{f.required && editing && <span style={{ color: '#cc1016', marginLeft: 4 }}>*</span>}
+                                                        {f.label}{f.required && (editingSection === 'personalInfo') && <span style={{ color: '#cc1016', marginLeft: 4 }}>*</span>}
                                                     </label>
-                                                    {editing ? (
+                                                    {(editingSection === 'personalInfo') ? (
                                                         f.type === 'select' ? (
                                                             f.key === 'program' ? (
                                                                 <select className="form-select" value={form.programId || ''} onChange={e => {
@@ -3577,7 +3837,7 @@ export const TraineeProfileContent = ({ viewedProfileId = null, onBack = null, o
                                                     ) : (
                                                         <div className="ln-info-value">{trainee?.[f.key] || '—'}</div>
                                                     )}
-                                                    {isOwnProfile && editing && (
+                                                    {isOwnProfile && (editingSection === 'personalInfo') && (
                                                         <label style={{ marginTop: 8, display: 'inline-flex', alignItems: 'center', gap: 8, fontSize: 12, color: isVisible ? '#166534' : '#64748b', fontWeight: 600 }}>
                                                             <input type="checkbox" checked={isVisible} onChange={() => togglePersonalInfoVisibility(f.key)} style={{ width: 14, height: 14 }} />
                                                             {isVisible ? 'Shown to others' : 'Hidden from others'}
@@ -3590,51 +3850,41 @@ export const TraineeProfileContent = ({ viewedProfileId = null, onBack = null, o
                                 </div>
                             </div>
 
-                            {/* Career Status Section */}
-                            <div className="ln-card">
-                                <div className="ln-section-header"><h3>Career Status</h3></div>
-                                <div className="ln-info-grid">
-                                    <div className="ln-info-item">
-                                        <label className="ln-info-label">Status</label>
-                                        {editing ? (
-                                            <select className="form-select" value={empForm.employmentStatus} onChange={e => setEmpForm({ ...empForm, employmentStatus: e.target.value })}>
-                                                <option value="Employed">🟢 Employed</option>
-                                                <option value="Seeking Employment">🔵 Seeking Employment</option>
-                                                <option value="Not Employed">🔴 Not Employed</option>
-                                            </select>
-                                        ) : (
-                                            <span className="ln-badge" style={{ fontSize: 13, background: statusColors[trainee?.employmentStatus] || '#0a66c2', color: 'white' }}>
-                                                {trainee?.employmentStatus || 'Seeking Employment'}
-                                            </span>
-                                        )}
-                                    </div>
-                                    {(editing ? empForm.employmentStatus === 'Employed' : trainee?.employmentStatus === 'Employed') && (
-                                        <React.Fragment>
-                                            <div className="ln-info-item">
-                                                <label className="ln-info-label">Employer / Company{editing && <span style={{ color: '#cc1016', marginLeft: 4 }}>*</span>}</label>
-                                                {editing ? <input type="text" required className="form-input" value={empForm.employer} onChange={e => setEmpForm({ ...empForm, employer: e.target.value })} placeholder="Company name" /> : <div className="ln-info-value">{trainee?.employer || '—'}</div>}
-                                            </div>
-                                            <div className="ln-info-item">
-                                                <label className="ln-info-label">Job Title{editing && <span style={{ color: '#cc1016', marginLeft: 4 }}>*</span>}</label>
-                                                {editing ? <input type="text" required className="form-input" value={empForm.jobTitle} onChange={e => setEmpForm({ ...empForm, jobTitle: e.target.value })} placeholder="Your position" /> : <div className="ln-info-value">{trainee?.jobTitle || '—'}</div>}
-                                            </div>
-                                            <div className="ln-info-item">
-                                                <label className="ln-info-label">Date Hired{editing && <span style={{ color: '#cc1016', marginLeft: 4 }}>*</span>}</label>
-                                                {editing ? <input type="date" required className="form-input" value={empForm.dateHired} onChange={e => setEmpForm({ ...empForm, dateHired: e.target.value })} /> : <div className="ln-info-value">{trainee?.dateHired || '—'}</div>}
-                                            </div>
-                                        </React.Fragment>
-                                    )}
-                                </div>
-                            </div>
+
 
                             {/* Educational History Section */}
                             <div className="ln-card">
                                 <div className="ln-section-header">
                                     <h3>Educational History</h3>
-                                    {editing && <button type="button" className="ln-btn-sm ln-btn-primary" onClick={addEducObj}><Plus size={12} /> Add</button>}
+                                    {isOwnProfile && (!editingSection || editingSection === 'educHistory') && (
+                                        editingSection === 'educHistory' ? (
+                                            <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                                                <button type="button" className="ln-btn-sm" style={{ background: '#e2e8f0', color: '#475569' }} onClick={() => handleCancelEdit(editingSection)} disabled={saving}>
+                                                    <X size={14} /> Cancel
+                                                </button>
+                                                <button type="button" className="ln-btn-sm ln-btn-success" onClick={() => saveSection(editingSection)} disabled={saving}>
+                                                    <CheckCircle size={14} /> Save
+                                                </button>
+                                            </div>
+                                        ) : (
+                                            <div className="ln-menu-container" style={{ position: 'relative' }}>
+                                                <button type="button" className="ln-link-btn" style={{ padding: 4 }} onClick={() => setActiveMenu(activeMenu === 'educHistory' ? null : 'educHistory')}>
+                                                    <MoreVertical size={16} color="#64748b" />
+                                                </button>
+                                                {activeMenu === 'educHistory' && (
+                                                    <div style={{ position: 'absolute', top: 28, right: 0, background: 'white', border: '1px solid #e2e8f0', borderRadius: 8, boxShadow: '0 10px 25px -5px rgba(0,0,0,0.15), 0 8px 10px -6px rgba(0,0,0,0.1)', zIndex: 100, padding: 6, minWidth: 140, animation: 'fadeInScale 0.15s ease-out', transformOrigin: 'top right' }}>
+                                                        <button type="button" style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', padding: '8px 12px', background: 'none', border: 'none', cursor: 'pointer', fontSize: 13, color: '#334155', textAlign: 'left' }} onClick={() => { setActiveMenu(null); setEditingSection('educHistory'); }}>
+                                                            <Edit size={14} /> Edit
+                                                        </button>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        )
+                                    )}
+                                    {(editingSection === 'educHistory') && <button type="button" className="ln-btn-sm ln-btn-primary" onClick={addEducObj}><Plus size={12} /> Add</button>}
                                 </div>
                                 <div style={{ display: 'flex', flexDirection: 'column', gap: 16, padding: '0 16px 20px' }}>
-                                    {(editing ? educHistory : [...educHistory].sort((a, b) => (Number(b.to) || 0) - (Number(a.to) || 0)))
+                                    {((editingSection === 'educHistory') ? educHistory : [...educHistory].sort((a, b) => (Number(b.to) || 0) - (Number(a.to) || 0)))
                                         .filter((_, i) => editing || showAllEduc || i === 0)
                                         .map((edu, i) => (
                                             <div key={i} style={{ padding: '20px', background: '#fff', borderRadius: 12, border: '1px solid #e2e8f0', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
@@ -3643,34 +3893,96 @@ export const TraineeProfileContent = ({ viewedProfileId = null, onBack = null, o
                                                         <div style={{ width: 40, height: 40, borderRadius: 8, background: '#f8fafc', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1px solid #e2e8f0' }}>
                                                             <GraduationCap size={20} color="#64748b" />
                                                         </div>
-                                                        <h4 style={{ margin: 0, fontSize: 13, color: '#475569', fontWeight: 600 }}>{editing ? `Education Entry #${i + 1}` : 'Education Entry'}</h4>
+                                                        <h4 style={{ margin: 0, fontSize: 13, color: '#475569', fontWeight: 600 }}>{(editingSection === 'educHistory') ? `Education Entry #${i + 1}` : 'Education Entry'}</h4>
                                                     </div>
-                                                    {editing && <button type="button" className="ln-link-btn" style={{ color: '#cc1016', fontSize: 12, padding: 0 }} onClick={(e) => { e.preventDefault(); showConfirm('Are you sure you want to remove this educational history?', () => removeEducIdx(i)); }}><Trash2 size={13} /> Remove</button>}
+                                                    {(editingSection === 'educHistory') && <button type="button" className="ln-link-btn" style={{ color: '#cc1016', fontSize: 12, padding: 0 }} onClick={(e) => { e.preventDefault(); showConfirm('Are you sure you want to remove this educational history?', () => removeEducIdx(i)); }}><Trash2 size={13} /> Remove</button>}
                                                 </div>
                                                 <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
                                                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
                                                         <div className="ln-info-item" style={{ gridColumn: '1 / -1' }}>
-                                                            <label className="ln-info-label" style={{ fontWeight: 700 }}>School / University{editing && <span style={{ color: '#cc1016', marginLeft: 4 }}>*</span>}</label>
-                                                            {editing ? <input type="text" required className="form-input" placeholder="Enter school name" maxLength={100} value={edu.school || ''} onChange={e => updateEduc(i, 'school', e.target.value)} /> : <div className="ln-info-value" style={{ fontSize: 15, fontWeight: 700, color: '#1e293b' }}>{edu.school || '—'}</div>}
+                                                            <label className="ln-info-label" style={{ fontWeight: 700 }}>School / University{(editingSection === 'educHistory') && <span style={{ color: '#cc1016', marginLeft: 4 }}>*</span>}</label>
+                                                            {(editingSection === 'educHistory') ? <input type="text" required className="form-input" placeholder="Enter school name" maxLength={100} value={edu.school || ''} onChange={e => updateEduc(i, 'school', e.target.value)} /> : <div className="ln-info-value" style={{ fontSize: 15, fontWeight: 700, color: '#1e293b' }}>{edu.school || '—'}</div>}
                                                         </div>
+                                                        
+                                                        {/* Education Level */}
                                                         <div className="ln-info-item" style={{ gridColumn: '1 / -1' }}>
-                                                            <label className="ln-info-label" style={{ fontWeight: 700 }}>Degree / Program{editing && <span style={{ color: '#cc1016', marginLeft: 4 }}>*</span>}</label>
-                                                            {editing ? <input type="text" required className="form-input" placeholder="e.g. Bachelor of Science in IT" maxLength={100} value={edu.degree || ''} onChange={e => updateEduc(i, 'degree', e.target.value)} /> : <div className="ln-info-value" style={{ fontSize: 14, color: '#475569' }}>{edu.degree || '—'}</div>}
+                                                            <label className="ln-info-label" style={{ fontWeight: 700 }}>Education Level{(editingSection === 'educHistory') && <span style={{ color: '#cc1016', marginLeft: 4 }}>*</span>}</label>
+                                                            {(editingSection === 'educHistory') ? (
+                                                                <select className="form-select" value={edu.level || ''} onChange={e => {
+                                                                    const newLevel = e.target.value;
+                                                                    updateEduc(i, 'level', newLevel);
+                                                                    if (newLevel !== 'Senior High School') updateEduc(i, 'strand', '');
+                                                                    if (newLevel !== 'College') { updateEduc(i, 'degreeLevel', ''); updateEduc(i, 'course', ''); }
+                                                                }}>
+                                                                    <option value="" disabled>Select Level</option>
+                                                                    {['Elementary', 'Junior High School', 'Senior High School', 'College', 'Vocational'].map(l => <option key={l} value={l}>{l}</option>)}
+                                                                </select>
+                                                            ) : (
+                                                                <div className="ln-info-value" style={{ fontSize: 14, color: '#475569' }}>
+                                                                    {edu.level ? edu.level : (edu.degree ? 'Legacy Entry' : '—')} 
+                                                                </div>
+                                                            )}
+                                                        </div>
+
+                                                        {/* Conditional: Strand */}
+                                                        {(editingSection === 'educHistory' ? edu.level === 'Senior High School' : edu.level === 'Senior High School') && (
+                                                            <div className="ln-info-item" style={{ gridColumn: '1 / -1' }}>
+                                                                <label className="ln-info-label" style={{ fontWeight: 700 }}>Strand{(editingSection === 'educHistory') && <span style={{ color: '#cc1016', marginLeft: 4 }}>*</span>}</label>
+                                                                {(editingSection === 'educHistory') ? (
+                                                                    <select className="form-select" value={edu.strand || ''} onChange={e => updateEduc(i, 'strand', e.target.value)}>
+                                                                        <option value="" disabled>Select Strand</option>
+                                                                        {pqfStrands.map(s => <option key={s} value={s}>{s}</option>)}
+                                                                    </select>
+                                                                ) : <div className="ln-info-value" style={{ fontSize: 14, color: '#475569' }}>{edu.strand || '—'}</div>}
+                                                            </div>
+                                                        )}
+
+                                                        {/* Conditional: College */}
+                                                        {(editingSection === 'educHistory' ? edu.level === 'College' : edu.level === 'College') && (
+                                                            <>
+                                                                <div className="ln-info-item">
+                                                                    <label className="ln-info-label" style={{ fontWeight: 700 }}>Degree Level{(editingSection === 'educHistory') && <span style={{ color: '#cc1016', marginLeft: 4 }}>*</span>}</label>
+                                                                    {(editingSection === 'educHistory') ? (
+                                                                        <select className="form-select" value={edu.degreeLevel || ''} onChange={e => updateEduc(i, 'degreeLevel', e.target.value)}>
+                                                                            <option value="" disabled>Select Degree Level</option>
+                                                                            {pqfDegreeLevels.map(dl => <option key={dl} value={dl}>{dl}</option>)}
+                                                                        </select>
+                                                                    ) : <div className="ln-info-value" style={{ fontSize: 14, color: '#475569' }}>{edu.degreeLevel || '—'}</div>}
+                                                                </div>
+                                                                <div className="ln-info-item">
+                                                                    <label className="ln-info-label" style={{ fontWeight: 700 }}>Course / Degree Taken{(editingSection === 'educHistory') && <span style={{ color: '#cc1016', marginLeft: 4 }}>*</span>}</label>
+                                                                    {(editingSection === 'educHistory') ? (
+                                                                        <select className="form-select" value={edu.course || ''} onChange={e => updateEduc(i, 'course', e.target.value)}>
+                                                                            <option value="" disabled>Select Course</option>
+                                                                            {pqfCourses.map(c => <option key={c} value={c}>{c}</option>)}
+                                                                        </select>
+                                                                    ) : <div className="ln-info-value" style={{ fontSize: 14, color: '#475569' }}>{edu.course || '—'}</div>}
+                                                                </div>
+                                                            </>
+                                                        )}
+
+                                                        {/* Fallback for legacy display where level is missing but degree has value */}
+                                                        {(!editingSection && !edu.level && edu.degree) && (
+                                                            <div className="ln-info-item" style={{ gridColumn: '1 / -1' }}>
+                                                                <label className="ln-info-label" style={{ fontWeight: 700 }}>Degree / Program</label>
+                                                                <div className="ln-info-value" style={{ fontSize: 14, color: '#475569' }}>{edu.degree}</div>
+                                                            </div>
+                                                        )}
+
+                                                        <div className="ln-info-item">
+                                                            <label className="ln-info-label" style={{ fontWeight: 700 }}>Year From{(editingSection === 'educHistory') && <span style={{ color: '#cc1016', marginLeft: 4 }}>*</span>}</label>
+                                                            {(editingSection === 'educHistory') ? <input type="number" min="1950" max="2099" required className="form-input" placeholder="YYYY" maxLength={4} onInput={e => { if (e.target.value.length > 4) e.target.value = e.target.value.slice(0, 4); }} value={edu.from || ''} onChange={e => updateEduc(i, 'from', e.target.value)} /> : <div className="ln-info-value" style={{ fontSize: 13, color: '#64748b' }}>{edu.from ? `Started in ${edu.from}` : '—'}</div>}
                                                         </div>
                                                         <div className="ln-info-item">
-                                                            <label className="ln-info-label" style={{ fontWeight: 700 }}>Year From{editing && <span style={{ color: '#cc1016', marginLeft: 4 }}>*</span>}</label>
-                                                            {editing ? <input type="number" min="1950" max="2099" required className="form-input" placeholder="YYYY" maxLength={4} onInput={e => { if (e.target.value.length > 4) e.target.value = e.target.value.slice(0, 4); }} value={edu.from || ''} onChange={e => updateEduc(i, 'from', e.target.value)} /> : <div className="ln-info-value" style={{ fontSize: 13, color: '#64748b' }}>{edu.from ? `Started in ${edu.from}` : '—'}</div>}
-                                                        </div>
-                                                        <div className="ln-info-item">
-                                                            <label className="ln-info-label" style={{ fontWeight: 700 }}>Year To (or expected){editing && <span style={{ color: '#cc1016', marginLeft: 4 }}>*</span>}</label>
-                                                            {editing ? <input type="number" min="1950" max="2099" required className="form-input" placeholder="YYYY" maxLength={4} onInput={e => { if (e.target.value.length > 4) e.target.value = e.target.value.slice(0, 4); }} value={edu.to || ''} onChange={e => updateEduc(i, 'to', e.target.value)} /> : <div className="ln-info-value" style={{ fontSize: 13, color: '#64748b' }}>{edu.to ? `Graduated in ${edu.to}` : '—'}</div>}
+                                                            <label className="ln-info-label" style={{ fontWeight: 700 }}>Year To (or expected){(editingSection === 'educHistory') && <span style={{ color: '#cc1016', marginLeft: 4 }}>*</span>}</label>
+                                                            {(editingSection === 'educHistory') ? <input type="number" min="1950" max="2099" required className="form-input" placeholder="YYYY" maxLength={4} onInput={e => { if (e.target.value.length > 4) e.target.value = e.target.value.slice(0, 4); }} value={edu.to || ''} onChange={e => updateEduc(i, 'to', e.target.value)} /> : <div className="ln-info-value" style={{ fontSize: 13, color: '#64748b' }}>{edu.to ? `Graduated in ${edu.to}` : '—'}</div>}
                                                         </div>
                                                     </div>
                                                 </div>
                                             </div>
                                         ))}
 
-                                    {!editing && educHistory.length > 1 && (
+                                    {!(editingSection === 'educHistory') && educHistory.length > 1 && (
                                         <button
                                             type="button"
                                             className="ln-link-btn"
@@ -3687,10 +3999,35 @@ export const TraineeProfileContent = ({ viewedProfileId = null, onBack = null, o
                             <div className="ln-card">
                                 <div className="ln-section-header">
                                     <h3>Work Experience</h3>
-                                    {editing && <button type="button" className="ln-btn-sm ln-btn-primary" onClick={addWorkObj}><Plus size={12} /> Add</button>}
+                                    {isOwnProfile && (!editingSection || editingSection === 'workExp') && (
+                                        editingSection === 'workExp' ? (
+                                            <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                                                <button type="button" className="ln-btn-sm" style={{ background: '#e2e8f0', color: '#475569' }} onClick={() => handleCancelEdit(editingSection)} disabled={saving}>
+                                                    <X size={14} /> Cancel
+                                                </button>
+                                                <button type="button" className="ln-btn-sm ln-btn-success" onClick={() => saveSection(editingSection)} disabled={saving}>
+                                                    <CheckCircle size={14} /> Save
+                                                </button>
+                                            </div>
+                                        ) : (
+                                            <div className="ln-menu-container" style={{ position: 'relative' }}>
+                                                <button type="button" className="ln-link-btn" style={{ padding: 4 }} onClick={() => setActiveMenu(activeMenu === 'workExp' ? null : 'workExp')}>
+                                                    <MoreVertical size={16} color="#64748b" />
+                                                </button>
+                                                {activeMenu === 'workExp' && (
+                                                    <div style={{ position: 'absolute', top: 28, right: 0, background: 'white', border: '1px solid #e2e8f0', borderRadius: 8, boxShadow: '0 10px 25px -5px rgba(0,0,0,0.15), 0 8px 10px -6px rgba(0,0,0,0.1)', zIndex: 100, padding: 6, minWidth: 140, animation: 'fadeInScale 0.15s ease-out', transformOrigin: 'top right' }}>
+                                                        <button type="button" style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', padding: '8px 12px', background: 'none', border: 'none', cursor: 'pointer', fontSize: 13, color: '#334155', textAlign: 'left' }} onClick={() => { setActiveMenu(null); setEditingSection('workExp'); }}>
+                                                            <Edit size={14} /> Edit
+                                                        </button>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        )
+                                    )}
+                                    {(editingSection === 'workExp') && <button type="button" className="ln-btn-sm ln-btn-primary" onClick={addWorkObj}><Plus size={12} /> Add</button>}
                                 </div>
                                 <div style={{ display: 'flex', flexDirection: 'column', gap: 16, padding: '0 16px 20px' }}>
-                                    {(editing ? workExperience : [...workExperience].sort((a, b) => {
+                                    {((editingSection === 'workExp') ? workExperience : [...workExperience].sort((a, b) => {
                                         const dateA = a.to === 'Present' || !a.to ? new Date() : new Date(a.to);
                                         const dateB = b.to === 'Present' || !b.to ? new Date() : new Date(b.to);
                                         return dateB - dateA;
@@ -3703,31 +4040,31 @@ export const TraineeProfileContent = ({ viewedProfileId = null, onBack = null, o
                                                         <div style={{ width: 40, height: 40, borderRadius: 8, background: '#f0f9ff', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1px solid #e0f2fe' }}>
                                                             <Briefcase size={20} color="#0369a1" />
                                                         </div>
-                                                        <h4 style={{ margin: 0, fontSize: 13, color: '#475569', fontWeight: 600 }}>{editing ? `Work Entry #${workExperience.length - i}` : 'Work Experience'}</h4>
+                                                        <h4 style={{ margin: 0, fontSize: 13, color: '#475569', fontWeight: 600 }}>{(editingSection === 'workExp') ? `Work Entry #${workExperience.length - i}` : 'Work Experience'}</h4>
                                                     </div>
-                                                    {editing && <button type="button" className="ln-link-btn" style={{ color: '#cc1016', fontSize: 12, padding: 0 }} onClick={(e) => { e.preventDefault(); showConfirm('Are you sure you want to remove this work experience?', () => removeWorkIdx(i)); }}><Trash2 size={13} /> Remove</button>}
+                                                    {(editingSection === 'workExp') && <button type="button" className="ln-link-btn" style={{ color: '#cc1016', fontSize: 12, padding: 0 }} onClick={(e) => { e.preventDefault(); showConfirm('Are you sure you want to remove this work experience?', () => removeWorkIdx(i)); }}><Trash2 size={13} /> Remove</button>}
                                                 </div>
                                                 <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
                                                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
                                                         <div className="ln-info-item" style={{ gridColumn: '1 / -1' }}>
-                                                            <label className="ln-info-label" style={{ fontWeight: 700 }}>Company / Organization{editing && <span style={{ color: '#cc1016', marginLeft: 4 }}>*</span>}</label>
-                                                            {editing ? <input type="text" required className="form-input" placeholder="e.g. Google, TESDA, Local Shop" maxLength={100} value={work.company || ''} onChange={e => updateWork(i, 'company', e.target.value)} /> : <div className="ln-info-value" style={{ fontSize: 15, fontWeight: 700, color: '#1e293b' }}>{work.company || '—'}</div>}
+                                                            <label className="ln-info-label" style={{ fontWeight: 700 }}>Company / Organization{(editingSection === 'workExp') && <span style={{ color: '#cc1016', marginLeft: 4 }}>*</span>}</label>
+                                                            {(editingSection === 'workExp') ? <input type="text" required className="form-input" placeholder="e.g. Google, TESDA, Local Shop" maxLength={100} value={work.company || ''} onChange={e => updateWork(i, 'company', e.target.value)} /> : <div className="ln-info-value" style={{ fontSize: 15, fontWeight: 700, color: '#1e293b' }}>{work.company || '—'}</div>}
                                                         </div>
                                                         <div className="ln-info-item" style={{ gridColumn: '1 / -1' }}>
-                                                            <label className="ln-info-label" style={{ fontWeight: 700 }}>Position / Role{editing && <span style={{ color: '#cc1016', marginLeft: 4 }}>*</span>}</label>
-                                                            {editing ? <input type="text" required className="form-input" placeholder="e.g. IT Technician, Admin Assistant" maxLength={50} value={work.position || ''} onChange={e => updateWork(i, 'position', e.target.value)} /> : <div className="ln-info-value" style={{ fontSize: 14, color: '#475569' }}>{work.position || '—'}</div>}
+                                                            <label className="ln-info-label" style={{ fontWeight: 700 }}>Position / Role{(editingSection === 'workExp') && <span style={{ color: '#cc1016', marginLeft: 4 }}>*</span>}</label>
+                                                            {(editingSection === 'workExp') ? <input type="text" required className="form-input" placeholder="e.g. IT Technician, Admin Assistant" maxLength={50} value={work.position || ''} onChange={e => updateWork(i, 'position', e.target.value)} /> : <div className="ln-info-value" style={{ fontSize: 14, color: '#475569' }}>{work.position || '—'}</div>}
                                                         </div>
                                                         <div className="ln-info-item">
-                                                            <label className="ln-info-label" style={{ fontWeight: 700 }}>Start Date{editing && <span style={{ color: '#cc1016', marginLeft: 4 }}>*</span>}</label>
-                                                            {editing ? <input type="date" required className="form-input" value={work.from || ''} onChange={e => updateWork(i, 'from', e.target.value)} /> : <div className="ln-info-value" style={{ fontSize: 13, color: '#64748b' }}>{work.from || '—'}</div>}
+                                                            <label className="ln-info-label" style={{ fontWeight: 700 }}>Start Date{(editingSection === 'workExp') && <span style={{ color: '#cc1016', marginLeft: 4 }}>*</span>}</label>
+                                                            {(editingSection === 'workExp') ? <input type="date" required className="form-input" value={work.from || ''} onChange={e => updateWork(i, 'from', e.target.value)} /> : <div className="ln-info-value" style={{ fontSize: 13, color: '#64748b' }}>{work.from || '—'}</div>}
                                                         </div>
                                                         <div className="ln-info-item">
-                                                            <label className="ln-info-label" style={{ fontWeight: 700 }}>End Date{editing && <span style={{ color: '#cc1016', marginLeft: 4 }}>*</span>}</label>
-                                                            {editing ? <input type="date" required className="form-input" value={work.to || ''} onChange={e => updateWork(i, 'to', e.target.value)} /> : <div className="ln-info-value" style={{ fontSize: 13, color: '#64748b' }}>{work.to || 'Present'}</div>}
+                                                            <label className="ln-info-label" style={{ fontWeight: 700 }}>End Date{(editingSection === 'workExp') && <span style={{ color: '#cc1016', marginLeft: 4 }}>*</span>}</label>
+                                                            {(editingSection === 'workExp') ? <input type="date" required className="form-input" value={work.to || ''} onChange={e => updateWork(i, 'to', e.target.value)} /> : <div className="ln-info-value" style={{ fontSize: 13, color: '#64748b' }}>{work.to || 'Present'}</div>}
                                                         </div>
                                                         <div className="ln-info-item" style={{ gridColumn: '1 / -1' }}>
                                                             <label className="ln-info-label" style={{ fontWeight: 700 }}>Description / Contributions</label>
-                                                            {editing ? (
+                                                            {(editingSection === 'workExp') ? (
                                                                 <textarea
                                                                     className="form-input"
                                                                     placeholder="Briefly describe your role, responsibilities, and achievements..."
@@ -3747,7 +4084,7 @@ export const TraineeProfileContent = ({ viewedProfileId = null, onBack = null, o
                                             </div>
                                         ))}
 
-                                    {!editing && workExperience.length > 1 && (
+                                    {!(editingSection === 'workExp') && workExperience.length > 1 && (
                                         <button
                                             type="button"
                                             className="ln-link-btn"
@@ -3757,7 +4094,7 @@ export const TraineeProfileContent = ({ viewedProfileId = null, onBack = null, o
                                             {showAllWork ? 'See Less' : `See More (${workExperience.length - 1} more)`}
                                         </button>
                                     )}
-                                    {!editing && workExperience.length === 0 && (
+                                    {!(editingSection === 'workExp') && workExperience.length === 0 && (
                                         <EmptyState
                                             illustration={BriefcaseIllustration}
                                             title="No work experience yet"
@@ -3776,14 +4113,39 @@ export const TraineeProfileContent = ({ viewedProfileId = null, onBack = null, o
                             <div className="ln-card">
                                 <div className="ln-section-header">
                                     <h3>TESDA Trainings and Certifications</h3>
-                                    {editing && <button type="button" className="ln-btn-sm ln-btn-primary" onClick={addTrainingObj}><Plus size={12} /> Add Program</button>}
+                                    {isOwnProfile && (!editingSection || editingSection === 'training') && (
+                                        editingSection === 'training' ? (
+                                            <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                                                <button type="button" className="ln-btn-sm" style={{ background: '#e2e8f0', color: '#475569' }} onClick={() => handleCancelEdit(editingSection)} disabled={saving}>
+                                                    <X size={14} /> Cancel
+                                                </button>
+                                                <button type="button" className="ln-btn-sm ln-btn-success" onClick={() => saveSection(editingSection)} disabled={saving}>
+                                                    <CheckCircle size={14} /> Save
+                                                </button>
+                                            </div>
+                                        ) : (
+                                            <div className="ln-menu-container" style={{ position: 'relative' }}>
+                                                <button type="button" className="ln-link-btn" style={{ padding: 4 }} onClick={() => setActiveMenu(activeMenu === 'training' ? null : 'training')}>
+                                                    <MoreVertical size={16} color="#64748b" />
+                                                </button>
+                                                {activeMenu === 'training' && (
+                                                    <div style={{ position: 'absolute', top: 28, right: 0, background: 'white', border: '1px solid #e2e8f0', borderRadius: 8, boxShadow: '0 10px 25px -5px rgba(0,0,0,0.15), 0 8px 10px -6px rgba(0,0,0,0.1)', zIndex: 100, padding: 6, minWidth: 140, animation: 'fadeInScale 0.15s ease-out', transformOrigin: 'top right' }}>
+                                                        <button type="button" style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', padding: '8px 12px', background: 'none', border: 'none', cursor: 'pointer', fontSize: 13, color: '#334155', textAlign: 'left' }} onClick={() => { setActiveMenu(null); setEditingSection('training'); }}>
+                                                            <Edit size={14} /> Edit
+                                                        </button>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        )
+                                    )}
+                                    {(editingSection === 'training') && <button type="button" className="ln-btn-sm ln-btn-primary" onClick={addTrainingObj}><Plus size={12} /> Add Program</button>}
                                 </div>
                                 <div style={{ padding: '0 20px 20px' }}>
                                     {/* Consolidated Programs List */}
                                     {trainings.map((t, i) => (
                                         <div key={i} style={{ padding: '12px 16px', background: '#f8fafc', borderRadius: 10, border: '1px solid #e2e8f0', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12, position: 'relative' }}>
                                             <div style={{ flex: 1, width: '100%' }}>
-                                                {editing ? (
+                                                {(editingSection === 'training') ? (
                                                     <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
                                                         <div style={{ display: 'grid', gridTemplateColumns: 'minmax(160px, 2fr) 100px 130px 90px', gap: 12 }}>
                                                             <div>
@@ -3894,10 +4256,10 @@ export const TraineeProfileContent = ({ viewedProfileId = null, onBack = null, o
                                                     </div>
                                                 )}
                                             </div>
-                                            {editing && <button type="button" onClick={() => removeTrainingIdx(i)} style={{ marginLeft: 16, background: 'none', border: 'none', color: '#cc1016', cursor: 'pointer', marginTop: 4 }}><Trash2 size={16} /></button>}
+                                            {(editingSection === 'training') && <button type="button" onClick={() => removeTrainingIdx(i)} style={{ marginLeft: 16, background: 'none', border: 'none', color: '#cc1016', cursor: 'pointer', marginTop: 4 }}><Trash2 size={16} /></button>}
                                         </div>
                                     ))}
-                                    {!editing && trainings.length === 0 && (
+                                    {!(editingSection === 'training') && trainings.length === 0 && (
                                         <EmptyState
                                             illustration={TrophyIllustration}
                                             title="No achievements yet"
@@ -3909,11 +4271,36 @@ export const TraineeProfileContent = ({ viewedProfileId = null, onBack = null, o
                             <div className="ln-card" style={{ marginTop: 16 }}>
                                 <div className="ln-section-header">
                                     <h3>Learner Profile / Assessment Details</h3>
+                                    {isOwnProfile && (!editingSection || editingSection === 'learner') && (
+                                        editingSection === 'learner' ? (
+                                            <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                                                <button type="button" className="ln-btn-sm" style={{ background: '#e2e8f0', color: '#475569' }} onClick={() => handleCancelEdit(editingSection)} disabled={saving}>
+                                                    <X size={14} /> Cancel
+                                                </button>
+                                                <button type="button" className="ln-btn-sm ln-btn-success" onClick={() => saveSection(editingSection)} disabled={saving}>
+                                                    <CheckCircle size={14} /> Save
+                                                </button>
+                                            </div>
+                                        ) : (
+                                            <div className="ln-menu-container" style={{ position: 'relative' }}>
+                                                <button type="button" className="ln-link-btn" style={{ padding: 4 }} onClick={() => setActiveMenu(activeMenu === 'learner' ? null : 'learner')}>
+                                                    <MoreVertical size={16} color="#64748b" />
+                                                </button>
+                                                {activeMenu === 'learner' && (
+                                                    <div style={{ position: 'absolute', top: 28, right: 0, background: 'white', border: '1px solid #e2e8f0', borderRadius: 8, boxShadow: '0 10px 25px -5px rgba(0,0,0,0.15), 0 8px 10px -6px rgba(0,0,0,0.1)', zIndex: 100, padding: 6, minWidth: 140, animation: 'fadeInScale 0.15s ease-out', transformOrigin: 'top right' }}>
+                                                        <button type="button" style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', padding: '8px 12px', background: 'none', border: 'none', cursor: 'pointer', fontSize: 13, color: '#334155', textAlign: 'left' }} onClick={() => { setActiveMenu(null); setEditingSection('learner'); }}>
+                                                            <Edit size={14} /> Edit
+                                                        </button>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        )
+                                    )}
                                 </div>
                                 <div style={{ padding: '0 20px 20px', display: 'flex', flexDirection: 'column', gap: 16 }}>
                                     <div style={{ padding: 16, borderRadius: 6, border: '1px solid #e2e8f0', background: '#f8fafc', boxShadow: '0 1px 2px rgba(15, 23, 42, 0.05)' }}>
                                         <div style={{ fontSize: 15, fontWeight: 800, color: '#1e3a5f', marginBottom: 12 }}>Language, Literacy, and Numeracy (LL&amp;N)</div>
-                                        {editing ? (
+                                        {(editingSection === 'learner') ? (
                                             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 12 }}>
                                                 {LLN_FIELDS.map(field => (
                                                     <div key={field.key}>
@@ -3941,7 +4328,7 @@ export const TraineeProfileContent = ({ viewedProfileId = null, onBack = null, o
 
                                     <div style={{ padding: 16, borderRadius: 6, border: '1px solid #e2e8f0', background: '#f8fafc', boxShadow: '0 1px 2px rgba(15, 23, 42, 0.05)' }}>
                                         <div style={{ fontSize: 15, fontWeight: 800, color: '#1e3a5f', marginBottom: 12 }}>Cultural and Language Background</div>
-                                        {editing ? (
+                                        {(editingSection === 'learner') ? (
                                             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 12 }}>
                                                 <div>
                                                     <label style={{ fontSize: 12, fontWeight: 700, color: '#334155', display: 'block', marginBottom: 6 }}>Ethnic Group</label>
@@ -4000,7 +4387,7 @@ export const TraineeProfileContent = ({ viewedProfileId = null, onBack = null, o
 
                                     <div style={{ padding: 16, borderRadius: 6, border: '1px solid #e2e8f0', background: '#f8fafc', boxShadow: '0 1px 2px rgba(15, 23, 42, 0.05)' }}>
                                         <div style={{ fontSize: 15, fontWeight: 800, color: '#1e3a5f', marginBottom: 12 }}>Education &amp; General Knowledge</div>
-                                        {editing ? (
+                                        {(editingSection === 'learner') ? (
                                             <div>
                                                 <label style={{ fontSize: 12, fontWeight: 700, color: '#334155', display: 'block', marginBottom: 6 }}>Highest Educational Attainment</label>
                                                 <select className="form-select" style={learnerFieldStyle} value={learnerProfile.highestEducation || ''} onChange={e => updateLearnerProfile('highestEducation', e.target.value)}>
@@ -4015,7 +4402,7 @@ export const TraineeProfileContent = ({ viewedProfileId = null, onBack = null, o
 
                                     <div style={{ padding: 16, borderRadius: 6, border: '1px solid #e2e8f0', background: '#f8fafc', boxShadow: '0 1px 2px rgba(15, 23, 42, 0.05)' }}>
                                         <div style={{ fontSize: 15, fontWeight: 800, color: '#1e3a5f', marginBottom: 12 }}>Demographics &amp; Health</div>
-                                        {editing ? (
+                                        {(editingSection === 'learner') ? (
                                             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 12 }}>
                                                 <LearnerSummaryCard label="Sex" value={form.gender || trainee?.gender || ''} />
                                                 <div>
@@ -4078,7 +4465,7 @@ export const TraineeProfileContent = ({ viewedProfileId = null, onBack = null, o
 
                                     <div style={{ padding: 16, borderRadius: 6, border: '1px solid #e2e8f0', background: '#f8fafc', boxShadow: '0 1px 2px rgba(15, 23, 42, 0.05)' }}>
                                         <div style={{ fontSize: 15, fontWeight: 800, color: '#1e3a5f', marginBottom: 12 }}>Learning &amp; Needs</div>
-                                        {editing ? (
+                                        {(editingSection === 'learner') ? (
                                             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 12 }}>
                                                 <div>
                                                     <label style={{ fontSize: 12, fontWeight: 700, color: '#334155', display: 'block', marginBottom: 6 }}>Learning Style</label>
@@ -4269,7 +4656,34 @@ export const TraineeProfileContent = ({ viewedProfileId = null, onBack = null, o
                         <div className="ln-skills-interests-row">
                             {/* Skills */}
                             <div className="ln-card">
-                                <div className="ln-section-header"><h3>Skills</h3></div>
+                                <div className="ln-section-header">
+                                    <h3>Skills</h3>
+                                    {isOwnProfile && (!editingSection || editingSection === 'skills') && (
+                                        editingSection === 'skills' ? (
+                                            <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                                                <button type="button" className="ln-btn-sm" style={{ background: '#e2e8f0', color: '#475569' }} onClick={() => handleCancelEdit(editingSection)} disabled={saving}>
+                                                    <X size={14} /> Cancel
+                                                </button>
+                                                <button type="button" className="ln-btn-sm ln-btn-success" onClick={() => saveSection('skills')} disabled={saving}>
+                                                    <CheckCircle size={14} /> Save
+                                                </button>
+                                            </div>
+                                        ) : (
+                                            <div className="ln-menu-container" style={{ position: 'relative' }}>
+                                                <button type="button" className="ln-link-btn" style={{ padding: 4 }} onClick={() => setActiveMenu(activeMenu === 'skills' ? null : 'skills')}>
+                                                    <MoreVertical size={16} color="#64748b" />
+                                                </button>
+                                                {activeMenu === 'skills' && (
+                                                    <div style={{ position: 'absolute', top: 28, right: 0, background: 'white', border: '1px solid #e2e8f0', borderRadius: 8, boxShadow: '0 10px 25px -5px rgba(0,0,0,0.15), 0 8px 10px -6px rgba(0,0,0,0.1)', zIndex: 100, padding: 6, minWidth: 140, animation: 'fadeInScale 0.15s ease-out', transformOrigin: 'top right' }}>
+                                                        <button type="button" style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', padding: '8px 12px', background: 'none', border: 'none', cursor: 'pointer', fontSize: 13, color: '#334155', textAlign: 'left' }} onClick={() => { setActiveMenu(null); setEditingSection('skills'); }}>
+                                                            <Edit size={14} /> Edit
+                                                        </button>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        )
+                                    )}
+                                </div>
                                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 12, padding: '0 16px' }}>
                                     {(form.skills || []).length > 0 ? (form.skills || []).map((skill, i) => (
                                         <span key={i} style={{
@@ -4278,7 +4692,7 @@ export const TraineeProfileContent = ({ viewedProfileId = null, onBack = null, o
                                             borderRadius: 20, fontSize: 13, fontWeight: 600
                                         }}>
                                             {typeof skill === 'string' ? skill : JSON.stringify(skill)}
-                                            {isOwnProfile && editing && <button type="button" onClick={() => removeSkill(skill)} style={{
+                                            {isOwnProfile && (editingSection === 'skills') && <button type="button" onClick={() => removeSkill(skill)} style={{
                                                 background: 'none', border: 'none', cursor: 'pointer',
                                                 padding: 0, display: 'flex', color: '#64748b'
                                             }}><X size={14} /></button>}
@@ -4293,7 +4707,7 @@ export const TraineeProfileContent = ({ viewedProfileId = null, onBack = null, o
                                         </div>
                                     )}
                                 </div>
-                                {isOwnProfile && editing && recommendationBubbles.skills.length > 0 && (
+                                {isOwnProfile && (editingSection === 'skills') && recommendationBubbles.skills.length > 0 && (
                                     <div style={{ padding: '0 16px 12px' }}>
                                         <div className="ln-info-label" style={{ marginBottom: 8 }}>Suggested Skills</div>
                                         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
@@ -4305,7 +4719,7 @@ export const TraineeProfileContent = ({ viewedProfileId = null, onBack = null, o
                                         </div>
                                     </div>
                                 )}
-                                {isOwnProfile && editing && (
+                                {isOwnProfile && (editingSection === 'skills') && (
                                     <div style={{ display: 'flex', gap: 8, padding: '0 16px 16px' }}>
                                         <input type="text" className="form-input" placeholder="Add a skill..." value={newSkill} onChange={e => setNewSkill(e.target.value)} maxLength={30} onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addSkill(); } }} style={{ flex: 1, fontSize: 13 }} />
                                         <button type="button" className="ln-btn-sm ln-btn-primary" onClick={addSkill} disabled={!newSkill.trim()}><Plus size={14} /></button>
@@ -4315,7 +4729,34 @@ export const TraineeProfileContent = ({ viewedProfileId = null, onBack = null, o
 
                             {/* Interests */}
                             <div className="ln-card">
-                                <div className="ln-section-header"><h3>Interests</h3></div>
+                                <div className="ln-section-header">
+                                    <h3>Interests</h3>
+                                    {isOwnProfile && (!editingSection || editingSection === 'interests') && (
+                                        editingSection === 'interests' ? (
+                                            <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                                                <button type="button" className="ln-btn-sm" style={{ background: '#e2e8f0', color: '#475569' }} onClick={() => handleCancelEdit(editingSection)} disabled={saving}>
+                                                    <X size={14} /> Cancel
+                                                </button>
+                                                <button type="button" className="ln-btn-sm ln-btn-success" onClick={() => saveSection('interests')} disabled={saving}>
+                                                    <CheckCircle size={14} /> Save
+                                                </button>
+                                            </div>
+                                        ) : (
+                                            <div className="ln-menu-container" style={{ position: 'relative' }}>
+                                                <button type="button" className="ln-link-btn" style={{ padding: 4 }} onClick={() => setActiveMenu(activeMenu === 'interests' ? null : 'interests')}>
+                                                    <MoreVertical size={16} color="#64748b" />
+                                                </button>
+                                                {activeMenu === 'interests' && (
+                                                    <div style={{ position: 'absolute', top: 28, right: 0, background: 'white', border: '1px solid #e2e8f0', borderRadius: 8, boxShadow: '0 10px 25px -5px rgba(0,0,0,0.15), 0 8px 10px -6px rgba(0,0,0,0.1)', zIndex: 100, padding: 6, minWidth: 140, animation: 'fadeInScale 0.15s ease-out', transformOrigin: 'top right' }}>
+                                                        <button type="button" style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', padding: '8px 12px', background: 'none', border: 'none', cursor: 'pointer', fontSize: 13, color: '#334155', textAlign: 'left' }} onClick={() => { setActiveMenu(null); setEditingSection('interests'); }}>
+                                                            <Edit size={14} /> Edit
+                                                        </button>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        )
+                                    )}
+                                </div>
                                 <div style={{
                                     display: 'flex', flexWrap: 'wrap', gap: 10, justifyContent: 'center', alignItems: 'center',
                                     padding: 20, margin: '0 16px 12px', background: '#f8fafc', borderRadius: 12, border: '1px solid #e2e8f0', minHeight: 80
@@ -4324,13 +4765,13 @@ export const TraineeProfileContent = ({ viewedProfileId = null, onBack = null, o
                                         const sizes = [14, 17, 20, 15, 18];
                                         const colors = ['#0a66c2', '#7c3aed', '#057642', '#b24020', '#1e3a5f'];
                                         return (
-                                            <span key={i} className="ln-interest-word" onClick={() => { if (isOwnProfile && editing) removeInterest(interest); }} style={{
+                                            <span key={i} className="ln-interest-word" onClick={() => { if (isOwnProfile && editingSection === 'interests') removeInterest(interest); }} style={{
                                                 display: 'inline-flex', alignItems: 'center',
                                                 fontSize: sizes[i % sizes.length],
                                                 fontWeight: 600 + (i % 3) * 100,
                                                 color: colors[i % colors.length],
                                                 padding: '4px 10px',
-                                                cursor: (isOwnProfile && editing) ? 'pointer' : 'default',
+                                                cursor: (isOwnProfile && editingSection === 'interests') ? 'pointer' : 'default',
                                             }}>
                                                 {interest}
                                             </span>
@@ -4345,7 +4786,7 @@ export const TraineeProfileContent = ({ viewedProfileId = null, onBack = null, o
                                         </div>
                                     )}
                                 </div>
-                                {isOwnProfile && editing && recommendationBubbles.interests.length > 0 && (
+                                {isOwnProfile && (editingSection === 'interests') && recommendationBubbles.interests.length > 0 && (
                                     <div style={{ padding: '0 16px 12px' }}>
                                         <div className="ln-info-label" style={{ marginBottom: 8 }}>Suggested Interests</div>
                                         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
@@ -4357,7 +4798,7 @@ export const TraineeProfileContent = ({ viewedProfileId = null, onBack = null, o
                                         </div>
                                     </div>
                                 )}
-                                {isOwnProfile && editing && (
+                                {isOwnProfile && (editingSection === 'interests') && (
                                     <div style={{ display: 'flex', gap: 8, padding: '0 16px 16px' }}>
                                         <input type="text" className="form-input" placeholder="Add an interest..." value={newInterest} onChange={e => setNewInterest(e.target.value)} maxLength={30} onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addInterest(); } }} style={{ flex: 1, fontSize: 13 }} />
                                         <button type="button" className="ln-btn-sm ln-btn-primary" onClick={addInterest} disabled={!newInterest.trim()}><Plus size={14} /></button>
@@ -4370,14 +4811,36 @@ export const TraineeProfileContent = ({ viewedProfileId = null, onBack = null, o
                         <div className="ln-card">
                             <div className="ln-section-header">
                                 <h3>Documents</h3>
-                                {isOwnProfile && editing && (
+                                {isOwnProfile && (!editingSection || editingSection === 'documents') && (
+                                    editingSection === 'documents' ? (
+                                        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                                            <button type="button" className="ln-btn-sm" style={{ background: '#e2e8f0', color: '#475569' }} onClick={() => { handleCancelEdit(editingSection); setShowUploadForm(false); }} disabled={saving}>
+                                                <X size={14} /> Done
+                                            </button>
+                                        </div>
+                                    ) : (
+                                        <div className="ln-menu-container" style={{ position: 'relative' }}>
+                                                <button type="button" className="ln-link-btn" style={{ padding: 4 }} onClick={() => setActiveMenu(activeMenu === 'documents' ? null : 'documents')}>
+                                                <MoreVertical size={16} color="#64748b" />
+                                            </button>
+                                            {activeMenu === 'documents' && (
+                                                <div style={{ position: 'absolute', top: 28, right: 0, background: 'white', border: '1px solid #e2e8f0', borderRadius: 8, boxShadow: '0 10px 25px -5px rgba(0,0,0,0.15), 0 8px 10px -6px rgba(0,0,0,0.1)', zIndex: 100, padding: 6, minWidth: 140, animation: 'fadeInScale 0.15s ease-out', transformOrigin: 'top right' }}>
+                                                    <button type="button" style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', padding: '8px 12px', background: 'none', border: 'none', cursor: 'pointer', fontSize: 13, color: '#334155', textAlign: 'left' }} onClick={() => { setActiveMenu(null); setEditingSection('documents'); }}>
+                                                        <Edit size={14} /> Edit
+                                                    </button>
+                                                </div>
+                                            )}
+                                        </div>
+                                    )
+                                )}
+                                {isOwnProfile && (editingSection === 'documents') && (
                                     <button type="button" className="ln-btn-sm ln-btn-primary" onClick={() => setShowUploadForm(!showUploadForm)}>
                                         {showUploadForm ? <><X size={12} /> Cancel</> : <><Plus size={12} /> Add</>}
                                     </button>
                                 )}
                             </div>
 
-                            {isOwnProfile && editing && showUploadForm && (
+                            {isOwnProfile && (editingSection === 'documents') && showUploadForm && (
                                 <div style={{ marginBottom: 16, padding: 16, background: '#f8fafc', borderRadius: 10, border: '1px solid #e2e8f0' }}>
                                     <div style={{ marginBottom: 10 }}>
                                         <label className="ln-info-label" style={{ marginBottom: 4, display: 'block' }}>Document Label <span style={{ color: '#cc1016' }}>*</span></label>
@@ -4412,7 +4875,7 @@ export const TraineeProfileContent = ({ viewedProfileId = null, onBack = null, o
                                                     <Eye size={12} />
                                                     <span style={{ marginLeft: 4 }}>View</span>
                                                 </a>
-                                                {isOwnProfile && editing && (
+                                                {isOwnProfile && (editingSection === 'documents') && (
                                                     <button
                                                         type="button"
                                                         className="ln-btn-sm ln-btn-outline"
@@ -4439,7 +4902,7 @@ export const TraineeProfileContent = ({ viewedProfileId = null, onBack = null, o
                             })()}
 
                             {/* Social & Portfolio Links - add form ONLY in edit mode */}
-                            {isOwnProfile && editing && (
+                            {isOwnProfile && (editingSection === 'documents') && (
                                 <div className="ln-social-links-edit">
                                     <div className="ln-social-links-header">
                                         <Link size={14} /> Social &amp; Portfolio Links
@@ -4510,8 +4973,8 @@ export const TraineeProfileContent = ({ viewedProfileId = null, onBack = null, o
 
                             {/* Social & Portfolio Links list - always visible when links exist */}
                             {(Array.isArray(documents) ? documents : []).filter(d => d.file_type === 'link').length > 0 && (
-                                <div className="ln-social-links-edit" style={editing ? {} : { borderTop: '1px solid #f1f5f9', marginTop: 12 }}>
-                                    {!editing && (
+                                <div className="ln-social-links-edit" style={(editingSection === 'learner') ? {} : { borderTop: '1px solid #f1f5f9', marginTop: 12 }}>
+                                    {!(editingSection === 'learner') && (
                                         <div className="ln-social-links-header">
                                             <Link size={14} /> Social &amp; Portfolio Links
                                         </div>
@@ -4532,7 +4995,7 @@ export const TraineeProfileContent = ({ viewedProfileId = null, onBack = null, o
                                                     <ExternalLink size={12} />
                                                     <span style={{ marginLeft: 4 }}>Open</span>
                                                 </a>
-                                                {isOwnProfile && editing && (
+                                                {isOwnProfile && (editingSection === 'learner') && (
                                                     <button
                                                         type="button"
                                                         className="ln-btn-sm ln-btn-outline"

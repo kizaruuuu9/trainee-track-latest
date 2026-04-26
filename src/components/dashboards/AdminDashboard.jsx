@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { useApp } from '../../context/AppContext';
 import { supabase } from '../../lib/supabase';
 import {
@@ -15,6 +15,8 @@ import {
 import { Routes, Route, useNavigate, useLocation, Navigate } from 'react-router-dom';
 import BrandLogo from '../common/BrandLogo';
 import TrainingBulletin from './TrainingBulletin';
+import NotificationsDropdown from '../common/NotificationsDropdown';
+import toast from 'react-hot-toast';
 
 // ─── SHARED: TABLE PAGINATION ──────────────────────────────────────
 const TablePagination = ({ currentPage, totalItems, pageSize, onPageChange }) => {
@@ -105,10 +107,27 @@ const timeAgo = (dateStr) => {
 
 // ─── LAYOUT ────────────────────────────────────────────────────────────────
 const AppLayout = ({ sidebar, children, pageTitle, pageSubtitle }) => {
-    const { currentUser, logout } = useApp();
+    const { currentUser, logout, notifications, lastSeenNotificationsAt, updateLastSeenNotificationsAt, confirmAction } = useApp();
     const [showProfile, setShowProfile] = useState(false);
     const [showNotif, setShowNotif] = useState(false);
     const [sidebarOpen, setSidebarOpen] = useState(false);
+    const notifRef = useRef(null);
+
+    const unreadNotifications = notifications?.filter(n => !n.read) || [];
+    const unseenCount = lastSeenNotificationsAt 
+        ? unreadNotifications.filter(n => new Date(n.created_at).getTime() > lastSeenNotificationsAt).length
+        : unreadNotifications.length;
+
+    useEffect(() => {
+        const handleClickOutside = (event) => {
+            if (notifRef.current && !notifRef.current.contains(event.target)) {
+                setShowNotif(false);
+            }
+        };
+        document.addEventListener('mousedown', handleClickOutside);
+        return () => document.removeEventListener('mousedown', handleClickOutside);
+    }, []);
+
     return (
         <div className="app-layout">
             {sidebarOpen && <div className="sidebar-overlay" onClick={() => setSidebarOpen(false)} />}
@@ -123,17 +142,21 @@ const AppLayout = ({ sidebar, children, pageTitle, pageSubtitle }) => {
                         </div>
                     </div>
                     <div className="header-actions">
-                        <div style={{ position: 'relative' }}>
-                            <button className="header-icon-btn" onClick={() => setShowNotif(!showNotif)}><Bell size={17} /><span className="notif-badge">5</span></button>
+                        <div style={{ position: 'relative' }} ref={notifRef}>
+                            <button 
+                                className="header-icon-btn" 
+                                onClick={() => {
+                                    setShowNotif(!showNotif);
+                                    if (!showNotif && unseenCount > 0) {
+                                        updateLastSeenNotificationsAt();
+                                    }
+                                }}
+                            >
+                                <Bell size={17} />
+                                {unseenCount > 0 && <span className="notif-badge">{unseenCount > 9 ? '9+' : unseenCount}</span>}
+                            </button>
                             {showNotif && (
-                                <div className="dropdown-menu" style={{ minWidth: 260 }}>
-                                    <div style={{ padding: '10px 14px', borderBottom: '1px solid #e2e8f0', fontWeight: 700, fontSize: 13 }}>Notifications</div>
-                                    {['New partner registration: PowerGrid Solutions', '3 trainees updated employment status', '2 new applications this week', 'Monthly report is ready'].map((n, i) => (
-                                        <div key={i} className="dropdown-item" style={{ fontSize: 12.5, alignItems: 'flex-start' }}>
-                                            <div style={{ width: 7, height: 7, borderRadius: '50%', background: '#3b82f6', marginTop: 4, flexShrink: 0, marginRight: 8 }} />{n}
-                                        </div>
-                                    ))}
-                                </div>
+                                <NotificationsDropdown onClose={() => setShowNotif(false)} />
                             )}
                         </div>
                         <div style={{ position: 'relative' }}>
@@ -352,9 +375,9 @@ const AdminHome = ({ setActivePage }) => {
     const stats = getEmploymentStats();
 
     // Export Handlers (Mock)
-    const handleExportReport = () => alert("Compiling full platform report into PDF...");
-    const handleExportCSV = () => alert("Exporting table data to CSV...");
-    const handleExportChart = (chartName) => alert(`Exporting ${chartName} as PNG...`);
+    const handleExportReport = () => toast.success("Compiling full platform report into PDF...");
+    const handleExportCSV = () => toast.success("Exporting table data to CSV...");
+    const handleExportChart = (chartName) => toast.success(`Exporting ${chartName} as PNG...`);
 
     // KPI Calculations
     const activePartners = partners.filter(p => p.verificationStatus === 'Verified').length;
@@ -624,7 +647,7 @@ const ManageTrainees = () => {
                                     <td><div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', minWidth: 180 }}>
                                         <button className="btn btn-outline btn-sm" onClick={() => setViewT(t)}><Eye size={12} /> View</button>
                                         <button className="btn btn-outline btn-sm" onClick={() => setEditT({ ...t })}><Edit size={12} /></button>
-                                        <button className="btn btn-danger btn-sm" onClick={() => { if (window.confirm('Delete trainee?')) deleteTrainee(t.id); }}><Trash2 size={12} /></button>
+                                        <button className="btn btn-danger btn-sm" onClick={() => { confirmAction({ message: 'Delete trainee?', onConfirm: () => deleteTrainee(t.id) }); }}><Trash2 size={12} /></button>
                                     </div></td>
                                 </tr>
                             ))}
@@ -1533,7 +1556,15 @@ const ManagePartners = () => {
                                     <div key={doc.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 0', borderBottom: '1px solid #f1f5f9' }}>
                                         <div>
                                             <div style={{ fontSize: 13, fontWeight: 600, color: '#1e293b' }}>{doc.label}</div>
-                                            <div style={{ fontSize: 11, color: '#94a3b8' }}>{doc.file_name} | {new Date(doc.uploaded_at).toLocaleDateString()}</div>
+                                            <div style={{ fontSize: 11, color: '#94a3b8', display: 'flex', alignItems: 'center', gap: 6 }}>
+                                                {doc.file_name}
+                                                {doc.file_type && doc.file_type.includes('(') && (
+                                                    <span style={{ color: '#16a34a', fontWeight: 600 }}>
+                                                        ({doc.file_type.split('(').pop().replace(')', '')})
+                                                    </span>
+                                                )}
+                                                | {new Date(doc.uploaded_at).toLocaleDateString()}
+                                            </div>
                                         </div>
                                         <a href={doc.file_url} target="_blank" rel="noopener noreferrer" className="btn btn-outline btn-sm" style={{ textDecoration: 'none' }}>
                                             <Eye size={12} /> View
@@ -1564,7 +1595,7 @@ const ManagePartners = () => {
                                     {canReject(viewPartner.verificationStatus) && (
                                         <button className="btn btn-danger" style={{ flex: 1 }} onClick={() => {
                                             const reason = getActionReason(viewPartner.id);
-                                            if (!reason) { alert('Please select a reject reason first.'); return; }
+                                            if (!reason) { toast.error('Please select a reject reason first.'); return; }
                                             rejectPartner(viewPartner.id, reason);
                                             setViewPartner(null);
                                         }}><XCircle size={15} /> Reject</button>
@@ -1771,8 +1802,8 @@ const Analytics = () => {
     const { trainees, posts,  partners, applications, getEmploymentStats } = useApp();
     const stats = getEmploymentStats();
 
-    const handleExportCSV = () => alert("Exporting metrics to CSV...");
-    const handleExportChart = (chartName) => alert(`Exporting ${chartName} as PNG...`);
+    const handleExportCSV = () => toast.success("Exporting metrics to CSV...");
+    const handleExportChart = (chartName) => toast.success(`Exporting ${chartName} as PNG...`);
 
     // Placement Funnel Logic
     const enrolled = trainees.length;
@@ -1980,7 +2011,7 @@ const AccountManagement = () => {
 
     const handleAccountStatusAction = (account, nextStatus) => {
         if (!getActionReason(account)) {
-            alert('Please select a reason before taking action.');
+            toast.error('Please select a reason before taking action.');
             return;
         }
         applyAccountAction(account, nextStatus);

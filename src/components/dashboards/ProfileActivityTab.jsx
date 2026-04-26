@@ -2,12 +2,14 @@ import React, { useState, useMemo } from 'react';
 import { useApp } from '../../context/AppContext';
 import { FeedItem, CreatePostTrigger, BULLETIN_CONFIG, UniversalPostModal } from './FeedComponents';
 import { supabase } from '../../lib/supabase';
+import toast from 'react-hot-toast';
 
 const ProfileActivityTab = ({ profileId, profileType, isOwnProfile }) => {
     const {
         posts, jobPostings, currentUser,
         createPost, updatePost, deletePost,
-        updatePartnerJobPosting, deleteJobPosting
+        updatePartnerJobPosting, deleteJobPosting,
+        uploadOptimizedImage
     } = useApp();
 
     const [postMenuId, setPostMenuId] = useState(null);
@@ -58,12 +60,9 @@ const ProfileActivityTab = ({ profileId, profileType, isOwnProfile }) => {
         if (postData.file) {
             try {
                 const path = `post-media/${currentUser.id}/${Date.now()}_${postData.file.name}`;
-                const { error: uploadErr } = await supabase.storage
-                    .from('registration-uploads')
-                    .upload(path, postData.file, { contentType: postData.file.type });
-                if (uploadErr) throw uploadErr;
-                const { data: urlData } = supabase.storage.from('registration-uploads').getPublicUrl(path);
-                finalMediaUrl = urlData?.publicUrl;
+                const res = await uploadOptimizedImage('registration-uploads', path, postData.file);
+                if (!res.success) throw new Error(res.error);
+                finalMediaUrl = res.url;
             } catch (err) {
                 console.error('Upload error:', err);
                 return { success: false, error: 'Failed to upload media: ' + err.message };
@@ -86,7 +85,7 @@ const ProfileActivityTab = ({ profileId, profileType, isOwnProfile }) => {
         }
 
         if (!res.success) {
-            alert(res.error || 'Failed to save post');
+            toast.error(res.error || 'Failed to save post');
         }
         return res;
     };
@@ -100,7 +99,7 @@ const ProfileActivityTab = ({ profileId, profileType, isOwnProfile }) => {
             res = await deletePost(postId);
         }
 
-        if (!res.success) alert(res.error || 'Failed to delete post');
+        if (!res.success) toast.error(res.error || 'Failed to delete post');
     };
 
     if (!isOwnProfile) return null;
@@ -132,7 +131,7 @@ const ProfileActivityTab = ({ profileId, profileType, isOwnProfile }) => {
                             onSave={() => { }}
                             onApply={(job, type) => {
                                 if (type === 'applicants') {
-                                    alert('Navigating to applicants view...');
+                                    toast.success('Navigating to applicants view...');
                                 }
                             }}
                             onComment={() => { }}

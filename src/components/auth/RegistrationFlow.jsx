@@ -12,58 +12,23 @@ const STEPS = [
   { number: 2, label: 'Verification' },
 ];
 
-const REG_UPLOAD_MAX_DIMENSION = 1280;
-const REG_UPLOAD_QUALITY = 0.75;
+    // Local utilities for registration flow
+    const isHttpUrl = (value = '') => /^https?:\/\//i.test(String(value || '').trim());
 
-const isHttpUrl = (value = '') => /^https?:\/\//i.test(String(value || '').trim());
+    const dataUrlToBlob = async (dataUrl) => {
+      const response = await fetch(dataUrl);
+      return response.blob();
+    };
 
-const dataUrlToBlob = async (dataUrl) => {
-  const response = await fetch(dataUrl);
-  return response.blob();
-};
-
-const blobToDataUrl = (blob) => new Promise((resolve, reject) => {
-  const reader = new FileReader();
-  reader.onload = () => resolve(reader.result);
-  reader.onerror = reject;
-  reader.readAsDataURL(blob);
-});
-
-const compressImageDataUrl = async (dataUrl) => {
-  if (!String(dataUrl || '').startsWith('data:image/')) {
-    return dataUrl;
-  }
-
-  const sourceBlob = await dataUrlToBlob(dataUrl);
-  const sourceUrl = URL.createObjectURL(sourceBlob);
-
-  try {
-    const image = await new Promise((resolve, reject) => {
-      const img = new window.Image();
-      img.onload = () => resolve(img);
-      img.onerror = reject;
-      img.src = sourceUrl;
+    const blobToDataUrl = (blob) => new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result);
+      reader.onerror = reject;
+      reader.readAsDataURL(blob);
     });
 
-    const ratio = Math.min(1, REG_UPLOAD_MAX_DIMENSION / Math.max(image.width || 1, image.height || 1));
-    const width = Math.max(1, Math.round((image.width || 1) * ratio));
-    const height = Math.max(1, Math.round((image.height || 1) * ratio));
-
-    const canvas = document.createElement('canvas');
-    canvas.width = width;
-    canvas.height = height;
-    const context = canvas.getContext('2d');
-    context.drawImage(image, 0, 0, width, height);
-
-    const compressedDataUrl = canvas.toDataURL('image/jpeg', REG_UPLOAD_QUALITY);
-    return compressedDataUrl;
-  } finally {
-    URL.revokeObjectURL(sourceUrl);
-  }
-};
-
 export default function RegistrationFlow({ onBackToLogin }) {
-  const { industries: industriesFromCtx } = useApp();
+  const { industries: industriesFromCtx, uploadOptimizedImage, compressImage } = useApp();
 
   const FALLBACK_INDUSTRIES = [
     'Agriculture & Forestry',
@@ -152,37 +117,33 @@ export default function RegistrationFlow({ onBackToLogin }) {
     }
 
     let optimizedDataUrl = value;
+    let imageBlob = null;
+    
     try {
-      optimizedDataUrl = await compressImageDataUrl(value);
-    } catch (compressionError) {
-      console.warn('Image compression failed, using original image payload.', compressionError);
-    }
+      // 1. Convert to Blob if it's base64
+      imageBlob = await dataUrlToBlob(value);
+      
+      // 2. Upload using optimized utility
+      const path = `${folder}/pre-register/${Date.now()}_${Math.random().toString(36).slice(2)}_${suffix}.webp`;
+      const res = await uploadOptimizedImage('registration-uploads', path, imageBlob);
 
-    try {
-      const optimizedBlob = await dataUrlToBlob(optimizedDataUrl);
-      const path = `${folder}/pre-register/${Date.now()}_${Math.random().toString(36).slice(2)}_${suffix}.jpg`;
-      const { error: uploadError } = await supabase.storage
-        .from('registration-uploads')
-        .upload(path, optimizedBlob, { contentType: 'image/jpeg', upsert: true });
-
-      if (uploadError) {
-        throw uploadError;
-      }
-
-      const { data: urlData } = supabase.storage.from('registration-uploads').getPublicUrl(path);
-      if (urlData?.publicUrl) {
-        return { uploadedUrl: urlData.publicUrl, fallbackBase64: null };
+      if (res.success) {
+        return { uploadedUrl: res.url, fallbackBase64: null };
+      } else {
+        throw new Error(res.error);
       }
     } catch (uploadError) {
       console.warn('Direct image upload failed; falling back to compact base64 payload.', uploadError);
-    }
-
-    try {
-      const optimizedBlob = await dataUrlToBlob(optimizedDataUrl);
-      const fallbackDataUrl = await blobToDataUrl(optimizedBlob);
-      return { uploadedUrl: null, fallbackBase64: fallbackDataUrl };
-    } catch {
-      return { uploadedUrl: null, fallbackBase64: optimizedDataUrl };
+      
+      // Fallback: Still compress it before sending base64 to server
+      try {
+        const sourceFile = imageBlob || await dataUrlToBlob(value);
+        const compressedBlob = await compressImage(sourceFile);
+        const fallbackDataUrl = await blobToDataUrl(compressedBlob);
+        return { uploadedUrl: null, fallbackBase64: fallbackDataUrl };
+      } catch (compressionError) {
+        return { uploadedUrl: null, fallbackBase64: value };
+      }
     }
   };
 

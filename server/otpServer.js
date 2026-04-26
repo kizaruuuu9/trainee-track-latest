@@ -197,6 +197,73 @@ app.post('/api/send-otp', rateLimit, async (req, res) => {
     }
 });
 
+// Send Notification Email Endpoint
+app.post('/api/send-notification-email', rateLimit, async (req, res) => {
+    const { userId, type, text, metadata } = req.body;
+    
+    if (!userId || !text) {
+        return res.status(400).json({ error: 'Missing required fields: userId and text' });
+    }
+
+    if (!process.env.GMAIL_USER || !process.env.GMAIL_PASS) {
+        return res.status(500).json({ error: 'Server misconfiguration: Gmail credentials not set' });
+    }
+
+    try {
+        // 1. Fetch user's registered email directly from Supabase Auth
+        // This is highly secure as the client never sees other users' emails
+        const { data: { user }, error: userErr } = await supabaseAdmin.auth.admin.getUserById(userId);
+        
+        if (userErr || !user?.email) {
+            console.error('[send-notification-email] Could not find email for user:', userId);
+            return res.status(404).json({ error: 'User email not found.' });
+        }
+        
+        const email = user.email;
+
+        // 2. Determine Call To Action link based on metadata
+        const appUrl = process.env.VITE_APP_URL || 'http://localhost:5173';
+        const targetPath = metadata?.target ? (metadata.target.startsWith('/') ? metadata.target : `/${metadata.target}`) : '';
+        const ctaLink = targetPath ? `${appUrl}${targetPath}` : appUrl;
+
+        // 3. Render HTML Email Template
+        const htmlBody = `
+        <div style="font-family: 'Inter', Arial, sans-serif; max-width: 600px; margin: 0 auto; background-color: #ffffff; border: 1px solid #e2e8f0; border-radius: 12px; overflow: hidden; color: #334155;">
+            <div style="background: linear-gradient(135deg, #1e3a5f, #0a66c2); padding: 24px; text-align: center;">
+                <h1 style="color: #ffffff; margin: 0; font-size: 24px; font-weight: 700; letter-spacing: -0.5px;">TraineeTrack</h1>
+            </div>
+            <div style="padding: 32px 24px;">
+                <p style="font-size: 15px; line-height: 1.6; margin-top: 0;">You have a new activity on TraineeTrack:</p>
+                <div style="background-color: #f8fafc; border-left: 4px solid #0a66c2; padding: 16px 20px; border-radius: 4px; margin: 24px 0;">
+                    <p style="font-size: 16px; font-weight: 600; color: #0f172a; margin: 0;">${text}</p>
+                </div>
+                ${targetPath ? `
+                <div style="text-align: center; margin-top: 32px;">
+                    <a href="${ctaLink}" style="display: inline-block; background-color: #0a66c2; color: #ffffff; text-decoration: none; font-size: 14px; font-weight: 600; padding: 12px 24px; border-radius: 6px;">View Details</a>
+                </div>
+                ` : ''}
+            </div>
+            <div style="background-color: #f1f5f9; padding: 16px; text-align: center; font-size: 12px; color: #64748b;">
+                <p style="margin: 0;">This email was sent automatically by TraineeTrack. Please do not reply.</p>
+                <p style="margin: 8px 0 0;">&copy; ${new Date().getFullYear()} TraineeTrack. All rights reserved.</p>
+            </div>
+        </div>
+        `;
+
+        await transporter.sendMail({
+            from: process.env.GMAIL_USER,
+            to: email,
+            subject: 'New Notification - TraineeTrack',
+            html: htmlBody
+        });
+
+        res.json({ success: true });
+    } catch (error) {
+        console.error('[send-notification-email] Error:', error);
+        res.status(500).json({ error: 'Failed to send notification email.' });
+    }
+});
+
 // Admin Data Endpoint (Bypass RLS for Admin Dashboard)
 app.get('/api/admin/data', adminLimiter, async (req, res) => {
     try {

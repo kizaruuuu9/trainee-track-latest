@@ -5,6 +5,7 @@ import {
 import * as Tesseract from 'tesseract.js';
 import { supabase } from '../../lib/supabase';
 import { validateIDCard } from '../../utils/idCardValidator';
+import toast from 'react-hot-toast';
 
 const ACCEPTED_TYPES = ['image/png', 'image/jpeg', 'image/jpg'];
 
@@ -374,7 +375,7 @@ export default function Step1IDUpload({ data, onChange, onValidChange }) {
     const handleFile = (file, side) => {
         if (!file) return;
         if (!ACCEPTED_TYPES.includes(file.type)) {
-            alert('Please upload PNG, JPG, or JPEG files only.');
+            toast.error('Please upload PNG, JPG, or JPEG files only.');
             return;
         }
         const reader = new FileReader();

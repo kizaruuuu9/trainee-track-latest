@@ -5,6 +5,16 @@ import {
   MessageSquare, Bookmark, Send, Trash2, Edit, Mail, Info, ChevronRight, Eye
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
+import toast from 'react-hot-toast';
+
+// --- FILE SIZE HELPER ---
+const formatFileSize = (bytes) => {
+  if (!bytes || bytes === 0) return '0 Bytes';
+  const k = 1024;
+  const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
+};
 
 // --- HELPERS (Copied from dashboards) ---
 export const timeAgo = (dateStr) => {
@@ -264,6 +274,9 @@ export const UniversalPostModal = ({
         {filePreview && (
           <div style={{ position: 'relative', marginBottom: 20, borderRadius: 8, overflow: 'hidden', border: '1px solid #e4e6eb' }}>
             <img src={filePreview} alt="Preview" style={{ width: '100%', display: 'block' }} />
+            <div style={{ position: 'absolute', bottom: 8, left: 8, background: 'rgba(0,0,0,0.6)', color: '#fff', padding: '2px 8px', borderRadius: 4, fontSize: 11, fontWeight: 600 }}>
+              {selectedFile ? formatFileSize(selectedFile.size) : 'Uploaded'}
+            </div>
             <button
               style={{ position: 'absolute', top: 8, right: 8, background: 'rgba(0,0,0,0.5)', color: '#fff', border: 'none', borderRadius: '50%', width: 28, height: 28, cursor: 'pointer' }}
               onClick={() => { setSelectedFile(null); setFilePreview(null); }}
@@ -277,7 +290,10 @@ export const UniversalPostModal = ({
           <div style={{ marginBottom: 20, padding: '12px', background: '#f0f2f5', borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
               <FileText size={20} color="#65676b" />
-              <span style={{ fontSize: 14, fontWeight: 500 }}>{selectedFile.name}</span>
+              <div>
+                <div style={{ fontSize: 14, fontWeight: 500 }}>{selectedFile.name}</div>
+                <div style={{ fontSize: 12, color: '#65676b' }}>{formatFileSize(selectedFile.size)}</div>
+              </div>
             </div>
             <X size={18} color="#65676b" cursor="pointer" onClick={() => setSelectedFile(null)} />
           </div>
@@ -421,6 +437,9 @@ export const UniversalPostModal = ({
           {filePreview && (
             <div style={{ position: 'relative', marginTop: 16, borderRadius: 10, overflow: 'hidden', border: '1px solid #f0f2f5' }}>
               <img src={filePreview} alt="Preview" style={{ width: '100%', display: 'block' }} />
+              <div style={{ position: 'absolute', bottom: 8, left: 8, background: 'rgba(0,0,0,0.6)', color: '#fff', padding: '2px 8px', borderRadius: 4, fontSize: 11, fontWeight: 600 }}>
+                {selectedFile ? formatFileSize(selectedFile.size) : 'Uploaded'}
+              </div>
               <button
                 style={{ position: 'absolute', top: 8, right: 8, background: 'rgba(0,0,0,0.5)', color: '#fff', border: 'none', borderRadius: '50%', width: 24, height: 24, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
                 onClick={() => { setSelectedFile(null); setFilePreview(null); }}
@@ -434,7 +453,10 @@ export const UniversalPostModal = ({
             <div style={{ marginTop: 12, padding: '8px 12px', background: '#f8fafc', borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'space-between', border: '1px solid #e2e8f0' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                 <FileText size={16} color="#65676b" />
-                <span style={{ fontSize: 12, fontWeight: 500 }}>{selectedFile.name}</span>
+                <div>
+                  <div style={{ fontSize: 12, fontWeight: 500 }}>{selectedFile.name}</div>
+                  <div style={{ fontSize: 10, color: '#65676b' }}>{formatFileSize(selectedFile.size)}</div>
+                </div>
               </div>
               <X size={14} color="#65676b" cursor="pointer" onClick={() => setSelectedFile(null)} />
             </div>
@@ -510,7 +532,7 @@ export const FeedItemDetailModal = ({ item, onClose, onApply, onSave, onInquire,
     setIsSubmittingComment(true);
     const res = isJob ? await addJobPostingComment(item.id, newComment) : await addPostComment(item.id, newComment);
     if (res.success) setNewComment('');
-    else alert(res.error || 'Comment failed');
+    else toast.error(res.error || 'Comment failed');
     setIsSubmittingComment(false);
   };
 
@@ -560,11 +582,25 @@ export const FeedItemDetailModal = ({ item, onClose, onApply, onSave, onInquire,
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
+              position: 'relative',
               ...(imageOrientation === 'portrait' 
                 ? { width: '100%', maxWidth: 500, height: 600, margin: '0 auto 24px' } 
                 : { width: '100%', height: 480 })
             }}>
               <img src={item.media_url || item.attachmentUrl} alt="" style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain', display: 'block' }} />
+              {item.attachmentType && item.attachmentType.includes('(') && (
+                <div style={{
+                  position: 'absolute', bottom: 16, right: 16,
+                  background: 'rgba(15, 23, 42, 0.7)', color: '#fff',
+                  fontSize: 12, padding: '4px 12px', borderRadius: 20,
+                  fontWeight: 600, backdropFilter: 'blur(4px)',
+                  display: 'flex', alignItems: 'center', gap: 6,
+                  border: '1px solid rgba(255,255,255,0.1)'
+                }}>
+                  <ShieldCheck size={14} color="#22c55e" />
+                  Optimized: {item.attachmentType.split('(').pop().replace(')', '')}
+                </div>
+              )}
             </div>
           )}
 
@@ -709,7 +745,7 @@ export const FeedItem = ({
     if (res?.success) {
       setNewComment('');
     } else {
-      alert(res?.error || 'Failed to post comment');
+      toast.error(res?.error || 'Failed to post comment');
     }
     setIsSubmittingComment(false);
   };
@@ -941,7 +977,18 @@ export const FeedItem = ({
           ? { backgroundImage: `url(${card.coverImage})` }
           : { backgroundColor: card.coverColor }
         }
-      />
+      >
+        {item.attachmentType && item.attachmentType.includes('(') && (
+          <div style={{
+            position: 'absolute', bottom: 8, right: 8,
+            background: 'rgba(0,0,0,0.4)', color: '#fff',
+            fontSize: 10, padding: '2px 6px', borderRadius: 4,
+            fontWeight: 700, backdropFilter: 'blur(2px)'
+          }}>
+            {item.attachmentType.split('(').pop().replace(')', '')}
+          </div>
+        )}
+      </div>
 
       {/* Icon overlapping cover */}
       <div

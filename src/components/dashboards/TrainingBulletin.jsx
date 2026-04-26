@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import toast from 'react-hot-toast';
 import { useApp } from '../../context/AppContext';
 import {
     Plus, Eye, Edit, Trash2, X, CheckCircle, XCircle, Clock,
@@ -477,11 +478,9 @@ const InteractionBadge = ({ status }) => {
 
 // ─── MAIN COMPONENT ───────────────────────────────────────────────────────────
 export default function TrainingBulletin() {
-    const {
-        posts, createPost, adminUpdatePost, adminDeletePost,
+    const { posts, createPost, adminUpdatePost, adminDeletePost,
         postInteractions, fetchPostInteractions, updatePostInteractionStatus, getPostInteractions,
-        currentUser, fetchPosts, trainees, partners, programs
-    } = useApp();
+        currentUser, fetchPosts, trainees, partners, programs, confirmAction } = useApp();
 
     const [showForm, setShowForm] = useState(false);
     const [editPost, setEditPost] = useState(null);
@@ -551,7 +550,7 @@ export default function TrainingBulletin() {
             setShowForm(false);
             setEditPost(null);
         } else {
-            alert(res.error || 'Failed to save post.');
+            toast.error(res.error || 'Failed to save post.');
         }
     };
 
@@ -562,7 +561,7 @@ export default function TrainingBulletin() {
             showToast('Post deleted.');
             if (selectedPost?.id === postId) setSelectedPost(null);
         } else {
-            alert(res.error || 'Failed to delete post.');
+            toast.error(res.error || 'Failed to delete post.');
         }
     };
 
