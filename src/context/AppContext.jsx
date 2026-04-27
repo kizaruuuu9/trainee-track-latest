@@ -2192,11 +2192,16 @@ export const AppProvider = ({ children }) => {
     return { success: true };
   };
 
-  const updateApplicationStatus = async (applicationId, statusInput, notes = null) => {
+  const updateApplicationStatus = async (applicationId, statusInput, notes = null, metadata = {}) => {
     const normalizeStatus = (s) => {
       const raw = String(s || '').trim().toLowerCase();
       if (!raw || raw === 'received') return 'Pending';
       if (raw === 'interview scheduled') return 'Interview Scheduled';
+      if (raw === 'interview requested') return 'Interview Requested';
+      if (raw === 'interview confirmed') return 'Interview Confirmed';
+      if (raw === 'interview declined') return 'Interview Declined';
+      if (raw === 'reschedule requested') return 'Reschedule Requested';
+      if (raw === 'shortlisted') return 'Shortlisted';
       return raw.charAt(0).toUpperCase() + raw.slice(1);
     };
     const status = normalizeStatus(statusInput);
@@ -2218,7 +2223,12 @@ export const AppProvider = ({ children }) => {
       for (const table of candidateTables) {
         const { data, error } = await supabase
           .from(table)
-          .update({ status: status.toLowerCase(), notes, reviewed_at: new Date().toISOString() })
+          .update({ 
+            status: status.toLowerCase(), 
+            notes, 
+            reviewed_at: new Date().toISOString(),
+            proposed_interview_date: metadata?.proposedInterviewDate || metadata?.proposed_interview_date || null
+          })
           .eq('id', applicationId)
           .select();
 
@@ -2280,10 +2290,10 @@ export const AppProvider = ({ children }) => {
     }
 
     setApplications(prev => prev.map(a =>
-      String(a.id) === String(applicationId) ? { ...a, status, notes, reviewedAt } : a
+      String(a.id) === String(applicationId) ? { ...a, status, notes, reviewedAt, proposedInterviewDate: metadata?.proposedInterviewDate || metadata?.proposed_interview_date || a.proposedInterviewDate } : a
     ));
     setContactRequests(prev => prev.map(r =>
-      String(r.id) === String(applicationId) ? { ...r, status, notes, reviewed_at: reviewedAt } : r
+      String(r.id) === String(applicationId) ? { ...r, status, notes, reviewed_at: reviewedAt, proposedInterviewDate: metadata?.proposedInterviewDate || metadata?.proposed_interview_date || r.proposedInterviewDate } : r
     ));
     logActivity('Status Change', 'Recruitment', `Record #${applicationId} status changed`, prevStatus, status);
 

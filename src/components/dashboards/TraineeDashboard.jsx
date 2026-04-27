@@ -3196,6 +3196,13 @@ export const TraineeProfileContent = ({ viewedProfileId = null, onBack = null, o
                 setInterestsList(trainee?.interests || []);
                 break;
             case 'documents':
+                setDocLabel('');
+                setDocFile(null);
+                break;
+            case 'links':
+                setLinkTitle('');
+                setDocLinkUrl('');
+                setUrlValidation(prev => ({ ...prev, social: null }));
                 break;
             default:
                 break;
@@ -3203,7 +3210,7 @@ export const TraineeProfileContent = ({ viewedProfileId = null, onBack = null, o
         setEditingSection(null);
     };
 
-    const SECTION_LABELS = { summary: 'Professional Summary', personalInfo: 'Personal Information', educHistory: 'Educational History', workExp: 'Work Experience', training: 'Training & Certifications', learner: 'Learner Profile', skills: 'Skills', interests: 'Interests', documents: 'Documents' };
+    const SECTION_LABELS = { summary: 'Professional Summary', personalInfo: 'Personal Information', educHistory: 'Educational History', workExp: 'Work Experience', training: 'Training & Certifications', learner: 'Learner Profile', skills: 'Skills', interests: 'Interests', documents: 'Documents', links: 'Social & Portfolio Links' };
 
     const saveSection = async (sectionName) => {
         if (!isOwnProfile) return;
@@ -3305,11 +3312,12 @@ export const TraineeProfileContent = ({ viewedProfileId = null, onBack = null, o
                     payload = { interests: interestsList };
                     break;
                 case 'documents':
-                    // Documents are saved via upload/delete directly, no profile payload needed
+                case 'links':
+                    // Documents and Links are saved via upload/delete directly, no profile payload needed
                     setEditingSection(null);
                     setActiveMenu(null);
                     setSaving(false);
-                    toast.success('Documents section closed.');
+                    toast.success(`${SECTION_LABELS[sectionName]} updated.`);
                     return;
                 default:
                     break;
@@ -3433,7 +3441,6 @@ export const TraineeProfileContent = ({ viewedProfileId = null, onBack = null, o
                     setDocuments(prev => Array.isArray(prev) ? [result.document, ...prev] : [result.document]);
                     setDocLabel('');
                     setDocFile(null);
-                    setShowUploadForm(false);
                     if (fileInputRef.current) fileInputRef.current.value = '';
                 } else {
                     toast.error(result.error || 'Upload failed.');
@@ -3446,6 +3453,39 @@ export const TraineeProfileContent = ({ viewedProfileId = null, onBack = null, o
             toast.error('Failed to upload document.');
             setUploading(false);
         }
+    };
+
+    const handleAddLink = async () => {
+        if (!isOwnProfile) return;
+        if (!linkTitle.trim() || !docLinkUrl.trim()) return;
+        setUploading(true);
+        try {
+            const res = await fetch(`/api/documents/upload`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    traineeId: trainee.id,
+                    label: linkTitle.trim(),
+                    fileName: 'Link',
+                    fileType: 'link',
+                    fileData: /^https?:\/\//i.test(docLinkUrl.trim()) ? docLinkUrl.trim() : `https://${docLinkUrl.trim()}`,
+                    category: 'link'
+                }),
+            });
+            const result = await res.json();
+            if (result.success) {
+                setDocuments(prev => Array.isArray(prev) ? [result.document, ...prev] : [result.document]);
+                setLinkTitle('');
+                setDocLinkUrl('');
+                toast.success('Link added successfully.');
+            } else {
+                toast.error(result.error || 'Failed to add link');
+            }
+        } catch (err) {
+            console.error('Link upload error:', err);
+            toast.error('Error connecting to server');
+        }
+        setUploading(false);
     };
 
     const deleteDoc = async (docId) => {
@@ -4966,16 +5006,13 @@ export const TraineeProfileContent = ({ viewedProfileId = null, onBack = null, o
                                 {isOwnProfile && (!editingSection || editingSection === 'documents') && (
                                     editingSection === 'documents' ? (
                                         <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                                            <button type="button" className="ln-btn-sm" style={{ background: '#e2e8f0', color: '#475569' }} onClick={() => { handleCancelEdit(editingSection); setShowUploadForm(false); }} disabled={saving}>
-                                                <X size={14} /> Cancel
-                                            </button>
-                                            <button type="button" className="ln-btn-sm ln-btn-success" onClick={() => { setEditingSection(null); setShowUploadForm(false); }} disabled={saving}>
-                                                <CheckCircle size={14} /> Save
+                                            <button type="button" className="ln-btn-sm ln-btn-success" onClick={() => saveSection('documents')} disabled={saving}>
+                                                <CheckCircle size={14} /> Done
                                             </button>
                                         </div>
                                     ) : (
                                         <div className="ln-menu-container" style={{ position: 'relative' }}>
-                                                <button type="button" className="ln-link-btn" style={{ padding: 4 }} onClick={() => setActiveMenu(activeMenu === 'documents' ? null : 'documents')}>
+                                            <button type="button" className="ln-link-btn" style={{ padding: 4 }} onClick={() => setActiveMenu(activeMenu === 'documents' ? null : 'documents')}>
                                                 <MoreVertical size={16} color="#64748b" />
                                             </button>
                                             {activeMenu === 'documents' && (
@@ -4988,14 +5025,10 @@ export const TraineeProfileContent = ({ viewedProfileId = null, onBack = null, o
                                         </div>
                                     )
                                 )}
-                                {isOwnProfile && (editingSection === 'documents') && (
-                                    <button type="button" className="ln-btn-sm ln-btn-primary" onClick={() => setShowUploadForm(!showUploadForm)}>
-                                        {showUploadForm ? <><X size={12} /> Cancel</> : <><Plus size={12} /> Add</>}
-                                    </button>
-                                )}
                             </div>
 
-                            {isOwnProfile && (editingSection === 'documents') && showUploadForm && (
+                            {/* Document Upload Form - always visible in edit mode */}
+                            {isOwnProfile && (editingSection === 'documents') && (
                                 <div style={{ marginBottom: 16, padding: 16, background: '#f8fafc', borderRadius: 10, border: '1px solid #e2e8f0' }}>
                                     <div style={{ marginBottom: 10 }}>
                                         <label className="ln-info-label" style={{ marginBottom: 4, display: 'block' }}>Document Label <span style={{ color: '#cc1016' }}>*</span></label>
@@ -5005,7 +5038,7 @@ export const TraineeProfileContent = ({ viewedProfileId = null, onBack = null, o
                                         <label className="ln-info-label" style={{ marginBottom: 4, display: 'block' }}>File (PDF, DOC, DOCX only) <span style={{ color: '#cc1016' }}>*</span></label>
                                         <input ref={fileInputRef} type="file" required accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document" onChange={e => setDocFile(e.target.files[0] || null)} style={{ fontSize: 13 }} />
                                     </div>
-                                    <button type="button" className="ln-btn-sm ln-btn-success" onClick={handleDocUpload} disabled={uploading || !docFile || !docLabel.trim()} style={{ width: '100%' }}>
+                                    <button type="button" className="ln-btn-sm ln-btn-success" onClick={() => { if (!docLabel.trim() || !docFile) return; showConfirm('Do you want to save this document?', handleDocUpload); }} disabled={uploading || !docFile || !docLabel.trim()} style={{ width: 'fit-content' }}>
                                         {uploading ? 'Uploading...' : <><Upload size={12} /> Upload Document</>}
                                     </button>
                                 </div>
@@ -5044,7 +5077,7 @@ export const TraineeProfileContent = ({ viewedProfileId = null, onBack = null, o
                                             </div>
                                         </div>
                                     ));
-                                } else if (!showUploadForm) {
+                                } else if (editingSection !== 'documents') {
                                     return (
                                         <EmptyState
                                             illustration={DocumentIllustration}
@@ -5055,13 +5088,39 @@ export const TraineeProfileContent = ({ viewedProfileId = null, onBack = null, o
                                 }
                                 return null;
                             })()}
+                        </div>
+
+                        {/* Social & Portfolio Links */}
+                        <div className="ln-card">
+                            <div className="ln-section-header">
+                                <h3>Social &amp; Portfolio Links</h3>
+                                {isOwnProfile && (!editingSection || editingSection === 'links') && (
+                                    editingSection === 'links' ? (
+                                        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                                            <button type="button" className="ln-btn-sm ln-btn-success" onClick={() => saveSection('links')} disabled={saving}>
+                                                <CheckCircle size={14} /> Done
+                                            </button>
+                                        </div>
+                                    ) : (
+                                        <div className="ln-menu-container" style={{ position: 'relative' }}>
+                                            <button type="button" className="ln-link-btn" style={{ padding: 4 }} onClick={() => setActiveMenu(activeMenu === 'links' ? null : 'links')}>
+                                                <MoreVertical size={16} color="#64748b" />
+                                            </button>
+                                            {activeMenu === 'links' && (
+                                                <div style={{ position: 'absolute', top: 28, right: 0, background: 'white', border: '1px solid #e2e8f0', borderRadius: 8, boxShadow: '0 10px 25px -5px rgba(0,0,0,0.15), 0 8px 10px -6px rgba(0,0,0,0.1)', zIndex: 100, padding: 6, minWidth: 140, animation: 'fadeInScale 0.15s ease-out', transformOrigin: 'top right' }}>
+                                                    <button type="button" style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', padding: '8px 12px', background: 'none', border: 'none', cursor: 'pointer', fontSize: 13, color: '#334155', textAlign: 'left' }} onClick={() => { setActiveMenu(null); setEditingSection('links'); }}>
+                                                        <Edit size={14} /> Edit
+                                                    </button>
+                                                </div>
+                                            )}
+                                        </div>
+                                    )
+                                )}
+                            </div>
 
                             {/* Social & Portfolio Links - add form ONLY in edit mode */}
-                            {isOwnProfile && (editingSection === 'documents') && (
-                                <div className="ln-social-links-edit">
-                                    <div className="ln-social-links-header">
-                                        <Link size={14} /> Social &amp; Portfolio Links
-                                    </div>
+                            {isOwnProfile && (editingSection === 'links') && (
+                                <div className="ln-social-links-edit" style={{ border: 'none', marginTop: 0, paddingTop: 0 }}>
                                     <div className="ln-social-links-row">
                                         <div style={{ flex: 1, minWidth: 150 }}>
                                             <input
@@ -5090,36 +5149,7 @@ export const TraineeProfileContent = ({ viewedProfileId = null, onBack = null, o
                                                 <button
                                                     type="button"
                                                     className="ln-btn-sm ln-btn-primary"
-                                                    onClick={async () => {
-                                                        if (!linkTitle.trim() || !docLinkUrl.trim()) return;
-                                                        setUploading(true);
-                                                        try {
-                                                            const res = await fetch(`/api/documents/upload`, {
-                                                                method: 'POST',
-                                                                headers: { 'Content-Type': 'application/json' },
-                                                                body: JSON.stringify({
-                                                                    traineeId: trainee.id,
-                                                                    label: linkTitle.trim(),
-                                                                    fileName: 'Link',
-                                                                    fileType: 'link',
-                                                                    fileData: /^https?:\/\//i.test(docLinkUrl.trim()) ? docLinkUrl.trim() : `https://${docLinkUrl.trim()}`,
-                                                                    category: 'link'
-                                                                }),
-                                                            });
-                                                            const result = await res.json();
-                                                            if (result.success) {
-                                                                setDocuments(prev => Array.isArray(prev) ? [result.document, ...prev] : [result.document]);
-                                                                setLinkTitle('');
-                                                                setDocLinkUrl('');
-                                                            } else {
-                                                                alert(result.error || 'Failed to add link');
-                                                            }
-                                                        } catch (err) {
-                                                            console.error('Link upload error:', err);
-                                                            alert('Error connecting to server');
-                                                        }
-                                                        setUploading(false);
-                                                    }}
+                                                    onClick={() => { if (!linkTitle.trim() || !docLinkUrl.trim() || urlValidation.social !== 'valid') return; showConfirm('Do you want to save this link?', handleAddLink); }}
                                                     disabled={uploading || !linkTitle.trim() || !docLinkUrl.trim() || urlValidation.social !== 'valid' || (Array.isArray(documents) && documents.some(d => d.file_type === 'link' && d.label?.toLowerCase() === linkTitle.trim().toLowerCase()))}
                                                     style={{ width: 40, padding: 0, justifyContent: 'center', alignSelf: 'flex-start', height: 36 }}
                                                     title="Add Link"
@@ -5137,14 +5167,9 @@ export const TraineeProfileContent = ({ viewedProfileId = null, onBack = null, o
                                 </div>
                             )}
 
-                            {/* Social & Portfolio Links list - always visible when links exist */}
-                            {(Array.isArray(documents) ? documents : []).filter(d => d.file_type === 'link').length > 0 && (
-                                <div className="ln-social-links-edit" style={(editingSection === 'learner') ? {} : { borderTop: '1px solid #f1f5f9', marginTop: 12 }}>
-                                    {!(editingSection === 'learner') && (
-                                        <div className="ln-social-links-header">
-                                            <Link size={14} /> Social &amp; Portfolio Links
-                                        </div>
-                                    )}
+                            {/* Social & Portfolio Links list */}
+                            {(Array.isArray(documents) ? documents : []).filter(d => d.file_type === 'link').length > 0 ? (
+                                <div className="ln-social-links-edit" style={{ border: 'none', marginTop: 0 }}>
                                     {(Array.isArray(documents) ? documents : []).filter(d => d.file_type === 'link').map(link => (
                                         <div key={link.id} className="ln-doc-item" style={{ marginTop: 8 }}>
                                             <div className="ln-doc-info">
@@ -5161,7 +5186,7 @@ export const TraineeProfileContent = ({ viewedProfileId = null, onBack = null, o
                                                     <ExternalLink size={12} />
                                                     <span style={{ marginLeft: 4 }}>Open</span>
                                                 </a>
-                                                {isOwnProfile && (editingSection === 'documents') && (
+                                                {isOwnProfile && (editingSection === 'links') && (
                                                     <button
                                                         type="button"
                                                         className="ln-btn-sm ln-btn-outline"
@@ -5176,6 +5201,14 @@ export const TraineeProfileContent = ({ viewedProfileId = null, onBack = null, o
                                         </div>
                                     ))}
                                 </div>
+                            ) : (
+                                (editingSection !== 'links') && (
+                                    <EmptyState
+                                        illustration={FolderIllustration}
+                                        title="No links yet"
+                                        description="Add your portfolio, GitHub, or social profiles to showcase your work online."
+                                    />
+                                )
                             )}
                         </div>
                     </React.Fragment>
@@ -5727,7 +5760,7 @@ const Opportunities = () => {
 
 // ─── PAGE 5: MY APPLICATIONS ──────────────────────────────────────
 const MyApplications = () => {
-    const { currentUser, trainees, getTraineeApplications, saveInterviewBooking } = useApp();
+    const { currentUser, trainees, getTraineeApplications, saveInterviewBooking, updateApplicationStatus } = useApp();
     const navigate = useNavigate();
     const trainee = currentUser || trainees[0];
     const myApps = getTraineeApplications(trainee?.id);
@@ -5758,26 +5791,38 @@ const MyApplications = () => {
         const raw = String(s || '').toLowerCase();
         const map = {
             pending: 'ln-badge-yellow',
+            shortlisted: 'ln-badge-blue',
+            'interview requested': 'ln-badge-purple',
+            'interview confirmed': 'ln-badge-green',
+            'interview declined': 'ln-badge-red',
+            'reschedule requested': 'ln-badge-yellow',
+            'interview scheduled': 'ln-badge-purple',
             accepted: 'ln-badge-green',
             rejected: 'ln-badge-red',
-            sent: 'ln-badge-blue',
-            received: 'ln-badge-blue',
-            'interview scheduled': 'ln-badge-purple',
-            // Keep capitalized versions for compatibility during transition
+            hired: 'ln-badge-green',
+            // Keep capitalized versions for compatibility
             Pending: 'ln-badge-yellow',
+            Shortlisted: 'ln-badge-blue',
+            'Interview Requested': 'ln-badge-purple',
+            'Interview Confirmed': 'ln-badge-green',
+            'Interview Declined': 'ln-badge-red',
+            'Reschedule Requested': 'ln-badge-yellow',
+            'Interview Scheduled': 'ln-badge-purple',
             Accepted: 'ln-badge-green',
             Rejected: 'ln-badge-red',
-            Sent: 'ln-badge-blue',
-            Received: 'ln-badge-blue',
-            'Interview Scheduled': 'ln-badge-purple',
+            Hired: 'ln-badge-green',
         };
         const labelMap = {
             pending: 'Pending',
+            shortlisted: 'Shortlisted',
+            'interview requested': 'Interview Requested',
+            'interview confirmed': 'Interview Confirmed',
+            'interview declined': 'Interview Declined',
+            'reschedule requested': 'Reschedule Requested',
+            'interview scheduled': 'Interview Scheduled',
             accepted: 'Accepted',
             rejected: 'Rejected',
-            sent: 'Sent',
-            received: 'Received',
-            'interview scheduled': 'Interview Scheduled',
+            hired: 'Hired',
         };
         return <span className={`ln-badge ${map[s] || map[raw] || 'ln-badge-gray'}`}>{labelMap[raw] || s}</span>;
     };
@@ -5814,8 +5859,8 @@ const MyApplications = () => {
                     const s = String(status || '').toLowerCase();
                     if (s === 'rejected') return 'rejected';
                     if (s === 'accepted' || s === 'offered') return 'accepted';
-                    if (s === 'interview scheduled' || s === 'interviewscheduled' || s === 'interview') return 'interview';
-                    if (s === 'screened' || s === 'under review') return 'review';
+                    if (s === 'interview scheduled' || s === 'interviewscheduled' || s.includes('interview')) return 'interview';
+                    if (s === 'screened' || s === 'under review' || s === 'shortlisted') return 'review';
                     return 'received';
                 };
                 const phases = [
@@ -5930,9 +5975,34 @@ const MyApplications = () => {
                                         <td>
                                             <div style={{ display: 'flex', flexDirection: 'column', gap: 4, alignItems: 'flex-start' }}>
                                                 {statusBadge(a.status)}
-                                                {a.interviewDate && (
-                                                    <div style={{ fontSize: 10, color: '#64748b', fontWeight: 600 }}>
-                                                        {new Date(a.interviewDate).toLocaleDateString()} @ {new Date(a.interviewDate).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                                {(a.proposedInterviewDate || a.interviewDate) && (
+                                                    <div style={{ fontSize: 10, color: '#0a66c2', fontWeight: 700, marginTop: 2, background: '#f0f7ff', padding: '2px 6px', borderRadius: 4 }}>
+                                                        {new Date(a.proposedInterviewDate || a.interviewDate).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })} @ {new Date(a.proposedInterviewDate || a.interviewDate).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                                    </div>
+                                                )}
+                                                {String(a.status).toLowerCase() === 'interview requested' && (
+                                                    <div style={{ marginTop: 8, display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+                                                        <button 
+                                                            className="ln-btn ln-btn-primary" 
+                                                            style={{ padding: '4px 8px', fontSize: 10, background: '#16a34a', height: 'auto', border: 'none' }}
+                                                            onClick={(e) => { e.stopPropagation(); updateApplicationStatus(a.id, 'interview confirmed', 'Interview confirmed by trainee.'); }}
+                                                        >
+                                                            Accept
+                                                        </button>
+                                                        <button 
+                                                            className="ln-btn ln-btn-outline" 
+                                                            style={{ padding: '4px 8px', fontSize: 10, borderColor: '#ef4444', color: '#ef4444', height: 'auto' }}
+                                                            onClick={(e) => { e.stopPropagation(); updateApplicationStatus(a.id, 'interview declined', 'Interview declined by trainee.'); }}
+                                                        >
+                                                            Decline
+                                                        </button>
+                                                        <button 
+                                                            className="ln-btn ln-btn-outline" 
+                                                            style={{ padding: '4px 8px', fontSize: 10, height: 'auto' }}
+                                                            onClick={(e) => { e.stopPropagation(); updateApplicationStatus(a.id, 'reschedule requested', 'Reschedule requested by trainee.'); }}
+                                                        >
+                                                            Reschedule
+                                                        </button>
                                                     </div>
                                                 )}
                                             </div>

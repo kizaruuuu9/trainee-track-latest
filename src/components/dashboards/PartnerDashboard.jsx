@@ -3671,6 +3671,8 @@ const ViewApplicants = ({ setActivePage }) => {
   const [openMenuId, setOpenMenuId] = useState(null);
   const [menuPos, setMenuPos] = useState({ top: 0, left: 0 });
   const [inviteApp, setInviteApp] = useState(null);
+  const [proposedDate, setProposedDate] = useState('');
+  const [proposedTime, setProposedTime] = useState('');
   const recruitFileInputRef = useRef(null);
 
   if (!isVerified(livePartner)) {
@@ -3879,11 +3881,20 @@ const ViewApplicants = ({ setActivePage }) => {
                                 boxShadow: '0 8px 24px rgba(0,0,0,0.2)'
                               }}
                             >
-                              {(a.status === 'Pending' || a.status === 'Interview Scheduled') && (
+                              {['Pending', 'Shortlisted', 'Interview Requested', 'Interview Confirmed', 'Reschedule Requested', 'Interview Scheduled'].includes(a.status) && (
                                 <>
-                                  <button className="ln-dropdown-item" style={{ color: '#059669' }} onClick={() => { setOpenMenuId(null); setInviteApp(a); }}>
-                                    <Calendar size={14} /> Schedule Interview
-                                  </button>
+                                  {a.status === 'Pending' && (
+                                    <button className="ln-dropdown-item" style={{ color: '#0a66c2' }} onClick={() => { setOpenMenuId(null); updateApplicationStatus(a.id, 'shortlisted', 'Candidate shortlisted.'); }}>
+                                      <UserPlus size={14} /> Shortlist Trainee
+                                    </button>
+                                  )}
+                                  
+                                  {['Pending', 'Shortlisted', 'Reschedule Requested'].includes(a.status) && (
+                                    <button className="ln-dropdown-item" style={{ color: '#059669' }} onClick={() => { setOpenMenuId(null); setInviteApp(a); }}>
+                                      <Calendar size={14} /> Schedule Interview
+                                    </button>
+                                  )}
+                                  
                                   <button className="ln-dropdown-item" style={{ color: '#16a34a' }} onClick={() => { setOpenMenuId(null); updateApplicationStatus(a.id, 'Hired', 'Hired by partner.'); }}>
                                     <CheckCircle size={14} /> Hire Trainee
                                   </button>
@@ -4243,19 +4254,54 @@ const ViewApplicants = ({ setActivePage }) => {
                 </div>
               </div>
 
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                  <div className="ln-info-item">
+                    <label className="ln-info-label" style={{ fontSize: 12, fontWeight: 700, color: '#64748b', marginBottom: 6, display: 'block' }}>Proposed Date</label>
+                    <input 
+                      type="date" 
+                      className="form-input" 
+                      style={{ width: '100%', padding: '10px 12px', borderRadius: 8, border: '1px solid #e2e8f0', fontSize: 14 }}
+                      value={proposedDate} 
+                      onChange={e => setProposedDate(e.target.value)} 
+                      min={new Date().toISOString().split('T')[0]}
+                    />
+                  </div>
+                  <div className="ln-info-item">
+                    <label className="ln-info-label" style={{ fontSize: 12, fontWeight: 700, color: '#64748b', marginBottom: 6, display: 'block' }}>Proposed Time</label>
+                    <input 
+                      type="time" 
+                      className="form-input" 
+                      style={{ width: '100%', padding: '10px 12px', borderRadius: 8, border: '1px solid #e2e8f0', fontSize: 14 }}
+                      value={proposedTime} 
+                      onChange={e => setProposedTime(e.target.value)} 
+                    />
+                  </div>
+                </div>
+
                 <button
-                  className="ln-btn ln-btn-primary" style={{ width: '100%', justifyContent: 'center', gap: 8 }}
-                  onClick={() => { updateApplicationStatus(inviteApp.id, 'interview scheduled', 'Interview booking link sent to trainee.'); setInviteApp(null); }}
+                  className="ln-btn ln-btn-primary" 
+                  style={{ width: '100%', justifyContent: 'center', gap: 8, height: 44, fontSize: 15, fontWeight: 600 }}
+                  disabled={!proposedDate || !proposedTime}
+                  onClick={() => { 
+                    const fullDateTime = `${proposedDate}T${proposedTime}`;
+                    updateApplicationStatus(inviteApp.id, 'interview requested', `Interview requested for ${proposedDate} at ${proposedTime}.`, { proposedInterviewDate: fullDateTime }); 
+                    setInviteApp(null); 
+                    setProposedDate('');
+                    setProposedTime('');
+                    toast.success('Interview request sent to trainee');
+                  }}
                 >
-                  <Send size={16} /> Send Booking Link
+                  <Send size={16} /> Send Interview Request
                 </button>
-                <p style={{ fontSize: 12, color: '#64748b', textAlign: 'center', margin: 0 }}>The trainee will be able to pick an available slot from your Calendar.</p>
+                <p style={{ fontSize: 12, color: '#64748b', textAlign: 'center', margin: 0, padding: '0 20px' }}>
+                  The trainee will be notified and can choose to <b>Accept</b>, <b>Decline</b>, or <b>Request a Reschedule</b>.
+                </p>
               </div>
             </div>
 
             <div className="ln-modal-footer">
-              <button className="ln-btn ln-btn-outline" onClick={() => setInviteApp(null)}>Cancel</button>
+              <button className="ln-btn ln-btn-outline" style={{ width: '100%' }} onClick={() => setInviteApp(null)}>Cancel</button>
             </div>
           </div>
         </div>
@@ -4499,6 +4545,10 @@ export const CompanyProfile = ({ viewedPartnerId = null, onBack = null }) => {
         banner_url: partner.banner_url || ''
       });
       setCompanyInfoVisibility(resolvePartnerVisibility(partner));
+      setUrlValidation({
+        companyInfo: partner.website ? 'valid' : null,
+        location: partner.office_location_url ? 'valid' : null
+      });
       setEditingSection(null);
       setActiveMenu(null);
       setShowUploadForm(false);
@@ -4736,6 +4786,10 @@ export const CompanyProfile = ({ viewedPartnerId = null, onBack = null }) => {
         poc_title: partner.poc_title || '',
         office_location_url: partner.office_location_url || ''
       });
+      setUrlValidation({
+        companyInfo: partner.website ? 'valid' : null,
+        location: partner.office_location_url ? 'valid' : null
+      });
     }
     setEditingSection(null);
   };
@@ -4761,7 +4815,8 @@ export const CompanyProfile = ({ viewedPartnerId = null, onBack = null }) => {
           regionCode: form.regionCode,
           provinceCode: form.provinceCode,
           cityCode: form.cityCode,
-          barangayCode: form.barangayCode
+          barangayCode: form.barangayCode,
+          company_info_visibility: companyInfoVisibility
         };
       } else if (section === 'mission') {
         payload = { mission: form.mission.trim() };
@@ -5053,7 +5108,13 @@ export const CompanyProfile = ({ viewedPartnerId = null, onBack = null }) => {
                   {editingSection === 'companyInfo' ? (
                     <>
                       <div className="ln-info-item">
-                        <label className="ln-info-label">Company Name</label>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
+                          <label className="ln-info-label" style={{ marginBottom: 0 }}>Company Name</label>
+                          <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, cursor: 'pointer', color: '#64748b', fontWeight: 500 }}>
+                            <input type="checkbox" checked={companyInfoVisibility.includes('companyName')} onChange={() => toggleCompanyInfoVisibility('companyName')} style={{ width: 13, height: 13 }} />
+                            Show
+                          </label>
+                        </div>
                         <input 
                           type="text" 
                           className="form-input" 
@@ -5066,7 +5127,13 @@ export const CompanyProfile = ({ viewedPartnerId = null, onBack = null }) => {
                         {form.companyName.length >= 50 && <div style={{ fontSize: 11, color: '#f59e0b', marginTop: 4 }}>Maximum 50 characters reached</div>}
                       </div>
                       <div className="ln-info-item">
-                        <label className="ln-info-label">Contact Email</label>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
+                          <label className="ln-info-label" style={{ marginBottom: 0 }}>Contact Email</label>
+                          <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, cursor: 'pointer', color: '#64748b', fontWeight: 500 }}>
+                            <input type="checkbox" checked={companyInfoVisibility.includes('email')} onChange={() => toggleCompanyInfoVisibility('email')} style={{ width: 13, height: 13 }} />
+                            Show
+                          </label>
+                        </div>
                         <input 
                           type="email" 
                           className="form-input" 
@@ -5080,7 +5147,13 @@ export const CompanyProfile = ({ viewedPartnerId = null, onBack = null }) => {
                         {form.email.length >= 40 && <div style={{ fontSize: 11, color: '#f59e0b', marginTop: 4 }}>Maximum 40 characters reached</div>}
                       </div>
                       <div className="ln-info-item">
-                        <label className="ln-info-label">Industry</label>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
+                          <label className="ln-info-label" style={{ marginBottom: 0 }}>Industry</label>
+                          <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, cursor: 'pointer', color: '#64748b', fontWeight: 500 }}>
+                            <input type="checkbox" checked={companyInfoVisibility.includes('industry')} onChange={() => toggleCompanyInfoVisibility('industry')} style={{ width: 13, height: 13 }} />
+                            Show
+                          </label>
+                        </div>
                         <select 
                           className="form-input" 
                           value={form.industry} 
@@ -5091,7 +5164,13 @@ export const CompanyProfile = ({ viewedPartnerId = null, onBack = null }) => {
                         </select>
                       </div>
                       <div className="ln-info-item">
-                        <label className="ln-info-label">Contact Person</label>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
+                          <label className="ln-info-label" style={{ marginBottom: 0 }}>Contact Person</label>
+                          <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, cursor: 'pointer', color: '#64748b', fontWeight: 500 }}>
+                            <input type="checkbox" checked={companyInfoVisibility.includes('contactPerson')} onChange={() => toggleCompanyInfoVisibility('contactPerson')} style={{ width: 13, height: 13 }} />
+                            Show
+                          </label>
+                        </div>
                         <input 
                           type="text" 
                           className="form-input" 
@@ -5103,7 +5182,13 @@ export const CompanyProfile = ({ viewedPartnerId = null, onBack = null }) => {
                         {form.contactPerson.length >= 40 && <div style={{ fontSize: 11, color: '#f59e0b', marginTop: 4 }}>Maximum 40 characters reached</div>}
                       </div>
                       <div className="ln-info-item">
-                        <label className="ln-info-label">Website</label>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
+                          <label className="ln-info-label" style={{ marginBottom: 0 }}>Website</label>
+                          <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, cursor: 'pointer', color: '#64748b', fontWeight: 500 }}>
+                            <input type="checkbox" checked={companyInfoVisibility.includes('website')} onChange={() => toggleCompanyInfoVisibility('website')} style={{ width: 13, height: 13 }} />
+                            Show
+                          </label>
+                        </div>
                         <input 
                           type="url" 
                           className="form-input" 
@@ -5120,7 +5205,13 @@ export const CompanyProfile = ({ viewedPartnerId = null, onBack = null }) => {
                       </div>
                       
                       <div className="ln-info-item" style={{ gridColumn: '1 / -1', marginTop: 12 }}>
-                        <label className="ln-info-label" style={{ marginBottom: 12, display: 'block', fontSize: 14, fontWeight: 700 }}>Office Address</label>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+                          <label className="ln-info-label" style={{ marginBottom: 0, fontSize: 14, fontWeight: 700 }}>Office Address</label>
+                          <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, cursor: 'pointer', color: '#64748b', fontWeight: 500 }}>
+                            <input type="checkbox" checked={companyInfoVisibility.includes('address')} onChange={() => toggleCompanyInfoVisibility('address')} style={{ width: 13, height: 13 }} />
+                            Show on profile
+                          </label>
+                        </div>
                         <PhilAddressSelector 
                           values={{
                             region: form.region,
@@ -5136,7 +5227,6 @@ export const CompanyProfile = ({ viewedPartnerId = null, onBack = null }) => {
                           onChange={(vals) => setForm({
                             ...form,
                             ...vals,
-                            // Map detailedAddress back to detailed_address if it was changed
                             detailed_address: vals.detailedAddress !== undefined ? vals.detailedAddress : form.detailed_address
                           })}
                         />
@@ -5144,36 +5234,48 @@ export const CompanyProfile = ({ viewedPartnerId = null, onBack = null }) => {
                     </>
                   ) : (
                     <>
-                      <div className="ln-info-item">
-                        <label className="ln-info-label">Company Name</label>
-                        <div className="ln-info-value">{partner.companyName}</div>
-                      </div>
-                      <div className="ln-info-item">
-                        <label className="ln-info-label">Industry</label>
-                        <div className="ln-info-value">{partner.industry}</div>
-                      </div>
-                      <div className="ln-info-item">
-                        <label className="ln-info-label">Contact Person</label>
-                        <div className="ln-info-value">{partner.contactPerson || '—'}</div>
-                      </div>
-                      <div className="ln-info-item">
-                        <label className="ln-info-label">Contact Email</label>
-                        <div className="ln-info-value">{partner.email || '—'}</div>
-                      </div>
-                      <div className="ln-info-item">
-                        <label className="ln-info-label">Website</label>
-                        <div className="ln-info-value">
-                          {partner.website ? (
-                            <a href={partner.website.startsWith('http') ? partner.website : `https://${partner.website}`} target="_blank" rel="noopener noreferrer" style={{ color: '#0a66c2', textDecoration: 'none' }}>
-                              {partner.website} <ExternalLink size={12} />
-                            </a>
-                          ) : '—'}
+                      {(isOwnProfile || companyInfoVisibility.includes('companyName')) && (
+                        <div className="ln-info-item">
+                          <label className="ln-info-label">Company Name</label>
+                          <div className="ln-info-value">{partner.companyName}</div>
                         </div>
-                      </div>
-                      <div className="ln-info-item" style={{ gridColumn: '1 / -1' }}>
-                        <label className="ln-info-label">Address</label>
-                        <div className="ln-info-value">{partner.address || '—'}</div>
-                      </div>
+                      )}
+                      {(isOwnProfile || companyInfoVisibility.includes('industry')) && (
+                        <div className="ln-info-item">
+                          <label className="ln-info-label">Industry</label>
+                          <div className="ln-info-value">{partner.industry}</div>
+                        </div>
+                      )}
+                      {(isOwnProfile || companyInfoVisibility.includes('contactPerson')) && (
+                        <div className="ln-info-item">
+                          <label className="ln-info-label">Contact Person</label>
+                          <div className="ln-info-value">{partner.contactPerson || '—'}</div>
+                        </div>
+                      )}
+                      {(isOwnProfile || companyInfoVisibility.includes('email')) && (
+                        <div className="ln-info-item">
+                          <label className="ln-info-label">Contact Email</label>
+                          <div className="ln-info-value">{partner.email || '—'}</div>
+                        </div>
+                      )}
+                      {(isOwnProfile || companyInfoVisibility.includes('website')) && (
+                        <div className="ln-info-item">
+                          <label className="ln-info-label">Website</label>
+                          <div className="ln-info-value">
+                            {partner.website ? (
+                              <a href={partner.website.startsWith('http') ? partner.website : `https://${partner.website}`} target="_blank" rel="noopener noreferrer" style={{ color: '#0a66c2', textDecoration: 'none' }}>
+                                {partner.website} <ExternalLink size={12} />
+                              </a>
+                            ) : '—'}
+                          </div>
+                        </div>
+                      )}
+                      {(isOwnProfile || companyInfoVisibility.includes('address')) && (
+                        <div className="ln-info-item" style={{ gridColumn: '1 / -1' }}>
+                          <label className="ln-info-label">Address</label>
+                          <div className="ln-info-value">{partner.address || '—'}</div>
+                        </div>
+                      )}
                     </>
                   )}
                 </div>
@@ -5321,385 +5423,191 @@ export const CompanyProfile = ({ viewedPartnerId = null, onBack = null }) => {
                 </div>
               </div>
 
-              {/* Combined Tag System & POC Grid */}
-              <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) 300px', gap: 20, marginTop: 20 }}>
-                <div>
-                  {/* Unified Work Environment & Benefits Section */}
-                  <div className="ln-card" style={{ position: 'relative' }}>
-                    <div className="ln-section-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <h3>Work Environment & Benefits</h3>
-                      {isOwnProfile && (
-                        editingSection === 'culture' ? (
-                          <div style={{ display: 'flex', gap: 8 }}>
-                            <button className="ln-btn-sm ln-btn-outline" onClick={() => handleCancelEdit('culture')} disabled={saving}>Cancel</button>
-                            <button className="ln-btn-sm ln-btn-primary" onClick={() => saveSection('culture')} disabled={saving}>
-                              {saving ? 'Saving...' : 'Save'}
-                            </button>
-                          </div>
-                        ) : (
-                          <div style={{ position: 'relative' }}>
-                            <button className="ln-btn-icon" onClick={() => setActiveMenu(activeMenu === 'culture' ? null : 'culture')}>
-                              <MoreVertical size={18} />
-                            </button>
-                            {activeMenu === 'culture' && (
-                              <div className="ln-popover-menu" style={{ 
-                                position: 'absolute', right: 0, top: '100%', zIndex: 10,
-                                background: '#fff', border: '1px solid #e2e8f0', 
-                                borderRadius: 8, boxShadow: '0 4px 20px rgba(0,0,0,0.15)',
-                                padding: '4px', minWidth: 160, marginTop: 8
-                              }}>
-                                <button 
-                                  onClick={() => { setEditingSection('culture'); setActiveMenu(null); }}
-                                  style={{ 
-                                    width: '100%', textAlign: 'left', padding: '8px 12px',
-                                    background: 'none', border: 'none', borderRadius: 6,
-                                    display: 'flex', alignItems: 'center', gap: 8,
-                                    fontSize: 13, color: '#334155', cursor: 'pointer'
-                                  }}
-                                  className="ln-popover-item"
-                                >
-                                  <Edit size={14} /> Edit Environment
-                                </button>
-                              </div>
-                            )}
-                          </div>
-                        )
-                      )}
-                    </div>
-                    <div style={{ padding: '0 16px 16px' }}>
-                      {/* Culture Tags Subsection */}
-                      <div style={{ marginBottom: 16 }}>
-                        <div style={{ fontSize: 11, fontWeight: 700, color: '#64748b', textTransform: 'uppercase', marginBottom: 8, letterSpacing: '0.025em' }}>Work Culture</div>
-                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-                          {PREDEFINED_CULTURE_TAGS.map(tag => {
-                            const isSelected = (editingSection === 'culture' ? form.culture_tags : partner.culture_tags)?.includes(tag);
-                            return (
-                              <button
-                                key={tag}
-                                type="button"
-                                onClick={() => {
-                                  if (editingSection !== 'culture') return;
-                                  const current = form.culture_tags || [];
-                                  setForm({
-                                    ...form,
-                                    culture_tags: isSelected
-                                      ? current.filter(t => t !== tag)
-                                      : current.length < 20 
-                                        ? [...current, tag]
-                                        : (toast.error('Maximum 20 culture tags allowed'), current)
-                                  });
-                                }}
-                                style={{
-                                  padding: '6px 14px',
-                                  background: isSelected ? '#eff6ff' : '#f8fafc',
-                                  border: '1px solid',
-                                  borderColor: isSelected ? '#3b82f6' : '#e2e8f0',
-                                  color: isSelected ? '#1d4ed8' : '#64748b',
-                                  borderRadius: 20,
-                                  fontSize: 12,
-                                  fontWeight: isSelected ? 600 : 500,
-                                  cursor: editingSection === 'culture' ? 'pointer' : 'default',
-                                  transition: 'all 0.2s'
-                                }}
-                              >
-                                {tag}
-                              </button>
-                            );
-                          })}
-                          {/* Custom Culture Tags */}
-                          {(editingSection === 'culture' ? form.culture_tags : partner.culture_tags)?.filter(t => !PREDEFINED_CULTURE_TAGS.includes(t)).map(tag => (
-                            <div key={tag} style={{ padding: '6px 14px', background: '#f0fdf4', border: '1px solid #bbf7d0', color: '#166534', borderRadius: 20, fontSize: 12, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6 }}>
-                              {tag}
-                              {editingSection === 'culture' && <X size={12} style={{ cursor: 'pointer' }} onClick={() => setForm({ ...form, culture_tags: form.culture_tags.filter(t => t !== tag) })} />}
-                            </div>
-                          ))}
-                        </div>
-                        {editingSection === 'culture' && (
-                          <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
-                            <input
-                              className="form-input"
-                              style={{ margin: 0, height: 32, fontSize: 12, maxWidth: 200 }}
-                              placeholder="Add custom culture tag..."
-                              id="custom-culture-tag"
-                              onKeyDown={e => {
-                                if (e.key === 'Enter' && e.target.value.trim()) {
-                                  const val = e.target.value.trim();
-                                  if (val.length > 30) { toast.error('Tag must be 30 characters or less'); return; }
-                                  if (form.culture_tags?.length >= 20) { toast.error('Maximum 20 culture tags allowed'); return; }
-                                  if (!form.culture_tags.includes(val)) {
-                                    setForm({ ...form, culture_tags: [...form.culture_tags, val] });
-                                  }
-                                  e.target.value = '';
-                                  e.preventDefault();
-                                }
+              {/* Unified Work Environment & Benefits Section */}
+              <div className="ln-card" style={{ position: 'relative', marginTop: 20 }}>
+                <div className="ln-section-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <h3>Work Environment & Benefits</h3>
+                  {isOwnProfile && (
+                    editingSection === 'culture' ? (
+                      <div style={{ display: 'flex', gap: 8 }}>
+                        <button className="ln-btn-sm ln-btn-outline" onClick={() => handleCancelEdit('culture')} disabled={saving}>Cancel</button>
+                        <button className="ln-btn-sm ln-btn-primary" onClick={() => saveSection('culture')} disabled={saving}>
+                          {saving ? 'Saving...' : 'Save'}
+                        </button>
+                      </div>
+                    ) : (
+                      <div style={{ position: 'relative' }}>
+                        <button className="ln-btn-icon" onClick={() => setActiveMenu(activeMenu === 'culture' ? null : 'culture')}>
+                          <MoreVertical size={18} />
+                        </button>
+                        {activeMenu === 'culture' && (
+                          <div className="ln-popover-menu" style={{ 
+                            position: 'absolute', right: 0, top: '100%', zIndex: 10,
+                            background: '#fff', border: '1px solid #e2e8f0', 
+                            borderRadius: 8, boxShadow: '0 4px 20px rgba(0,0,0,0.15)',
+                            padding: '4px', minWidth: 160, marginTop: 8
+                          }}>
+                            <button 
+                              onClick={() => { setEditingSection('culture'); setActiveMenu(null); }}
+                              style={{ 
+                                width: '100%', textAlign: 'left', padding: '8px 12px',
+                                background: 'none', border: 'none', borderRadius: 6,
+                                display: 'flex', alignItems: 'center', gap: 8,
+                                fontSize: 13, color: '#334155', cursor: 'pointer'
                               }}
-                              maxLength={30}
-                            />
+                              className="ln-popover-item"
+                            >
+                              <Edit size={14} /> Edit Environment
+                            </button>
                           </div>
                         )}
                       </div>
-
-                      {/* Perks & Setup Subsection */}
-                      <div style={{ marginTop: 24 }}>
-                        <div style={{ fontSize: 11, fontWeight: 700, color: '#64748b', textTransform: 'uppercase', marginBottom: 8, letterSpacing: '0.025em' }}>Perks & Benefits</div>
-                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-                          {PREDEFINED_PERKS_TAGS.map(tag => {
-                            const isSelected = (editingSection === 'culture' ? form.perks_tags : partner.perks_tags)?.includes(tag);
-                            return (
-                              <button
-                                key={tag}
-                                type="button"
-                                onClick={() => {
-                                  if (editingSection !== 'culture') return;
-                                  const current = form.perks_tags || [];
-                                  setForm({
-                                    ...form,
-                                    perks_tags: isSelected
-                                      ? current.filter(t => t !== tag)
-                                      : current.length < 20 
-                                        ? [...current, tag]
-                                        : (toast.error('Maximum 20 perks tags allowed'), current)
-                                  });
-                                }}
-                                style={{
-                                  padding: '6px 14px',
-                                  background: isSelected ? '#fdf2f2' : '#f8fafc',
-                                  border: '1px solid',
-                                  borderColor: isSelected ? '#fecaca' : '#e2e8f0',
-                                  color: isSelected ? '#991b1b' : '#64748b',
-                                  borderRadius: 20,
-                                  fontSize: 12,
-                                  fontWeight: isSelected ? 600 : 500,
-                                  cursor: editingSection === 'culture' ? 'pointer' : 'default',
-                                  transition: 'all 0.2s'
-                                }}
-                              >
-                                {tag}
-                              </button>
-                            );
-                          })}
-                          {/* Custom Perks Tags */}
-                          {(editingSection === 'culture' ? form.perks_tags : partner.perks_tags)?.filter(t => !PREDEFINED_PERKS_TAGS.includes(t)).map(tag => (
-                            <div key={tag} style={{ padding: '6px 14px', background: '#fdf2f8', border: '1px solid #fbcfe8', color: '#9d174d', borderRadius: 20, fontSize: 12, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6 }}>
-                              {tag}
-                              {editingSection === 'culture' && <X size={12} style={{ cursor: 'pointer' }} onClick={() => setForm({ ...form, perks_tags: form.perks_tags.filter(t => t !== tag) })} />}
-                            </div>
-                          ))}
-                        </div>
-                        {editingSection === 'culture' && (
-                          <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
-                            <input
-                              className="form-input"
-                              style={{ margin: 0, height: 32, fontSize: 12, maxWidth: 200 }}
-                              placeholder="Add custom perk..."
-                              id="custom-perk-tag"
-                              onKeyDown={e => {
-                                if (e.key === 'Enter' && e.target.value.trim()) {
-                                  const val = e.target.value.trim();
-                                  if (val.length > 30) { toast.error('Tag must be 30 characters or less'); return; }
-                                  if (form.perks_tags?.length >= 20) { toast.error('Maximum 20 perks tags allowed'); return; }
-                                  if (!form.perks_tags.includes(val)) {
-                                    setForm({ ...form, perks_tags: [...form.perks_tags, val] });
-                                  }
-                                  e.target.value = '';
-                                  e.preventDefault();
-                                }
-                              }}
-                              maxLength={30}
-                            />
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  </div>
+                    )
+                  )}
                 </div>
-
-                {/* Point of Contact Card */}
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-                  <div className="ln-card" style={{ height: 'fit-content', position: 'relative' }}>
-                    <div className="ln-section-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <h3>Point of Contact</h3>
-                      {isOwnProfile && (
-                        editingSection === 'poc' ? (
-                          <div style={{ display: 'flex', gap: 8 }}>
-                            <button className="ln-btn-sm ln-btn-outline" onClick={() => handleCancelEdit('poc')} disabled={saving}>Cancel</button>
-                            <button className="ln-btn-sm ln-btn-primary" onClick={() => saveSection('poc')} disabled={saving}>
-                              {saving ? 'Saving...' : 'Save'}
-                            </button>
-                          </div>
-                        ) : (
-                          <div style={{ position: 'relative' }}>
-                            <button className="ln-btn-icon" onClick={() => setActiveMenu(activeMenu === 'poc' ? null : 'poc')}>
-                              <MoreVertical size={18} />
-                            </button>
-                            {activeMenu === 'poc' && (
-                              <div className="ln-popover-menu" style={{ 
-                                position: 'absolute', right: 0, top: '100%', zIndex: 10,
-                                background: '#fff', border: '1px solid #e2e8f0', 
-                                borderRadius: 8, boxShadow: '0 4px 20px rgba(0,0,0,0.15)',
-                                padding: '4px', minWidth: 160, marginTop: 8
-                              }}>
-                                <button 
-                                  onClick={() => { setEditingSection('poc'); setActiveMenu(null); }}
-                                  style={{ 
-                                    width: '100%', textAlign: 'left', padding: '8px 12px',
-                                    background: 'none', border: 'none', borderRadius: 6,
-                                    display: 'flex', alignItems: 'center', gap: 8,
-                                    fontSize: 13, color: '#334155', cursor: 'pointer'
-                                  }}
-                                  className="ln-popover-item"
-                                >
-                                  <Edit size={14} /> Edit POC
-                                </button>
-                              </div>
-                            )}
-                          </div>
-                        )
-                      )}
-                    </div>
-                    <div style={{ padding: '0 16px 20px', textAlign: 'center' }}>
-                      <div style={{ position: 'relative', width: 100, height: 100, margin: '0 auto 16px' }}>
-                        <div style={{
-                          width: '100%', height: '100%', borderRadius: '50%',
-                          background: '#f1f5f9', border: '1px solid #e2e8f0',
-                          display: 'flex', alignItems: 'center', justifyContent: 'center',
-                          overflow: 'hidden'
-                        }}>
-                          {(editingSection === 'poc' ? form.poc_photo_url : partner.poc_photo_url) ? (
-                            <img src={editingSection === 'poc' ? form.poc_photo_url : partner.poc_photo_url} alt="POC" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                          ) : (
-                            <User size={40} color="#94a3b8" />
-                          )}
-                        </div>
-                        {editingSection === 'poc' && (
+                <div style={{ padding: '0 16px 16px' }}>
+                  {/* Culture Tags Subsection */}
+                  <div style={{ marginBottom: 16 }}>
+                    <div style={{ fontSize: 11, fontWeight: 700, color: '#64748b', textTransform: 'uppercase', marginBottom: 8, letterSpacing: '0.025em' }}>Work Culture</div>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                      {PREDEFINED_CULTURE_TAGS.map(tag => {
+                        const isSelected = (editingSection === 'culture' ? form.culture_tags : partner.culture_tags)?.includes(tag);
+                        return (
                           <button
-                            onClick={() => pocPhotoInputRef.current?.click()}
+                            key={tag}
+                            type="button"
+                            onClick={() => {
+                              if (editingSection !== 'culture') return;
+                              const current = form.culture_tags || [];
+                              setForm({
+                                ...form,
+                                culture_tags: isSelected
+                                  ? current.filter(t => t !== tag)
+                                  : current.length < 20 
+                                    ? [...current, tag]
+                                    : (toast.error('Maximum 20 culture tags allowed'), current)
+                              });
+                            }}
                             style={{
-                              position: 'absolute', bottom: 0, right: 0,
-                              background: '#fff', border: '1px solid #e2e8f0',
-                              borderRadius: '50%', width: 28, height: 28,
-                              display: 'flex', alignItems: 'center', justifyContent: 'center',
-                              cursor: 'pointer', boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
+                              padding: '6px 14px',
+                              background: isSelected ? '#eff6ff' : '#f8fafc',
+                              border: '1px solid',
+                              borderColor: isSelected ? '#3b82f6' : '#e2e8f0',
+                              color: isSelected ? '#1d4ed8' : '#64748b',
+                              borderRadius: 20,
+                              fontSize: 12,
+                              fontWeight: isSelected ? 600 : 500,
+                              cursor: editingSection === 'culture' ? 'pointer' : 'default',
+                              transition: 'all 0.2s'
                             }}
                           >
-                            <Camera size={14} />
+                            {tag}
                           </button>
-                        )}
-                        <input type="file" ref={pocPhotoInputRef} onChange={handlePOCPhotoUpload} style={{ display: 'none' }} accept="image/*" />
-                      </div>
-
-                      {editingSection === 'poc' ? (
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                          <div>
-                            <input
-                              className="form-input"
-                              style={{ textAlign: 'center', fontWeight: 700, ...(form.poc_name.length >= 50 ? { borderColor: '#f59e0b' } : {}) }}
-                              placeholder="Full Name"
-                              maxLength={50}
-                              value={form.poc_name}
-                              onChange={e => setForm({ ...form, poc_name: e.target.value.slice(0, 50) })}
-                            />
-                            {form.poc_name.length >= 50 && <div style={{ fontSize: 11, color: '#f59e0b', marginTop: 4, textAlign: 'center' }}>Maximum 50 characters reached</div>}
-                          </div>
-                          <div>
-                            <input
-                              className="form-input"
-                              style={{ textAlign: 'center', fontSize: 13, ...(form.poc_title.length >= 50 ? { borderColor: '#f59e0b' } : {}) }}
-                              placeholder="Designation / Title"
-                              maxLength={50}
-                              value={form.poc_title}
-                              onChange={e => setForm({ ...form, poc_title: e.target.value.slice(0, 50) })}
-                            />
-                            {form.poc_title.length >= 50 && <div style={{ fontSize: 11, color: '#f59e0b', marginTop: 4, textAlign: 'center' }}>Maximum 50 characters reached</div>}
-                          </div>
+                        );
+                      })}
+                      {/* Custom Culture Tags */}
+                      {(editingSection === 'culture' ? form.culture_tags : partner.culture_tags)?.filter(t => !PREDEFINED_CULTURE_TAGS.includes(t)).map(tag => (
+                        <div key={tag} style={{ padding: '6px 14px', background: '#f0fdf4', border: '1px solid #bbf7d0', color: '#166534', borderRadius: 20, fontSize: 12, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6 }}>
+                          {tag}
+                          {editingSection === 'culture' && <X size={12} style={{ cursor: 'pointer' }} onClick={() => setForm({ ...form, culture_tags: form.culture_tags.filter(t => t !== tag) })} />}
                         </div>
-                      ) : (
-                        <div>
-                          <div style={{ fontWeight: 700, color: '#1e293b', fontSize: 15 }}>{partner.poc_name || 'Name not provided'}</div>
-                          <div style={{ color: '#64748b', fontSize: 13, marginTop: 2 }}>{partner.poc_title || 'Designation'}</div>
-                        </div>
-                      )}
-
+                      ))}
                     </div>
+                    {editingSection === 'culture' && (
+                      <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
+                        <input
+                          className="form-input"
+                          style={{ margin: 0, height: 32, fontSize: 12, maxWidth: 200 }}
+                          placeholder="Add custom culture tag..."
+                          id="custom-culture-tag"
+                          onKeyDown={e => {
+                            if (e.key === 'Enter' && e.target.value.trim()) {
+                              const val = e.target.value.trim();
+                              if (val.length > 30) { toast.error('Tag must be 30 characters or less'); return; }
+                              if (form.culture_tags?.length >= 20) { toast.error('Maximum 20 culture tags allowed'); return; }
+                              if (!form.culture_tags.includes(val)) {
+                                setForm({ ...form, culture_tags: [...form.culture_tags, val] });
+                              }
+                              e.target.value = '';
+                              e.preventDefault();
+                            }
+                          }}
+                          maxLength={30}
+                        />
+                      </div>
+                    )}
                   </div>
 
-                  {/* Office Location Link */}
-                  <div className="ln-card" style={{ position: 'relative' }}>
-                    <div className="ln-section-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <h3>Office Location</h3>
-                      {isOwnProfile && (
-                        editingSection === 'location' ? (
-                          <div style={{ display: 'flex', gap: 8 }}>
-                            <button className="ln-btn-sm ln-btn-outline" onClick={() => handleCancelEdit('location')} disabled={saving}>Cancel</button>
-                            <button className="ln-btn-sm ln-btn-primary" onClick={() => saveSection('location')} disabled={saving}>
-                              {saving ? 'Saving...' : 'Save'}
-                            </button>
-                          </div>
-                        ) : (
-                          <div style={{ position: 'relative' }}>
-                            <button className="ln-btn-icon" onClick={() => setActiveMenu(activeMenu === 'location' ? null : 'location')}>
-                              <MoreVertical size={18} />
-                            </button>
-                            {activeMenu === 'location' && (
-                              <div className="ln-popover-menu" style={{ 
-                                position: 'absolute', right: 0, top: '100%', zIndex: 10,
-                                background: '#fff', border: '1px solid #e2e8f0', 
-                                borderRadius: 8, boxShadow: '0 4px 20px rgba(0,0,0,0.15)',
-                                padding: '4px', minWidth: 160, marginTop: 8
-                              }}>
-                                <button 
-                                  onClick={() => { setEditingSection('location'); setActiveMenu(null); }}
-                                  style={{ 
-                                    width: '100%', textAlign: 'left', padding: '8px 12px',
-                                    background: 'none', border: 'none', borderRadius: 6,
-                                    display: 'flex', alignItems: 'center', gap: 8,
-                                    fontSize: 13, color: '#334155', cursor: 'pointer'
-                                  }}
-                                  className="ln-popover-item"
-                                >
-                                  <Edit size={14} /> Edit Location
-                                </button>
-                              </div>
-                            )}
-                          </div>
-                        )
-                      )}
-                    </div>
-                    <div style={{ padding: '0 16px 16px' }}>
-                      {editingSection === 'location' ? (
-                        <div>
-                          <input
-                            className="form-input"
-                            placeholder="Google Maps URL..."
-                            value={form.office_location_url}
-                            onChange={e => handleUrlChange(e.target.value, 'location', val => setForm({ ...form, office_location_url: val }))}
-                            style={urlValidation.location === 'invalid' || urlValidation.location === 'error' || urlValidation.location === 'unreachable' ? { borderColor: '#ef4444' } : urlValidation.location === 'valid' ? { borderColor: '#10b981' } : {}}
-                          />
-                          {urlValidation.location === 'checking' && <div style={{ fontSize: 11, color: '#3b82f6', marginTop: 4 }}>Verifying location link...</div>}
-                          {urlValidation.location === 'invalid' && <div style={{ fontSize: 11, color: '#ef4444', marginTop: 4 }}>Please enter a valid Google Maps URL</div>}
-                          {urlValidation.location === 'unreachable' && <div style={{ fontSize: 11, color: '#ef4444', marginTop: 4 }}>Link is unreachable or does not exist.</div>}
-                          {urlValidation.location === 'error' && <div style={{ fontSize: 11, color: '#ef4444', marginTop: 4 }}>Could not verify link. Check your connection.</div>}
-                          {urlValidation.location === 'valid' && <div style={{ fontSize: 11, color: '#10b981', marginTop: 4 }}>Link verified successfully.</div>}
+                  {/* Perks & Setup Subsection */}
+                  <div style={{ marginTop: 24 }}>
+                    <div style={{ fontSize: 11, fontWeight: 700, color: '#64748b', textTransform: 'uppercase', marginBottom: 8, letterSpacing: '0.025em' }}>Perks & Benefits</div>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                      {PREDEFINED_PERKS_TAGS.map(tag => {
+                        const isSelected = (editingSection === 'culture' ? form.perks_tags : partner.perks_tags)?.includes(tag);
+                        return (
+                          <button
+                            key={tag}
+                            type="button"
+                            onClick={() => {
+                              if (editingSection !== 'culture') return;
+                              const current = form.perks_tags || [];
+                              setForm({
+                                ...form,
+                                perks_tags: isSelected
+                                  ? current.filter(t => t !== tag)
+                                  : current.length < 20 
+                                    ? [...current, tag]
+                                    : (toast.error('Maximum 20 perks tags allowed'), current)
+                              });
+                            }}
+                            style={{
+                              padding: '6px 14px',
+                              background: isSelected ? '#fdf2f2' : '#f8fafc',
+                              border: '1px solid',
+                              borderColor: isSelected ? '#fecaca' : '#e2e8f0',
+                              color: isSelected ? '#991b1b' : '#64748b',
+                              borderRadius: 20,
+                              fontSize: 12,
+                              fontWeight: isSelected ? 600 : 500,
+                              cursor: editingSection === 'culture' ? 'pointer' : 'default',
+                              transition: 'all 0.2s'
+                            }}
+                          >
+                            {tag}
+                          </button>
+                        );
+                      })}
+                      {/* Custom Perks Tags */}
+                      {(editingSection === 'culture' ? form.perks_tags : partner.perks_tags)?.filter(t => !PREDEFINED_PERKS_TAGS.includes(t)).map(tag => (
+                        <div key={tag} style={{ padding: '6px 14px', background: '#fdf2f8', border: '1px solid #fbcfe8', color: '#9d174d', borderRadius: 20, fontSize: 12, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6 }}>
+                          {tag}
+                          {editingSection === 'culture' && <X size={12} style={{ cursor: 'pointer' }} onClick={() => setForm({ ...form, perks_tags: form.perks_tags.filter(t => t !== tag) })} />}
                         </div>
-                      ) : (
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-                          <p style={{ fontSize: 13, color: '#64748b', display: 'flex', alignItems: 'center', gap: 6 }}>
-                            <MapPin size={14} /> {partner.address || 'Address not listed'}
-                          </p>
-                          {partner.office_location_url && (
-                            <a
-                              href={partner.office_location_url}
-                              target="_blank"
-                              rel="noreferrer"
-                              className="ln-btn ln-btn-primary"
-                              style={{ width: '100%', textAlign: 'center', fontSize: 13, textDecoration: 'none' }}
-                            >
-                              <Navigation size={14} /> View on Map
-                            </a>
-                          )}
-                        </div>
-                      )}
+                      ))}
                     </div>
+                    {editingSection === 'culture' && (
+                      <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
+                        <input
+                          className="form-input"
+                          style={{ margin: 0, height: 32, fontSize: 12, maxWidth: 200 }}
+                          placeholder="Add custom perk..."
+                          id="custom-perk-tag"
+                          onKeyDown={e => {
+                            if (e.key === 'Enter' && e.target.value.trim()) {
+                              const val = e.target.value.trim();
+                              if (val.length > 30) { toast.error('Tag must be 30 characters or less'); return; }
+                              if (form.perks_tags?.length >= 20) { toast.error('Maximum 20 perks tags allowed'); return; }
+                              if (!form.perks_tags.includes(val)) {
+                                setForm({ ...form, perks_tags: [...form.perks_tags, val] });
+                              }
+                              e.target.value = '';
+                              e.preventDefault();
+                            }
+                          }}
+                          maxLength={30}
+                        />
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>
@@ -5794,6 +5702,195 @@ export const CompanyProfile = ({ viewedPartnerId = null, onBack = null }) => {
                 </div>
               </div>
 
+              {/* Office Location & Point of Contact Section (Same row) */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20, marginTop: 20 }}>
+                {/* Office Location Card */}
+                <div className="ln-card" style={{ position: 'relative' }}>
+                  <div className="ln-section-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <h3>Office Location</h3>
+                    {isOwnProfile && (
+                      editingSection === 'location' ? (
+                        <div style={{ display: 'flex', gap: 8 }}>
+                          <button className="ln-btn-sm ln-btn-outline" onClick={() => handleCancelEdit('location')} disabled={saving}>Cancel</button>
+                          <button className="ln-btn-sm ln-btn-primary" onClick={() => saveSection('location')} disabled={saving}>
+                            {saving ? 'Saving...' : 'Save'}
+                          </button>
+                        </div>
+                      ) : (
+                        <div style={{ position: 'relative' }}>
+                          <button className="ln-btn-icon" onClick={() => setActiveMenu(activeMenu === 'location' ? null : 'location')}>
+                            <MoreVertical size={18} />
+                          </button>
+                          {activeMenu === 'location' && (
+                            <div className="ln-popover-menu" style={{ 
+                              position: 'absolute', right: 0, top: '100%', zIndex: 10,
+                              background: '#fff', border: '1px solid #e2e8f0', 
+                              borderRadius: 8, boxShadow: '0 4px 20px rgba(0,0,0,0.15)',
+                              padding: '4px', minWidth: 160, marginTop: 8
+                            }}>
+                              <button 
+                                onClick={() => { setEditingSection('location'); setActiveMenu(null); }}
+                                style={{ 
+                                  width: '100%', textAlign: 'left', padding: '8px 12px',
+                                  background: 'none', border: 'none', borderRadius: 6,
+                                  display: 'flex', alignItems: 'center', gap: 8,
+                                  fontSize: 13, color: '#334155', cursor: 'pointer'
+                                }}
+                                className="ln-popover-item"
+                              >
+                                <Edit size={14} /> Edit Location
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      )
+                    )}
+                  </div>
+                  <div style={{ padding: '0 16px 16px' }}>
+                    {editingSection === 'location' ? (
+                      <div>
+                        <input
+                          className="form-input"
+                          placeholder="Google Maps URL..."
+                          value={form.office_location_url}
+                          onChange={e => handleUrlChange(e.target.value, 'location', val => setForm({ ...form, office_location_url: val }))}
+                          style={urlValidation.location === 'invalid' || urlValidation.location === 'error' || urlValidation.location === 'unreachable' ? { borderColor: '#ef4444' } : urlValidation.location === 'valid' ? { borderColor: '#10b981' } : {}}
+                        />
+                        {urlValidation.location === 'checking' && <div style={{ fontSize: 11, color: '#3b82f6', marginTop: 4 }}>Verifying location link...</div>}
+                        {urlValidation.location === 'invalid' && <div style={{ fontSize: 11, color: '#ef4444', marginTop: 4 }}>Please enter a valid Google Maps URL</div>}
+                        {urlValidation.location === 'unreachable' && <div style={{ fontSize: 11, color: '#ef4444', marginTop: 4 }}>Link is unreachable or does not exist.</div>}
+                        {urlValidation.location === 'error' && <div style={{ fontSize: 11, color: '#ef4444', marginTop: 4 }}>Could not verify link. Check your connection.</div>}
+                        {urlValidation.location === 'valid' && <div style={{ fontSize: 11, color: '#10b981', marginTop: 4 }}>Link verified successfully.</div>}
+                      </div>
+                    ) : (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                        <p style={{ fontSize: 13, color: '#64748b', display: 'flex', alignItems: 'center', gap: 6 }}>
+                          <MapPin size={14} /> {partner.address || 'Address not listed'}
+                        </p>
+                        {partner.office_location_url && (
+                          <a
+                            href={partner.office_location_url}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="ln-btn ln-btn-primary"
+                            style={{ width: '100%', textAlign: 'center', fontSize: 13, textDecoration: 'none' }}
+                          >
+                            <Navigation size={14} /> View on Map
+                          </a>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Point of Contact Card */}
+                <div className="ln-card" style={{ height: 'fit-content', position: 'relative' }}>
+                  <div className="ln-section-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <h3>Point of Contact</h3>
+                    {isOwnProfile && (
+                      editingSection === 'poc' ? (
+                        <div style={{ display: 'flex', gap: 8 }}>
+                          <button className="ln-btn-sm ln-btn-outline" onClick={() => handleCancelEdit('poc')} disabled={saving}>Cancel</button>
+                          <button className="ln-btn-sm ln-btn-primary" onClick={() => saveSection('poc')} disabled={saving}>
+                            {saving ? 'Saving...' : 'Save'}
+                          </button>
+                        </div>
+                      ) : (
+                        <div style={{ position: 'relative' }}>
+                          <button className="ln-btn-icon" onClick={() => setActiveMenu(activeMenu === 'poc' ? null : 'poc')}>
+                            <MoreVertical size={18} />
+                          </button>
+                          {activeMenu === 'poc' && (
+                            <div className="ln-popover-menu" style={{ 
+                              position: 'absolute', right: 0, top: '100%', zIndex: 10,
+                              background: '#fff', border: '1px solid #e2e8f0', 
+                              borderRadius: 8, boxShadow: '0 4px 20px rgba(0,0,0,0.15)',
+                              padding: '4px', minWidth: 160, marginTop: 8
+                            }}>
+                              <button 
+                                onClick={() => { setEditingSection('poc'); setActiveMenu(null); }}
+                                style={{ 
+                                  width: '100%', textAlign: 'left', padding: '8px 12px',
+                                  background: 'none', border: 'none', borderRadius: 6,
+                                  display: 'flex', alignItems: 'center', gap: 8,
+                                  fontSize: 13, color: '#334155', cursor: 'pointer'
+                                }}
+                                className="ln-popover-item"
+                              >
+                                <Edit size={14} /> Edit POC
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      )
+                    )}
+                  </div>
+                  <div style={{ padding: '0 16px 20px', textAlign: 'center' }}>
+                    <div style={{ position: 'relative', width: 100, height: 100, margin: '0 auto 16px' }}>
+                      <div style={{
+                        width: '100%', height: '100%', borderRadius: '50%',
+                        background: '#f1f5f9', border: '1px solid #e2e8f0',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        overflow: 'hidden'
+                      }}>
+                        {(editingSection === 'poc' ? form.poc_photo_url : partner.poc_photo_url) ? (
+                          <img src={editingSection === 'poc' ? form.poc_photo_url : partner.poc_photo_url} alt="POC" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                        ) : (
+                          <User size={40} color="#94a3b8" />
+                        )}
+                      </div>
+                      {editingSection === 'poc' && (
+                        <button
+                          onClick={() => pocPhotoInputRef.current?.click()}
+                          style={{
+                            position: 'absolute', bottom: 0, right: 0,
+                            background: '#fff', border: '1px solid #e2e8f0',
+                            borderRadius: '50%', width: 28, height: 28,
+                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                            cursor: 'pointer', boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
+                          }}
+                        >
+                          <Camera size={14} />
+                        </button>
+                      )}
+                      <input type="file" ref={pocPhotoInputRef} onChange={handlePOCPhotoUpload} style={{ display: 'none' }} accept="image/*" />
+                    </div>
+
+                    {editingSection === 'poc' ? (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                        <div>
+                          <input
+                            className="form-input"
+                            style={{ textAlign: 'center', fontWeight: 700, ...(form.poc_name.length >= 50 ? { borderColor: '#f59e0b' } : {}) }}
+                            placeholder="Full Name"
+                            maxLength={50}
+                            value={form.poc_name}
+                            onChange={e => setForm({ ...form, poc_name: e.target.value.slice(0, 50) })}
+                          />
+                          {form.poc_name.length >= 50 && <div style={{ fontSize: 11, color: '#f59e0b', marginTop: 4, textAlign: 'center' }}>Maximum 50 characters reached</div>}
+                        </div>
+                        <div>
+                          <input
+                            className="form-input"
+                            style={{ textAlign: 'center', fontSize: 13, ...(form.poc_title.length >= 50 ? { borderColor: '#f59e0b' } : {}) }}
+                            placeholder="Designation / Title"
+                            maxLength={50}
+                            value={form.poc_title}
+                            onChange={e => setForm({ ...form, poc_title: e.target.value.slice(0, 50) })}
+                          />
+                          {form.poc_title.length >= 50 && <div style={{ fontSize: 11, color: '#f59e0b', marginTop: 4, textAlign: 'center' }}>Maximum 50 characters reached</div>}
+                        </div>
+                      </div>
+                    ) : (
+                      <div>
+                        <div style={{ fontWeight: 700, color: '#1e293b', fontSize: 15 }}>{partner.poc_name || 'Name not provided'}</div>
+                        <div style={{ color: '#64748b', fontSize: 13, marginTop: 2 }}>{partner.poc_title || 'Designation'}</div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+
               {/* Documents (Moved from Sidebar) */}
               <div className="ln-card" style={{ marginTop: 20, position: 'relative' }}>
                 <div className="ln-section-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -5837,13 +5934,13 @@ export const CompanyProfile = ({ viewedPartnerId = null, onBack = null }) => {
                     <div style={{ marginBottom: 16, padding: 16, background: '#f8fafc', borderRadius: 10, border: '1px solid #e2e8f0' }}>
                       <div style={{ marginBottom: 10 }}>
                         <label className="ln-info-label" style={{ marginBottom: 4, display: 'block' }}>Document Label <span style={{ color: '#cc1016' }}>*</span></label>
-                        <input type="text" className="ln-search-input" placeholder="e.g. Business Permit, SEC Registration..." maxLength={40} value={docLabel} onChange={e => setDocLabel(e.target.value)} style={{ fontSize: 13 }} />
+                        <input type="text" className="form-input" placeholder="e.g. Business Permit, SEC Registration..." maxLength={40} value={docLabel} onChange={e => setDocLabel(e.target.value)} style={{ fontSize: 13 }} />
                       </div>
                       <div style={{ marginBottom: 10 }}>
                         <label className="ln-info-label" style={{ marginBottom: 4, display: 'block' }}>File (PDF, DOC, DOCX only) <span style={{ color: '#cc1016' }}>*</span></label>
                         <input ref={fileInputRef} type="file" accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document" onChange={e => setDocFile(e.target.files[0] || null)} style={{ fontSize: 13 }} />
                       </div>
-                      <button className="ln-btn-sm ln-btn-primary" onClick={handleDocUpload} disabled={uploading || !docFile || !docLabel.trim()} style={{ width: '100%', height: 38 }}>
+                      <button className="ln-btn-sm ln-btn-primary" onClick={() => { if (!docLabel.trim() || !docFile) return; showConfirm('Do you want to save this document?', handleDocUpload); }} disabled={uploading || !docFile || !docLabel.trim()} style={{ width: 'fit-content', height: 38 }}>
                         {uploading ? 'Uploading...' : <><Upload size={12} /> Upload Document</>}
                       </button>
                     </div>
