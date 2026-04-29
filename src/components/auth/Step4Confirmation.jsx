@@ -197,6 +197,7 @@ export default function Step4Confirmation({ step1Data, step2Data, step3Data, ste
                 <InfoRow icon={User} label="Full Name" value={step1Data.fullName} />
                 <InfoRow icon={CreditCard} label="Student ID" value={step1Data.studentId} />
                 <InfoRow icon={GraduationCap} label="Program" value={step1Data.program} />
+                <InfoRow icon={GraduationCap} label="NC Level" value={step1Data.ncLevel} />
                 <InfoRow icon={User} label="Gender" value={step1Data.gender} />
                 <InfoRow icon={Calendar} label="Birthdate" value={formattedBirthdate} />
             </div>

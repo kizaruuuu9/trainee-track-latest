@@ -42,9 +42,22 @@ const NotificationsDropdown = ({ onClose }) => {
     const [visibleCount, setVisibleCount] = useState(10);
     const [menuOpenId, setMenuOpenId] = useState(null);
     const [activeTab, setActiveTab] = useState('All');
+    const [timeFilter, setTimeFilter] = useState('All');
 
     const filteredNotifications = notifications?.filter(n => {
-        if (activeTab === 'Unread') return !n.read;
+        if (activeTab === 'Unread' && n.read) return false;
+
+        if (timeFilter !== 'All') {
+            const notifDate = new Date(n.created_at);
+            const now = new Date();
+            const diffMs = now - notifDate;
+
+            if (timeFilter === 'Hour' && diffMs > 60 * 60 * 1000) return false;
+            if (timeFilter === 'Day' && diffMs > 24 * 60 * 60 * 1000) return false;
+            if (timeFilter === 'Week' && diffMs > 7 * 24 * 60 * 60 * 1000) return false;
+            if (timeFilter === 'Month' && diffMs > 30 * 24 * 60 * 60 * 1000) return false;
+        }
+
         return true;
     }) || [];
 
@@ -66,8 +79,8 @@ const NotificationsDropdown = ({ onClose }) => {
 
     return (
         <div 
-            className="absolute right-0 top-12 md:right-[-60px] bg-white border border-slate-200 rounded-xl shadow-xl z-50 w-[350px] md:w-[400px] flex flex-col overflow-hidden" 
-            style={{ animation: 'fadeIn 0.2s ease-out', maxHeight: '80vh' }}
+            className="absolute right-0 top-12 md:right-[-60px] bg-white border border-slate-200 rounded-xl shadow-xl w-[350px] md:w-[400px] flex flex-col overflow-hidden" 
+            style={{ animation: 'fadeIn 0.2s ease-out', maxHeight: '80vh', zIndex: 1200 }}
             onClick={(e) => e.stopPropagation()}
         >
             {/* Header */}
@@ -85,19 +98,34 @@ const NotificationsDropdown = ({ onClose }) => {
                     </div>
                 </div>
 
-                <div className="flex gap-2">
-                    <button
-                        onClick={() => setActiveTab('All')}
-                        className={`px-3 py-1 rounded-full text-[13px] font-semibold transition-colors ${activeTab === 'All' ? 'bg-[#057642] text-white' : 'bg-transparent text-slate-600 hover:bg-slate-100'}`}
-                    >
-                        All
-                    </button>
-                    <button
-                        onClick={() => setActiveTab('Unread')}
-                        className={`px-3 py-1 rounded-full text-[13px] font-semibold transition-colors ${activeTab === 'Unread' ? 'bg-[#057642] text-white' : 'bg-transparent text-slate-600 hover:bg-slate-100'}`}
-                    >
-                        Unread {unreadCount > 0 && `(${unreadCount})`}
-                    </button>
+                <div className="flex flex-col gap-2">
+                    <div className="flex gap-2">
+                        <button
+                            onClick={() => setActiveTab('All')}
+                            className={`px-3 py-1 rounded-full text-[13px] font-semibold transition-colors ${activeTab === 'All' ? 'bg-[#057642] text-white' : 'bg-transparent text-slate-600 hover:bg-slate-100'}`}
+                        >
+                            All
+                        </button>
+                        <button
+                            onClick={() => setActiveTab('Unread')}
+                            className={`px-3 py-1 rounded-full text-[13px] font-semibold transition-colors ${activeTab === 'Unread' ? 'bg-[#057642] text-white' : 'bg-transparent text-slate-600 hover:bg-slate-100'}`}
+                        >
+                            Unread {unreadCount > 0 && `(${unreadCount > 99 ? '99+' : unreadCount})`}
+                        </button>
+                    </div>
+                    <div className="flex flex-wrap gap-1 mt-1 border-t border-slate-100 pt-1">
+                        <select 
+                            className="text-[12px] text-slate-600 bg-slate-50 border border-slate-200 rounded-md px-2 py-1 outline-none cursor-pointer"
+                            value={timeFilter}
+                            onChange={(e) => setTimeFilter(e.target.value)}
+                        >
+                            <option value="All">Any time</option>
+                            <option value="Hour">Past hour</option>
+                            <option value="Day">Past 24 hours</option>
+                            <option value="Week">Past week</option>
+                            <option value="Month">Past month</option>
+                        </select>
+                    </div>
                 </div>
             </div>
 
@@ -204,15 +232,17 @@ const NotificationsDropdown = ({ onClose }) => {
                     <div className="p-2 border-t border-slate-100 bg-white text-center">
                         <button 
                             onClick={() => {
-                                if (userRole === 'trainee') {
-                                    navigate('/trainee/notifications');
-                                }
+                                let targetRoute = '';
+                                if (userRole === 'trainee') targetRoute = '/trainee/notifications';
+                                else if (userRole === 'partner' || userRole === 'industry_partner') targetRoute = '/partner/notifications';
+                                else if (userRole === 'admin') targetRoute = '/admin/notifications';
+                                
+                                if (targetRoute) navigate(targetRoute);
                                 if (onClose) onClose();
                             }}
-                            className={`text-[13px] font-bold text-[#0a66c2] hover:underline ${userRole !== 'trainee' ? 'opacity-50 cursor-default no-underline' : ''}`}
-                            disabled={userRole !== 'trainee'}
+                            className="text-[13px] font-bold text-[#0a66c2] hover:underline"
                         >
-                            {userRole === 'trainee' ? 'See all notifications' : 'View notifications above'}
+                            See all notifications
                         </button>
                     </div>
                 )}

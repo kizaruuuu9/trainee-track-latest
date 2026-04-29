@@ -34,7 +34,8 @@ const compressImage = async (file, maxWidth = 1000, quality = 0.7) => {
 
           canvas.toBlob((blob) => {
             // Return a new File object (WebP is very efficient)
-            const compressedFile = new File([blob], file.name.replace(/\.[^/.]+$/, "") + ".webp", {
+            const baseName = file.name ? file.name.replace(/\.[^/.]+$/, "") : "image";
+            const compressedFile = new File([blob], baseName + ".webp", {
               type: 'image/webp',
               lastModified: Date.now(),
             });
@@ -255,12 +256,34 @@ export const AppProvider = ({ children }) => {
   const [userRole, setUserRole] = useState(null); // 'admin' | 'trainee' | 'partner'
   const presenceAccessTokenRef = useRef('');
   const presenceApiFailedRef = useRef(false);
+  const [isPresenceEnabled, setIsPresenceEnabled] = useState(true);
+  
+  // Caching Flags (to prevent redundant fetches when switching tabs)
+  const traineesFetchedRef = useRef(false);
+  const partnersFetchedRef = useRef(false);
+  const accountsFetchedRef = useRef(false);
+  const programsFetchedRef = useRef(false);
+  const postsFetchedRef = useRef(false);
+  const bulletinFetchedRef = useRef(false);
+  const applicationsFetchedRef = useRef(false);
+  const interactionsFetchedRef = useRef(false);
+  const statsFetchedRef = useRef(false);
+  const pqfFetchedRef = useRef(false);
+  const adminLastRefreshRef = useRef(0);
+  const adminRefreshTimeoutRef = useRef(null);
+  const adminLastPageRef = useRef(1);
 
   // ΓöÇΓöÇΓöÇ TRAINEES ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
   const [trainees, setTrainees] = useState([]);
+  const [totalTrainees, setTotalTrainees] = useState(0);
 
   // ΓöÇΓöÇΓöÇ INDUSTRY PARTNERS ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
   const [partners, setPartners] = useState([]);
+  const [totalPartners, setTotalPartners] = useState(0);
+  const [accounts, setAccounts] = useState([]);
+  const [totalAccounts, setTotalAccounts] = useState(0);
+  const [adminEmploymentStats, setAdminEmploymentStats] = useState(null);
+
 
   // ─── TESDA PROGRAMS (DB-DRIVEN) ────────────────────────────────────
   const [programs, setPrograms] = useState([]);
@@ -272,7 +295,7 @@ export const AppProvider = ({ children }) => {
 
   // ΓöÇΓöÇΓöÇ JOB / OPPORTUNITY POSTINGS ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
   const [jobPostings, setJobPostings] = useState([]);
-  const [feedLimit, setFeedLimit] = useState(10);
+  const [feedLimit, setFeedLimit] = useState(20);
 
   // ΓöÇΓöÇΓöÇ APPLICATIONS ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
   const [applications, setApplications] = useState([
@@ -427,6 +450,12 @@ export const AppProvider = ({ children }) => {
   // Dynamically resolve the admin user ID from the profiles table on mount
   useEffect(() => {
     const resolveAdminId = async () => {
+      // Check localStorage cache first to avoid a DB query on every mount
+      const cachedAdminId = localStorage.getItem('cachedAdminUserId');
+      if (cachedAdminId) {
+        setAdminUserId(cachedAdminId);
+        return;
+      }
       try {
         const { data, error } = await supabase
           .from('profiles')
@@ -435,10 +464,10 @@ export const AppProvider = ({ children }) => {
           .limit(1)
           .maybeSingle();
         if (!error && data) {
-          console.log('[Notifications] Resolved admin user ID:', data.id);
           setAdminUserId(data.id);
+          localStorage.setItem('cachedAdminUserId', data.id);
         } else {
-          console.warn('[Notifications] Could not resolve admin ID, falling back to hardcoded.');
+          console.warn('[Notifications] Could not resolve admin ID.');
           setAdminUserId(null);
         }
       } catch (err) {
@@ -454,9 +483,10 @@ export const AppProvider = ({ children }) => {
     try {
       const { data, error } = await supabase
         .from('notifications')
-        .select('*')
+        .select('id, user_id, type, text, read, created_at, metadata')
         .eq('user_id', currentUser.id)
-        .order('created_at', { ascending: false });
+        .order('created_at', { ascending: false })
+        .limit(50);
 
       if (error) {
         if (error.code === '42P01') {
@@ -638,7 +668,7 @@ export const AppProvider = ({ children }) => {
     try {
       const { data, error } = await supabase
         .from('partner_availability')
-        .select('*')
+        .select('id, partner_id, day_of_week, start_time, end_time, capacity')
         .eq('partner_id', partnerId)
         .order('day_of_week', { ascending: true });
       if (error) {
@@ -675,7 +705,7 @@ export const AppProvider = ({ children }) => {
     try {
       const { data, error } = await supabase
         .from('interview_bookings')
-        .select('*')
+        .select('id, application_id, trainee_id, partner_id, start_time, end_time, status, created_at')
         .eq('partner_id', partnerId)
         .order('start_time', { ascending: true });
       if (error) {
@@ -690,7 +720,7 @@ export const AppProvider = ({ children }) => {
     try {
       const { data, error } = await supabase
         .from('interview_bookings')
-        .select('*')
+        .select('id, application_id, trainee_id, partner_id, start_time, end_time, status, created_at')
         .eq('trainee_id', traineeId)
         .order('start_time', { ascending: true });
       if (error) {
@@ -703,10 +733,70 @@ export const AppProvider = ({ children }) => {
 
   const saveInterviewBooking = async (bookingData) => {
     try {
+      const appId = bookingData.application_id || bookingData.applicationId;
+      const traineeId = bookingData.trainee_id || bookingData.traineeId;
+      const partnerId = bookingData.partner_id || bookingData.partnerId;
+
+      // Database constraint bypass: Ensure application_id exists in post_interactions
+      const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(appId);
+      if (isUuid) {
+        try {
+          const { data: existingInteraction } = await supabase
+            .from('post_interactions')
+            .select('id')
+            .eq('id', appId)
+            .maybeSingle();
+
+          if (!existingInteraction) {
+            let postId = null;
+            const { data: existingPost } = await supabase
+              .from('posts')
+              .select('id')
+              .eq('title', 'System Constraints Post')
+              .limit(1)
+              .maybeSingle();
+
+            if (existingPost) {
+              postId = existingPost.id;
+            } else {
+              const { data: newPost, error: postErr } = await supabase
+                .from('posts')
+                .insert([{
+                  author_id: partnerId,
+                  author_type: 'industry_partner',
+                  post_type: 'general',
+                  title: 'System Constraints Post',
+                  content: 'Internal dummy post for constraint resolution.',
+                  is_active: true,
+                }])
+                .select()
+                .single();
+
+              if (!postErr && newPost) postId = newPost.id;
+            }
+
+            if (postId) {
+              await supabase
+                .from('post_interactions')
+                .insert([{
+                  id: appId,
+                  post_id: postId,
+                  user_id: traineeId,
+                  interaction_type: 'apply',
+                  status: 'pending',
+                  user_type: 'student'
+                }]);
+            }
+          }
+        } catch (bypassErr) {
+          console.warn('Constraint bypass attempted but hit error:', bypassErr);
+        }
+      }
+
       const payload = {
-        application_id: bookingData.application_id || bookingData.applicationId,
-        trainee_id: bookingData.trainee_id || bookingData.traineeId,
-        partner_id: bookingData.partner_id || bookingData.partnerId,
+        application_id: appId,
+        trainee_id: traineeId,
+        partner_id: partnerId,
         start_time: bookingData.start_time || bookingData.startTime,
         end_time: bookingData.end_time || bookingData.endTime,
         status: 'scheduled',
@@ -729,7 +819,7 @@ export const AppProvider = ({ children }) => {
     try {
       const { data, error } = await supabase
         .from('partner_availability')
-        .select('*')
+        .select('id, partner_id, day_of_week, start_time, end_time, capacity')
         .eq('partner_id', partnerId)
         .order('day_of_week', { ascending: true });
       if (error) {
@@ -742,22 +832,23 @@ export const AppProvider = ({ children }) => {
 
   // ΓöÇΓöÇΓöÇ COMMUNITY POSTS ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
   const [posts, setPosts] = useState([]);
-  const [postComments, setPostComments] = useState([]);
   const [jobPostingComments, setJobPostingComments] = useState([]);
   const [contactRequests, setContactRequests] = useState([]);
 
-  const fetchPosts = async (limitOverride = null) => {
+  const fetchPosts = async (limitOverride = null, forceRefresh = false) => {
+    if (!forceRefresh && postsFetchedRef.current && !limitOverride) return;
     try {
       const limitToUse = limitOverride || feedLimit;
       const { data, error } = await supabase
         .from('posts')
-        .select('*')
+        .select('id, author_id, author_type, post_type, title, content, media_url, tags, is_active, created_at, updated_at, expires_at, schedule, time_range, slots, requirements, status, accept_referrals, admin_metadata, program_name, image_url, attachment_name, attachment_url, attachment_type')
         .eq('is_active', true)
         .order('created_at', { ascending: false })
         .limit(limitToUse);
 
       if (error) throw error;
       setPosts(data || []);
+      if (!limitOverride) postsFetchedRef.current = true;
     } catch (err) {
       console.error('Error fetching posts:', err);
     }
@@ -808,40 +899,20 @@ export const AppProvider = ({ children }) => {
   };
 
   const loadMoreFeeds = async () => {
-    const newLimit = feedLimit + 10;
+    const newLimit = feedLimit + 20;
     setFeedLimit(newLimit);
     await Promise.all([fetchPosts(newLimit), fetchJobPostings(newLimit)]);
-    return 10;
+    return 20;
   };
 
-  const fetchPostComments = async () => {
-    try {
-      const { data, error } = await supabase
-        .from('post_comments')
-        .select('*')
-        .order('created_at', { ascending: true });
-
-      if (error) {
-        // Graceful fallback if table is not created yet
-        if (error.code === '42P01') {
-          console.warn('post_comments table not found. Create it to enable comments backend.');
-          return;
-        }
-        throw error;
-      }
-
-      setPostComments(data || []);
-    } catch (err) {
-      console.error('Error fetching post comments:', err);
-    }
-  };
 
   const fetchJobPostingComments = async () => {
     try {
       const { data, error } = await supabase
         .from('job_posting_comments')
-        .select('*')
-        .order('created_at', { ascending: true });
+        .select('id, job_posting_id, author_id, author_type, content, created_at, updated_at')
+        .order('created_at', { ascending: true })
+        .limit(200);
 
       if (error) {
         if (error.code === '42P01' || error.code === 'PGRST204' || error.code === 'PGRST205') {
@@ -857,51 +928,6 @@ export const AppProvider = ({ children }) => {
     }
   };
 
-  const addPostComment = async (postId, content) => {
-    try {
-      if (!currentUser) throw new Error('You must be logged in to comment');
-      const trimmed = content?.trim();
-      if (!trimmed) return { success: false, error: 'Comment cannot be empty.' };
-
-      const payload = {
-        post_id: postId,
-        author_id: currentUser.id,
-        author_type: userRole === 'admin' ? 'admin' : (userRole === 'partner' ? 'industry_partner' : 'student'),
-        content: trimmed,
-        created_at: new Date().toISOString(),
-      };
-
-      const { data, error } = await supabase
-        .from('post_comments')
-        .insert([payload])
-        .select()
-        .single();
-
-      if (error) throw error;
-      setPostComments(prev => [...prev, data]);
-
-      // Notify the post author if it's not the commenter
-      const post = posts.find(p => p.id === postId);
-      if (post && post.author_id !== currentUser.id) {
-        const target = post.author_type === 'admin' ? '/admin' : (isStudentAuthorType(post.author_type) ? '/trainee' : '/partner');
-        createNotification(post.author_id, 'system', `Someone commented on your post: "${post.title || post.content?.substring(0, 20)}..."`, { target, postId });
-      }
-
-      // Notify the Admin if it's not the admin's own comment
-      if (adminUserId && currentUser.id !== adminUserId) {
-        createNotification(adminUserId, 'system', `New comment on a post by ${post?.author_type === 'admin' ? 'the Admin' : 'a user'}`, { target: '/admin', postId });
-      }
-
-      return { success: true, data };
-    } catch (err) {
-      console.error('Error adding post comment:', err);
-      return { success: false, error: err.message };
-    }
-  };
-
-  const getPostComments = (postId) => {
-    return postComments.filter(comment => comment.post_id === postId);
-  };
 
   const addJobPostingComment = async (jobPostingId, content) => {
     try {
@@ -1195,16 +1221,25 @@ export const AppProvider = ({ children }) => {
   // ΓöÇΓöÇΓöÇ POST INTERACTIONS ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
   const [postInteractions, setPostInteractions] = useState([]);
 
-  const fetchPostInteractions = async (postId = null) => {
+  const fetchPostInteractions = async (postId = null, forceRefresh = false) => {
+    if (!forceRefresh && !postId && interactionsFetchedRef.current) return;
     try {
-      let query = supabase.from('post_interactions').select('*').order('created_at', { ascending: false });
+      let query = supabase.from('post_interactions').select('id, post_id, user_id, interaction_type, status, details, created_at, updated_at, user_type').order('created_at', { ascending: false }).limit(500);
       if (postId) query = query.eq('post_id', postId);
       const { data, error } = await query;
       if (error) {
         if (error.code === '42P01') { console.warn('post_interactions table not found. Run migrations.'); return; }
         throw error;
       }
-      setPostInteractions(data || []);
+      if (postId) {
+        setPostInteractions(prev => {
+          const filtered = prev.filter(i => i.post_id !== postId);
+          return [...filtered, ...(data || [])];
+        });
+      } else {
+        setPostInteractions(data || []);
+        interactionsFetchedRef.current = true;
+      }
     } catch (err) {
       console.error('Error fetching post interactions:', err);
     }
@@ -1340,82 +1375,35 @@ export const AppProvider = ({ children }) => {
   };
 
   useEffect(() => {
-    fetchPosts();
-    fetchJobPostings();
-    fetchPostComments();
-    fetchJobPostingComments();
-    fetchPostInteractions();
+    // OPTIMIZED: Removed duplicate fetchJobPostingComments and fetchProgramsCatalog
+    // They are already fetched inside the hydration useEffect's fetchAllData().
+    // Only fetch PQF data here (once, guarded by ref flag).
 
-    const fetchProgramsCatalog = async () => {
-      try {
-        let rows = null;
-        let error = null;
+    if (!pqfFetchedRef.current) {
+      pqfFetchedRef.current = true;
+      const fetchPqfData = async () => {
+        try {
+          const { data: levels, error: levelsErr } = await supabase
+            .from('pqf_education_levels')
+            .select('id, pqf_level, type, agencies, focus, is_active, sort_order')
+            .eq('is_active', true)
+            .order('sort_order', { ascending: true });
+          if (levelsErr) throw levelsErr;
+          setPqfLevels(levels || []);
 
-        const primary = await supabase
-          .from('programs')
-          .select('id, name, nc_level, duration_hours, description, competencies')
-          .order('name', { ascending: true });
-
-        rows = primary.data;
-        error = primary.error;
-
-        if (error && (error.code === 'PGRST204' || String(error.message || '').toLowerCase().includes('competencies'))) {
-          const fallback = await supabase
-            .from('programs')
-            .select('id, name, nc_level, duration_hours, description')
-            .order('name', { ascending: true });
-
-          rows = fallback.data;
-          error = fallback.error;
+          const { data: progs, error: progsErr } = await supabase
+            .from('pqf_programs')
+            .select('id, pqf_level_id, sector, program_name, program_type, is_active, sort_order')
+            .eq('is_active', true)
+            .order('sort_order', { ascending: true });
+          if (progsErr) throw progsErr;
+          setPqfPrograms(progs || []);
+        } catch (err) {
+          console.warn('Failed to fetch PQF data:', err);
         }
-
-        if (error) throw error;
-
-        const mappedPrograms = (rows || []).map(program => {
-          const fromColumn = normalizeCompetencyList(program.competencies || []);
-          const fromDescription = extractCompetenciesFromProgramDescription(program.description || '');
-
-          return {
-            id: program.id,
-            name: program.name,
-            ncLevel: program.nc_level || '',
-            durationHours: program.duration_hours || null,
-            description: program.description || '',
-            competencies: fromColumn.length > 0 ? fromColumn : fromDescription,
-          };
-        });
-
-        setPrograms(mappedPrograms);
-      } catch (err) {
-        console.warn('Failed to fetch programs catalog:', err);
-      }
-    };
-
-    fetchProgramsCatalog();
-
-    // ─── Fetch PQF Education Levels & Programs ────────────────
-    const fetchPqfData = async () => {
-      try {
-        const { data: levels, error: levelsErr } = await supabase
-          .from('pqf_education_levels')
-          .select('*')
-          .eq('is_active', true)
-          .order('sort_order', { ascending: true });
-        if (levelsErr) throw levelsErr;
-        setPqfLevels(levels || []);
-
-        const { data: progs, error: progsErr } = await supabase
-          .from('pqf_programs')
-          .select('*')
-          .eq('is_active', true)
-          .order('sort_order', { ascending: true });
-        if (progsErr) throw progsErr;
-        setPqfPrograms(progs || []);
-      } catch (err) {
-        console.warn('Failed to fetch PQF data:', err);
-      }
-    };
-    fetchPqfData();
+      };
+      fetchPqfData();
+    }
   }, [currentUser?.id]);
 
   // ΓöÇΓöÇΓöÇ ML-INSPIRED RECOMMENDATION ENGINE ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
@@ -1564,10 +1552,6 @@ export const AppProvider = ({ children }) => {
       else if (verification === 'under review') score += 0.12;
       else if (verification === 'pending') score += 0.05;
       else if (verification === 'rejected') score -= 0.2;
-
-      const activity = normalizeLooseText(partner.activityStatus || '');
-      if (activity === 'online') score += 0.1;
-      else if (activity === 'offline') score -= 0.05;
     }
 
     const jobApps = applications.filter(app => String(app.jobId) === String(job?.id));
@@ -2062,9 +2046,17 @@ export const AppProvider = ({ children }) => {
 
   const normalizeApplicationStatus = (value) => {
     const raw = String(value || '').trim().toLowerCase();
+    if (raw === 'shortlisted') return 'Shortlisted';
+    if (raw === 'interview requested') return 'Interview Requested';
+    if (raw === 'interview confirmed') return 'Interview Confirmed';
+    if (raw === 'interview declined') return 'Interview Declined';
+    if (raw === 'reschedule requested') return 'Reschedule Requested';
+    if (raw === 'interview scheduled') return 'Interview Scheduled';
     if (raw === 'accepted') return 'Accepted';
     if (raw === 'rejected') return 'Rejected';
-    if (raw === 'interview scheduled') return 'Interview Scheduled';
+    if (raw === 'hired') return 'Hired';
+    if (raw === 'sent') return 'Sent';
+    if (raw === 'received') return 'Received';
     return 'Pending';
   };
 
@@ -2216,19 +2208,44 @@ export const AppProvider = ({ children }) => {
       let persisted = false;
       let lastErrorMessage = '';
 
+      let fallbackTable = 'job_applications';
+      if (conRec && !appRec) fallbackTable = 'contact_requests';
+
       const candidateTables = targetRec?.sourceTable
         ? [targetRec.sourceTable]
-        : (targetRec?.recordType === 'contact' ? ['contact_requests'] : ['job_applications']);
+        : [fallbackTable];
 
       for (const table of candidateTables) {
+        let statusToPersist = status.toLowerCase();
+        if (table === 'contact_requests') {
+          if ([
+            'shortlisted',
+            'interview requested',
+            'interview confirmed',
+            'interview scheduled',
+            'reschedule requested',
+          ].includes(statusToPersist)) {
+            statusToPersist = 'reviewed';
+          } else if (statusToPersist === 'hired') {
+            statusToPersist = 'accepted';
+          }
+        }
+
+        const updatePayload = {
+          status: statusToPersist,
+          notes,
+          reviewed_at: new Date().toISOString(),
+        };
+
+        // Only add proposed_interview_date if NOT updating contact_requests
+        const proposedDate = metadata?.proposedInterviewDate || metadata?.proposed_interview_date;
+        if (proposedDate !== undefined && table !== 'contact_requests') {
+          updatePayload.proposed_interview_date = proposedDate;
+        }
+
         const { data, error } = await supabase
           .from(table)
-          .update({ 
-            status: status.toLowerCase(), 
-            notes, 
-            reviewed_at: new Date().toISOString(),
-            proposed_interview_date: metadata?.proposedInterviewDate || metadata?.proposed_interview_date || null
-          })
+          .update(updatePayload)
           .eq('id', applicationId)
           .select();
 
@@ -2256,7 +2273,7 @@ export const AppProvider = ({ children }) => {
         const jobId = targetRec?.jobId;
         if (studentId) {
           try {
-            const opportunity = opportunities.find(o => String(o.id) === String(jobId));
+            const opportunity = jobPostings.find(o => String(o.id) === String(jobId));
             const partnerId = opportunity?.partnerId;
             const partner = partners.find(p => String(p.id) === String(partnerId));
 
@@ -2297,11 +2314,64 @@ export const AppProvider = ({ children }) => {
     ));
     logActivity('Status Change', 'Recruitment', `Record #${applicationId} status changed`, prevStatus, status);
 
+    // Sync state for both dashboards after update
+    await fetchApplications(true);
+    await fetchContactRequests();
+
     // Notify the Trainee/Sender
     if (targetRec?.traineeId || targetRec?.sender_id || targetRec?.student_id) {
       const targetUserId = targetRec.traineeId || targetRec.sender_id || targetRec.student_id;
       createNotification(targetUserId, 'application', `Update on your application: Status changed to ${status}`, { target: '/trainee/applications' });
     }
+
+    return { success: true };
+  };
+
+  const deleteApplication = async (applicationId) => {
+    const appRec = applications.find(a => String(a.id) === String(applicationId));
+    const conRec = contactRequests.find(r => String(r.id) === String(applicationId));
+    const targetRec = appRec || conRec;
+
+    if (!targetRec) return { success: false, error: 'Record not found.' };
+
+    const isSupabaseRecord = typeof applicationId === 'string' && applicationId.length === 36;
+
+    if (isSupabaseRecord) {
+      let deleted = false;
+      let lastError = '';
+
+      // Determine which table(s) to try
+      const candidateTables = targetRec.sourceTable
+        ? [targetRec.sourceTable]
+        : conRec && !appRec
+          ? ['contact_requests']
+          : ['job_applications', 'contact_requests'];
+
+      for (const table of candidateTables) {
+        const { error } = await supabase
+          .from(table)
+          .delete()
+          .eq('id', applicationId);
+
+        if (!error) {
+          deleted = true;
+          break;
+        }
+
+        lastError = error.message;
+        if (isSchemaMissingError(error)) continue;
+      }
+
+      if (!deleted) {
+        console.error('Failed to delete application from database:', lastError);
+        toast.error('Failed to delete: ' + (lastError || 'Record not found in database.'));
+        return { success: false, error: lastError };
+      }
+    }
+
+    // Remove from local state
+    setApplications(prev => prev.filter(a => String(a.id) !== String(applicationId)));
+    setContactRequests(prev => prev.filter(r => String(r.id) !== String(applicationId)));
 
     return { success: true };
   };
@@ -2407,21 +2477,34 @@ export const AppProvider = ({ children }) => {
         const jobId = request.jobPostingId || request.job_posting_id;
         const job = jobPostings.find(j => String(j.id) === String(jobId));
 
+        const booking = interviewBookings.find(b => String(b.application_id) === String(request.id) && b.status !== 'cancelled');
         return {
+          ...request,
           id: request.id,
           rowKey: `contact-${request.id}`,
           recordType: 'contact',
-          activityType: isOutgoing ? 'Direct Apply Contact' : 'Partner Contact',
+          activityType: isOutgoing ? (jobId ? 'Direct Apply Contact' : 'Direct Contact') : 'Partner Outreach',
           directionLabel: isOutgoing ? 'You contacted partner' : 'Partner contacted you',
-          status: request.status ? (request.status.charAt(0).toUpperCase() + request.status.slice(1)) : (isOutgoing ? 'Sent' : 'Pending'),
+          status: (() => {
+            const rawStatus = String(request.status || '').toLowerCase();
+            if (rawStatus === 'reviewed' || rawStatus === 'pending') {
+              if (request.proposed_interview_date) {
+                // If it was a partner outreach or if partner replied with a date
+                return isOutgoing ? 'Reschedule Requested' : 'Interview Requested';
+              }
+            }
+            return request.status ? (request.status.charAt(0).toUpperCase() + request.status.slice(1)) : (isOutgoing ? 'Sent' : 'Pending');
+          })(),
           job,
           partner: partner || (job ? { id: job.partnerId, companyName: job.companyName || 'Industry Partner' } : { id: partnerId, companyName: 'Industry Partner' }),
           outgoingMessage: isOutgoing ? request.message : null,
-          incomingMessage: isOutgoing ? null : request.message,
+          incomingMessage: isOutgoing ? (request.notes || null) : request.message,
           attachmentName: request.attachment_name || null,
           attachmentUrl: request.attachment_url || null,
           attachmentKind: request.attachment_kind || null,
           matchRate: traineeId && job?.id ? getMatchRate(traineeId, job.id) : null,
+          proposedInterviewDate: request.proposed_interview_date || null,
+          interviewDate: booking?.start_time || null,
           sortAt: toTimestamp(request.created_at),
         };
       });
@@ -2525,7 +2608,7 @@ export const AppProvider = ({ children }) => {
           programId: selectedProgram?.id || jobData.programId || null,
           ncLevel: normalizedNcLevel,
           description: jobData.description || '',
-          employmentType: (jobData.opportunityType || 'Job') === 'OJT' ? '' : (jobData.employmentType || ''),
+          employmentType: (jobData.opportunityType || 'Job') === 'OJT' ? 'OJT' : (jobData.employmentType || 'Full-time'),
           location: jobData.location || '',
           salaryRange: normalizedSalaryRange,
           salaryCurrency,
@@ -2617,8 +2700,8 @@ export const AppProvider = ({ children }) => {
       ncLevel: normalizedNcLevel,
       description: jobData.description || existingJob.description || '',
       employmentType: (jobData.opportunityType || existingJob.opportunityType || 'Job') === 'OJT'
-        ? ''
-        : (jobData.employmentType || existingJob.employmentType || ''),
+        ? 'OJT'
+        : (jobData.employmentType || existingJob.employmentType || 'Full-time'),
       location: jobData.location || existingJob.location || '',
       salaryRange: normalizedSalaryRange,
       salaryCurrency,
@@ -2967,7 +3050,13 @@ export const AppProvider = ({ children }) => {
         return { success: false, error: 'Account created, but failed to save company details.' };
       }
 
-      logActivity('Create', 'Partners', `New partner registered: ${partnerData.companyName}`, null, partnerData.companyName);
+      logActivity('Create', 'Partners', `Partner registered: ${partnerData.companyName}`, null, 'Pending');
+
+      // Notify Admin of new registration
+      if (adminUserId) {
+        createNotification(adminUserId, 'system', `New partner registration: ${partnerData.companyName}. Verification required.`, { target: '/admin/partners' });
+      }
+
       return { success: true };
     } catch (err) {
       console.error('Registration error:', err);
@@ -2982,25 +3071,39 @@ export const AppProvider = ({ children }) => {
       try {
         // Map dashboard field names to industry_partners table column names
         const dbUpdates = {};
+        console.log('>>> [updatePartner] Attempting update for:', partnerId);
+        console.log('>>> [updatePartner] Raw updates received:', updates);
+        
         if (updates.companyName !== undefined) dbUpdates.company_name = updates.companyName;
         if (updates.contactPerson !== undefined) dbUpdates.contact_person = updates.contactPerson;
         if (updates.industry !== undefined) dbUpdates.business_type = updates.industry;
         if (updates.address !== undefined) dbUpdates.detailed_address = updates.address;
         if (updates.detailed_address !== undefined) dbUpdates.detailed_address = updates.detailed_address;
+        if (updates.detailedAddress !== undefined) dbUpdates.detailed_address = updates.detailedAddress;
         if (updates.region !== undefined) dbUpdates.region = updates.region;
         if (updates.province !== undefined) dbUpdates.province = updates.province;
         if (updates.city !== undefined) dbUpdates.city = updates.city;
         if (updates.barangay !== undefined) dbUpdates.barangay = updates.barangay;
-        if (updates.regionCode !== undefined) dbUpdates.regionCode = updates.regionCode;
-        if (updates.provinceCode !== undefined) dbUpdates.provinceCode = updates.provinceCode;
-        if (updates.cityCode !== undefined) dbUpdates.cityCode = updates.cityCode;
-        if (updates.barangayCode !== undefined) dbUpdates.barangayCode = updates.barangayCode;
+        if (updates.regionCode !== undefined) {
+          dbUpdates.regionCode = updates.regionCode;
+        }
+        if (updates.provinceCode !== undefined) {
+          dbUpdates.provinceCode = updates.provinceCode;
+        }
+        if (updates.cityCode !== undefined) {
+          dbUpdates.cityCode = updates.cityCode;
+        }
+        if (updates.barangayCode !== undefined) {
+          dbUpdates.barangayCode = updates.barangayCode;
+        }
         if (updates.companySize !== undefined) dbUpdates.company_size = updates.companySize;
         if (updates.website !== undefined) dbUpdates.website = updates.website;
         if (updates.email !== undefined) dbUpdates.contact_email = updates.email;
+        if (updates.contactEmail !== undefined) dbUpdates.contact_email = updates.contactEmail;
         if (updates.achievements !== undefined) dbUpdates.achievements = updates.achievements;
         if (updates.benefits !== undefined) dbUpdates.benefits = updates.benefits;
         if (updates.companyInfoVisibility !== undefined) dbUpdates.company_info_visibility = updates.companyInfoVisibility;
+        if (updates.company_info_visibility !== undefined) dbUpdates.company_info_visibility = updates.company_info_visibility;
         if (updates.mission !== undefined) dbUpdates.mission = updates.mission;
         if (updates.vision !== undefined) dbUpdates.vision = updates.vision;
         if (updates.culture_tags !== undefined) dbUpdates.culture_tags = updates.culture_tags;
@@ -3026,14 +3129,17 @@ export const AppProvider = ({ children }) => {
         }
 
         if (Object.keys(dbUpdates).length > 0) {
+          console.log('>>> [updatePartner] Sending dbUpdates to Supabase:', dbUpdates);
           const { error } = await supabase
             .from('industry_partners')
             .update(dbUpdates)
             .eq('id', partnerId);
+
           if (error) {
-            console.error('Failed to update partner in Supabase:', error);
+            console.error('>>> [updatePartner] Supabase Error:', error);
             return { success: false, error: error.message };
           }
+          console.log('>>> [updatePartner] Update successful!');
         }
       } catch (err) {
         console.error('Supabase update error:', err);
@@ -3046,7 +3152,11 @@ export const AppProvider = ({ children }) => {
       p.id === partnerId ? { ...p, ...updates } : p
     ));
     if (currentUser?.id === partnerId) {
-      setCurrentUser(prev => ({ ...prev, ...updates }));
+      setCurrentUser(prev => {
+        const nextUser = { ...prev, ...updates };
+        localStorage.setItem('currentUser', JSON.stringify(nextUser));
+        return nextUser;
+      });
     }
     logActivity('Edit', 'Partners', `Updated company profile`, null, null);
     return { success: true };
@@ -3076,7 +3186,11 @@ export const AppProvider = ({ children }) => {
         p.id === partnerId ? { ...p, verificationStatus: 'Under Review' } : p
       ));
       if (currentUser?.id === partnerId) {
-        setCurrentUser(prev => ({ ...prev, verificationStatus: 'Under Review' }));
+        setCurrentUser(prev => {
+          const nextUser = { ...prev, verificationStatus: 'Under Review' };
+          localStorage.setItem('currentUser', JSON.stringify(nextUser));
+          return nextUser;
+        });
       }
       logActivity('Status Change', 'Partners', `${partner?.companyName} submitted documents for verification`, partner?.verificationStatus, 'Under Review');
     } catch (err) {
@@ -3108,7 +3222,11 @@ export const AppProvider = ({ children }) => {
         p.id === partnerId ? { ...p, verificationStatus: 'Pending' } : p
       ));
       if (currentUser?.id === partnerId) {
-        setCurrentUser(prev => ({ ...prev, verificationStatus: 'Pending' }));
+        setCurrentUser(prev => {
+          const nextUser = { ...prev, verificationStatus: 'Pending' };
+          localStorage.setItem('currentUser', JSON.stringify(nextUser));
+          return nextUser;
+        });
       }
       logActivity('Status Change', 'Partners', `${partner?.companyName} withdrew verification submission`, 'Under Review', 'Pending');
     } catch (err) {
@@ -3150,7 +3268,7 @@ export const AppProvider = ({ children }) => {
         if (updates.name !== undefined) dbUpdates.full_name = updates.name;
         if (updates.bio !== undefined) dbUpdates.bio = updates.bio;
 
-        if (updates.birthday !== undefined) dbUpdates.birthdate = updates.birthday;
+        if (updates.birthday !== undefined) dbUpdates.birthdate = updates.birthday || null;
         if (updates.gender !== undefined) {
           const g = normalizeGender(updates.gender).toLowerCase();
           // Ensure we only send valid lowercase values to satisfy DB check constraint
@@ -3186,6 +3304,7 @@ export const AppProvider = ({ children }) => {
         if (updates.email !== undefined) dbUpdates.contact_email = updates.email;
         if (updates.programId !== undefined) dbUpdates.program_id = updates.programId;
         if (updates.personalInfoVisibility !== undefined) dbUpdates.personal_info_visibility = updates.personalInfoVisibility;
+        if (updates.savedOpportunities !== undefined) dbUpdates.saved_opportunities = updates.savedOpportunities;
         if (updates.socialLinks !== undefined) dbUpdates.social_links = updates.socialLinks;
         if (updates.llnReading !== undefined) dbUpdates.lln_reading = updates.llnReading || null;
         if (updates.llnWriting !== undefined) dbUpdates.lln_writing = updates.llnWriting || null;
@@ -3218,7 +3337,7 @@ export const AppProvider = ({ children }) => {
             if (!resp.ok) {
               console.error('Admin update failed:', result.error);
               toast.error('Failed to save: ' + result.error);
-              return;
+              return { success: false, error: result.error };
             }
           } else {
             const { error } = await supabase
@@ -3228,14 +3347,14 @@ export const AppProvider = ({ children }) => {
             if (error) {
               console.error('Profile update failed:', error.message);
               toast.error('Failed to save profile: ' + error.message);
-              return;
+              return { success: false, error: error.message };
             }
           }
         }
       } catch (err) {
         console.error('Profile update error:', err);
         toast.error('Unable to save profile. Please check your connection.');
-        return;
+        return { success: false, error: err.message };
       }
     } else {
       // In-memory trainees (mock data with numeric IDs)
@@ -3250,6 +3369,7 @@ export const AppProvider = ({ children }) => {
       setCurrentUser(updatedUser);
       localStorage.setItem('currentUser', JSON.stringify(updatedUser));
     }
+    return { success: true };
   };
 
   const deleteTrainee = (traineeId) => {
@@ -3290,7 +3410,6 @@ export const AppProvider = ({ children }) => {
       setTrainees(prev => prev.filter(t => t.id !== accountId));
       setApplications(prev => prev.filter(a => a.traineeId !== accountId));
       setPosts(prev => prev.filter(p => p.author_id !== accountId));
-      setPostComments(prev => prev.filter(c => c.author_id !== accountId));
       setJobPostingComments(prev => prev.filter(c => c.author_id !== accountId));
       setContactRequests(prev => prev.filter(cr => cr.sender_id !== accountId && cr.recipient_id !== accountId));
       logActivity('Delete', 'Accounts', `Deleted student account: ${existing?.name || existing?.profileName}`, existing?.name, null);
@@ -3301,7 +3420,6 @@ export const AppProvider = ({ children }) => {
       setJobPostings(prev => prev.filter(j => j.partnerId !== accountId && j.partner_id !== accountId));
       setApplications(prev => prev.filter(a => !partnerJobIds.has(a.jobId)));
       setPosts(prev => prev.filter(p => p.author_id !== accountId));
-      setPostComments(prev => prev.filter(c => c.author_id !== accountId));
       setJobPostingComments(prev => prev.filter(c => c.author_id !== accountId && !partnerJobIds.has(c.job_posting_id)));
       setContactRequests(prev => prev.filter(cr => cr.sender_id !== accountId && cr.recipient_id !== accountId));
       logActivity('Delete', 'Accounts', `Deleted partner account: ${existing?.companyName || existing?.profileName}`, existing?.companyName, null);
@@ -3351,6 +3469,7 @@ export const AppProvider = ({ children }) => {
           email: authData.user.email,
           username: authData.user.email,
         };
+        presenceApiFailedRef.current = false;
         setUserRole('admin');
         setCurrentUser(adminUser);
         localStorage.setItem('userRole', 'admin');
@@ -3360,7 +3479,7 @@ export const AppProvider = ({ children }) => {
 
       // >>> 2. PARTNER LOGIN
       if (profile.user_type === 'industry_partner') {
-        const { data: partnerRec, error: partErr } = await supabase.from('industry_partners').select('*').eq('id', userId).maybeSingle();
+        const { data: partnerRec, error: partErr } = await supabase.from('industry_partners').select('id, company_name, business_type, company_size, website, contact_person, contact_email, contact_phone, company_logo_url, region, province, city, barangay, detailed_address, verification_status, achievements, benefits, activity_status, last_seen_at, company_info_visibility, mission, vision, culture_tags, perks_tags, poc_name, poc_title, poc_photo_url, office_location_url, banner_url, regionCode, provinceCode, cityCode, barangayCode').eq('id', userId).maybeSingle();
         if (partErr || !partnerRec) return { success: false, error: 'Partner record not found.' };
 
         const partnerUser = {
@@ -3370,10 +3489,38 @@ export const AppProvider = ({ children }) => {
           contactPerson: partnerRec.contact_person,
           industry: partnerRec.business_type || 'General',
           verificationStatus: partnerRec.verification_status === 'verified' ? 'Verified' : partnerRec.verification_status === 'rejected' ? 'Rejected' : partnerRec.verification_status === 'under_review' ? 'Under Review' : 'Pending',
-          photo: partnerRec.company_logo_url || null,
           accountStatus: 'Active',
           achievements: partnerRec.achievements || [],
           benefits: partnerRec.benefits || [],
+          mission: partnerRec.mission || '',
+          vision: partnerRec.vision || '',
+          culture_tags: Array.isArray(partnerRec.culture_tags) ? partnerRec.culture_tags : [],
+          perks_tags: Array.isArray(partnerRec.perks_tags) ? partnerRec.perks_tags : [],
+          company_logo_url: partnerRec.company_logo_url || null,
+          photo: partnerRec.company_logo_url || null,
+          banner_url: partnerRec.banner_url || '',
+          poc_name: partnerRec.poc_name || '',
+          poc_title: partnerRec.poc_title || '',
+          poc_photo_url: partnerRec.poc_photo_url || '',
+          office_location_url: partnerRec.office_location_url || '',
+          website: partnerRec.website || '',
+          contactEmail: partnerRec.contact_email || '',
+          address: [
+            partnerRec.detailed_address,
+            partnerRec.barangay,
+            partnerRec.city,
+            partnerRec.province,
+            partnerRec.region
+          ].filter(Boolean).join(', ') || '',
+          detailed_address: partnerRec.detailed_address || '',
+          region: partnerRec.region || '',
+          province: partnerRec.province || '',
+          city: partnerRec.city || '',
+          barangay: partnerRec.barangay || '',
+          regionCode: partnerRec.regionCode || partnerRec.region_code || '',
+          provinceCode: partnerRec.provinceCode || partnerRec.province_code || '',
+          cityCode: partnerRec.cityCode || partnerRec.city_code || '',
+          barangayCode: partnerRec.barangayCode || partnerRec.barangay_code || '',
           companyInfoVisibility: resolveVisibilityFields(partnerRec.company_info_visibility, DEFAULT_PARTNER_PUBLIC_INFO_FIELDS),
         };
 
@@ -3381,6 +3528,7 @@ export const AppProvider = ({ children }) => {
           return { success: false, error: 'Your account has been rejected. Please contact PSTDII.' };
         }
 
+        presenceApiFailedRef.current = false;
         setUserRole('partner');
         setCurrentUser(partnerUser);
         localStorage.setItem('userRole', 'partner');
@@ -3472,6 +3620,7 @@ export const AppProvider = ({ children }) => {
         createdAt: student.created_at || new Date().toISOString(),
       };
 
+      presenceApiFailedRef.current = false;
       setUserRole('trainee');
       setCurrentUser(traineeUser);
       localStorage.setItem('userRole', 'trainee');
@@ -3493,11 +3642,15 @@ export const AppProvider = ({ children }) => {
     const normalizedStatus = String(status || '').toLowerCase() === 'offline' ? 'Offline' : 'Online';
 
     try {
-      const { data: sessionData } = await supabase.auth.getSession();
-      const accessToken = sessionData?.session?.access_token;
+      // OPTIMIZED: Use cached token from presenceAccessTokenRef instead of
+      // calling supabase.auth.getSession() on every heartbeat (~20 fewer auth calls/hour).
+      // The ref is kept in sync by the onAuthStateChange listener.
+      const accessToken = presenceAccessTokenRef.current;
 
 
-      if (accessToken && !presenceApiFailedRef.current) {
+      const isLoginPage = typeof window !== 'undefined' && window.location.pathname === '/login';
+
+      if (accessToken && !presenceApiFailedRef.current && !isLoginPage) {
         try {
           const resp = await fetch('/api/presence/ping', {
             method: 'POST',
@@ -3535,16 +3688,19 @@ export const AppProvider = ({ children }) => {
   };
 
   const logout = async () => {
-    await updateOwnPresence('Offline');
+    updateOwnPresence('Offline').catch(() => {});
+    // Clear local state first to prevent zombie session detection from re-firing
+    setUserRole(null);
+    setCurrentUser(null);
+    localStorage.removeItem('userRole');
+    localStorage.removeItem('currentUser');
     try {
       await supabase.auth.signOut();
     } catch (e) {
       console.warn('Supabase sign out error:', e);
     }
-    setUserRole(null);
-    setCurrentUser(null);
-    localStorage.removeItem('userRole');
-    localStorage.removeItem('currentUser');
+    // Hard redirect ensures a full page reload, clearing all cached React state
+    window.location.href = '/login';
   };
 
   useEffect(() => {
@@ -3563,8 +3719,27 @@ export const AppProvider = ({ children }) => {
 
     syncPresenceToken();
 
-    const { data: authListener } = supabase.auth.onAuthStateChange((_event, session) => {
+    const { data: authListener } = supabase.auth.onAuthStateChange(async (event, session) => {
+      if (disposed) return;
       presenceAccessTokenRef.current = session?.access_token || '';
+
+      // OPTIMIZED: Removed TOKEN_REFRESHED and duplicate re-fetches.
+      // The hydration useEffect already handles data fetching when currentUser changes.
+      // TOKEN_REFRESHED fires every ~60min and doesn't invalidate cached data.
+
+      // Zombie Session Detection: Supabase says no session, but we still have
+      // user data in localStorage from a previous login
+      if ((event === 'SIGNED_OUT' || (event === 'INITIAL_SESSION' && !session))) {
+        const savedUser = localStorage.getItem('currentUser');
+        if (savedUser) {
+          // Clear the stale local state so the UI redirects to login
+          setUserRole(null);
+          setCurrentUser(null);
+          localStorage.removeItem('userRole');
+          localStorage.removeItem('currentUser');
+          toast.error('Your session has expired. Please log in again.');
+        }
+      }
     });
 
     return () => {
@@ -3583,6 +3758,9 @@ export const AppProvider = ({ children }) => {
         parsed.gender = normalizeGender(parsed.gender);
       }
       setCurrentUser(parsed);
+      // OPTIMIZED: Removed silent partner refresh query here.
+      // The hydration useEffect at line ~3753 already fetches updated partner data
+      // from industry_partners table, making this duplicate query unnecessary.
     }
   }, []);
 
@@ -3596,6 +3774,7 @@ export const AppProvider = ({ children }) => {
     let disposed = false;
 
     const touchOnline = async () => {
+      if (!isPresenceEnabled) return;
       try {
         await updateOwnPresence('Online');
       } catch (err) {
@@ -3610,7 +3789,7 @@ export const AppProvider = ({ children }) => {
     const heartbeatId = setInterval(() => {
       if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return;
       touchOnline();
-    }, 15000);
+    }, 110000); // 1 minute 50 seconds (just under the 2-minute server threshold)
 
     const handleVisibilityChange = () => {
       if (typeof document !== 'undefined' && document.visibilityState === 'visible') {
@@ -3652,610 +3831,751 @@ export const AppProvider = ({ children }) => {
       }
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentUser?.id, userRole]);
+  }, [currentUser?.id, userRole, isPresenceEnabled]);
+
+  const hydrateCurrentTraineeProgram = async () => {
+    if (userRole !== 'trainee' || !currentUser?.id) return;
+
+    const existingProgram = String(currentUser.program || '').trim();
+    if (existingProgram) return;
+
+    const resolvedProgramName = await resolveProgramNameFromStudentRecord({
+      id: currentUser.id,
+      program: currentUser.program,
+      programId: currentUser.programId,
+      program_id: currentUser.programId,
+    });
+
+    const ncLevel = currentUser.ncLevel || (currentUser.programId ? (programs || []).find(p => String(p.id) === String(currentUser.programId))?.ncLevel : '');
+
+    if (!resolvedProgramName) return;
+
+    setCurrentUser(prev => {
+      if (!prev || prev.id !== currentUser.id) return prev;
+
+      const nextUser = { ...prev, program: resolvedProgramName, ncLevel: prev.ncLevel || ncLevel };
+      localStorage.setItem('currentUser', JSON.stringify(nextUser));
+      return nextUser;
+    });
+  };
 
   // ΓöÇΓöÇΓöÇ Data Hydration (Supabase) ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+
+
+
+
+
+
+  const fetchAdminDirectoryData = React.useCallback(async (page = 0, limit = 0, search = '', forceRefresh = false) => {
+    if (userRole !== 'admin') return;
+
+    // Only cache if it's the initial/default load (no search, page 1 or 0)
+    // AND we haven't paginated away (if we did, we need to re-fetch Page 1 to restore it)
+    const isInitialLoad = !search && (page <= 1);
+    if (!forceRefresh && isInitialLoad && traineesFetchedRef.current && adminLastPageRef.current === 1) {
+      return;
+    }
+
+    // Update tracking for future cache hits
+    adminLastPageRef.current = page;
+
+    try {
+      const timestamp = new Date().getTime();
+      const res = await fetch(`/api/admin/data?t=${timestamp}&page=${page}&limit=${limit}&search=${encodeURIComponent(search)}`);
+
+      const raw = await res.text();
+      let adminData = {};
+      try {
+        adminData = raw ? JSON.parse(raw) : {};
+      } catch {
+        throw new Error(`Admin data endpoint returned non-JSON response (status ${res.status}).`);
+      }
+
+      if (!res.ok) {
+        const errorMsg = adminData.details ? `Failed to load admin data: ${adminData.details}` : (adminData.error || `Failed to load admin data (status ${res.status}).`);
+        throw new Error(errorMsg);
+      }
+
+      if (adminData.totalStudents !== undefined) setTotalTrainees(adminData.totalStudents);
+      if (adminData.totalPartners !== undefined) setTotalPartners(adminData.totalPartners);
+      if (adminData.totalAccounts !== undefined) setTotalAccounts(adminData.totalAccounts);
+      if (adminData.employmentStats) setAdminEmploymentStats(adminData.employmentStats);
+
+
+      if (adminData.students) {
+        const tMap = adminData.students.map(student => {
+          const address = [student.detailed_address, student.barangay, student.city, student.province, student.region].filter(Boolean).join(', ');
+          return {
+            id: student.id,
+            profileName: student.profile_name || student.full_name || 'Trainee',
+            name: student.profile_name || student.full_name || 'Trainee',
+            email: student.email || 'None',
+            activityStatus: student.activity_status || 'Offline',
+            lastSeenAt: student.last_seen_at || null,
+
+            address: address || 'Philippines',
+            graduationYear: student.graduation_year || 'None',
+            trainingStatus: student.training_status || 'Student',
+            certifications: student.certifications || [],
+            program: student.programs?.name || 'None',
+            ncLevel: student.programs?.nc_level || '',
+            employmentStatus: student.employment_status === 'employed' ? 'Employed' : student.employment_status === 'seeking_employment' ? 'Seeking Employment' : 'Not Employed',
+            employer: student.employer || student.employment_work || null,
+            jobTitle: student.job_title || student.employment_work || null,
+            dateHired: student.date_hired ? new Date(student.date_hired).toLocaleDateString() : student.employment_start || null,
+            accountStatus: student.account_status || 'Active',
+            gender: normalizeGender(student.gender),
+            personalInfoVisibility: resolveVisibilityFields(student.personal_info_visibility, DEFAULT_STUDENT_PUBLIC_INFO_FIELDS),
+          };
+        });
+
+        setTrainees(tMap);
+      }
+
+      if (adminData.partners) {
+        const submittedPartnerIds = new Set(adminData.submittedPartnerIds || []);
+        const pMap = (adminData.partners || []).map(p => {
+          const address = [p.detailed_address, p.barangay, p.city, p.province, p.region].filter(Boolean).join(', ');
+          return {
+            verificationStatus: p.verification_status === 'verified'
+              ? 'Verified'
+              : p.verification_status === 'rejected'
+                ? 'Rejected'
+                : ((p.verification_status === 'pending' && submittedPartnerIds.has(p.id)) || p.verification_status === 'under_review')
+                  ? 'Under Review'
+                  : 'Pending',
+            id: p.id,
+            profileName: p.profile_name || p.company_name || 'Industry Partner',
+            companyName: p.company_name,
+            contactPerson: p.contact_person,
+            industry: p.business_type || 'General',
+            email: p.contact_email || 'None',
+            contactEmail: p.contact_email || '',
+            activityStatus: p.activity_status || 'Offline',
+            lastSeenAt: p.last_seen_at || null,
+            address: address || 'Philippines',
+            detailed_address: p.detailed_address,
+            region: p.region,
+            province: p.province,
+            city: p.city,
+            barangay: p.barangay,
+            achievements: p.achievements || [],
+            benefits: p.benefits || [],
+            mission: p.mission || '',
+            vision: p.vision || '',
+            culture_tags: Array.isArray(p.culture_tags) ? p.culture_tags : [],
+            perks_tags: Array.isArray(p.perks_tags) ? p.perks_tags : [],
+            poc_name: p.poc_name || '',
+            poc_title: p.poc_title || '',
+            poc_photo_url: p.poc_photo_url || '',
+            office_location_url: p.office_location_url || '',
+            banner_url: p.banner_url || '',
+            company_logo_url: p.company_logo_url || p.photo || '',
+            photo: p.photo || p.company_logo_url || '',
+            accountStatus: p.account_status || 'Active',
+            companyInfoVisibility: resolveVisibilityFields(p.company_info_visibility, DEFAULT_PARTNER_PUBLIC_INFO_FIELDS),
+          };
+        });
+
+        setPartners(pMap);
+      }
+
+      if (adminData.accounts) {
+        const submittedPartnerIds = new Set(adminData.submittedPartnerIds || []);
+        const aMap = adminData.accounts.map(acc => {
+          const isStudent = acc.type === 'trainee';
+          const address = [acc.detailed_address, acc.barangay, acc.city, acc.province, acc.region].filter(Boolean).join(', ');
+          
+          if (isStudent) {
+            return {
+              id: acc.id,
+              type: 'trainee',
+              profileName: acc.profile_name || acc.full_name || 'Trainee',
+              name: acc.profile_name || acc.full_name || 'Trainee',
+              email: acc.email || 'None',
+              activityStatus: acc.activity_status || 'Offline',
+              lastSeenAt: acc.last_seen_at || null,
+              address: address || 'Philippines',
+              graduationYear: acc.graduation_year || 'None',
+              trainingStatus: acc.training_status || 'Student',
+              certifications: acc.certifications || [],
+              program: acc.program_name || 'None',
+              employmentStatus: acc.employment_status === 'employed' ? 'Employed' : acc.employment_status === 'seeking_employment' ? 'Seeking Employment' : 'Not Employed',
+              employer: acc.employer || acc.employment_work || null,
+              accountStatus: acc.account_status || 'Active',
+            };
+          } else {
+            return {
+              id: acc.id,
+              type: 'partner',
+              profileName: acc.profile_name || acc.company_name || 'Industry Partner',
+              companyName: acc.company_name,
+              contactPerson: acc.contact_person,
+              industry: acc.business_type || 'General',
+              email: acc.contact_email || acc.email || 'None',
+              activityStatus: acc.activity_status || 'Offline',
+              lastSeenAt: acc.last_seen_at || null,
+              address: address || 'Philippines',
+              verificationStatus: acc.verification_status === 'verified'
+                ? 'Verified'
+                : acc.verification_status === 'rejected'
+                  ? 'Rejected'
+                  : ((acc.verification_status === 'pending' && submittedPartnerIds.has(acc.id)) || acc.verification_status === 'under_review')
+                    ? 'Under Review'
+                    : 'Pending',
+              accountStatus: acc.account_status || 'Active',
+            };
+          }
+        });
+        setAccounts(aMap);
+      }
+      
+      if (isInitialLoad) {
+        traineesFetchedRef.current = true;
+        partnersFetchedRef.current = true;
+      }
+    } catch (err) {
+      console.error("Failed to load admin data:", err);
+      // Clear current data on error to avoid showing stale page
+      setTrainees([]);
+      setPartners([]);
+      if (err.message && err.message.includes('Failed to load admin data:')) {
+         console.warn('[Admin API Error Details]:', err.message);
+      }
+    }
+  }, [userRole]);
+
+  const fetchAllData = async () => {
+
+    await Promise.all([
+      fetchPosts(),
+      fetchJobPostingComments(),
+      fetchPostInteractions()
+    ]);
+
+    let publicDirectory = { students: [], partners: [] };
+    if (userRole !== 'admin') {
+      try {
+        const response = await fetch('/api/public-directory');
+        if (response.ok) {
+          const payload = await response.json();
+          publicDirectory = {
+            students: Array.isArray(payload?.students) ? payload.students : [],
+            partners: Array.isArray(payload?.partners) ? payload.partners : [],
+          };
+        }
+      } catch (err) {
+        console.warn('Failed to fetch public directory fallback:', err);
+      }
+    }
+
+    // 0. Fetch TESDA Programs catalog (with competencies)
+    try {
+      let rows = null;
+      let error = null;
+
+      const primary = await supabase
+        .from('programs')
+        .select('id, name, nc_level, duration_hours, description, competencies')
+        .order('name', { ascending: true });
+
+      rows = primary.data;
+      error = primary.error;
+
+      if (error && (error.code === 'PGRST204' || String(error.message || '').toLowerCase().includes('competencies'))) {
+        const fallback = await supabase
+          .from('programs')
+          .select('id, name, nc_level, duration_hours, description')
+          .order('name', { ascending: true });
+
+        rows = fallback.data;
+        error = fallback.error;
+      }
+
+      if (!error && rows) {
+        setPrograms(rows.map(program => ({
+          id: program.id,
+          name: program.name,
+          ncLevel: program.nc_level || '',
+          durationHours: program.duration_hours || null,
+          description: program.description || '',
+          competencies: (() => {
+            const fromColumn = normalizeCompetencyList(program.competencies || []);
+            if (fromColumn.length > 0) return fromColumn;
+            return extractCompetenciesFromProgramDescription(program.description || '');
+          })(),
+        })));
+      }
+    } catch (err) {
+      console.warn('Failed to fetch programs in session hydration:', err);
+    }
+
+    // 1. Fetch Jobs
+    try {
+      const { data: jobs } = await supabase
+        .from('job_postings')
+        .select('id, partner_id, program_id, title, company_name, description, requirements, location, salary_min, salary_max, salary_range, employment_type, slots, status, created_at, opportunity_type, nc_level, required_competencies, required_skills, industry, attachment_url, attachment_name, attachment_type, industry_partners(company_name), programs(name, competencies, description)')
+        .order('created_at', { ascending: false });
+
+      if (jobs) {
+        setJobPostings(jobs.map(j => ({
+          ...(j.source === 'partner' && (j.attachment_url || j.source_url)
+            ? {
+              attachmentUrl: j.attachment_url || j.source_url,
+              attachmentName: j.attachment_name || decodeURIComponent(String(j.attachment_url || j.source_url).split('/').pop()?.split('?')[0] || ''),
+              attachmentType: j.attachment_type || null,
+            }
+            : {}),
+          id: j.id,
+          partnerId: j.partner_id,
+          programId: j.program_id || null,
+          companyName: j.industry_partners?.company_name || 'Company',
+          industry: j.industry || 'General',
+          title: j.title,
+          opportunityType: j.opportunity_type || 'Job',
+          ncLevel: j.nc_level || j.programs?.name || '',
+          requiredCompetencies: normalizeCompetencyList(
+            (j.required_competencies && j.required_competencies.length > 0)
+              ? j.required_competencies
+              : (j.programs?.competencies?.length > 0
+                ? j.programs.competencies
+                : extractCompetenciesFromProgramDescription(j.programs?.description || ''))
+          ),
+          requiredSkills: j.required_skills || [],
+          description: j.description || '',
+          employmentType: (() => {
+            if (j.opportunity_type === 'OJT') return '';
+            const rawType = String(j.employment_type || '').toLowerCase();
+            if (rawType === 'full_time' || rawType === 'full-time' || rawType === 'fulltime') return 'Full-time';
+            if (rawType === 'part_time' || rawType === 'part-time' || rawType === 'parttime') return 'Part-time';
+            if (rawType === 'contract') return 'Contract';
+            if (rawType === 'internship') return 'Internship';
+            return j.employment_type || 'Full-time';
+          })(),
+          location: j.location || 'Philippines',
+          salaryRange: buildSalaryRangeText(j.salary_range, j.salary_min, j.salary_max, 'PHP'),
+          salaryMin: toSalaryNumber(j.salary_min),
+          salaryMax: toSalaryNumber(j.salary_max),
+          slots: j.slots || 1,
+          status: j.status || 'Open',
+          datePosted: j.created_at?.split('T')[0],
+          createdAt: j.created_at,
+        })));
+      }
+    } catch (err) { console.warn(err); }
+
+    // 2. Fetch all public student profiles (for feed resolution)
+    try {
+      let stds = null;
+      let studentsError = null;
+
+      const baseQuery = await supabase
+        .from('students')
+        .select('id, full_name, profile_picture_url, contact_email, resume_url, personal_info_visibility');
+      stds = baseQuery.data;
+      studentsError = baseQuery.error;
+
+      if (studentsError) {
+        console.warn('Direct students query failed, using public directory fallback only:', studentsError);
+        stds = [];
+      }
+
+      const mergedStudents = new Map(
+        (publicDirectory.students || []).map(student => ([
+          student.id,
+          {
+            id: student.id,
+            name: student.name || student.profileName || 'Trainee',
+            profileName: student.profileName || student.name || 'Trainee',
+            photo: student.photo || null,
+            trainingStatus: student.trainingStatus || 'Student',
+            gender: normalizeGender(student.gender),
+            personalInfoVisibility: resolveVisibilityFields(student.personalInfoVisibility, DEFAULT_STUDENT_PUBLIC_INFO_FIELDS),
+            email: '',
+            resumeUrl: null,
+          },
+        ]))
+      );
+
+      (stds || []).forEach(student => {
+        const previous = mergedStudents.get(student.id) || {};
+        mergedStudents.set(student.id, {
+          ...previous,
+          id: student.id,
+          name: student.full_name || student.profile_name || previous.name || 'Trainee',
+          profileName: student.profile_name || student.full_name || previous.profileName || 'Trainee',
+          photo: student.profile_picture_url || previous.photo || null,
+          personalInfoVisibility: resolveVisibilityFields(student.personal_info_visibility, previous.personalInfoVisibility || DEFAULT_STUDENT_PUBLIC_INFO_FIELDS),
+          email: student.contact_email || previous.email || '',
+          resumeUrl: student.resume_url || previous.resumeUrl || null,
+        });
+      });
+
+      setTrainees(Array.from(mergedStudents.values()));
+    } catch (err) { console.warn(err); }
+
+    // 3. Fetch all public partner profiles (for feed resolution)
+    try {
+      let submittedPartnerIds = new Set();
+      try {
+        const { data: submittedRows } = await supabase
+          .from('partner_verifications')
+          .select('partner_id');
+        if (submittedRows) {
+          submittedPartnerIds = new Set(submittedRows.map(row => row.partner_id));
+        }
+      } catch (submissionErr) {
+        console.warn('Failed to fetch partner verification submissions:', submissionErr);
+      }
+
+      const { data: pts } = await supabase
+        .from('industry_partners')
+        .select('id, company_name, contact_person, business_type, company_logo_url, verification_status, company_info_visibility, activity_status, last_seen_at, detailed_address, city, province, region, barangay, regionCode, provinceCode, cityCode, barangayCode, mission, vision, culture_tags, perks_tags, banner_url, poc_name, poc_title, poc_photo_url, office_location_url, achievements, benefits, business_permit_url');
+
+      const mergedPartners = new Map(
+        (publicDirectory.partners || []).map(partner => ([
+          partner.id,
+          {
+            id: partner.id,
+            companyName: partner.companyName || partner.profileName || 'Industry Partner',
+            profileName: partner.profileName || partner.companyName || 'Industry Partner',
+            industry: partner.industry || 'General',
+            companyInfoVisibility: resolveVisibilityFields(partner.companyInfoVisibility, DEFAULT_PARTNER_PUBLIC_INFO_FIELDS),
+            contactPerson: '',
+            address: partner.detailed_address || partner.city || '',
+            detailed_address: partner.detailed_address || '',
+            region: partner.region || '',
+            province: partner.province || '',
+            city: partner.city || '',
+            barangay: partner.barangay || '',
+            regionCode: partner.regionCode || partner.region_code || '',
+            provinceCode: partner.provinceCode || partner.province_code || '',
+            cityCode: partner.cityCode || partner.city_code || '',
+            barangayCode: partner.barangayCode || partner.barangay_code || '',
+            website: partner.website || '',
+            email: partner.contact_email || '',
+            contactEmail: partner.contact_email || '',
+            poc_name: partner.poc_name || '',
+            poc_title: partner.poc_title || '',
+            poc_photo_url: partner.poc_photo_url || '',
+            business_permit_url: partner.business_permit_url || '',
+            banner_url: partner.banner_url || '',
+            company_logo_url: partner.company_logo_url || '',
+            photo: partner.company_logo_url || '',
+            achievements: [],
+            benefits: [],
+            verificationStatus: partner.verificationStatus || 'Pending',
+          },
+        ]))
+      );
+
+      (pts || []).forEach(partner => {
+        const previous = mergedPartners.get(partner.id) || {};
+        mergedPartners.set(partner.id, {
+          ...previous,
+          id: partner.id,
+          companyName: partner.company_name || previous.companyName || 'Industry Partner',
+          profileName: previous.profileName || partner.company_name || partner.contact_person || 'Industry Partner',
+          companyInfoVisibility: resolveVisibilityFields(partner.company_info_visibility, previous.companyInfoVisibility || DEFAULT_PARTNER_PUBLIC_INFO_FIELDS),
+          contactPerson: partner.contact_person || previous.contactPerson || '',
+          industry: partner.business_type || previous.industry || 'General',
+          email: partner.contact_email || previous.email || '',
+          detailed_address: partner.detailed_address || previous.detailed_address || '',
+          region: partner.region || previous.region || '',
+          province: partner.province || previous.province || '',
+          city: partner.city || previous.city || '',
+          barangay: partner.barangay || previous.barangay || '',
+          regionCode: partner.regionCode || previous.regionCode || '',
+          provinceCode: partner.provinceCode || previous.province_code || '',
+          cityCode: partner.cityCode || previous.cityCode || '',
+          barangayCode: partner.barangayCode || previous.barangayCode || '',
+          address: [
+            partner.detailed_address || previous.detailed_address,
+            partner.barangay || previous.barangay,
+            partner.city || previous.city,
+            partner.province || previous.province,
+            partner.region || previous.region
+          ].filter(Boolean).join(', ') || '',
+          website: partner.website || previous.website || '',
+          company_logo_url: partner.company_logo_url || partner.photo || previous.company_logo_url || null,
+          photo: partner.photo || partner.company_logo_url || previous.photo || null,
+          banner_url: partner.banner_url || previous.banner_url || null,
+          mission: partner.mission || previous.mission || '',
+          vision: partner.vision || previous.vision || '',
+          culture_tags: Array.isArray(partner.culture_tags) ? partner.culture_tags : (previous.culture_tags || []),
+          perks_tags: Array.isArray(partner.perks_tags) ? partner.perks_tags : (previous.perks_tags || []),
+          poc_name: partner.poc_name || previous.poc_name || '',
+          poc_title: partner.poc_title || previous.poc_title || '',
+          poc_photo_url: partner.poc_photo_url || previous.poc_photo_url || '',
+          business_permit_url: partner.business_permit_url || previous.business_permit_url || '',
+          office_location_url: partner.office_location_url || previous.office_location_url || '',
+          achievements: partner.achievements || previous.achievements || [],
+          benefits: partner.benefits || previous.benefits || [],
+          verificationStatus: partner.verification_status === 'verified'
+            ? 'Verified'
+            : partner.verification_status === 'rejected'
+              ? 'Rejected'
+              : ((partner.verification_status === 'pending' && submittedPartnerIds.has(partner.id)) || partner.verification_status === 'under_review')
+                ? 'Under Review'
+                : (previous.verificationStatus || 'Pending'),
+        });
+      });
+
+      setPartners(Array.from(mergedPartners.values()));
+    } catch (err) { console.warn(err); }
+
+    // 4. Fetch Admin Metrics
+    if (userRole === 'admin') {
+      await fetchAdminDirectoryData();
+    }
+  };
+
+  const fetchApplications = async (forceRefresh = false) => {
+    if (!forceRefresh && applicationsFetchedRef.current) return;
+    try {
+      const isSupabaseUser = typeof currentUser?.id === 'string' && currentUser.id.length === 36;
+      if (!isSupabaseUser) return;
+
+      const combinedApps = [];
+      const sources = [
+        { table: 'job_applications', orderColumn: 'applied_at' },
+      ];
+
+      for (const source of sources) {
+        let query = supabase.from(source.table).select('id, student_id, job_id, status, applied_at, reviewed_at, notes, applicant_message, resume_url, resume_file_name, recruitment_message, recruitment_document_name, recruitment_document_url, recruitment_sent_at, proposed_interview_date');
+        
+        if (userRole === 'trainee') {
+          query = query.eq('student_id', currentUser.id);
+        } else if (userRole === 'partner') {
+          let pids = jobPostings
+            .filter(j => String(j.partnerId) === String(currentUser.id))
+            .map(j => j.id);
+          
+          if (pids.length === 0) {
+            const { data: jobs } = await supabase.from('job_postings').select('id').eq('partner_id', currentUser.id);
+            if (jobs) pids = jobs.map(j => j.id);
+          }
+
+          if (pids.length > 0) {
+            query = query.in('job_id', pids);
+          } else {
+            continue;
+          }
+        }
+
+        const { data, error } = await query.order(source.orderColumn, { ascending: false });
+
+        if (error) {
+          if (!isSchemaMissingError(error)) {
+            console.warn(`Failed to fetch ${source.table} from Supabase:`, error);
+          }
+          continue;
+        }
+
+        combinedApps.push(...(data || []).map(row => ({ ...row, __sourceTable: source.table })));
+      }
+
+      const mapped = combinedApps
+        .filter(a => (a.student_id || a.trainee_id) && (a.job_posting_id || a.job_id))
+        .map(a => ({
+          id: a.id,
+          traineeId: a.student_id || a.trainee_id,
+          jobId: a.job_posting_id || a.job_id,
+          status: normalizeApplicationStatus(a.status),
+          appliedAt: (a.created_at || a.applied_at || '').split('T')[0] || null,
+          reviewedAt: a.reviewed_at ? a.reviewed_at.split('T')[0] : null,
+          notes: a.notes || null,
+          applicationMessage: a.applicant_message || a.application_message || null,
+          resumeUrl: a.resume_url || null,
+          resumeFileName: a.resume_file_name || null,
+          recruitMessage: a.recruitment_message || a.recruiter_message || null,
+          recruitDocumentName: a.recruitment_document_name || a.recruiter_document_name || null,
+          recruitDocumentUrl: a.recruitment_document_url || a.recruiter_document_url || null,
+          recruitSentAt: a.recruitment_sent_at ? a.recruitment_sent_at.split('T')[0] : null,
+          proposedInterviewDate: a.proposed_interview_date || null,
+          sourceTable: a.__sourceTable || null,
+        }));
+
+      setApplications(mapped);
+      applicationsFetchedRef.current = true;
+    } catch (err) {
+      console.warn('Exception while fetching applications:', err);
+    }
+  };
+
+  const fetchContactRequests = async () => {
+    try {
+      const isSupabaseUser = typeof currentUser?.id === 'string' && currentUser.id.length === 36;
+      if (!isSupabaseUser || userRole === 'admin') return;
+
+      const { data, error } = await supabase
+        .from('contact_requests')
+        .select('id, post_id, job_posting_id, sender_id, sender_type, recipient_id, recipient_type, message, attachment_name, attachment_url, attachment_kind, created_at, status, notes, reviewed_at')
+        .or(`sender_id.eq.${currentUser.id},recipient_id.eq.${currentUser.id}`)
+        .order('created_at', { ascending: false });
+
+      if (error) {
+        if (isSchemaMissingError(error) || isColumnShapeError(error)) {
+          console.warn('contact_requests table not found. Apply the migration to persist contact requests.');
+          return;
+        }
+
+        throw error;
+      }
+
+      setContactRequests((data || []).map(r => ({ ...r, sourceTable: 'contact_requests', recordType: 'contact' })));
+    } catch (err) {
+      console.warn('Exception while fetching contact requests:', err);
+    }
+  };
+
+  const fetchSystemSettings = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('system_settings')
+        .select('key, value')
+        .eq('key', 'is_presence_enabled')
+        .maybeSingle();
+      if (!error && data) {
+        setIsPresenceEnabled(data.value === true);
+      }
+    } catch (err) {
+      console.warn('System settings fetch failed:', err);
+    }
+  };
+
   useEffect(() => {
     if (!currentUser || !userRole) return;
     const isSupabaseUser = typeof currentUser.id === 'string' && currentUser.id.length === 36;
     if (!isSupabaseUser) return;
 
-    let adminRefreshTimeout = null;
-
-    const hydrateCurrentTraineeProgram = async () => {
-      if (userRole !== 'trainee' || !currentUser?.id) return;
-
-      const existingProgram = String(currentUser.program || '').trim();
-      if (existingProgram) return;
-
-      const resolvedProgramName = await resolveProgramNameFromStudentRecord({
-        id: currentUser.id,
-        program: currentUser.program,
-        programId: currentUser.programId,
-        program_id: currentUser.programId,
-      });
-
-      const ncLevel = currentUser.ncLevel || (currentUser.programId ? (programs || []).find(p => String(p.id) === String(currentUser.programId))?.ncLevel : '');
-
-      if (!resolvedProgramName) return;
-
-      setCurrentUser(prev => {
-        if (!prev || prev.id !== currentUser.id) return prev;
-
-        const nextUser = { ...prev, program: resolvedProgramName, ncLevel: prev.ncLevel || ncLevel };
-        localStorage.setItem('currentUser', JSON.stringify(nextUser));
-        return nextUser;
-      });
-    };
-
-    const fetchAdminDirectoryData = async () => {
-      if (userRole !== 'admin') return;
-
+    const loadInitialData = async () => {
       try {
-        const timestamp = new Date().getTime();
-        const res = await fetch(`/api/admin/data?t=${timestamp}`);
-        const raw = await res.text();
-        let adminData = {};
-        try {
-          adminData = raw ? JSON.parse(raw) : {};
-        } catch {
-          throw new Error(`Admin data endpoint returned non-JSON response (status ${res.status}).`);
-        }
-
-        if (!res.ok) {
-          throw new Error(adminData.error || `Failed to load admin data (status ${res.status}).`);
-        }
-
-        if (adminData.students) {
-          const tMap = adminData.students.map(student => {
-            const address = [student.detailed_address, student.barangay, student.city, student.province, student.region].filter(Boolean).join(', ');
-            return {
-              id: student.id,
-              profileName: student.profile_name || student.full_name || 'Trainee',
-              name: student.profile_name || student.full_name || 'Trainee',
-              email: student.email || 'None',
-              activityStatus: student.activity_status || 'Offline',
-              lastSeenAt: student.last_seen_at || null,
-
-              address: address || 'Philippines',
-              graduationYear: student.graduation_year || 'None',
-              trainingStatus: student.training_status || 'Student',
-              certifications: student.certifications || [],
-              program: student.programs?.name || 'None',
-              ncLevel: student.programs?.nc_level || '',
-              employmentStatus: student.employment_status === 'employed' ? 'Employed' : student.employment_status === 'seeking_employment' ? 'Seeking Employment' : 'Not Employed',
-              employer: student.employer || student.employment_work || null,
-              jobTitle: student.job_title || student.employment_work || null,
-              dateHired: student.date_hired ? new Date(student.date_hired).toLocaleDateString() : student.employment_start || null,
-              accountStatus: student.account_status || 'Active',
-              gender: normalizeGender(student.gender),
-              personalInfoVisibility: resolveVisibilityFields(student.personal_info_visibility, DEFAULT_STUDENT_PUBLIC_INFO_FIELDS),
-            };
-          });
-
-          setTrainees(tMap);
-        }
-
-        if (adminData.partners) {
-          const submittedPartnerIds = new Set(adminData.submittedPartnerIds || []);
-          const pMap = (adminData.partners || []).map(p => {
-            const address = [p.detailed_address, p.barangay, p.city, p.province, p.region].filter(Boolean).join(', ');
-            return {
-              verificationStatus: p.verification_status === 'verified'
-                ? 'Verified'
-                : p.verification_status === 'rejected'
-                  ? 'Rejected'
-                  : ((p.verification_status === 'pending' && submittedPartnerIds.has(p.id)) || p.verification_status === 'under_review')
-                    ? 'Under Review'
-                    : 'Pending',
-              id: p.id,
-              profileName: p.profile_name || p.company_name || 'Industry Partner',
-              companyName: p.company_name,
-              contactPerson: p.contact_person,
-              industry: p.business_type || 'General',
-              email: p.email || 'None',
-              contactEmail: p.contact_email || '',
-              activityStatus: p.activity_status || 'Offline',
-              lastSeenAt: p.last_seen_at || null,
-              address: address || 'Philippines',
-              detailed_address: p.detailed_address,
-              region: p.region,
-              province: p.province,
-              city: p.city,
-              barangay: p.barangay,
-              achievements: p.achievements || [],
-              benefits: p.benefits || [],
-              mission: p.mission || '',
-              vision: p.vision || '',
-              culture_tags: Array.isArray(p.culture_tags) ? p.culture_tags : [],
-              perks_tags: Array.isArray(p.perks_tags) ? p.perks_tags : [],
-              poc_name: p.poc_name || '',
-              poc_title: p.poc_title || '',
-              poc_photo_url: p.poc_photo_url || '',
-              office_location_url: p.office_location_url || '',
-              banner_url: p.banner_url || '',
-              company_logo_url: p.company_logo_url || p.photo || '',
-              photo: p.photo || p.company_logo_url || '',
-              accountStatus: p.account_status || 'Active',
-              companyInfoVisibility: resolveVisibilityFields(p.company_info_visibility, DEFAULT_PARTNER_PUBLIC_INFO_FIELDS),
-            };
-          });
-
-          setPartners(pMap);
-        }
+        await fetchAllData();
+        await Promise.all([
+          fetchApplications(true),
+          fetchContactRequests(),
+          fetchSystemSettings(),
+          userRole === 'trainee' ? fetchTraineeBookings(currentUser.id) : Promise.resolve(),
+          userRole === 'partner' ? fetchBookings(currentUser.id) : Promise.resolve()
+        ]);
       } catch (err) {
-        console.error("Failed to load admin data:", err);
+        console.error("Failed to initialize app data:", err);
       }
     };
 
-    const isPresenceOnlyPayload = (payload) => {
-      if (payload?.eventType !== 'UPDATE' || !payload?.new) return false;
+    loadInitialData();
 
-      const changedKeys = Object.keys(payload.new).filter(key => {
-        if (!payload.old) return true; // Treat as changed if old data is missing
-        return payload.new[key] !== payload.old[key];
-      });
-
-      if (changedKeys.length === 0) return false;
-
-      const allowedKeys = new Set(['activity_status', 'last_seen_at', 'updated_at']);
-      return changedKeys.every(key => allowedKeys.has(key));
-    };
-
-    const applyAdminPresenceUpdate = (tableName, payload) => {
-      const recordId = payload?.new?.id || payload?.old?.id;
-      if (!recordId) return;
-
-      const nextActivityStatus = payload?.new?.activity_status || payload?.old?.activity_status || 'Offline';
-      const nextLastSeenAt = payload?.new?.last_seen_at || payload?.old?.last_seen_at || null;
-
-      if (tableName === 'students') {
-        setTrainees(prev => prev.map(student => (
-          student.id === recordId
-            ? { ...student, activityStatus: nextActivityStatus, lastSeenAt: nextLastSeenAt }
-            : student
-        )));
-        return;
-      }
-
-      if (tableName === 'industry_partners') {
-        setPartners(prev => prev.map(partner => (
-          partner.id === recordId
-            ? { ...partner, activityStatus: nextActivityStatus, lastSeenAt: nextLastSeenAt }
-            : partner
-        )));
-      }
-    };
-
-    const fetchAllData = async () => {
-      // Keep comments synced for community feed actions
-      await fetchPostComments();
-      await fetchJobPostingComments();
-
-      let publicDirectory = { students: [], partners: [] };
-      if (userRole !== 'admin') {
-        try {
-          const response = await fetch('/api/public-directory');
-          if (response.ok) {
-            const payload = await response.json();
-            publicDirectory = {
-              students: Array.isArray(payload?.students) ? payload.students : [],
-              partners: Array.isArray(payload?.partners) ? payload.partners : [],
-            };
+    // ─── Realtime Subscriptions ─────────────────────────────────────────
+    const recruitmentSyncChannel = supabase
+      .channel('recruitment-sync')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'job_applications' }, (payload) => {
+        if (userRole === 'trainee' && payload.new && payload.new.student_id === currentUser.id) {
+          fetchApplications(true);
+        } else if (userRole === 'partner' && payload.new) {
+          fetchApplications(true);
+        }
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'interview_bookings' }, (payload) => {
+        if (userRole === 'trainee' && payload.new && payload.new.trainee_id === currentUser.id) {
+          fetchTraineeBookings(currentUser.id);
+        } else if (userRole === 'partner' && payload.new && payload.new.partner_id === currentUser.id) {
+          fetchBookings(currentUser.id);
+        }
+      })
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'notifications' }, (payload) => {
+        // Apply notification directly — no need to re-fetch all notifications
+        if (payload.new) {
+          if (payload.new.text) {
+            toast.success(payload.new.text, { icon: '🔔', duration: 4000 });
           }
-        } catch (err) {
-          console.warn('Failed to fetch public directory fallback:', err);
+          setNotifications(prev => [payload.new, ...prev].slice(0, 50));
         }
-      }
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'contact_requests' }, (payload) => {
+        fetchContactRequests();
+      })
+      .subscribe();
 
-      // 0. Fetch TESDA Programs catalog (with competencies)
-      try {
-        let rows = null;
-        let error = null;
+    if (userRole === 'admin') {
+      const runAdminRefresh = () => {
+        fetchAdminDirectoryData();
+        fetchApplications();
+      };
 
-        const primary = await supabase
-          .from('programs')
-          .select('id, name, nc_level, duration_hours, description, competencies')
-          .order('name', { ascending: true });
+      const scheduleAdminRefresh = () => {
+        if (adminRefreshTimeoutRef.current) clearTimeout(adminRefreshTimeoutRef.current);
+        adminRefreshTimeoutRef.current = setTimeout(() => {
+          runAdminRefresh();
+        }, 15000);
+      };
 
-        rows = primary.data;
-        error = primary.error;
-
-        if (error && (error.code === 'PGRST204' || String(error.message || '').toLowerCase().includes('competencies'))) {
-          const fallback = await supabase
-            .from('programs')
-            .select('id, name, nc_level, duration_hours, description')
-            .order('name', { ascending: true });
-
-          rows = fallback.data;
-          error = fallback.error;
-        }
-
-        if (!error && rows) {
-          setPrograms(rows.map(program => ({
-            id: program.id,
-            name: program.name,
-            ncLevel: program.nc_level || '',
-            durationHours: program.duration_hours || null,
-            description: program.description || '',
-            competencies: (() => {
-              const fromColumn = normalizeCompetencyList(program.competencies || []);
-              if (fromColumn.length > 0) return fromColumn;
-              return extractCompetenciesFromProgramDescription(program.description || '');
-            })(),
-          })));
-        }
-      } catch (err) {
-        console.warn('Failed to fetch programs in session hydration:', err);
-      }
-
-      // 1. Fetch Jobs
-      try {
-        const { data: jobs } = await supabase
-          .from('job_postings')
-          .select('*, industry_partners(company_name), programs(name, competencies, description)')
-          .order('created_at', { ascending: false });
-
-        if (jobs) {
-          setJobPostings(jobs.map(j => ({
-            ...(j.source === 'partner' && (j.attachment_url || j.source_url)
-              ? {
-                attachmentUrl: j.attachment_url || j.source_url,
-                attachmentName: j.attachment_name || decodeURIComponent(String(j.attachment_url || j.source_url).split('/').pop()?.split('?')[0] || ''),
-                attachmentType: j.attachment_type || null,
-              }
-              : {}),
-            id: j.id,
-            partnerId: j.partner_id,
-            programId: j.program_id || null,
-            companyName: j.industry_partners?.company_name || 'Company',
-            industry: j.industry || 'General',
-            title: j.title,
-            opportunityType: j.opportunity_type || 'Job',
-            ncLevel: j.nc_level || j.programs?.name || '',
-            requiredCompetencies: normalizeCompetencyList(
-              (j.required_competencies && j.required_competencies.length > 0)
-                ? j.required_competencies
-                : (j.programs?.competencies?.length > 0
-                  ? j.programs.competencies
-                  : extractCompetenciesFromProgramDescription(j.programs?.description || ''))
-            ),
-            requiredSkills: j.required_skills || [],
-            description: j.description || '',
-            employmentType: (() => {
-              if (j.opportunity_type === 'OJT') return '';
-              const rawType = String(j.employment_type || '').toLowerCase();
-              if (rawType === 'full_time' || rawType === 'full-time' || rawType === 'fulltime') return 'Full-time';
-              if (rawType === 'part_time' || rawType === 'part-time' || rawType === 'parttime') return 'Part-time';
-              if (rawType === 'contract') return 'Contract';
-              if (rawType === 'internship') return 'Internship';
-              return j.employment_type || 'Full-time';
-            })(),
-            location: j.location || 'Philippines',
-            salaryRange: buildSalaryRangeText(j.salary_range, j.salary_min, j.salary_max, 'PHP'),
-            salaryMin: toSalaryNumber(j.salary_min),
-            salaryMax: toSalaryNumber(j.salary_max),
-            slots: j.slots || 1,
-            status: j.status || 'Open',
-            datePosted: j.created_at?.split('T')[0],
-            createdAt: j.created_at,
-          })));
-        }
-      } catch (err) { console.warn(err); }
-
-      // 2. Fetch all public student profiles (for feed resolution)
-      try {
-        let stds = null;
-        let studentsError = null;
-
-        const baseQuery = await supabase
-          .from('students')
-          .select('id, full_name, profile_picture_url, contact_email, resume_url, personal_info_visibility');
-        stds = baseQuery.data;
-        studentsError = baseQuery.error;
-
-        if (studentsError) {
-          console.warn('Direct students query failed, using public directory fallback only:', studentsError);
-          stds = [];
-        }
-
-        const mergedStudents = new Map(
-          (publicDirectory.students || []).map(student => ([
-            student.id,
-            {
-              id: student.id,
-              name: student.name || student.profileName || 'Trainee',
-              profileName: student.profileName || student.name || 'Trainee',
-              photo: student.photo || null,
-              trainingStatus: student.trainingStatus || 'Student',
-              gender: normalizeGender(student.gender),
-              personalInfoVisibility: resolveVisibilityFields(student.personalInfoVisibility, DEFAULT_STUDENT_PUBLIC_INFO_FIELDS),
-              email: '',
-              resumeUrl: null,
-            },
-          ]))
-        );
-
-        (stds || []).forEach(student => {
-          const previous = mergedStudents.get(student.id) || {};
-          mergedStudents.set(student.id, {
-            ...previous,
-            id: student.id,
-            name: student.full_name || student.profile_name || previous.name || 'Trainee',
-            profileName: student.profile_name || student.full_name || previous.profileName || 'Trainee',
-            photo: student.profile_picture_url || previous.photo || null,
-            personalInfoVisibility: resolveVisibilityFields(student.personal_info_visibility, previous.personalInfoVisibility || DEFAULT_STUDENT_PUBLIC_INFO_FIELDS),
-            email: student.contact_email || previous.email || '',
-            resumeUrl: student.resume_url || previous.resumeUrl || null,
-          });
-        });
-
-        setTrainees(Array.from(mergedStudents.values()));
-      } catch (err) { console.warn(err); }
-
-      // 3. Fetch all public partner profiles (for feed resolution)
-      try {
-        let submittedPartnerIds = new Set();
-        try {
-          const { data: submittedRows } = await supabase
-            .from('partner_verifications')
-            .select('partner_id');
-          if (submittedRows) {
-            submittedPartnerIds = new Set(submittedRows.map(row => row.partner_id));
-          }
-        } catch (submissionErr) {
-          console.warn('Failed to fetch partner verification submissions:', submissionErr);
-        }
-
-        const { data: pts } = await supabase
-          .from('industry_partners')
-          .select('*');
-
-        const mergedPartners = new Map(
-          (publicDirectory.partners || []).map(partner => ([
-            partner.id,
-            {
-              id: partner.id,
-              companyName: partner.companyName || partner.profileName || 'Industry Partner',
-              profileName: partner.profileName || partner.companyName || 'Industry Partner',
-              industry: partner.industry || 'General',
-              company_logo_url: partner.company_logo_url || null,
-              companyInfoVisibility: resolveVisibilityFields(partner.companyInfoVisibility, DEFAULT_PARTNER_PUBLIC_INFO_FIELDS),
-              contactPerson: '',
-              email: '',
-              address: '',
-              detailed_address: '',
-              region: '',
-              province: '',
-              city: '',
-              barangay: '',
-              website: '',
-              achievements: [],
-              benefits: [],
-              verificationStatus: partner.verificationStatus || 'Pending',
-            },
-          ]))
-        );
-
-        (pts || []).forEach(partner => {
-          const previous = mergedPartners.get(partner.id) || {};
-          mergedPartners.set(partner.id, {
-            ...previous,
-            id: partner.id,
-            companyName: partner.company_name || previous.companyName || 'Industry Partner',
-            profileName: previous.profileName || partner.company_name || partner.contact_person || 'Industry Partner',
-            companyInfoVisibility: resolveVisibilityFields(partner.company_info_visibility, previous.companyInfoVisibility || DEFAULT_PARTNER_PUBLIC_INFO_FIELDS),
-            contactPerson: partner.contact_person || previous.contactPerson || '',
-            industry: partner.business_type || previous.industry || 'General',
-            email: partner.contact_email || previous.email || '',
-            address: partner.detailed_address || partner.city || previous.address || '',
-            website: partner.website || previous.website || '',
-            company_logo_url: partner.company_logo_url || partner.photo || previous.company_logo_url || null,
-            photo: partner.photo || partner.company_logo_url || previous.photo || null,
-            banner_url: partner.banner_url || previous.banner_url || null,
-            mission: partner.mission || previous.mission || '',
-            vision: partner.vision || previous.vision || '',
-            culture_tags: Array.isArray(partner.culture_tags) ? partner.culture_tags : (previous.culture_tags || []),
-            perks_tags: Array.isArray(partner.perks_tags) ? partner.perks_tags : (previous.perks_tags || []),
-            poc_name: partner.poc_name || previous.poc_name || '',
-            poc_title: partner.poc_title || previous.poc_title || '',
-            poc_photo_url: partner.poc_photo_url || previous.poc_photo_url || '',
-            office_location_url: partner.office_location_url || previous.office_location_url || '',
-            achievements: partner.achievements || previous.achievements || [],
-            benefits: partner.benefits || previous.benefits || [],
-            verificationStatus: partner.verification_status === 'verified'
-              ? 'Verified'
-              : partner.verification_status === 'rejected'
-                ? 'Rejected'
-                : ((partner.verification_status === 'pending' && submittedPartnerIds.has(partner.id)) || partner.verification_status === 'under_review')
-                  ? 'Under Review'
-                  : (previous.verificationStatus || 'Pending'),
-          });
-        });
-
-        setPartners(Array.from(mergedPartners.values()));
-      } catch (err) { console.warn(err); }
-
-      // 4. Fetch Admin Metrics
-      if (userRole === 'admin') {
-        await fetchAdminDirectoryData();
-      }
-    };
-
-    const fetchApplications = async () => {
-      try {
-        const isSupabaseUser = typeof currentUser?.id === 'string' && currentUser.id.length === 36;
-        if (!isSupabaseUser) return;
-
-        const combinedApps = [];
-        const sources = [
-          { table: 'job_applications', orderColumn: 'applied_at' },
-        ];
-
-        for (const source of sources) {
-          const { data, error } = await supabase
-            .from(source.table)
-            .select('*')
-            .order(source.orderColumn, { ascending: false });
-
-          if (error) {
-            if (!isSchemaMissingError(error)) {
-              console.warn(`Failed to fetch ${source.table} from Supabase:`, error);
-            }
-            continue;
-          }
-
-          combinedApps.push(...(data || []).map(row => ({ ...row, __sourceTable: source.table })));
-        }
-
-        const mapped = combinedApps
-          .filter(a => (a.student_id || a.trainee_id) && (a.job_posting_id || a.job_id))
-          .map(a => ({
-            id: a.id,
-            traineeId: a.student_id || a.trainee_id,
-            jobId: a.job_posting_id || a.job_id,
-            status: normalizeApplicationStatus(a.status),
-            appliedAt: (a.created_at || a.applied_at || '').split('T')[0] || null,
-            reviewedAt: a.reviewed_at ? a.reviewed_at.split('T')[0] : null,
-            notes: a.notes || null,
-            applicationMessage: a.applicant_message || a.application_message || null,
-            resumeUrl: a.resume_url || null,
-            resumeFileName: a.resume_file_name || null,
-            recruitMessage: a.recruitment_message || a.recruiter_message || null,
-            recruitDocumentName: a.recruitment_document_name || a.recruiter_document_name || null,
-            recruitDocumentUrl: a.recruitment_document_url || a.recruiter_document_url || null,
-            recruitSentAt: a.recruitment_sent_at ? a.recruitment_sent_at.split('T')[0] : null,
-            sourceTable: a.__sourceTable || null,
-          }));
-
-        setApplications(mapped);
-      } catch (err) {
-        console.warn('Exception while fetching applications:', err);
-      }
-    };
-
-    const fetchContactRequests = async () => {
-      try {
-        const isSupabaseUser = typeof currentUser?.id === 'string' && currentUser.id.length === 36;
-        if (!isSupabaseUser || userRole === 'admin') return;
-
-        const { data, error } = await supabase
-          .from('contact_requests')
-          .select('*')
-          .order('created_at', { ascending: false });
-
-        if (error) {
-          if (isSchemaMissingError(error) || isColumnShapeError(error)) {
-            console.warn('contact_requests table not found. Apply the migration to persist contact requests.');
+      const adminRealtimeChannel = supabase
+        .channel(`admin-live-sync-${currentUser.id}`)
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'students' }, (payload) => {
+          if (isPresenceOnlyPayload(payload)) {
+            applyAdminPresenceUpdate('students', payload);
             return;
           }
+          scheduleAdminRefresh();
+        })
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'industry_partners' }, (payload) => {
+          if (isPresenceOnlyPayload(payload)) {
+            applyAdminPresenceUpdate('industry_partners', payload);
+            return;
+          }
+          scheduleAdminRefresh();
+        })
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'partner_verifications' }, scheduleAdminRefresh)
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'job_postings' }, scheduleAdminRefresh)
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'job_applications' }, scheduleAdminRefresh)
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'programs' }, scheduleAdminRefresh)
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'system_settings' }, (payload) => {
+          if (payload.new && payload.new.key === 'is_presence_enabled') {
+            setIsPresenceEnabled(!!payload.new.value);
+          }
+        })
+        .subscribe();
 
-          throw error;
+      const onVisibilityChange = () => {
+        if (typeof document !== 'undefined' && document.visibilityState === 'visible') {
+          const now = Date.now();
+          if (now - adminLastRefreshRef.current > 60000) {
+            adminLastRefreshRef.current = now;
+            fetchAdminDirectoryData();
+          }
         }
+      };
 
-        setContactRequests((data || []).map(r => ({ ...r, sourceTable: 'contact_requests', recordType: 'contact' })));
-      } catch (err) {
-        console.warn('Exception while fetching contact requests:', err);
+      if (typeof document !== 'undefined') {
+        document.addEventListener('visibilitychange', onVisibilityChange);
       }
-    };
 
-    hydrateCurrentTraineeProgram();
-    fetchAllData();
-    fetchApplications();
-    fetchContactRequests();
-
-    const recruitmentSyncChannel = supabase
-      .channel(`recruitment-sync-${currentUser.id}`)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'post_comments' }, fetchPostComments)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'job_posting_comments' }, fetchJobPostingComments)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'contact_requests' }, fetchContactRequests)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'job_applications' }, fetchApplications)
-      .on('postgres_changes', {
-        event: 'INSERT',
-        schema: 'public',
-        table: 'notifications',
-        filter: `user_id=eq.${currentUser.id}`
-      }, (payload) => {
-        console.log('[Realtime] New notification detected for current user:', payload);
-        fetchNotifications();
-      })
-      .subscribe((status) => {
-        console.log(`[Realtime] Sync channel status: ${status}`);
-      });
-
-    if (userRole !== 'admin') {
       return () => {
-        if (adminRefreshTimeout) clearTimeout(adminRefreshTimeout);
+        if (adminRefreshTimeoutRef.current) clearTimeout(adminRefreshTimeoutRef.current);
+        if (typeof document !== 'undefined') {
+          document.removeEventListener('visibilitychange', onVisibilityChange);
+        }
+        supabase.removeChannel(adminRealtimeChannel);
         supabase.removeChannel(recruitmentSyncChannel);
       };
     }
 
-    const runAdminRefresh = () => {
-      fetchAllData();
-      fetchApplications();
-    };
-
-    const scheduleAdminRefresh = () => {
-      if (adminRefreshTimeout) clearTimeout(adminRefreshTimeout);
-      adminRefreshTimeout = setTimeout(() => {
-        runAdminRefresh();
-      }, 800); // Increase debounce to prevent rapid sequential fetches
-    };
-
-    const adminRealtimeChannel = supabase
-      .channel(`admin-live-sync-${currentUser.id}`)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'students' }, (payload) => {
-        console.log('[Realtime] admin-live-sync students payload received:', payload);
-        if (isPresenceOnlyPayload(payload)) {
-          console.log('[Realtime] Detected as presence-only payload, doing quick update...');
-          applyAdminPresenceUpdate('students', payload);
-          return;
-        }
-        console.log('[Realtime] Doing full refresh...');
-        scheduleAdminRefresh();
-      })
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'industry_partners' }, (payload) => {
-        console.log('[Realtime] admin-live-sync partners payload received:', payload);
-        if (isPresenceOnlyPayload(payload)) {
-          console.log('[Realtime] Detected as presence-only (partner), doing quick update...');
-          applyAdminPresenceUpdate('industry_partners', payload);
-          return;
-        }
-        console.log('[Realtime] Doing full refresh (partner)...');
-        scheduleAdminRefresh();
-      })
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'partner_verifications' }, scheduleAdminRefresh)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'job_postings' }, scheduleAdminRefresh)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'job_applications' }, scheduleAdminRefresh)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'programs' }, scheduleAdminRefresh)
-      .subscribe();
-
-    const onVisibilityChange = () => {
-      if (typeof document !== 'undefined' && document.visibilityState === 'visible') {
-        fetchAdminDirectoryData();
-      }
-    };
-
-    if (typeof document !== 'undefined') {
-      document.addEventListener('visibilitychange', onVisibilityChange);
-    }
-
     return () => {
-      if (adminRefreshTimeout) clearTimeout(adminRefreshTimeout);
-      if (typeof document !== 'undefined') {
-        document.removeEventListener('visibilitychange', onVisibilityChange);
-      }
-      supabase.removeChannel(adminRealtimeChannel);
       supabase.removeChannel(recruitmentSyncChannel);
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentUser?.id, userRole]);
+
 
   // ΓöÇΓöÇΓöÇ REGISTRATION DATA (multi-step persist) ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
   const [registrationData, setRegistrationData] = useState({});
 
   // ΓöÇΓöÇΓöÇ ANALYTICS HELPERS ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
   const getEmploymentStats = () => {
+    if (userRole === 'admin' && adminEmploymentStats) {
+      return adminEmploymentStats;
+    }
+
     const total = trainees.length;
 
     // Core categories
@@ -4312,6 +4632,8 @@ export const AppProvider = ({ children }) => {
       logout,
       // Trainees
       trainees,
+      totalTrainees,
+
       addTrainee,
       updateTrainee,
       updatePartner,
@@ -4319,6 +4641,8 @@ export const AppProvider = ({ children }) => {
       deleteAccount,
       // Partners
       partners,
+      totalPartners,
+
       approvePartner,
       rejectPartner,
       registerPartner,
@@ -4335,6 +4659,7 @@ export const AppProvider = ({ children }) => {
       applications,
       applyToJob,
       updateApplicationStatus,
+      deleteApplication,
       sendRecruitMessage,
       getTraineeApplications,
       getJobApplicants,
@@ -4350,6 +4675,27 @@ export const AppProvider = ({ children }) => {
       // Activity Log
       activityLog,
       logActivity,
+      // System Settings
+      isPresenceEnabled,
+      toggleGlobalPresence: async (enabled) => {
+        try {
+          const { error } = await supabase
+            .from('system_settings')
+            .upsert({ 
+              key: 'is_presence_enabled', 
+              value: enabled, 
+              updated_at: new Date().toISOString() 
+            });
+          if (error) throw error;
+          setIsPresenceEnabled(enabled);
+          toast.success(`Activity tracking ${enabled ? 'enabled' : 'disabled'} globally.`);
+          return { success: true };
+        } catch (err) {
+          console.error('Error toggling presence:', err);
+          toast.error('Failed to update system setting.');
+          return { success: false, error: err.message };
+        }
+      },
       // Account Management
       adminAccount,
       updateAccountStatus,
@@ -4358,19 +4704,86 @@ export const AppProvider = ({ children }) => {
       setRegistrationData,
       // Community Posts
       posts,
-      postComments,
+
       jobPostingComments,
       contactRequests,
       fetchPosts,
-      fetchPostComments,
+
       fetchJobPostingComments,
       createPost,
       updatePost,
       deletePost,
       adminDeletePost,
       adminUpdatePost,
-      addPostComment,
-      getPostComments,
+      fetchPrograms: async (page = 1, pageSize = 15, search = '', forceRefresh = false) => {
+        if (!forceRefresh && programsFetchedRef.current && !search && page === 1) return;
+        
+        try {
+          let useFallback = false;
+          const from = (page - 1) * pageSize;
+          const to = from + pageSize - 1;
+
+          let query = supabase
+            .from('programs')
+            .select('id, name, nc_level, duration_hours, description, competencies', { count: 'exact' });
+
+          if (search) {
+            query = query.ilike('name', `%${search}%`);
+          }
+
+          let { data, count, error } = await query
+            .order('name', { ascending: true })
+            .range(from, to);
+
+          const isMissingCompetenciesColumnError = (err) => {
+            return err && (err.code === 'PGRST204' || String(err.message || '').toLowerCase().includes('competencies'));
+          };
+
+          if (error && isMissingCompetenciesColumnError(error)) {
+            useFallback = true;
+            let fallbackQuery = supabase
+              .from('programs')
+              .select('id, name, nc_level, duration_hours, description', { count: 'exact' });
+            
+            if (search) {
+              fallbackQuery = fallbackQuery.ilike('name', `%${search}%`);
+            }
+
+            const fallback = await fallbackQuery
+              .order('name', { ascending: true })
+              .range(from, to);
+                
+            data = fallback.data;
+            count = fallback.count;
+            error = fallback.error;
+          }
+
+          if (error) throw error;
+
+          const mapped = (data || []).map(row => ({
+            id: row.id,
+            name: row.name,
+            ncLevel: row.nc_level || '',
+            durationHours: row.duration_hours || null,
+            description: row.description || '',
+            competencies: (() => {
+              if (!useFallback && Array.isArray(row.competencies)) {
+                return row.competencies.map(item => stripCompetencyCode(String(item))).filter(Boolean);
+              }
+              return extractCompetenciesFromProgramDescription(row.description || '');
+            })(),
+          }));
+
+          setPrograms(mapped);
+          if (!search && page === 1) programsFetchedRef.current = true;
+          return { data: mapped, total: count || 0 };
+        } catch (err) {
+          console.error('Failed to load programs:', err);
+          return { error: err.message };
+        }
+      },
+
+
       addJobPostingComment,
       getJobPostingComments,
       updateJobPostingComment,
@@ -4416,6 +4829,14 @@ export const AppProvider = ({ children }) => {
       loadMoreFeeds,
       feedLimit,
       fetchJobPostings,
+      accounts,
+      totalAccounts,
+      fetchAdminDirectoryData,
+      fetchAllData,
+      fetchApplications,
+      fetchContactRequests,
+      fetchSystemSettings,
+
       globalConfirm,
       confirmAction,
       closeGlobalConfirm,

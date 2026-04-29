@@ -223,7 +223,7 @@ export default function Step1IDUpload({ data, onChange, onValidChange }) {
             try {
                 const { data: rows, error } = await supabase
                     .from('programs')
-                    .select('id, name, duration_hours')
+                    .select('id, name, nc_level, duration_hours')
                     .eq('is_active', true)
                     .order('sort_order')
                     .order('name');
@@ -231,13 +231,17 @@ export default function Step1IDUpload({ data, onChange, onValidChange }) {
                     // Build display labels — append hours when multiple programs share a base name
                     const baseNames = rows.map(r => r.name.replace(/\s*\(.*\)$/, ''));
                     const dupes = baseNames.filter((n, i) => baseNames.indexOf(n) !== i);
-                    const programList = rows.map(r => ({
-                        id: r.id,
-                        name: r.name,
-                        label: dupes.includes(r.name.replace(/\s*\(.*\)$/, '')) && r.duration_hours
-                            ? `${r.name} (${r.duration_hours} Hours)`
-                            : r.name,
-                    }));
+                                        const programList = rows.map(r => {
+                        const hasHours = r.name.includes(`(${r.duration_hours} Hours)`) || r.name.includes(`(${r.duration_hours} hours)`);
+                        return {
+                            id: r.id,
+                            name: r.name,
+                            ncLevel: r.nc_level || '',
+                            label: (dupes.includes(r.name.replace(/\s*\(.*\)$/, '')) && r.duration_hours && !hasHours)
+                                ? `${r.name} (${r.duration_hours} Hours)`
+                                : r.name,
+                        };
+                    });
                     setPROGRAMS(programList);
                     programsRef.current = programList.map(p => p.name);
                 }
@@ -313,6 +317,7 @@ export default function Step1IDUpload({ data, onChange, onValidChange }) {
             e.studentId = 'Format: 20XX-XXXX (e.g. 2024-B723)';
         }
         if (!values.program) e.program = 'Program is required';
+        if (!values.ncLevel) e.ncLevel = 'NC Level is required';
         if (!values.address.trim()) e.address = 'Address is required';
         if (!values.gender) e.gender = 'Gender is required';
         if (!values.trainingStatus) e.trainingStatus = 'Training Status is required';
@@ -355,6 +360,9 @@ export default function Step1IDUpload({ data, onChange, onValidChange }) {
         }
         if (!selectedName || selectedName !== String(matchedProgram.name || '')) {
             updates.program = matchedProgram.name;
+        }
+        if (!data.ncLevel || data.ncLevel !== String(matchedProgram.ncLevel || '')) {
+            updates.ncLevel = matchedProgram.ncLevel || '';
         }
 
         if (Object.keys(updates).length > 0) {
@@ -776,6 +784,7 @@ export default function Step1IDUpload({ data, onChange, onValidChange }) {
                                     const selectedProgram = PROGRAMS.find(program => String(program.id) === e.target.value);
                                     onChange({
                                         programId: selectedProgram?.id || '',
+                                        ncLevel: selectedProgram?.ncLevel || '',
                                         program: selectedProgram?.name || '',
                                     });
                                 }}
@@ -787,6 +796,21 @@ export default function Step1IDUpload({ data, onChange, onValidChange }) {
                                 ))}
                             </select>
                             {touched.program && errors.program && <div className="form-error">{errors.program}</div>}
+                        </div>
+
+                        {/* NC Level */}
+                        <div className="form-group" style={{ marginBottom: 0 }}>
+                            <label className="form-label">NC Level <span style={{ color: '#ef4444' }}>*</span></label>
+                            <input
+                                className={`form-input ${getFieldStatus('ncLevel')}`}
+                                value={data.ncLevel || ''}
+                                readOnly
+                                tabIndex={-1}
+                                style={{ backgroundColor: '#f1f5f9', cursor: 'not-allowed', color: '#475569' }}
+                                title="This field is automatically mapped from your Program and cannot be edited"
+                                placeholder="Auto-filled from Program"
+                            />
+                            {touched.ncLevel && errors.ncLevel && <div className="form-error">{errors.ncLevel}</div>}
                         </div>
 
                         {/* Address */}

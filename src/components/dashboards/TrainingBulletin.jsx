@@ -490,9 +490,7 @@ export default function TrainingBulletin() {
     const [filterStatus, setFilterStatus] = useState('All');
     const [selectedPost, setSelectedPost] = useState(null);
     const [interactionTab, setInteractionTab] = useState('apply');
-    const [toast, setToast] = useState('');
-
-    const showToast = (msg) => { setToast(msg); setTimeout(() => setToast(''), 3000); };
+    // Using global toast from react-hot-toast imported at the top
 
     // Load interactions when a post is selected
     useEffect(() => {
@@ -546,7 +544,7 @@ export default function TrainingBulletin() {
 
         setSaving(false);
         if (res.success) {
-            showToast(editPost ? 'Post updated successfully!' : 'Post published successfully!');
+            toast.success(editPost ? 'Post updated successfully!' : 'Post published successfully!');
             setShowForm(false);
             setEditPost(null);
         } else {
@@ -558,7 +556,7 @@ export default function TrainingBulletin() {
         if (!window.confirm('Delete this post? This cannot be undone.')) return;
         const res = await adminDeletePost(postId);
         if (res.success) {
-            showToast('Post deleted.');
+            toast.success('Post deleted successfully');
             if (selectedPost?.id === postId) setSelectedPost(null);
         } else {
             toast.error(res.error || 'Failed to delete post.');
@@ -567,12 +565,14 @@ export default function TrainingBulletin() {
 
     const handleStatusChange = async (postId, newStatus) => {
         const res = await adminUpdatePost(postId, { status: newStatus });
-        if (res.success) showToast(`Status changed to ${newStatus}`);
+        if (res.success) toast.success(`Status changed to ${newStatus}`);
+        else toast.error('Failed to change status');
     };
 
     const handleInteractionAction = async (interactionId, action) => {
         const res = await updatePostInteractionStatus(interactionId, action);
-        if (res.success) showToast(`Interaction ${action}.`);
+        if (res.success) toast.success(`Interaction ${action} successfully`);
+        else toast.error(`Failed to ${action} interaction`);
     };
 
     const selectedInteractions = selectedPost ? getPostInteractions(selectedPost.id) : [];
@@ -592,9 +592,9 @@ export default function TrainingBulletin() {
     return (
         <div>
             {/* Toast */}
-            {toast && (
+            {false && (
                 <div style={{ position: 'fixed', top: 20, right: 20, zIndex: 9999, background: '#0f172a', color: '#fff', padding: '12px 20px', borderRadius: 10, fontWeight: 600, fontSize: 14, boxShadow: '0 4px 20px rgba(0,0,0,0.3)' }}>
-                    <CheckCircle size={14} style={{ marginRight: 8 }} />{toast}
+                    <CheckCircle size={14} style={{ marginRight: 8 }} />Toast
                 </div>
             )}
 

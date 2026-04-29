@@ -58,6 +58,16 @@ const getWordCloudStyle = (word) => {
 
 
 
+const isValidUrl = (string) => {
+    try {
+        const url = new URL(string.includes('://') ? string : `https://${string}`);
+        const domainRegex = /^[a-zA-Z0-9][a-zA-Z0-9-]{0,61}[a-zA-Z0-9](?:\.[a-zA-Z]{2,})+$/;
+        return domainRegex.test(url.hostname);
+    } catch (_) {
+        return false;
+    }
+};
+
 export default function Step3ProfileSetup({ data, onChange, onValidChange }) {
     const [errors, setErrors] = useState({});
     const [touched, setTouched] = useState({});
@@ -129,7 +139,7 @@ export default function Step3ProfileSetup({ data, onChange, onValidChange }) {
     // ─── Work Experience Helpers ────────────────────────────────
     const addWorkExperience = () => {
         const current = data.workExperience || [];
-        handleChange('workExperience', [...current, { company: '', position: '', yearFrom: '', yearTo: '' }]);
+        handleChange('workExperience', [...current, { company: '', position: '', website: '', yearFrom: '', yearTo: '' }]);
     };
 
     const updateWorkExperience = (index, field, value) => {
@@ -435,6 +445,13 @@ export default function Step3ProfileSetup({ data, onChange, onValidChange }) {
                         <div className="form-group">
                             <input type="text" className="form-input" placeholder="Position / Role"
                                 value={work.position} onChange={(e) => updateWorkExperience(i, 'position', e.target.value)} />
+                        </div>
+                        <div className="form-group">
+                            <input type="text" className="form-input" placeholder="Company Website (e.g. https://company.com) (Optional)"
+                                value={work.website || ''} onChange={(e) => updateWorkExperience(i, 'website', e.target.value)} />
+                            {work.website && !isValidUrl(work.website) && (
+                                <div style={{ fontSize: 12, color: '#ef4444', marginTop: 4 }}>Please enter a valid URL</div>
+                            )}
                         </div>
                         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
                             <div className="form-group">

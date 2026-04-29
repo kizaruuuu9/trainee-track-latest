@@ -1,4 +1,5 @@
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState, useRef, useMemo } from 'react';
+import { createPortal } from 'react-dom';
 import { useApp } from '../../context/AppContext';
 import { supabase } from '../../lib/supabase';
 import {
@@ -17,6 +18,7 @@ import BrandLogo from '../common/BrandLogo';
 import TrainingBulletin from './TrainingBulletin';
 import NotificationsDropdown from '../common/NotificationsDropdown';
 import toast from 'react-hot-toast';
+import NotificationsPage from './NotificationsPage';
 
 // ─── SHARED: TABLE PAGINATION ──────────────────────────────────────
 const TablePagination = ({ currentPage, totalItems, pageSize, onPageChange }) => {
@@ -114,7 +116,7 @@ const AppLayout = ({ sidebar, children, pageTitle, pageSubtitle }) => {
     const notifRef = useRef(null);
 
     const unreadNotifications = notifications?.filter(n => !n.read) || [];
-    const unseenCount = lastSeenNotificationsAt 
+    const unseenCount = lastSeenNotificationsAt
         ? unreadNotifications.filter(n => new Date(n.created_at).getTime() > lastSeenNotificationsAt).length
         : unreadNotifications.length;
 
@@ -143,8 +145,8 @@ const AppLayout = ({ sidebar, children, pageTitle, pageSubtitle }) => {
                     </div>
                     <div className="header-actions">
                         <div style={{ position: 'relative' }} ref={notifRef}>
-                            <button 
-                                className="header-icon-btn" 
+                            <button
+                                className="header-icon-btn"
                                 onClick={() => {
                                     setShowNotif(!showNotif);
                                     if (!showNotif && unseenCount > 0) {
@@ -153,7 +155,7 @@ const AppLayout = ({ sidebar, children, pageTitle, pageSubtitle }) => {
                                 }}
                             >
                                 <Bell size={17} />
-                                {unseenCount > 0 && <span className="notif-badge">{unseenCount > 9 ? '9+' : unseenCount}</span>}
+                                {unseenCount > 0 && <span className="notif-badge">{unseenCount > 99 ? '99+' : unseenCount}</span>}
                             </button>
                             {showNotif && (
                                 <NotificationsDropdown onClose={() => setShowNotif(false)} />
@@ -371,7 +373,7 @@ const AdminSidebar = ({ activePage, setActivePage, mobileOpen, closeSidebar }) =
 // - PAGE 1: ADMIN DASHBOARD —————————————————————————————————————————————————
 // ——— PAGE 1: ADMIN DASHBOARD (COMMAND CENTER) ——————————————————————————————
 const AdminHome = ({ setActivePage }) => {
-    const { trainees, partners, posts,  applications, getEmploymentStats, getSkillsDemand } = useApp();
+    const { trainees, partners, posts, applications, getEmploymentStats, getSkillsDemand } = useApp();
     const stats = getEmploymentStats();
 
     // Export Handlers (Mock)
@@ -534,14 +536,15 @@ const AdminHome = ({ setActivePage }) => {
 
 // â”€â”€â”€ PAGE 2: MANAGE TRAINEES â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 const ManageTrainees = () => {
-    const { trainees, updateTrainee, deleteTrainee } = useApp();
+    const { trainees, totalTrainees, updateTrainee, deleteTrainee, confirmAction, fetchAdminDirectoryData } = useApp();
     const [search, setSearch] = useState('');
     const [filterStatus, setFilterStatus] = useState('All');
     const [viewT, setViewT] = useState(null);
     const [editT, setEditT] = useState(null);
-    const [activityNow, setActivityNow] = useState(() => Date.now());
     const [currentPage, setCurrentPage] = useState(1);
-    const pageSize = 10;
+    const [openMenuId, setOpenMenuId] = useState(null);
+    const [isLoading, setIsLoading] = useState(false);
+    const pageSize = 15;
 
     // Reset page when search or filters change
     useEffect(() => {
@@ -549,21 +552,33 @@ const ManageTrainees = () => {
     }, [search, filterStatus]);
 
     useEffect(() => {
-        const timerId = setInterval(() => {
-            setActivityNow(Date.now());
-        }, 5000); // Smoother status updates
-        return () => clearInterval(timerId);
-    }, []);
+        const loadData = async () => {
+            setIsLoading(true);
+            await fetchAdminDirectoryData(currentPage, pageSize, search);
+            setIsLoading(false);
+        };
+        loadData();
+    }, [currentPage, search, fetchAdminDirectoryData]);
+
+    useEffect(() => {
+        if (!openMenuId) return undefined;
+        const handleDown = (e) => {
+            if (!e.target.closest('.account-actions-cell')) setOpenMenuId(null);
+        };
+        document.addEventListener('mousedown', handleDown);
+        return () => document.removeEventListener('mousedown', handleDown);
+    }, [openMenuId]);
 
     const filtered = (trainees || []).filter(t => {
         if (!t) return false;
-        const q = search.toLowerCase();
-        const name = (t?.profileName || t?.name || '').toLowerCase();
-        const email = (t?.email || '').toLowerCase();
+        // Search is handled by server, we only filter by employment status locally
         const employmentStatus = t?.employmentStatus || 'Not Employed';
-        return (name.includes(q) || email.includes(q)) && (filterStatus === 'All' || employmentStatus === filterStatus);
+        return filterStatus === 'All' || employmentStatus === filterStatus;
     });
-    const displayedItems = filtered.slice((currentPage - 1) * pageSize, currentPage * pageSize);
+
+    // Since server already sliced the data, we show what we got
+    const displayedItems = filtered.slice(0, pageSize);
+
 
     const statusBadge = (s) => {
         const colorMap = {
@@ -582,27 +597,7 @@ const ManageTrainees = () => {
         return <span className={`badge ${map[status] || 'badge-gray'}`}>{status || 'Active'}</span>;
     };
 
-    const getActivityStatus = (status, lastSeenAt) => {
-        const normalizedStatus = String(status || '').toLowerCase();
-        if (normalizedStatus === 'offline') return 'Offline';
 
-        const lastSeenTs = lastSeenAt ? new Date(lastSeenAt).getTime() : NaN;
-        const isRecentlyActive = Number.isFinite(lastSeenTs) && (activityNow - lastSeenTs) <= 45 * 1000;
-
-        return (normalizedStatus === 'online' || isRecentlyActive) ? 'Online' : 'Offline';
-    };
-
-    const activityBadge = (status, lastSeenAt) => {
-        const normalized = getActivityStatus(status, lastSeenAt);
-        return (
-            <span
-                className={`badge ${normalized === 'Online' ? 'badge-green' : 'badge-gray'}`}
-                title={lastSeenAt ? `Last seen: ${new Date(lastSeenAt).toLocaleString()}` : 'No recent activity'}
-            >
-                {normalized}
-            </span>
-        );
-    };
 
 
 
@@ -612,10 +607,6 @@ const ManageTrainees = () => {
                 <div>
                     <div className="page-title" style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                         Manage Trainees
-                        <div className="pulse-container" title="Live sync active">
-                            <div className="pulse-dot"></div>
-                            <span style={{ fontSize: 10, color: '#94a3b8', fontWeight: 500, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Live</span>
-                        </div>
                     </div>
                     <div className="page-subtitle">View and manage all registered trainees</div>
                 </div>
@@ -629,9 +620,16 @@ const ManageTrainees = () => {
                 </div>
                 <div style={{ overflowX: 'auto' }}>
                     <table className="data-table">
-                        <thead><tr><th>Profile Name</th><th>Auth Email</th><th>Program</th><th>Training Status</th><th>Employment Status</th><th>Activity</th><th>Account</th><th>Actions</th></tr></thead>
+                        <thead><tr><th>Profile Name</th><th>Auth Email</th><th>Program</th><th>Training Status</th><th>Employment Status</th><th>Account</th><th className="account-actions-column">Actions</th></tr></thead>
                         <tbody>
-                            {displayedItems.map(t => (
+                            {isLoading ? (
+                                <tr>
+                                    <td colSpan={7} style={{ textAlign: 'center', padding: '40px 0' }}>
+                                        <div className="spinner" style={{ margin: '0 auto', width: 24, height: 24, border: '3px solid #f3f4f6', borderTopColor: '#7c3aed', borderRadius: '50%', animation: 'spin 1s linear infinite' }} />
+                                        <div style={{ marginTop: 12, color: '#64748b', fontSize: 14 }}>Loading trainees...</div>
+                                    </td>
+                                </tr>
+                            ) : displayedItems.map(t => (
                                 <tr key={t.id}>
                                     <td style={{ fontWeight: 600 }}><div style={{ display: 'flex', alignItems: 'center', gap: 8 }}><div style={{ width: 30, height: 30, borderRadius: '50%', background: 'linear-gradient(135deg, #ede9fe, #dbeafe)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 800, color: '#7c3aed' }}>{(t.profileName && t.profileName !== 'Trainee' ? t.profileName : (t.name || 'N')).charAt(0)}</div>{t.profileName || t.name || 'None'}</div></td>
                                     <td style={{ fontSize: 13, color: '#64748b' }}>{t.email && t.email !== 'Protected' ? t.email : 'None'}</td>
@@ -642,25 +640,59 @@ const ManageTrainees = () => {
                                         </span>
                                     </td>
                                     <td>{statusBadge(t.employmentStatus)}</td>
-                                    <td>{activityBadge(t.activityStatus, t.lastSeenAt)}</td>
                                     <td>{accountBadge(t.accountStatus || 'Active')}</td>
-                                    <td><div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', minWidth: 180 }}>
-                                        <button className="btn btn-outline btn-sm" onClick={() => setViewT(t)}><Eye size={12} /> View</button>
-                                        <button className="btn btn-outline btn-sm" onClick={() => setEditT({ ...t })}><Edit size={12} /></button>
-                                        <button className="btn btn-danger btn-sm" onClick={() => { confirmAction({ message: 'Delete trainee?', type: 'danger', onConfirm: () => deleteTrainee(t.id) }); }}><Trash2 size={12} /></button>
-                                    </div></td>
+                                    <td className="account-actions-column">
+                                        <div className={`account-actions-cell${openMenuId === t.id ? ' is-open' : ''}`}>
+                                            <button
+                                                className={`account-actions-trigger${openMenuId === t.id ? ' is-open' : ''}`}
+                                                onClick={() => setOpenMenuId(prev => prev === t.id ? null : t.id)}
+                                            >
+                                                <MoreVertical size={16} />
+                                            </button>
+                                            {openMenuId === t.id && (
+                                                <div className="account-actions-panel" style={{ right: 0 }}>
+                                                    <div className="account-actions-header">Trainee Actions</div>
+                                                    <button className="account-actions-item" onClick={() => { setViewT(t); setOpenMenuId(null); }}>
+                                                        <Eye size={14} /> View Details
+                                                    </button>
+                                                    <button className="account-actions-item" onClick={() => { setEditT({ ...t }); setOpenMenuId(null); }}>
+                                                        <Edit size={14} /> Edit Profile
+                                                    </button>
+                                                    <div style={{ height: 1, background: '#f1f5f9', margin: '4px 0' }} />
+                                                    <button className="account-actions-item" style={{ color: '#ef4444' }} onClick={() => {
+                                                        setOpenMenuId(null);
+                                                        confirmAction({ 
+                                                            message: 'Delete trainee?', 
+                                                            type: 'danger', 
+                                                            onConfirm: async () => {
+                                                                try {
+                                                                    await deleteTrainee(t.id);
+                                                                    toast.success('Trainee deleted successfully');
+                                                                } catch (err) {
+                                                                    toast.error('Failed to delete trainee');
+                                                                }
+                                                            } 
+                                                        });
+                                                    }}>
+                                                        <Trash2 size={14} /> Delete Trainee
+                                                    </button>
+                                                </div>
+                                            )}
+                                        </div>
+                                    </td>
                                 </tr>
                             ))}
-                            {filtered.length === 0 && <tr><td colSpan={8} style={{ textAlign: 'center', padding: 32, color: '#94a3b8' }}>No trainees found.</td></tr>}
+                            {!isLoading && filtered.length === 0 && <tr><td colSpan={7} style={{ textAlign: 'center', padding: 32, color: '#94a3b8' }}>No trainees found.</td></tr>}
                         </tbody>
                     </table>
                 </div>
                 <TablePagination
                     currentPage={currentPage}
-                    totalItems={filtered.length}
+                    totalItems={totalTrainees}
                     pageSize={pageSize}
                     onPageChange={setCurrentPage}
                 />
+
             </div>
             {viewT && (
                 <div className="modal-overlay" onClick={() => setViewT(null)}>
@@ -712,7 +744,15 @@ const ManageTrainees = () => {
                         </div>
                         <div style={{ display: 'flex', gap: 10 }}>
                             <button className="btn btn-outline" style={{ flex: 1 }} onClick={() => setEditT(null)}>Cancel</button>
-                            <button className="btn btn-primary" style={{ flex: 1 }} onClick={() => { updateTrainee(editT.id, editT); setEditT(null); }}><CheckCircle size={15} /> Save</button>
+                            <button className="btn btn-primary" style={{ flex: 1 }} onClick={async () => { 
+                                 try {
+                                     await updateTrainee(editT.id, editT); 
+                                     toast.success('Trainee profile updated');
+                                     setEditT(null); 
+                                 } catch (err) {
+                                     toast.error('Failed to update trainee');
+                                 }
+                             }}><CheckCircle size={15} /> Save</button>
                         </div>
                     </div>
                 </div>
@@ -724,9 +764,11 @@ const ManageTrainees = () => {
 // TESDA PROGRAMS: ADD / EDIT / DELETE WITH COMPETENCIES
 const ManageTesdaPrograms = () => {
     const ncLevelOptions = ['NC I', 'NC II', 'NC III', 'NC IV'];
-    const [programs, setPrograms] = useState([]);
+    const { programs, fetchPrograms } = useApp();
+    const [totalPrograms, setTotalPrograms] = useState(0);
     const [search, setSearch] = useState('');
     const [loading, setLoading] = useState(true);
+    const [isLoading, setIsLoading] = useState(false);
     const [saving, setSaving] = useState(false);
     const [showModal, setShowModal] = useState(false);
     const [editProgram, setEditProgram] = useState(null);
@@ -741,7 +783,7 @@ const ManageTesdaPrograms = () => {
         competenciesText: '',
     });
     const [currentPage, setCurrentPage] = useState(1);
-    const pageSize = 10;
+    const pageSize = 20;
 
     // Reset page when search changes
     useEffect(() => {
@@ -957,60 +999,24 @@ const ManageTesdaPrograms = () => {
         }
     };
 
-    const loadPrograms = async () => {
-        setLoading(true);
+    const loadPrograms = async (force = false) => {
+        setIsLoading(true);
         try {
-            let useFallback = false;
-
-            let { data, error } = await supabase
-                .from('programs')
-                .select('id, name, nc_level, duration_hours, description, competencies')
-                .order('name', { ascending: true });
-
-            if (error && isMissingCompetenciesColumnError(error)) {
-                useFallback = true;
-                setSupportsCompetenciesColumn(false);
-                const fallback = await supabase
-                    .from('programs')
-                    .select('id, name, nc_level, duration_hours, description')
-                    .order('name', { ascending: true });
-                data = fallback.data;
-                error = fallback.error;
-            } else {
-                setSupportsCompetenciesColumn(true);
-            }
-
-            if (error) throw error;
-
-            const mapped = (data || []).map(row => {
-                const fallbackParsed = splitDescription(row.description || '');
-                const competencies = !useFallback && Array.isArray(row.competencies)
-                    ? row.competencies.map(item => stripCode(String(item))).filter(Boolean)
-                    : fallbackParsed.competencies;
-
-                return {
-                    id: row.id,
-                    name: row.name || '',
-                    ncLevel: row.nc_level || '',
-                    durationHours: row.duration_hours || '',
-                    description: useFallback ? (fallbackParsed.summary || '') : (row.description || ''),
-                    competencies,
-                };
-            });
-
-            setPrograms(mapped);
+            const res = await fetchPrograms(currentPage, pageSize, search, force);
+            if (res && res.total !== undefined) setTotalPrograms(res.total);
         } catch (err) {
             console.error('Failed to load programs:', err);
             openPopup('Failed to load TESDA programs.');
         } finally {
             setLoading(false);
+            setIsLoading(false);
         }
     };
 
     useEffect(() => {
         loadPrograms();
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, []);
+    }, [currentPage, search]);
 
     const openCreateModal = () => {
         setEditProgram(null);
@@ -1171,10 +1177,11 @@ const ManageTesdaPrograms = () => {
             }
 
             closeModal();
-            await loadPrograms();
+            toast.success(editProgram ? 'Program updated' : 'Program added');
+            await loadPrograms(true);
         } catch (err) {
             console.error('Failed to save program:', err);
-            openPopup(err.message || 'Failed to save program.');
+            toast.error(err.message || 'Failed to save program.');
         } finally {
             setSaving(false);
         }
@@ -1185,18 +1192,15 @@ const ManageTesdaPrograms = () => {
         try {
             const { error } = await supabase.from('programs').delete().eq('id', program.id);
             if (error) throw error;
-            await loadPrograms();
+            toast.success('Program deleted');
+            await loadPrograms(true);
         } catch (err) {
             console.error('Failed to delete program:', err);
-            openPopup(err.message || 'Failed to delete program. It may still be referenced by students.');
+            toast.error('Failed to delete program. It may still be referenced by students.');
         }
     };
 
-    const filteredPrograms = programs.filter(program => {
-        const q = search.toLowerCase();
-        return program.name.toLowerCase().includes(q) || (program.ncLevel || '').toLowerCase().includes(q);
-    });
-    const displayedItems = filteredPrograms.slice((currentPage - 1) * pageSize, currentPage * pageSize);
+    const displayedItems = programs;
 
     return (
         <div>
@@ -1228,10 +1232,14 @@ const ManageTesdaPrograms = () => {
                             </tr>
                         </thead>
                         <tbody>
-                            {loading && (
-                                <tr><td colSpan={5} style={{ textAlign: 'center', padding: 26, color: '#94a3b8' }}>Loading programs...</td></tr>
-                            )}
-                            {!loading && displayedItems.map(program => (
+                            {(loading || isLoading) ? (
+                                <tr>
+                                    <td colSpan={5} style={{ textAlign: 'center', padding: '40px 0' }}>
+                                        <div className="spinner" style={{ margin: '0 auto', width: 24, height: 24, border: '3px solid #f3f4f6', borderTopColor: '#7c3aed', borderRadius: '50%', animation: 'spin 1s linear infinite' }} />
+                                        <div style={{ marginTop: 12, color: '#64748b', fontSize: 14 }}>Loading programs...</div>
+                                    </td>
+                                </tr>
+                            ) : displayedItems.map(program => (
                                 <tr key={program.id}>
                                     <td style={{ fontWeight: 700 }}>{program.name}</td>
                                     <td><span className="badge badge-blue">{program.ncLevel || 'N/A'}</span></td>
@@ -1253,7 +1261,7 @@ const ManageTesdaPrograms = () => {
                                     </td>
                                 </tr>
                             ))}
-                            {!loading && filteredPrograms.length === 0 && (
+                            {!(loading || isLoading) && programs.length === 0 && (
                                 <tr><td colSpan={5} style={{ textAlign: 'center', padding: 30, color: '#94a3b8' }}>No TESDA programs found.</td></tr>
                             )}
                         </tbody>
@@ -1261,7 +1269,7 @@ const ManageTesdaPrograms = () => {
                 </div>
                 <TablePagination
                     currentPage={currentPage}
-                    totalItems={filteredPrograms.length}
+                    totalItems={totalPrograms}
                     pageSize={pageSize}
                     onPageChange={setCurrentPage}
                 />
@@ -1352,9 +1360,9 @@ const ManageTesdaPrograms = () => {
     );
 };
 
-// â”€â”€â”€ PAGE 3: MANAGE INDUSTRY PARTNERS â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ————————————————————————————————————————————————————————————————————————————
 const ManagePartners = () => {
-    const { partners, approvePartner, rejectPartner, updatePartner } = useApp();
+    const { partners, totalPartners, approvePartner, rejectPartner, updatePartner, fetchAdminDirectoryData } = useApp();
     const [search, setSearch] = useState('');
     const [filterStatus, setFilterStatus] = useState('All');
     const [viewPartner, setViewPartner] = useState(null);
@@ -1363,20 +1371,23 @@ const ManagePartners = () => {
     const [loadingDocs, setLoadingDocs] = useState(false);
     const [actionReasonById, setActionReasonById] = useState({});
     const [openPartnerMenuKey, setOpenPartnerMenuKey] = useState(null);
-    const [activityNow, setActivityNow] = useState(() => Date.now());
+    const [menuPos, setMenuPos] = useState({ top: 'auto', bottom: 'auto', left: 0 });
     const [currentPage, setCurrentPage] = useState(1);
-    const pageSize = 10;
-
-    useEffect(() => {
-        const timerId = setInterval(() => {
-            setActivityNow(Date.now());
-        }, 15000);
-        return () => clearInterval(timerId);
-    }, []);
+    const [isLoading, setIsLoading] = useState(false);
+    const pageSize = 15;
 
     useEffect(() => {
         setCurrentPage(1);
     }, [search, filterStatus]);
+
+    useEffect(() => {
+        const loadData = async () => {
+            setIsLoading(true);
+            await fetchAdminDirectoryData(currentPage, pageSize, search);
+            setIsLoading(false);
+        };
+        loadData();
+    }, [currentPage, search, fetchAdminDirectoryData]);
 
     const reasonOptions = ['Incomplete Verification', 'Policy Violation', 'Fraudulent Information', 'Duplicate Account', 'Other'];
     const getActionReason = (partnerId) => actionReasonById[partnerId] || '';
@@ -1397,18 +1408,14 @@ const ManagePartners = () => {
         return () => { document.removeEventListener('mousedown', close); document.removeEventListener('keydown', close); };
     }, [openPartnerMenuKey]);
 
-    // Only show partners who submitted for verification (not just registered)
     const submittedPartners = partners;
 
     const filtered = submittedPartners.filter(p => {
-        const q = search.toLowerCase();
-        const profileName = (p.profileName || p.companyName || '').toLowerCase();
-        const companyName = (p.companyName || '').toLowerCase();
-        const contactPerson = (p.contactPerson || '').toLowerCase();
-        const authEmail = (p.email || '').toLowerCase();
-        return (profileName.includes(q) || companyName.includes(q) || contactPerson.includes(q) || authEmail.includes(q)) && (filterStatus === 'All' || p.verificationStatus === filterStatus);
+        // Search is handled by server, we only filter by verification status locally
+        return filterStatus === 'All' || p.verificationStatus === filterStatus;
     });
-    const displayedItems = filtered.slice((currentPage - 1) * pageSize, currentPage * pageSize);
+    const displayedItems = filtered.slice(0, pageSize);
+
 
     const statusBadge = (s) => {
         const map = { Verified: 'badge-approved', Pending: 'badge-pending', Rejected: 'badge-rejected', 'Under Review': 'badge-pending' };
@@ -1418,28 +1425,6 @@ const ManagePartners = () => {
     const accountBadge = (status) => {
         const map = { Active: 'badge-green', Disabled: 'badge-red', Suspended: 'badge-yellow' };
         return <span className={`badge ${map[status] || 'badge-gray'}`}>{status || 'Active'}</span>;
-    };
-
-    const getActivityStatus = (status, lastSeenAt) => {
-        const normalizedStatus = String(status || '').toLowerCase();
-        if (normalizedStatus === 'offline') return 'Offline';
-
-        const lastSeenTs = lastSeenAt ? new Date(lastSeenAt).getTime() : NaN;
-        const isRecentlyActive = Number.isFinite(lastSeenTs) && (activityNow - lastSeenTs) <= 45 * 1000;
-
-        return (normalizedStatus === 'online' || isRecentlyActive) ? 'Online' : 'Offline';
-    };
-
-    const activityBadge = (status, lastSeenAt) => {
-        const normalized = getActivityStatus(status, lastSeenAt);
-        return (
-            <span
-                className={`badge ${normalized === 'Online' ? 'badge-green' : 'badge-gray'}`}
-                title={lastSeenAt ? `Last seen: ${new Date(lastSeenAt).toLocaleString()}` : 'No recent activity'}
-            >
-                {normalized}
-            </span>
-        );
     };
 
     const openPartnerView = async (partner) => {
@@ -1467,10 +1452,6 @@ const ManagePartners = () => {
                 <div>
                     <div className="page-title" style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                         Industry Partners
-                        <div className="pulse-container" title="Live sync active">
-                            <div className="pulse-dot"></div>
-                            <span style={{ fontSize: 10, color: '#94a3b8', fontWeight: 500, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Live</span>
-                        </div>
                     </div>
                     <div className="page-subtitle">Manage and verify industry partner accounts</div>
                 </div>
@@ -1489,52 +1470,94 @@ const ManagePartners = () => {
                 <div style={{ marginBottom: 14 }}><div className="search-bar" style={{ maxWidth: 320 }}><Search size={14} color="#94a3b8" /><input placeholder="Search company or contact..." value={search} onChange={e => setSearch(e.target.value)} /></div></div>
                 <div style={{ overflowX: 'auto' }}>
                     <table className="data-table">
-                        <thead><tr><th>Company</th><th>Profile Name</th><th>Contact Person</th><th>Industry</th><th>Auth Email</th><th>Activity</th><th>Verification</th><th>Account</th><th className="account-actions-column">Actions</th></tr></thead>
+                        <thead><tr><th>Company</th><th>Profile Name</th><th>Contact Person</th><th>Industry</th><th>Auth Email</th><th>Verification</th><th>Account</th><th className="account-actions-column">Actions</th></tr></thead>
                         <tbody>
-                            {displayedItems.map(p => (
+                            {isLoading ? (
+                                <tr>
+                                    <td colSpan={8} style={{ textAlign: 'center', padding: '40px 0' }}>
+                                        <div className="spinner" style={{ margin: '0 auto', width: 24, height: 24, border: '3px solid #f3f4f6', borderTopColor: '#7c3aed', borderRadius: '50%', animation: 'spin 1s linear infinite' }} />
+                                        <div style={{ marginTop: 12, color: '#64748b', fontSize: 14 }}>Loading partners...</div>
+                                    </td>
+                                </tr>
+                            ) : displayedItems.map(p => (
                                 <tr key={p.id}>
                                     <td style={{ fontWeight: 600 }}><div style={{ display: 'flex', alignItems: 'center', gap: 8 }}><div style={{ width: 30, height: 30, borderRadius: 8, background: 'linear-gradient(135deg, #e0f2fe, #ede9fe)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 800, color: '#0ea5e9' }}>{p.companyName?.charAt(0)}</div><span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>{p.companyName}{p.verificationStatus === 'Verified' && <CheckCircle size={14} color="#0a66c2" title="Verified" />}</span></div></td>
                                     <td style={{ fontSize: 13, color: '#475569', fontWeight: 600 }}>{p.profileName || p.companyName || 'None'}</td>
                                     <td style={{ fontSize: 13, color: '#64748b' }}>{p.contactPerson}</td>
                                     <td><span className="badge badge-gray">{p.industry}</span></td>
                                     <td style={{ fontSize: 13, color: '#64748b' }}>{p.email}</td>
-                                    <td>{activityBadge(p.activityStatus, p.lastSeenAt)}</td>
                                     <td>{statusBadge(p.verificationStatus)}</td>
                                     <td>{accountBadge(p.accountStatus || 'Active')}</td>
                                     <td className="account-actions-column">
                                         <div className={`account-actions-cell${isPartnerMenuOpen(p.id) ? ' is-open' : ''}`} onMouseDown={e => e.stopPropagation()}>
                                             <button
                                                 className={`account-actions-trigger${isPartnerMenuOpen(p.id) ? ' is-open' : ''}`}
-                                                onClick={() => togglePartnerMenu(p.id)}
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    if (isPartnerMenuOpen(p.id)) {
+                                                        setOpenPartnerMenuKey(null);
+                                                    } else {
+                                                        const rect = e.currentTarget.getBoundingClientRect();
+                                                        const spaceBelow = window.innerHeight - rect.bottom;
+                                                        const spaceAbove = rect.top;
+                                                        const showUpward = spaceBelow < 200 && spaceAbove > spaceBelow;
+
+                                                        setMenuPos({
+                                                            top: showUpward ? 'auto' : (rect.bottom + 4),
+                                                            bottom: showUpward ? (window.innerHeight - rect.top + 4) : 'auto',
+                                                            left: rect.right - 160
+                                                        });
+                                                        setOpenPartnerMenuKey(p.id);
+                                                    }
+                                                }}
                                                 title="Actions"
                                             >
                                                 <MoreVertical size={16} />
                                             </button>
-                                            {isPartnerMenuOpen(p.id) && (
-                                                <div className="account-actions-panel" onMouseDown={e => e.stopPropagation()}>
-                                                    <div className="account-actions-header">Partner Actions</div>
-                                                    <button className="account-actions-item" onClick={() => { openPartnerView(p); setOpenPartnerMenuKey(null); }}>
-                                                        <Eye size={14} /> View Details
-                                                    </button>
-                                                    <button className="account-actions-item" onClick={() => { setEditPartner({ ...p }); setOpenPartnerMenuKey(null); }}>
-                                                        <Edit size={14} /> Edit Profile
-                                                    </button>
-                                                </div>
+                                            {isPartnerMenuOpen(p.id) && createPortal(
+                                                <React.Fragment>
+                                                    <div style={{ position: 'fixed', inset: 0, zIndex: 9998 }} onMouseDown={() => setOpenPartnerMenuKey(null)} />
+                                                    <div
+                                                        className="account-actions-panel"
+                                                        style={{
+                                                            position: 'fixed',
+                                                            top: menuPos.top,
+                                                            bottom: menuPos.bottom,
+                                                            left: menuPos.left,
+                                                            zIndex: 9999,
+                                                            width: 160,
+                                                            margin: 0,
+                                                            display: 'block',
+                                                            boxShadow: '0 4px 12px rgba(0,0,0,0.1)'
+                                                        }}
+                                                        onMouseDown={e => e.stopPropagation()}
+                                                    >
+                                                        <div className="account-actions-header">Partner Actions</div>
+                                                        <button className="account-actions-item" onClick={() => { openPartnerView(p); setOpenPartnerMenuKey(null); }}>
+                                                            <Eye size={14} /> View Details
+                                                        </button>
+                                                        <button className="account-actions-item" onClick={() => { setEditPartner({ ...p }); setOpenPartnerMenuKey(null); }}>
+                                                            <Edit size={14} /> Edit Profile
+                                                        </button>
+                                                    </div>
+                                                </React.Fragment>,
+                                                document.body
                                             )}
                                         </div>
                                     </td>
                                 </tr>
                             ))}
-                            {filtered.length === 0 && <tr><td colSpan={9} style={{ textAlign: 'center', padding: 32, color: '#94a3b8' }}>No partners found.</td></tr>}
+                            {!isLoading && filtered.length === 0 && <tr><td colSpan={8} style={{ textAlign: 'center', padding: 32, color: '#94a3b8' }}>No partners found.</td></tr>}
                         </tbody>
                     </table>
                 </div>
                 <TablePagination
                     currentPage={currentPage}
-                    totalItems={filtered.length}
+                    totalItems={totalPartners}
                     pageSize={pageSize}
                     onPageChange={setCurrentPage}
                 />
+
             </div>
             {viewPartner && (
                 <div className="modal-overlay" onClick={() => setViewPartner(null)}>
@@ -1602,9 +1625,10 @@ const ManagePartners = () => {
                                             if (!reason) { toast.error('Please select a reject reason first.'); return; }
                                             rejectPartner(viewPartner.id, reason);
                                             setViewPartner(null);
+                                            toast.success('Partner rejected');
                                         }}><XCircle size={15} /> Reject</button>
                                     )}
-                                    {canApprove(viewPartner.verificationStatus) && <button className="btn btn-success" style={{ flex: 1 }} onClick={() => { approvePartner(viewPartner.id); setViewPartner(null); }}><CheckCircle size={15} /> Approve</button>}
+                                    {canApprove(viewPartner.verificationStatus) && <button className="btn btn-success" style={{ flex: 1 }} onClick={() => { approvePartner(viewPartner.id); setViewPartner(null); toast.success('Partner verified'); }}><CheckCircle size={15} /> Approve</button>}
                                 </div>
                             </div>
                         )}
@@ -1620,9 +1644,9 @@ const ManagePartners = () => {
                         </div>
                         <div className="form-group">
                             <label className="form-label">Verification Status</label>
-                            <select 
-                                className="form-select" 
-                                value={editPartner.verificationStatus || ''} 
+                            <select
+                                className="form-select"
+                                value={editPartner.verificationStatus || ''}
                                 onChange={e => setEditPartner({ ...editPartner, verificationStatus: e.target.value })}
                             >
                                 <option value="Pending">Pending</option>
@@ -1633,10 +1657,10 @@ const ManagePartners = () => {
                         </div>
                         <div style={{ display: 'flex', gap: 10, marginTop: 20 }}>
                             <button className="btn btn-outline" style={{ flex: 1 }} onClick={() => setEditPartner(null)}>Cancel</button>
-                            <button className="btn btn-primary" style={{ flex: 1 }} onClick={async () => { 
-                                const res = await updatePartner(editPartner.id, editPartner); 
+                            <button className="btn btn-primary" style={{ flex: 1 }} onClick={async () => {
+                                const res = await updatePartner(editPartner.id, editPartner);
                                 if (res?.success) {
-                                    setEditPartner(null); 
+                                    setEditPartner(null);
                                     toast.success('Partner updated successfully');
                                 } else {
                                     toast.error('Failed to update partner: ' + (res?.error || 'Unknown error'));
@@ -1650,7 +1674,7 @@ const ManagePartners = () => {
     );
 };
 
-// â”€â”€â”€ PAGE 4: OPPORTUNITIES OVERSIGHT â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ————————————————————————————————————————————————————————————————————————————
 const OpportunitiesOversight = () => {
     const { jobPostings, updatePartnerJobPosting, deleteJobPosting } = useApp();
     const [search, setSearch] = useState('');
@@ -1658,7 +1682,7 @@ const OpportunitiesOversight = () => {
     const [filterType, setFilterType] = useState('All');
     const [openMenuId, setOpenMenuId] = useState(null);
     const [currentPage, setCurrentPage] = useState(1);
-    const pageSize = 10;
+    const pageSize = 20;
 
     const toggleMenu = (id) => setOpenMenuId(openMenuId === id ? null : id);
 
@@ -1678,7 +1702,12 @@ const OpportunitiesOversight = () => {
 
     const handleDelete = async (job) => {
         if (!window.confirm(`Delete opportunity "${job.title}"? This action cannot be undone.`)) return;
-        await deleteJobPosting(job.id);
+        try {
+            await deleteJobPosting(job.id);
+            toast.success('Job posting deleted');
+        } catch (err) {
+            toast.error('Failed to delete job posting');
+        }
         setOpenMenuId(null);
     };
 
@@ -1737,11 +1766,19 @@ const OpportunitiesOversight = () => {
                                                 <div className="account-actions-panel" style={{ right: 0 }}>
                                                     <div className="account-actions-header">Opportunity Actions</div>
                                                     {j.status === 'Open' ? (
-                                                        <button className="account-actions-item" onClick={() => { updatePartnerJobPosting(j.id, { status: 'Closed' }); setOpenMenuId(null); }}>
+                                                        <button className="account-actions-item" onClick={async () => {
+                                                            await updatePartnerJobPosting(j.id, { status: 'Closed' });
+                                                            toast.success('Posting closed');
+                                                            setOpenMenuId(null);
+                                                        }}>
                                                             <XCircle size={14} /> Close Posting
                                                         </button>
                                                     ) : (
-                                                        <button className="account-actions-item" onClick={() => { updatePartnerJobPosting(j.id, { status: 'Open' }); setOpenMenuId(null); }}>
+                                                        <button className="account-actions-item" onClick={async () => {
+                                                            await updatePartnerJobPosting(j.id, { status: 'Open' });
+                                                            toast.success('Posting opened');
+                                                            setOpenMenuId(null);
+                                                        }}>
                                                             <CheckCircle size={14} /> Re-open Posting
                                                         </button>
                                                     )}
@@ -1769,24 +1806,56 @@ const OpportunitiesOversight = () => {
     );
 };
 
-// â”€â”€â”€ PAGE 5: EMPLOYMENT TRACKING â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ————————————————————————————————————————————————————————————————————————————
 const EmploymentTracking = () => {
-    const { trainees, getEmploymentStats } = useApp();
+    const { getEmploymentStats, fetchAdminDirectoryData } = useApp();
     const stats = getEmploymentStats();
+    const [traineesList, setTraineesList] = useState([]);
+    const [totalTrainees, setTotalTrainees] = useState(0);
     const [search, setSearch] = useState('');
     const [currentPage, setCurrentPage] = useState(1);
-    const pageSize = 10;
+    const [filterStatus, setFilterStatus] = useState('All');
+    const [isLoading, setIsLoading] = useState(false);
+    const pageSize = 20;
 
-    // Reset page when search changes
+    const loadData = async () => {
+        setIsLoading(true);
+        try {
+            const timestamp = new Date().getTime();
+            // We use the same backend endpoint but we'll only use the student data from it
+            // Or we could use supabase directly if we want, but let's stick to the endpoint for consistency
+            const res = await fetch(`/api/admin/data?t=${timestamp}&page=${currentPage}&limit=${pageSize}&search=${encodeURIComponent(search)}&status=${filterStatus}`);
+            const data = await res.json();
+            
+            if (data.students) {
+                // The backend returns snake_case keys (full_name, employment_status, etc.)
+                // Filter by status if needed (though backend handles most of it)
+                const filtered = data.students.filter(t => 
+                    filterStatus === 'All' || 
+                    t.employmentStatus === filterStatus ||
+                    (filterStatus === 'Employed' && t.employmentStatus === 'employed') ||
+                    (filterStatus === 'Seeking Employment' && t.employmentStatus === 'seeking_employment') ||
+                    (filterStatus === 'Not Employed' && (t.employmentStatus === 'not_employed' || !t.employmentStatus))
+                );
+                setTraineesList(filtered);
+                setTotalTrainees(data.totalStudents || 0);
+            }
+        } catch (err) {
+            console.error('Failed to load employment data:', err);
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    useEffect(() => {
+        loadData();
+    }, [currentPage, search, filterStatus]);
+
     useEffect(() => {
         setCurrentPage(1);
-    }, [search]);
-    const [filterStatus, setFilterStatus] = useState('All');
-    const filtered = trainees.filter(t => {
-        const q = search.toLowerCase();
-        return (t.name.toLowerCase().includes(q)) && (filterStatus === 'All' || t.employmentStatus === filterStatus);
-    });
-    const displayedItems = filtered.slice((currentPage - 1) * pageSize, currentPage * pageSize);
+    }, [search, filterStatus]);
+
+    const displayedItems = traineesList;
 
     return (
         <div>
@@ -1812,22 +1881,29 @@ const EmploymentTracking = () => {
                     <table className="data-table">
                         <thead><tr><th>Name</th><th>Program</th><th>Status</th><th>Company / Employer</th><th>Date Hired</th></tr></thead>
                         <tbody>
-                            {displayedItems.map(t => (
+                            {isLoading ? (
+                                <tr>
+                                    <td colSpan={5} style={{ textAlign: 'center', padding: '40px 0' }}>
+                                        <div className="spinner" style={{ margin: '0 auto', width: 24, height: 24, border: '3px solid #f3f4f6', borderTopColor: '#7c3aed', borderRadius: '50%', animation: 'spin 1s linear infinite' }} />
+                                        <div style={{ marginTop: 12, color: '#64748b', fontSize: 14 }}>Loading data...</div>
+                                    </td>
+                                </tr>
+                            ) : displayedItems.map(t => (
                                 <tr key={t.id}>
-                                    <td style={{ fontWeight: 600 }}>{t.name}</td>
-                                    <td style={{ color: '#64748b', fontSize: 13 }}>{t.program || '-'}</td>
-                                    <td><span className={`badge badge-${(t.employmentStatus || 'not-employed').toLowerCase().replace(' ', '-')}`}>{t.employmentStatus || 'Not Employed'}</span></td>
+                                    <td style={{ fontWeight: 600 }}>{t.fullName || t.full_name || t.profile_name || t.name || 'Trainee'}</td>
+                                    <td style={{ color: '#64748b', fontSize: 13 }}>{t.program_name || t.program || (t.program_id ? `ID: ${t.program_id.slice(0,8)}` : '-')}</td>
+                                    <td><span className={`badge badge-${(t.employmentStatus || t.employment_status || 'not-employed').toLowerCase().replace('_', '-').replace(' ', '-')}`}>{ (t.employmentStatus || t.employment_status || 'Not Employed').replace('_', ' ') }</span></td>
                                     <td style={{ color: '#64748b', fontSize: 13 }}>{t.employer || '-'}</td>
-                                    <td style={{ color: '#64748b', fontSize: 13 }}>{t.dateHired || '-'}</td>
+                                    <td style={{ color: '#64748b', fontSize: 13 }}>{t.dateHired || t.date_hired ? new Date(t.dateHired || t.date_hired).toLocaleDateString() : '-'}</td>
                                 </tr>
                             ))}
-                            {filtered.length === 0 && <tr><td colSpan={5} style={{ textAlign: 'center', padding: 32, color: '#94a3b8' }}>No trainees found.</td></tr>}
+                            {!isLoading && traineesList.length === 0 && <tr><td colSpan={5} style={{ textAlign: 'center', padding: 32, color: '#94a3b8' }}>No trainees found.</td></tr>}
                         </tbody>
                     </table>
                 </div>
                 <TablePagination
                     currentPage={currentPage}
-                    totalItems={filtered.length}
+                    totalItems={totalTrainees}
                     pageSize={pageSize}
                     onPageChange={setCurrentPage}
                 />
@@ -1838,11 +1914,11 @@ const EmploymentTracking = () => {
 
 // ——— PAGE 6: ANALYTICS (DEEP DIVE REPORTS) ————————————————————————————————
 const Analytics = () => {
-    const { trainees, posts,  partners, applications, getEmploymentStats } = useApp();
+    const { trainees, posts, partners, applications, getEmploymentStats } = useApp();
     const stats = getEmploymentStats();
 
-    const handleExportCSV = () => toast.success("Exporting metrics to CSV...");
-    const handleExportChart = (chartName) => toast.success(`Exporting ${chartName} as PNG...`);
+    const handleExportCSV = () => { toast.success("Exporting metrics to CSV..."); };
+    const handleExportChart = (chartName) => { toast.success(`Exporting ${chartName} as PNG...`); };
 
     // Placement Funnel Logic
     const enrolled = trainees.length;
@@ -1919,9 +1995,10 @@ const Analytics = () => {
     );
 };
 
-// â”€â”€â”€ PAGE 7: ACCOUNT MANAGEMENT â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ————————————————————————————————————————————————————————————————————————————
 const AccountManagement = () => {
-    const { trainees, partners, updateAccountStatus, deleteAccount } = useApp();
+    const { trainees, totalTrainees, partners, totalPartners, accounts, totalAccounts, updateAccountStatus, deleteAccount, isPresenceEnabled, toggleGlobalPresence, fetchAdminDirectoryData } = useApp();
+    const [currentPage, setCurrentPage] = useState(1);
     const [search, setSearch] = useState('');
     const [filterRole, setFilterRole] = useState('All');
     const [actionReasonById, setActionReasonById] = useState({});
@@ -1929,8 +2006,8 @@ const AccountManagement = () => {
     const [accountPendingDelete, setAccountPendingDelete] = useState(null);
     const [deletingAccountKey, setDeletingAccountKey] = useState('');
     const [activityNow, setActivityNow] = useState(Date.now());
-    const [currentPage, setCurrentPage] = useState(1);
-    const pageSize = 10;
+    const [isLoading, setIsLoading] = useState(false);
+    const pageSize = 15;
     const reasonOptions = ['Policy Violation', 'Fraudulent Information', 'Duplicate Account', 'Requested Deactivation', 'Other'];
 
     useEffect(() => {
@@ -1941,36 +2018,35 @@ const AccountManagement = () => {
     }, []);
 
     useEffect(() => {
+        const loadData = async () => {
+            setIsLoading(true);
+            await fetchAdminDirectoryData(currentPage, pageSize, search);
+            setIsLoading(false);
+        };
+        loadData();
+    }, [currentPage, search, fetchAdminDirectoryData]);
+
+    useEffect(() => {
         setCurrentPage(1);
     }, [search, filterRole]);
 
-    const allAccounts = [
-        ...trainees.map(t => ({
-            ...t,
-            type: 'trainee',
-            roleLabel: 'Student',
-            displayName: t.profileName || t.name || 'Student',
-            displayEmail: t.email && t.email !== 'Protected' ? t.email : 'None',
-            activityStatus: t.activityStatus || 'Offline',
-            lastSeenAt: t.lastSeenAt || null,
-        })),
-        ...partners.map(p => ({
-            ...p,
-            type: 'partner',
-            roleLabel: 'Partner',
-            displayName: p.profileName || p.companyName || 'Industry Partner',
-            displayEmail: p.email && p.email !== 'Protected' ? p.email : 'None',
-            activityStatus: p.activityStatus || 'Offline',
-            lastSeenAt: p.lastSeenAt || null,
-        })),
-    ];
+    const allAccounts = useMemo(() => {
+        if (filterRole === 'trainee') return trainees.map(t => ({ ...t, type: 'trainee', roleLabel: 'Student', displayName: t.profileName || t.name || 'Student', displayEmail: t.email !== 'Protected' ? t.email : 'None' }));
+        if (filterRole === 'partner') return partners.map(p => ({ ...p, type: 'partner', roleLabel: 'Partner', displayName: p.profileName || p.companyName || 'Industry Partner', displayEmail: p.email !== 'Protected' ? p.email : 'None' }));
+        return accounts.map(a => ({
+            ...a,
+            displayName: a.profileName || a.name || (a.type === 'trainee' ? 'Student' : 'Partner'),
+            displayEmail: a.email && a.email !== 'Protected' ? a.email : 'None'
+        }));
+    }, [trainees, partners, accounts, filterRole]);
 
-    const filtered = allAccounts.filter(a => {
-        const q = search.toLowerCase();
-        return (a.displayName.toLowerCase().includes(q) || a.displayEmail.toLowerCase().includes(q)) && (filterRole === 'All' || a.type === filterRole);
-    });
+    const totalItems = useMemo(() => {
+        if (filterRole === 'trainee') return totalTrainees;
+        if (filterRole === 'partner') return totalPartners;
+        return totalAccounts;
+    }, [totalTrainees, totalPartners, totalAccounts, filterRole]);
 
-    const displayedItems = filtered.slice((currentPage - 1) * pageSize, currentPage * pageSize);
+    const displayedItems = allAccounts.slice(0, pageSize);
 
     const accountBadge = (s) => {
         const map = { Active: 'badge-green', Disabled: 'badge-red', Suspended: 'badge-yellow' };
@@ -2016,6 +2092,15 @@ const AccountManagement = () => {
         setActionReasonById(prev => ({ ...prev, [key]: reason }));
     };
 
+    const applyAccountAction = async (account, nextStatus) => {
+        try {
+            await updateAccountStatus(account.type, account.id, nextStatus, getActionReason(account));
+            toast.success(`Account status updated to ${nextStatus}`);
+        } catch (err) {
+            toast.error('Failed to update account status');
+        }
+    };
+
     useEffect(() => {
         if (!openActionMenuKey) return undefined;
 
@@ -2037,9 +2122,6 @@ const AccountManagement = () => {
         };
     }, [openActionMenuKey]);
 
-    const applyAccountAction = (account, nextStatus) => {
-        updateAccountStatus(account.type, account.id, nextStatus, getActionReason(account));
-    };
 
     const toggleActionMenu = (account) => {
         const key = reasonKey(account);
@@ -2100,7 +2182,7 @@ const AccountManagement = () => {
             <div className="page-header"><div><div className="page-title">Manage Accounts</div><div className="page-subtitle">View and manage student and partner accounts</div></div></div>
             <div className="stats-grid" style={{ marginBottom: 20 }}>
                 {[
-                    { label: 'Total Accounts', value: allAccounts.length, icon: <Users size={22} color="#7c3aed" />, bg: '#ede9fe' },
+                    { label: 'Total Accounts', value: totalItems, icon: <Users size={22} color="#7c3aed" />, bg: '#ede9fe' },
                     { label: 'Online', value: allAccounts.filter(a => getActivityStatus(a.activityStatus, a.lastSeenAt) === 'Online').length, icon: <Clock size={22} color="#16a34a" />, bg: '#dcfce7' },
                     { label: 'Active', value: allAccounts.filter(a => (a.accountStatus || 'Active') === 'Active').length, icon: <CheckCircle size={22} color="#2563eb" />, bg: '#dbeafe' },
                     { label: 'Suspended', value: allAccounts.filter(a => a.accountStatus === 'Suspended').length, icon: <AlertCircle size={22} color="#d97706" />, bg: '#fef3c7' },
@@ -2111,6 +2193,38 @@ const AccountManagement = () => {
             <div className="card">
                 <div style={{ display: 'flex', gap: 12, marginBottom: 14, flexWrap: 'wrap', alignItems: 'center' }}>
                     <div className="search-bar" style={{ flex: 1, minWidth: 200 }}><Search size={14} color="#94a3b8" /><input placeholder="Search name or email..." value={search} onChange={e => setSearch(e.target.value)} /></div>
+
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '6px 14px', background: isPresenceEnabled ? '#f0fdf4' : '#fef2f2', borderRadius: 100, border: `1px solid ${isPresenceEnabled ? '#bbf7d0' : '#fee2e2'}`, boxShadow: '0 1px 2px rgba(0,0,0,0.05)' }}>
+                        <span style={{ fontSize: 11, fontWeight: 700, color: isPresenceEnabled ? '#166534' : '#991b1b', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                            {isPresenceEnabled ? 'Activity Monitoring: Live' : 'Eco Mode: Active (Paused)'}
+                        </span>
+
+                        <div
+                            onClick={() => toggleGlobalPresence(!isPresenceEnabled)}
+                            style={{
+                                width: 36,
+                                height: 20,
+                                borderRadius: 10,
+                                background: isPresenceEnabled ? '#22c55e' : '#cbd5e1',
+                                position: 'relative',
+                                cursor: 'pointer',
+                                transition: 'all 0.2s ease'
+                            }}
+                        >
+                            <div style={{
+                                width: 14,
+                                height: 14,
+                                borderRadius: '50%',
+                                background: '#fff',
+                                position: 'absolute',
+                                top: 3,
+                                left: isPresenceEnabled ? 19 : 3,
+                                transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
+                                boxShadow: '0 1px 3px rgba(0,0,0,0.2)'
+                            }} />
+                        </div>
+                    </div>
+
                     <select className="form-select" style={{ width: 'auto', minWidth: 140 }} value={filterRole} onChange={e => setFilterRole(e.target.value)}>
                         {['All', 'trainee', 'partner'].map(r => <option key={r} value={r}>{r === 'All' ? 'All Roles' : r === 'trainee' ? 'Student' : 'Partner'}</option>)}
                     </select>
@@ -2119,7 +2233,14 @@ const AccountManagement = () => {
                     <table className="data-table">
                         <thead><tr><th>Profile Name</th><th>Auth Email</th><th>Role</th><th>Activity</th><th>Account</th><th className="account-actions-column">Actions</th></tr></thead>
                         <tbody>
-                            {displayedItems.map((a, i) => (
+                            {isLoading ? (
+                                <tr>
+                                    <td colSpan={6} style={{ textAlign: 'center', padding: '40px 0' }}>
+                                        <div className="spinner" style={{ margin: '0 auto', width: 24, height: 24, border: '3px solid #f3f4f6', borderTopColor: '#7c3aed', borderRadius: '50%', animation: 'spin 1s linear infinite' }} />
+                                        <div style={{ marginTop: 12, color: '#64748b', fontSize: 14 }}>Loading accounts...</div>
+                                    </td>
+                                </tr>
+                            ) : displayedItems.map((a, i) => (
                                 <tr key={`${a.type}-${a.id}-${i}`}>
                                     <td style={{ fontWeight: 600 }}>{a.displayName}</td>
                                     <td style={{ fontSize: 13, color: '#64748b' }}>{a.displayEmail}</td>
@@ -2179,19 +2300,19 @@ const AccountManagement = () => {
                                     </td>
                                 </tr>
                             ))}
-                            {filtered.length === 0 && (
-                                <tr>
-                                    <td colSpan={6} style={{ textAlign: 'center', padding: 32, color: '#94a3b8' }}>
-                                        No accounts found.
-                                    </td>
-                                </tr>
-                            )}
+                             {!isLoading && allAccounts.length === 0 && (
+                                 <tr>
+                                     <td colSpan={6} style={{ textAlign: 'center', padding: 32, color: '#94a3b8' }}>
+                                         No accounts found.
+                                     </td>
+                                 </tr>
+                             )}
                         </tbody>
                     </table>
                 </div>
                 <TablePagination
                     currentPage={currentPage}
-                    totalItems={filtered.length}
+                    totalItems={totalItems}
                     pageSize={pageSize}
                     onPageChange={setCurrentPage}
                 />
@@ -2232,7 +2353,7 @@ const SystemActivityLog = () => {
     const actions = ['All', ...new Set(activityLog.map(l => l.action))];
     const modules = ['All', ...new Set(activityLog.map(l => l.module))];
     const [currentPage, setCurrentPage] = useState(1);
-    const pageSize = 10;
+    const pageSize = 20;
 
     // Reset page when search or filters change
     useEffect(() => {
@@ -2384,6 +2505,7 @@ export default function AdminDashboard() {
                 <Route path="/accounts" element={<AccountManagement />} />
                 <Route path="/activity-log" element={<SystemActivityLog />} />
                 <Route path="/settings" element={<SystemSettings />} />
+                <Route path="/notifications" element={<NotificationsPage />} />
                 <Route path="*" element={<Navigate to="/admin" replace />} />
             </Routes>
         </AppLayout>

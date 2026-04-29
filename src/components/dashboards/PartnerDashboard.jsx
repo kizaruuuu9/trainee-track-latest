@@ -1,5 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { useApp } from '../../context/AppContext';
+
 import SavedItemsView from './SavedItemsView';
 import ProfileActivityTab from './ProfileActivityTab';
 import SettingsPage from './SettingsPage';
@@ -11,7 +13,7 @@ import {
   Bell, Home, Settings, TrendingUp, Bookmark, Target, Star,
   Camera, MessageSquare, MessageCircle, Edit, Loader, ExternalLink, EyeOff, MoreVertical,
   RefreshCw, MousePointerClick, CheckCircle2, UserPlus, Info, Share2,
-  Calendar, ChevronLeft, Heart, Download, Navigation, User, Check
+  Calendar, ChevronLeft, Heart, Download, Navigation, User, Check, AlignLeft
 } from 'lucide-react';
 import EmptyState, {
   TrophyIllustration,
@@ -22,12 +24,14 @@ import EmptyState, {
 } from '../EmptyState';
 import BrandLogo from '../common/BrandLogo';
 import { supabase } from '../../lib/supabase';
+import { CompactFeedItem } from './FeedComponents';
 import { Routes, Route, useNavigate, useLocation, Navigate, useParams } from 'react-router-dom';
 import PhilAddressSelector from '../common/PhilAddressSelector';
 import ProfilePage from '../ProfilePage';
 import TopNavBar from '../common/TopNavBar';
 import ImageCropModal from '../common/ImageCropModal';
 import toast from 'react-hot-toast';
+import NotificationsPage from './NotificationsPage';
 
 const TraineeProfileContent = React.lazy(() =>
   import('./TraineeDashboard').then(module => ({ default: module.TraineeProfileContent }))
@@ -94,6 +98,71 @@ const SALARY_CURRENCY_OPTIONS = [
   { code: 'GBP', label: 'GBP (\u00A3)' },
   { code: 'JPY', label: 'JPY (\u00A5)' },
 ];
+
+// --- SHARED: TABLE PAGINATION (LinkedIn Style) ---------------------
+const TablePagination = ({ currentPage, totalItems, pageSize, onPageChange }) => {
+  const totalPages = Math.ceil(totalItems / pageSize);
+  if (totalPages <= 1) return null;
+
+  const startIdx = (currentPage - 1) * pageSize + 1;
+  const endIdx = Math.min(totalItems, currentPage * pageSize);
+
+  return (
+    <div className="ln-pagination" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '16px 20px', borderTop: '1px solid #f1f5f9' }}>
+      <div style={{ fontSize: 13, color: '#64748b' }}>
+        Showing <b>{startIdx}</b> to <b>{endIdx}</b> of <b>{totalItems}</b> items
+      </div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+        <button
+          disabled={currentPage === 1}
+          onClick={() => onPageChange(currentPage - 1)}
+          style={{ padding: '6px 12px', borderRadius: 8, border: '1px solid #cbd5e1', background: '#fff', cursor: currentPage === 1 ? 'not-allowed' : 'pointer', opacity: currentPage === 1 ? 0.5 : 1, fontSize: 13, display: 'flex', alignItems: 'center', gap: 4 }}
+        >
+          <ChevronLeft size={16} /> Previous
+        </button>
+
+        <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+          {Array.from({ length: totalPages }, (_, i) => i + 1)
+            .filter(p => p === 1 || p === totalPages || (p >= currentPage - 1 && p <= currentPage + 1))
+            .map((p, i, arr) => (
+              <React.Fragment key={p}>
+                {i > 0 && arr[i - 1] !== p - 1 && <span style={{ color: '#94a3b8', padding: '0 4px' }}>...</span>}
+                <button
+                  onClick={() => onPageChange(p)}
+                  style={{
+                    minWidth: 32,
+                    height: 32,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    borderRadius: 8,
+                    border: '1px solid',
+                    borderColor: currentPage === p ? '#2563eb' : '#cbd5e1',
+                    background: currentPage === p ? '#2563eb' : '#fff',
+                    color: currentPage === p ? '#fff' : '#1e293b',
+                    fontWeight: currentPage === p ? 700 : 500,
+                    cursor: 'pointer',
+                    fontSize: 13
+                  }}
+                >
+                  {p}
+                </button>
+              </React.Fragment>
+            ))}
+        </div>
+
+        <button
+          disabled={currentPage === totalPages}
+          onClick={() => onPageChange(currentPage + 1)}
+          style={{ padding: '6px 12px', borderRadius: 8, border: '1px solid #cbd5e1', background: '#fff', cursor: currentPage === totalPages ? 'not-allowed' : 'pointer', opacity: currentPage === totalPages ? 0.5 : 1, fontSize: 13, display: 'flex', alignItems: 'center', gap: 4 }}
+        >
+          Next <ChevronRight size={16} />
+        </button>
+      </div>
+    </div>
+  );
+};
+
 
 const DEFAULT_SALARY_CURRENCY = 'PHP';
 
@@ -358,7 +427,7 @@ const PartnerSideNav = ({ activePage, setActivePage }) => {
 
 // --- LAYOUT WRAPPER ----------------------------------------------
 const PartnerLayout = ({ children, activePage, setActivePage }) => (
-    <div className="ln-app">
+    <div className="ln-app partner-theme">
         <TopNavBar activePage={activePage} setActivePage={setActivePage} />
         <PartnerSideNav activePage={activePage} setActivePage={setActivePage} />
         <main className="ln-main">
@@ -448,7 +517,7 @@ const RecruitmentStatsWidget = ({ myJobs, myApplicants }) => (
     {[
       { label: 'New Applicants', value: myApplicants.filter(a => ['pending', 'received', 'sent'].includes(String(a.status || '').toLowerCase())).length, color: '#10b981' },
       { label: 'Interviews Scheduled', value: myApplicants.filter(a => String(a.status || '').toLowerCase() === 'interview scheduled').length, color: '#059669' },
-      { label: 'Pending Decisions', value: myApplicants.filter(a => ['under review', 'screened', 'shortlisted'].includes(String(a.status || '').toLowerCase())).length, color: '#047857' },
+      { label: 'Pending Decisions', value: myApplicants.filter(a => ['under review', 'screened'].includes(String(a.status || '').toLowerCase())).length, color: '#047857' },
       { label: 'Hired / Placed', value: myApplicants.filter(a => ['accepted', 'hired', 'offered'].includes(String(a.status || '').toLowerCase())).length, color: '#10b981' },
     ].map(stat => (
       <div key={stat.label} className="ln-suggested-item" style={{ cursor: 'default' }}>
@@ -466,47 +535,30 @@ const RecruitmentStatsWidget = ({ myJobs, myApplicants }) => (
 );
 
 // --- PAGE 1: PARTNER DASHBOARD HOME ------------------------------
-const PartnerHome = ({ setActivePage }) => {
-  const { fetchPosts, fetchJobPostings } = useApp();
+const PartnerHome = ({ setActivePage, openContactModal }) => {
+  const { 
+    currentUser, partners, jobPostings, programs, updatePartnerJobPosting, 
+    getPartnerApplicants, posts, createPost, updatePost, deletePost, 
+    deleteJobPosting, trainees, 
+    addJobPostingComment, getJobPostingComments, updateJobPostingComment, 
+    deleteJobPostingComment, sendContactRequest, createPostInteraction, 
+    getUserPostInteraction, fetchPostInteractions, fetchPosts, fetchJobPostings, 
+    uploadOptimizedImage, confirmAction, loadMoreFeeds
+  } = useApp();
+
   useEffect(() => {
     fetchPosts();
     fetchJobPostings();
-  }, []);
+    fetchPostInteractions();
+  }, [currentUser?.id]);
+  const [feedViewMode, setFeedViewMode] = useState('list'); // 'grid' or 'list'
   const [feedFilter, setFeedFilter] = useState('All');
   const [feedSearchText, setFeedSearchText] = useState('');
   const [visibleFeedCount, setVisibleFeedCount] = useState(20);
-  const [isLoadingMore, setIsLoadingMore] = useState(false);
+  const [feedCurrentPage, setFeedCurrentPage] = useState(1);
+  const feedPageSize = 20;
 
-  const feedLimitRef = useRef({ count: 20, total: 0, loading: false });
 
-  useEffect(() => {
-      feedLimitRef.current.count = visibleFeedCount;
-      feedLimitRef.current.loading = isLoadingMore;
-  }, [visibleFeedCount, isLoadingMore]);
-
-  useEffect(() => {
-      const handleScroll = () => {
-          if (window.innerHeight + document.documentElement.scrollTop + 100 >= document.documentElement.offsetHeight) {
-              if (!feedLimitRef.current.loading && feedLimitRef.current.count < feedLimitRef.current.total) {
-                  setIsLoadingMore(true);
-              }
-          }
-      };
-      window.addEventListener('scroll', handleScroll);
-      return () => window.removeEventListener('scroll', handleScroll);
-  }, []);
-
-  useEffect(() => {
-      if (isLoadingMore) {
-          const timer = setTimeout(() => {
-              setVisibleFeedCount(prev => prev + 20);
-              setIsLoadingMore(false);
-          }, 800);
-          return () => clearTimeout(timer);
-      }
-  }, [isLoadingMore]);
-
-  const { currentUser, partners, jobPostings, programs, updatePartnerJobPosting, getPartnerApplicants, posts, createPost, updatePost, deletePost, deleteJobPosting, trainees, addPostComment, getPostComments, addJobPostingComment, getJobPostingComments, updateJobPostingComment, deleteJobPostingComment, sendContactRequest, createPostInteraction, getUserPostInteraction, fetchPostInteractions, uploadOptimizedImage } = useApp();
   const navigate = useNavigate();
   const partner = getLivePartner(currentUser, partners);
   const verified = isVerified(partner);
@@ -584,50 +636,14 @@ const PartnerHome = ({ setActivePage }) => {
   const [showAllEditComps, setShowAllEditComps] = useState(false);
   const [selectedFile, setSelectedFile] = useState(null);
   const [filePreview, setFilePreview] = useState(null);
-  const [commentModalPost, setCommentModalPost] = useState(null);
-  const [commentInput, setCommentInput] = useState('');
-  const [commentSubmitting, setCommentSubmitting] = useState(false);
-  const [contactTarget, setContactTarget] = useState(null);
-  const [contactMessage, setContactMessage] = useState('');
-  const [contactAttachment, setContactAttachment] = useState(null);
-  const [contactSubmitting, setContactSubmitting] = useState(false);
-  const [jobMediaModal, setJobMediaModal] = useState(null);
-  const [jobMediaCommentsOnly, setJobMediaCommentsOnly] = useState(false);
-  const [jobMediaCommentInput, setJobMediaCommentInput] = useState('');
-  const [editingJobMediaCommentId, setEditingJobMediaCommentId] = useState(null);
-  const [jobMediaEditInput, setJobMediaEditInput] = useState('');
-  const [jobMediaCommentSaving, setJobMediaCommentSaving] = useState(false);
-  const [jobMediaCommentMenuId, setJobMediaCommentMenuId] = useState(null);
+
   const [isCompactCommentViewport, setIsCompactCommentViewport] = useState(() => (
     typeof window !== 'undefined' ? window.innerWidth <= 1024 : false
   ));
   const fileInputRef = useRef(null);
-  const contactFileInputRef = useRef(null);
-  const jobMediaCommentInputRef = useRef(null);
   const openProfile = (target) => {
     if (!target?.id || !target?.type) return;
     navigate(`/partner/profile-view/${target.type}/${target.id}`);
-  };
-
-  const openJobMediaModal = (job, focusComment = false) => {
-    setJobMediaModal(job);
-    setJobMediaCommentsOnly(Boolean(focusComment));
-    setJobMediaCommentInput('');
-    setEditingJobMediaCommentId(null);
-    setJobMediaEditInput('');
-    setJobMediaCommentMenuId(null);
-    if (focusComment) {
-      setTimeout(() => jobMediaCommentInputRef.current?.focus(), 0);
-    }
-  };
-
-  const closeJobMediaModal = () => {
-    setJobMediaModal(null);
-    setJobMediaCommentsOnly(false);
-    setJobMediaCommentInput('');
-    setEditingJobMediaCommentId(null);
-    setJobMediaEditInput('');
-    setJobMediaCommentMenuId(null);
   };
 
   const closeEditJobModal = () => {
@@ -653,7 +669,7 @@ const PartnerHome = ({ setActivePage }) => {
   }, []);
 
   useEffect(() => {
-    const activeFeedModal = jobMediaModal || commentModalPost || editJobModal;
+    const activeFeedModal = editJobModal;
     if (!activeFeedModal || typeof window === 'undefined' || typeof document === 'undefined') return undefined;
 
     const scrollY = window.scrollY;
@@ -677,83 +693,9 @@ const PartnerHome = ({ setActivePage }) => {
       document.documentElement.style.overflow = originalHtmlOverflow;
       window.scrollTo(0, scrollY);
     };
-  }, [jobMediaModal, commentModalPost, editJobModal]);
+  }, [editJobModal]);
 
-  const submitJobMediaComment = async () => {
-    if (!jobMediaModal) return;
-    const trimmed = jobMediaCommentInput.trim();
-    if (!trimmed) return;
 
-    const result = await addJobPostingComment(jobMediaModal.id, trimmed);
-    if (!result.success) {
-      toast.error(result.error || 'Failed to add comment.');
-      return;
-    }
-
-    setJobMediaCommentInput('');
-  };
-
-  const startEditingJobMediaComment = (comment) => {
-    if (!comment || comment.author_id !== currentUser?.id) return;
-    setEditingJobMediaCommentId(comment.id);
-    setJobMediaEditInput(comment.content || '');
-  };
-
-  const cancelEditingJobMediaComment = () => {
-    setEditingJobMediaCommentId(null);
-    setJobMediaEditInput('');
-  };
-
-  const saveEditedJobMediaComment = async () => {
-    if (!editingJobMediaCommentId) return;
-    const trimmed = jobMediaEditInput.trim();
-    if (!trimmed) {
-      toast.success('Comment cannot be empty.');
-      return;
-    }
-
-    setJobMediaCommentSaving(true);
-    const result = await updateJobPostingComment(editingJobMediaCommentId, trimmed);
-    setJobMediaCommentSaving(false);
-    if (!result.success) {
-      toast.error(result.error || 'Failed to update comment.');
-      return;
-    }
-
-    setEditingJobMediaCommentId(null);
-    setJobMediaEditInput('');
-  };
-
-  const handleDeleteJobMediaComment = async (commentId) => {
-    if (!commentId) return;
-    confirmAction({ 
-      message: 'Delete this comment?', 
-      type: 'danger',
-      onConfirm: async () => {
-        const result = await deleteJobPostingComment(commentId);
-        if (!result.success) {
-          toast.error(result.error || 'Failed to delete comment.');
-          return;
-        }
-        if (editingJobMediaCommentId === commentId) {
-          setEditingJobMediaCommentId(null);
-          setJobMediaEditInput('');
-        }
-      } 
-    });
-    return;
-
-    const result = await deleteJobPostingComment(commentId);
-    if (!result.success) {
-      toast.error(result.error || 'Failed to delete comment.');
-      return;
-    }
-
-    if (editingJobMediaCommentId === commentId) {
-      setEditingJobMediaCommentId(null);
-      setJobMediaEditInput('');
-    }
-  };
 
   const handleFileChange = (e) => {
     const file = e.target.files[0];
@@ -792,6 +734,7 @@ const PartnerHome = ({ setActivePage }) => {
       });
 
       if (res.success) {
+        toast.success('Post created successfully!');
         setPostContent('');
         setPostType('general');
         setPostTitle('');
@@ -811,94 +754,6 @@ const PartnerHome = ({ setActivePage }) => {
     }
   };
 
-  const handleCommentOnPost = (post) => {
-    setCommentModalPost(post);
-    setCommentInput('');
-  };
-
-  const openContactModal = (target) => {
-    if (!target || target.recipientId === currentUser?.id) return;
-    setContactTarget(target);
-    setContactMessage('');
-    setContactAttachment(null);
-    if (contactFileInputRef.current) contactFileInputRef.current.value = '';
-  };
-
-  const closeContactModal = () => {
-    setContactTarget(null);
-    setContactMessage('');
-    setContactAttachment(null);
-    if (contactFileInputRef.current) contactFileInputRef.current.value = '';
-  };
-
-  const handleContactAttachmentChange = (event) => {
-    const file = event.target.files?.[0] || null;
-    setContactAttachment(file);
-  };
-
-  const handleSubmitContact = async () => {
-    if (!contactTarget) return;
-
-    const trimmed = contactMessage.trim();
-    if (!trimmed) {
-      toast.error('Message is required.');
-      return;
-    }
-
-    setContactSubmitting(true);
-
-    let attachmentUrl = null;
-    let attachmentName = null;
-
-    try {
-      if (contactAttachment) {
-        const path = `contact-files/${currentUser.id}/${Date.now()}_${contactAttachment.name}`;
-        const res = await uploadOptimizedImage('registration-uploads', path, contactAttachment);
-        if (!res.success) throw new Error(res.error);
-        attachmentUrl = res.url;
-        attachmentName = contactAttachment.name;
-      }
-
-      const result = await sendContactRequest({
-        recipientId: contactTarget.recipientId,
-        recipientType: contactTarget.recipientType,
-        postId: contactTarget.postId || null,
-        jobPostingId: contactTarget.jobPostingId || null,
-        message: trimmed,
-        attachmentName,
-        attachmentUrl,
-        attachmentKind: 'document',
-      });
-
-      if (!result.success) {
-        toast.error(result.error || 'Failed to send contact request.');
-        return;
-      }
-
-      closeContactModal();
-      toast.success('Contact request sent.');
-    } catch (err) {
-      console.error('Contact submit error:', err);
-      toast.error(err.message || 'Failed to send contact request.');
-    } finally {
-      setContactSubmitting(false);
-    }
-  };
-
-  const handleSubmitComment = async () => {
-    if (!commentModalPost) return;
-    const trimmed = commentInput.trim();
-    if (!trimmed) return;
-
-    setCommentSubmitting(true);
-    const res = await addPostComment(commentModalPost.id, trimmed);
-    setCommentSubmitting(false);
-    if (!res.success) {
-      toast.error(res.error || 'Failed to add comment.');
-      return;
-    }
-    setCommentInput('');
-  };
 
   const handleEditPost = (post) => {
     setEditingPostId(post.id);
@@ -912,6 +767,7 @@ const PartnerHome = ({ setActivePage }) => {
     if (res.success) {
       setEditingPostId(null);
       setEditContent('');
+      toast.success('Post updated!');
     } else {
       toast.error(res.error || 'Failed to update post');
     }
@@ -1113,14 +969,10 @@ const PartnerHome = ({ setActivePage }) => {
       feedType: (BULLETIN_TYPES.includes(p.post_type) && p.author_type !== 'industry_partner') ? 'bulletin' : 'post'
     }))
   ]
-  // Community Feed Visibility: Partners can only see trainee + admin posts (not other partners)
   .filter(p => {
-    const authorType = String(p.author_type || '').toLowerCase();
-    // Hide other partner posts (but keep own posts)
-    if ((authorType === 'industry_partner' || authorType === 'partner') && String(p.author_id) !== String(currentUser?.id)) return false;
     // Hide job posts (they belong in Opportunities tab)
     if (p.post_type === 'hiring_update' || p.feedType === 'job') return false;
-    // Show trainee + admin + own posts
+    // Show trainee + admin + other partner non-job posts
     return true;
   })
   .sort((a, b) => new Date(b.created_at || b.createdAt || b.datePosted) - new Date(a.created_at || a.createdAt || a.datePosted));
@@ -1152,7 +1004,15 @@ const PartnerHome = ({ setActivePage }) => {
         return list;
     }, [unifiedFeed, feedFilter, feedSearchText]);
 
-    useEffect(() => { feedLimitRef.current.total = filteredFeed.length; }, [filteredFeed.length]);
+
+
+    // Auto-fetch next pages from DB as we approach the end of the loaded array
+    useEffect(() => {
+        const totalPages = Math.ceil((filteredFeed?.length || 0) / feedPageSize);
+        if (feedCurrentPage >= totalPages - 1 && (filteredFeed?.length || 0) >= 20) {
+            try { loadMoreFeeds(); } catch (e) {}
+        }
+    }, [feedCurrentPage, filteredFeed.length]);
 
   // Bulletin interaction state
   const [bulletinModal, setBulletinModal] = useState(null); // { post, type }
@@ -1210,29 +1070,10 @@ const PartnerHome = ({ setActivePage }) => {
     { label: 'Avg Match', value: myApplicants.length > 0 ? `${Math.round(myApplicants.reduce((s, a) => s + a.matchRate, 0) / myApplicants.length)}%` : '0%', icon: <Target size={20} />, color: '#d97706' },
   ];
 
-  const modalComments = commentModalPost ? getPostComments(commentModalPost.id) : [];
-  const modalAuthorId = commentModalPost?.author_id;
-  const isModalAdmin = commentModalPost?.author_type === 'admin' || modalAuthorId === 'de305d54-75b4-431b-adb2-eb6b9e546014';
-
-  const modalAuthor = commentModalPost
-    ? (modalAuthorId === currentUser?.id
-      ? currentUser
-      : (isModalAdmin
-        ? { name: 'PSTDII Admin' }
-        : (isStudentAuthorType(commentModalPost.author_type)
-          ? trainees.find(t => t.id === modalAuthorId)
-          : partners.find(p => p.id === modalAuthorId))))
-    : null;
-  const modalAuthorName = modalAuthor?.name || modalAuthor?.profileName || modalAuthor?.companyName || 'Community User';
-  const canContactModalAuthor = Boolean(commentModalPost && commentModalPost.author_id !== currentUser?.id);
-  const contactRecipientName = contactTarget?.recipientName || 'Recipient';
-  const jobMediaComments = jobMediaModal ? getJobPostingComments(jobMediaModal.id) : [];
   const selectedEditProgram = programOptions.find(program => String(program.id) === String(editJobForm.programId))
     || programOptions.find(program => String(program.name || '').trim() === String(editJobForm.ncLevel || '').trim())
     || null;
   const editProgramCompetencies = selectedEditProgram?.competencies || [];
-  const useCommentsOnlyJobModal = isCompactCommentViewport && jobMediaCommentsOnly;
-  const useCompactPostCommentModal = isCompactCommentViewport;
 
   return (
     <>
@@ -1278,10 +1119,7 @@ const PartnerHome = ({ setActivePage }) => {
             <div style={{ flex: 1, padding: '12px 16px', background: '#f1f5f9', borderRadius: 24, color: '#64748b', fontSize: 14 }}>
               Share an announcement, event, or hiring update...
             </div>
-            <div style={{ display: 'flex', gap: 8, paddingLeft: 8 }}>
-              <button style={{ background: 'none', border: 'none', color: '#0ea5e9', display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer', fontWeight: 600, fontSize: 13 }}><Camera size={18} /> Image</button>
-              <button style={{ background: 'none', border: 'none', color: '#10b981', display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer', fontWeight: 600, fontSize: 13 }}><Calendar size={18} /> Event</button>
-            </div>
+            {/* Removed Image and Event buttons */}
           </div>
         </div>
 
@@ -1313,19 +1151,63 @@ const PartnerHome = ({ setActivePage }) => {
                 </div>
             </div>
             
-            <div style={{ display: 'flex', justifyContent: 'flex-end', flexShrink: 0 }}>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, alignItems: 'center', flexShrink: 0 }}>
             <select
                 style={{ padding: '6px 10px', borderRadius: 6, border: '1px solid #cbd5e1', background: '#fff', fontSize: 13, color: '#1e293b', cursor: 'pointer', outline: 'none', fontWeight: 500 }}
                 value={feedFilter}
-                onChange={(e) => { setFeedFilter(e.target.value); setVisibleFeedCount(20); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
+                onChange={(e) => { setFeedFilter(e.target.value); setFeedCurrentPage(1); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
             >
               <option value="All">All</option>
               <option value="Trainee Finding Job">Trainee Finding Job</option>
             </select>
+
+            <div style={{ display: 'flex', border: '1px solid #cbd5e1', borderRadius: 6, overflow: 'hidden', background: '#fff', height: '31px' }}>
+                <button 
+                    style={{ padding: '0 10px', border: 'none', background: feedViewMode === 'grid' ? '#f1f5f9' : 'transparent', cursor: 'pointer', color: feedViewMode === 'grid' ? '#0f172a' : '#64748b', display: 'flex', alignItems: 'center' }} 
+                    onClick={() => setFeedViewMode('grid')}
+                    title="Grid View"
+                >
+                    <LayoutDashboard size={14} />
+                </button>
+                <button 
+                    style={{ padding: '0 10px', border: 'none', borderLeft: '1px solid #e2e8f0', background: feedViewMode === 'list' ? '#f1f5f9' : 'transparent', cursor: 'pointer', color: feedViewMode === 'list' ? '#0f172a' : '#64748b', display: 'flex', alignItems: 'center' }} 
+                    onClick={() => setFeedViewMode('list')}
+                    title="List View"
+                >
+                    <AlignLeft size={14} />
+                </button>
+            </div>
           </div>
         </div>
-        <div className="tt-feed-grid">
-          {filteredFeed.slice(0, visibleFeedCount).map(item => {
+        <div className={feedViewMode === 'list' ? "tt-feed-list" : "tt-feed-grid"} style={feedViewMode === 'list' ? { display: 'flex', flexDirection: 'column', gap: '16px' } : {}}>
+          {filteredFeed.slice((feedCurrentPage - 1) * feedPageSize, feedCurrentPage * feedPageSize).map(item => {
+            if (feedViewMode === 'list') {
+              return <CompactFeedItem 
+                  key={`compact-${item.id}`} 
+                  item={item}
+                  isOwnPost={item.author_id === currentUser?.id || item.partnerId === currentUser?.id}
+                  onInquire={(i) => {
+                      openContactModal({
+                          recipientId: i.partnerId || i.author_id,
+                          recipientType: i.feedType === 'job' ? 'industry_partner' : i.author_type,
+                          recipientName: i.companyName || i.name || 'Recipient',
+                          jobPostingId: i.feedType === 'job' ? i.id : undefined,
+                          sourceLabel: i.title,
+                      });
+                  }}
+                  onSave={(id) => createPostInteraction(id, 'save')}
+                  onApply={(i, type) => {
+                     if (i.feedType !== 'job') {
+                         openBulletinModal(i, type);
+                     }
+                  }}
+                  openProfile={openProfile}
+                  onViewDetail={(i) => {
+                     if (i.feedType === 'bulletin') openBulletinModal(i, 'view');
+                  }}
+                  hideApply={true}
+              />;
+            }
             if (item.feedType === 'bulletin') {
               let cfg = { ...(BULLETIN_CONFIG[item.post_type] || BULLETIN_CONFIG.announcement) };
               if (item.post_type === 'announcement' && item.accept_referrals) {
@@ -1625,7 +1507,7 @@ const PartnerHome = ({ setActivePage }) => {
 
               const authorInitial = author?.name?.charAt(0) || author?.companyName?.charAt(0) || '?';
               const isMe = item.author_id === currentUser?.id;
-              const comments = getPostComments(item.id);
+
               const getCommentAuthorName = (comment) => {
                 if (comment.author_id === currentUser?.id) return partner?.companyName || currentUser.companyName || currentUser.name || 'You';
                 if (comment.author_type === 'admin' || comment.author_id === 'de305d54-75b4-431b-adb2-eb6b9e546014') return 'PSTDII Admin';
@@ -1805,28 +1687,6 @@ const PartnerHome = ({ setActivePage }) => {
                         <span key={tag} style={{ color: '#0a66c2', fontSize: 12, fontWeight: 500 }}>#{tag.replace(/\s+/g, '')}</span>
                       ))}
                     </div>
-                    {comments.length > 0 && (
-                      <div style={{ marginTop: 12, paddingTop: 10, borderTop: '1px solid #f1f5f9', display: 'flex', flexDirection: 'column', gap: 8 }}>
-                        {comments.slice(-3).map(comment => {
-                          const previewCommentType = toProfileAuthorType(comment.author_type);
-                          return (
-                            <div key={comment.id} style={{ fontSize: 12.5, color: '#475569', lineHeight: 1.4 }}>
-                              <button
-                                type="button"
-                                onClick={() => openProfile({ id: comment.author_id, type: previewCommentType })}
-                                style={{ fontWeight: 700, color: '#1e293b', background: 'none', border: 'none', padding: 0, cursor: 'pointer' }}
-                              >
-                                {getCommentAuthorName(comment)}:
-                              </button>{' '}
-                              {comment.content}
-                            </div>
-                          );
-                        })}
-                        {comments.length > 3 && (
-                          <div style={{ fontSize: 11, color: '#94a3b8' }}>+{comments.length - 3} more comments</div>
-                        )}
-                      </div>
-                    )}
                   </div>
                   <div className="ln-feed-actions" style={{ borderTop: '1px solid #f3f3f3', padding: '4px 12px' }}>
                     <button
@@ -1843,7 +1703,6 @@ const PartnerHome = ({ setActivePage }) => {
                     >
                       <MessageSquare size={16} /> {isMe ? 'Your Post' : 'Contact'}
                     </button>
-                    <button className="ln-feed-action-btn" onClick={() => handleCommentOnPost(item)}><MessageSquare size={16} /> Comment ({comments.length})</button>
                   </div>
                 </div>
               );
@@ -1852,29 +1711,58 @@ const PartnerHome = ({ setActivePage }) => {
           {filteredFeed.length === 0 && (
             <div className="ln-empty-state"><TrendingUp size={48} /><h3>No community activity</h3><p>Try changing your filter or post an update.</p></div>
           )}
-          {isLoadingMore && (
-            <div style={{ textAlign: 'center', padding: '20px 0', marginTop: 10, color: '#64748b' }}>
-                <Loader size={24} style={{ animation: 'ln-spin 1s linear infinite', margin: '0 auto' }} />
-                <style>{`
-                   @keyframes ln-spin { 100% { transform: rotate(360deg); } }
-                   @keyframes ocr-spin { 100% { transform: rotate(360deg); } }
-                   .no-scrollbar::-webkit-scrollbar { display: none; }
-                   .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
-                 `}</style>
-            </div>
-          )}
-          {!isLoadingMore && visibleFeedCount < filteredFeed.length && (
-            <div style={{ textAlign: 'center', padding: '20px 0', marginTop: 10 }}>
-                <button
-                    className="ln-btn-outline"
-                    onClick={() => setIsLoadingMore(true)}
-                    style={{ padding: '8px 24px', borderRadius: 20, fontSize: 13, fontWeight: 600, color: '#475569', border: '1px solid #cbd5e1', background: '#fff', cursor: 'pointer' }}
-                >
-                    Load More
-                </button>
-            </div>
-          )}
         </div>
+
+        {filteredFeed.length > 0 && (
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', marginTop: 20, padding: '16px 0', borderTop: '1px solid #e2e8f0', gap: 12 }}>
+              <div style={{ fontSize: 13, color: '#64748b' }}>
+                  Showing <b>{Math.min(filteredFeed.length, (feedCurrentPage - 1) * feedPageSize + 1)}</b> to <b>{Math.min(filteredFeed.length, feedCurrentPage * feedPageSize)}</b> of <b>{filteredFeed.length}</b> items
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <button
+                      disabled={feedCurrentPage === 1}
+                      onClick={() => { setFeedCurrentPage(prev => prev - 1); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
+                      style={{ padding: '6px 12px', borderRadius: 8, border: '1px solid #cbd5e1', background: '#fff', cursor: feedCurrentPage === 1 ? 'not-allowed' : 'pointer', opacity: feedCurrentPage === 1 ? 0.5 : 1, fontSize: 13, display: 'flex', alignItems: 'center', gap: 4 }}
+                  >
+                      <ChevronLeft size={16} /> Previous
+                  </button>
+
+                  <div style={{ display: 'flex', gap: 4 }}>
+                      {Array.from({ length: Math.ceil(filteredFeed.length / feedPageSize) }, (_, i) => i + 1)
+                          .filter(p => p === 1 || p === Math.ceil(filteredFeed.length / feedPageSize) || (p >= feedCurrentPage - 1 && p <= feedCurrentPage + 1))
+                          .map((p, i, arr) => (
+                              <React.Fragment key={p}>
+                                  {i > 0 && arr[i - 1] !== p - 1 && <span style={{ color: '#64748b', alignSelf: 'center' }}>...</span>}
+                                  <button
+                                      style={{
+                                          padding: '6px 10px',
+                                          borderRadius: 8,
+                                          border: '1px solid',
+                                          borderColor: feedCurrentPage === p ? '#2563eb' : '#cbd5e1',
+                                          background: feedCurrentPage === p ? '#2563eb' : '#fff',
+                                          color: feedCurrentPage === p ? '#fff' : '#1e293b',
+                                          fontWeight: feedCurrentPage === p ? 700 : 500,
+                                          cursor: 'pointer',
+                                          fontSize: 13
+                                      }}
+                                      onClick={() => { setFeedCurrentPage(p); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
+                                  >
+                                      {p}
+                                  </button>
+                              </React.Fragment>
+                          ))}
+                  </div>
+
+                  <button
+                      disabled={feedCurrentPage === Math.ceil(filteredFeed.length / feedPageSize) || Math.ceil(filteredFeed.length / feedPageSize) === 0}
+                      onClick={() => { setFeedCurrentPage(prev => prev + 1); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
+                      style={{ padding: '6px 12px', borderRadius: 8, border: '1px solid #cbd5e1', background: '#fff', cursor: (feedCurrentPage === Math.ceil(filteredFeed.length / feedPageSize) || Math.ceil(filteredFeed.length / feedPageSize) === 0) ? 'not-allowed' : 'pointer', opacity: (feedCurrentPage === Math.ceil(filteredFeed.length / feedPageSize) || Math.ceil(filteredFeed.length / feedPageSize) === 0) ? 0.5 : 1, fontSize: 13, display: 'flex', alignItems: 'center', gap: 4 }}
+                  >
+                      Next <ChevronRight size={16} />
+                  </button>
+              </div>
+          </div>
+        )}
       </div>
 
       {/* Bulletin Toast */}
@@ -2031,20 +1919,13 @@ const PartnerHome = ({ setActivePage }) => {
 
                 <div className="form-group">
                   <label className="ln-info-label">NC Level Required *</label>
-                  <select
-                    className="form-select"
-                    value={editJobForm.ncLevel}
-                    onChange={e => {
-                      const normalized = normalizeNcLevelValue(e.target.value);
-                      setEditJobForm(prev => ({ ...prev, ncLevel: ncLevelOptions.includes(normalized) ? normalized : '' }));
-                    }}
-                    required
-                  >
-                    <option value="">Select NC Level</option>
-                    {ncLevelOptions.map(level => (
-                      <option key={level} value={level}>{level}</option>
-                    ))}
-                  </select>
+                  <input
+                    className="form-input"
+                    style={{ background: '#f8fafc', color: '#475569', fontWeight: 600, cursor: 'not-allowed' }}
+                    value={editJobForm.ncLevel || 'N/A'}
+                    readOnly
+                    placeholder="Select a program first"
+                  />
                 </div>
 
                 <div className="form-group" style={{ gridColumn: '1 / -1' }}>
@@ -2178,420 +2059,6 @@ const PartnerHome = ({ setActivePage }) => {
         </div>
       )}
 
-      {jobMediaModal && (
-        <div
-          className="modal-overlay"
-          style={useCommentsOnlyJobModal
-            ? { background: '#ffffff', padding: 0, alignItems: 'stretch' }
-            : { background: 'rgba(0, 0, 0, 0.82)' }}
-          onClick={closeJobMediaModal}
-        >
-          <div
-            className="ln-modal"
-            onClick={e => e.stopPropagation()}
-            style={{
-              width: useCommentsOnlyJobModal ? '100%' : '96%',
-              maxWidth: useCommentsOnlyJobModal ? '100%' : 1240,
-              height: useCommentsOnlyJobModal ? '100vh' : '90vh',
-              maxHeight: useCommentsOnlyJobModal ? '100vh' : 920,
-              padding: 0,
-              overflow: 'hidden',
-              display: useCommentsOnlyJobModal ? 'flex' : 'grid',
-              gridTemplateColumns: useCommentsOnlyJobModal ? undefined : 'minmax(0, 1fr) 360px',
-              borderRadius: useCommentsOnlyJobModal ? 0 : 14,
-              background: useCommentsOnlyJobModal ? '#ffffff' : '#0f172a'
-            }}
-          >
-            {!useCommentsOnlyJobModal && (
-              <div style={{ background: '#000', display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative' }}>
-                <button
-                  onClick={closeJobMediaModal}
-                  style={{ position: 'absolute', top: 12, left: 12, width: 34, height: 34, borderRadius: '50%', border: 'none', background: 'rgba(17,24,39,0.7)', color: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-                >
-                  <X size={18} />
-                </button>
-                {jobMediaModal.attachmentUrl && isImageAttachment(jobMediaModal.attachmentUrl, jobMediaModal.attachmentType) ? (
-                  <img src={jobMediaModal.attachmentUrl} alt={jobMediaModal.attachmentName || 'Opportunity media'} style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
-                ) : jobMediaModal.attachmentUrl ? (
-                  <a href={jobMediaModal.attachmentUrl} target="_blank" rel="noreferrer" style={{ color: '#93c5fd', textDecoration: 'none', display: 'inline-flex', gap: 8, alignItems: 'center', background: '#111827', border: '1px solid #334155', borderRadius: 10, padding: '12px 14px' }}>
-                    <FileText size={18} />
-                    {jobMediaModal.attachmentName || 'Open attachment'}
-                  </a>
-                ) : (
-                  <div style={{ color: '#94a3b8', fontSize: 13 }}>No media attachment for this opportunity.</div>
-                )}
-              </div>
-            )}
-
-            <div style={{ background: '#ffffff', display: 'flex', flexDirection: 'column', minHeight: 0, flex: 1 }}>
-              <div style={{ padding: '14px 16px', borderBottom: '1px solid #e5e7eb' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 10 }}>
-                  <div>
-                    <button
-                      type="button"
-                      onClick={() => openProfile({ id: jobMediaModal.partnerId, type: 'partner' })}
-                      style={{ fontSize: 14, fontWeight: 700, color: '#0f172a', background: 'none', border: 'none', padding: 0, cursor: 'pointer' }}
-                    >
-                      {jobMediaModal.companyName}
-                    </button>
-                    <div style={{ fontSize: 12, color: '#64748b', marginTop: 2 }}>
-                      {[
-                        (jobMediaModal.industry && String(jobMediaModal.industry).trim().toLowerCase() !== 'general') ? jobMediaModal.industry : '',
-                        jobMediaModal.location,
-                        timeAgo(jobMediaModal.created_at || jobMediaModal.createdAt || jobMediaModal.datePosted),
-                      ].filter(Boolean).join(' - ')}
-                    </div>
-                    <div style={{ marginTop: 8, fontSize: 16, fontWeight: 700, color: '#111827' }}>{jobMediaModal.title}</div>
-                    <div style={{ marginTop: 4, fontSize: 13, color: '#475569', whiteSpace: 'pre-wrap' }}>{jobMediaModal.description}</div>
-                  </div>
-                  <button
-                    onClick={closeJobMediaModal}
-                    style={{ width: 32, height: 32, borderRadius: '50%', border: '1px solid #d1d5db', background: '#fff', color: '#475569', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}
-                    aria-label="Close"
-                  >
-                    <X size={16} />
-                  </button>
-                </div>
-              </div>
-
-              <div style={{ padding: '10px 16px', borderBottom: '1px solid #e5e7eb', display: 'flex', justifyContent: 'space-between', fontSize: 12, color: '#64748b' }}>
-                <span>{jobMediaComments.length} comments</span>
-              </div>
-
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: 6, padding: 10, borderBottom: '1px solid #e5e7eb' }}>
-                <button className="ln-feed-action-btn" onClick={() => jobMediaCommentInputRef.current?.focus()} style={{ justifyContent: 'center' }}>
-                  <MessageSquare size={15} /> Comment
-                </button>
-              </div>
-
-              <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: '12px 16px', display: 'flex', flexDirection: 'column', gap: 10 }}>
-                {jobMediaComments.length > 0 ? jobMediaComments.map(comment => {
-                  const commentAuthorName = comment.author_id === currentUser?.id
-                    ? (partner?.companyName || currentUser?.companyName || currentUser?.name || 'You')
-                    : isStudentAuthorType(comment.author_type)
-                      ? (trainees.find(t => t.id === comment.author_id)?.name || 'Trainee')
-                      : (partners.find(p => p.id === comment.author_id)?.companyName || 'Industry Partner');
-                  const commentAuthorType = toProfileAuthorType(comment.author_type);
-                  const isOwnComment = comment.author_id === currentUser?.id;
-                  const isEditing = editingJobMediaCommentId === comment.id;
-                  const isMenuOpen = jobMediaCommentMenuId === comment.id;
-
-                  return (
-                    <div key={comment.id} style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 10, padding: '8px 10px' }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8 }}>
-                        <button
-                          type="button"
-                          onClick={() => openProfile({ id: comment.author_id, type: commentAuthorType })}
-                          style={{ fontSize: 12, fontWeight: 700, color: '#111827', background: 'none', border: 'none', padding: 0, cursor: 'pointer' }}
-                        >
-                          {commentAuthorName}
-                        </button>
-                        {isOwnComment && !isEditing && (
-                          <div style={{ position: 'relative' }}>
-                            <button
-                              type="button"
-                              onClick={() => setJobMediaCommentMenuId(isMenuOpen ? null : comment.id)}
-                              style={{ border: 'none', background: 'transparent', color: '#94a3b8', cursor: 'pointer', padding: '0 4px', fontSize: 18, lineHeight: 1, borderRadius: 4 }}
-                              aria-label="Comment options"
-                            >
-                              ...
-                            </button>
-                            {isMenuOpen && (
-                              <div style={{ position: 'absolute', right: 0, top: '100%', zIndex: 200, background: '#fff', border: '1px solid #e2e8f0', borderRadius: 8, boxShadow: '0 4px 14px rgba(0,0,0,0.13)', minWidth: 110, padding: '4px 0' }}>
-                                <button type="button" onClick={() => { startEditingJobMediaComment(comment); setJobMediaCommentMenuId(null); }} style={{ display: 'block', width: '100%', textAlign: 'left', border: 'none', background: 'transparent', padding: '8px 14px', fontSize: 13, fontWeight: 600, color: '#334155', cursor: 'pointer' }}>
-                                  Edit
-                                </button>
-                                <button type="button" onClick={() => { handleDeleteJobMediaComment(comment.id); setJobMediaCommentMenuId(null); }} style={{ display: 'block', width: '100%', textAlign: 'left', border: 'none', background: 'transparent', padding: '8px 14px', fontSize: 13, fontWeight: 600, color: '#b91c1c', cursor: 'pointer' }}>
-                                  Delete
-                                </button>
-                              </div>
-                            )}
-                          </div>
-                        )}
-                      </div>
-                      {isEditing ? (
-                        <div style={{ marginTop: 6, display: 'flex', flexDirection: 'column', gap: 8 }}>
-                          <textarea
-                            value={jobMediaEditInput}
-                            onChange={e => setJobMediaEditInput(e.target.value)}
-                            maxLength={1000}
-                            style={{ width: '100%', minHeight: 72, border: '1px solid #cbd5e1', borderRadius: 8, padding: '8px 10px', fontSize: 13, fontFamily: 'inherit', resize: 'vertical', color: '#334155' }}
-                          />
-                          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
-                            <button type="button" onClick={cancelEditingJobMediaComment} disabled={jobMediaCommentSaving} style={{ border: '1px solid #cbd5e1', background: '#fff', color: '#334155', borderRadius: 9999, padding: '5px 12px', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
-                              Cancel
-                            </button>
-                            <button type="button" onClick={saveEditedJobMediaComment} disabled={!jobMediaEditInput.trim() || jobMediaCommentSaving} style={{ border: 'none', background: '#0a66c2', color: '#fff', borderRadius: 9999, padding: '5px 12px', fontSize: 12, fontWeight: 600, cursor: !jobMediaEditInput.trim() || jobMediaCommentSaving ? 'not-allowed' : 'pointer', opacity: !jobMediaEditInput.trim() || jobMediaCommentSaving ? 0.6 : 1 }}>
-                              {jobMediaCommentSaving ? 'Saving...' : 'Save'}
-                            </button>
-                          </div>
-                        </div>
-                      ) : (
-                        <div style={{ fontSize: 13, color: '#334155', whiteSpace: 'pre-wrap' }}>{comment.content}</div>
-                      )}
-                      <div style={{ marginTop: 3, fontSize: 11, color: '#94a3b8' }}>{timeAgo(comment.created_at || comment.createdAt)}</div>
-                    </div>
-                  );
-                }) : (
-                  <div style={{ fontSize: 13, color: '#94a3b8', textAlign: 'center', marginTop: 20 }}>No comments yet.</div>
-                )}
-              </div>
-
-              <div style={{ borderTop: '1px solid #e5e7eb', padding: 10, display: 'flex', gap: 8, alignItems: 'center' }}>
-                <input
-                  ref={jobMediaCommentInputRef}
-                  value={jobMediaCommentInput}
-                  onChange={e => setJobMediaCommentInput(e.target.value)}
-                  maxLength={1000}
-                  placeholder={`Comment as ${partner?.companyName || currentUser?.companyName || currentUser?.name || 'You'}`}
-                  style={{ flex: 1, border: '1px solid #cbd5e1', borderRadius: 9999, padding: '10px 12px', fontSize: 13 }}
-                />
-                <button className="ln-btn ln-btn-primary" onClick={submitJobMediaComment} disabled={!jobMediaCommentInput.trim()}>
-                  <Send size={14} /> Send
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {contactTarget && (
-        <div className="modal-overlay" onClick={closeContactModal}>
-          <div className="ln-modal" onClick={e => e.stopPropagation()} style={{ width: '100%', maxWidth: 560, background: '#ffffff', color: '#0f172a', borderRadius: 18, padding: 0, overflow: 'hidden' }}>
-            <div style={{ padding: '18px 22px', borderBottom: '1px solid #e5e7eb', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <div>
-                <div style={{ fontSize: 20, fontWeight: 800 }}>Contact {contactRecipientName}</div>
-                <div style={{ marginTop: 4, fontSize: 13, color: '#64748b' }}>
-                  Send a message and optionally attach a document.
-                </div>
-              </div>
-              <button className="ln-btn-icon" onClick={closeContactModal}><X size={18} /></button>
-            </div>
-
-            <div style={{ padding: 22, display: 'flex', flexDirection: 'column', gap: 16 }}>
-              <div style={{ padding: '12px 14px', background: '#f8fafc', borderRadius: 12, border: '1px solid #e2e8f0' }}>
-                <div style={{ fontSize: 12, fontWeight: 700, letterSpacing: 0.3, textTransform: 'uppercase', color: '#64748b', marginBottom: 6 }}>Context</div>
-                <div style={{ fontSize: 14, color: '#0f172a', whiteSpace: 'pre-wrap' }}>{contactTarget.sourceLabel || 'Community post contact'}</div>
-              </div>
-
-              <div>
-                <label style={{ display: 'block', fontSize: 13, fontWeight: 700, color: '#334155', marginBottom: 8 }}>Message</label>
-                <textarea
-                  value={contactMessage}
-                  onChange={e => setContactMessage(e.target.value)}
-                  maxLength={1000}
-                  placeholder={`Write your message to ${contactRecipientName}...`}
-                  style={{ width: '100%', minHeight: 130, borderRadius: 14, border: '1px solid #cbd5e1', padding: '14px 16px', resize: 'vertical', outline: 'none', fontFamily: 'inherit', fontSize: 14, lineHeight: 1.5, background: '#ffffff', color: '#0f172a' }}
-                />
-                <div style={{ marginTop: 6, fontSize: 12, color: '#94a3b8', textAlign: 'right' }}>{contactMessage.length}/1000</div>
-              </div>
-
-              <div>
-                <label style={{ display: 'block', fontSize: 13, fontWeight: 700, color: '#334155', marginBottom: 8 }}>Document Upload</label>
-                <input ref={contactFileInputRef} type="file" onChange={handleContactAttachmentChange} style={{ display: 'none' }} />
-                <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
-                  <button type="button" className="ln-btn ln-btn-outline" onClick={() => contactFileInputRef.current?.click()}>
-                    <Upload size={14} /> Choose File
-                  </button>
-                  <span style={{ fontSize: 13, color: contactAttachment ? '#0f172a' : '#64748b' }}>
-                    {contactAttachment ? contactAttachment.name : 'No file selected.'}
-                  </span>
-                </div>
-                <div style={{ marginTop: 8, fontSize: 12, color: '#64748b' }}>Optional for partner-to-student or partner-to-partner contact.</div>
-              </div>
-            </div>
-
-            <div style={{ padding: '16px 22px', borderTop: '1px solid #e5e7eb', display: 'flex', justifyContent: 'flex-end', gap: 10, background: '#ffffff' }}>
-              <button className="ln-btn ln-btn-outline" onClick={closeContactModal} disabled={contactSubmitting}>Cancel</button>
-              <button className="ln-btn ln-btn-primary" onClick={handleSubmitContact} disabled={contactSubmitting || !contactMessage.trim()}>
-                <Send size={14} /> {contactSubmitting ? 'Sending...' : 'Send Contact'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {commentModalPost && (
-        <div className="modal-overlay" style={useCompactPostCommentModal ? { background: '#ffffff', padding: 0, alignItems: 'stretch' } : { background: 'rgba(15, 23, 42, 0.45)', backdropFilter: 'blur(2px)' }} onClick={() => setCommentModalPost(null)}>
-          <div
-            className="ln-modal"
-            onClick={e => e.stopPropagation()}
-            style={{
-              width: useCompactPostCommentModal ? '100%' : '96%',
-              maxWidth: useCompactPostCommentModal ? '100%' : 740,
-              height: useCompactPostCommentModal ? '100vh' : '92vh',
-              maxHeight: useCompactPostCommentModal ? '100vh' : 940,
-              padding: 0,
-              overflow: 'hidden',
-              display: 'flex',
-              flexDirection: 'column',
-              background: '#ffffff',
-              border: '1px solid #e2e8f0',
-              borderRadius: useCompactPostCommentModal ? 0 : 16,
-              color: '#0f172a'
-            }}
-          >
-            <div style={{ height: useCompactPostCommentModal ? 52 : 60, borderBottom: '1px solid #e2e8f0', position: 'relative', display: 'flex', alignItems: 'center', justifyContent: useCompactPostCommentModal ? 'flex-end' : 'center', fontSize: 28, fontWeight: 700, color: '#0f172a', paddingRight: useCompactPostCommentModal ? 56 : 0 }}>
-              {!useCompactPostCommentModal ? `${modalAuthorName}'s Post` : ''}
-              <button
-                onClick={() => setCommentModalPost(null)}
-                style={{ position: 'absolute', right: 12, top: 12, width: 36, height: 36, borderRadius: '50%', border: 'none', background: '#f1f5f9', color: '#334155', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-              >
-                <X size={20} />
-              </button>
-            </div>
-
-            <div style={{ flex: '0 0 clamp(250px, 50vh, 560px)', minHeight: 220, display: 'flex', flexDirection: 'column', borderBottom: '1px solid #e2e8f0' }}>
-              <div style={{ padding: '10px 12px', display: 'flex', alignItems: 'center', gap: 10 }}>
-                <button
-                  type="button"
-                  className="ln-feed-avatar"
-                  onClick={() => openProfile({ id: commentModalPost.author_id, type: toProfileAuthorType(commentModalPost.author_type) })}
-                  style={{ width: 34, height: 34, border: 'none', cursor: 'pointer' }}
-                >
-                  {(modalAuthor?.photo || modalAuthor?.company_logo_url)
-                    ? <img src={modalAuthor.photo || modalAuthor.company_logo_url} alt="" style={{ width: '100%', height: '100%', borderRadius: '50%', objectFit: 'cover' }} />
-                    : (modalAuthorName?.charAt(0) || 'U')}
-                </button>
-                <div>
-                  <button
-                    type="button"
-                    onClick={() => openProfile({ id: commentModalPost.author_id, type: toProfileAuthorType(commentModalPost.author_type) })}
-                    style={{ fontWeight: 700, fontSize: 13.5, color: '#0f172a', background: 'none', border: 'none', padding: 0, cursor: 'pointer' }}
-                  >
-                    {modalAuthorName}
-                  </button>
-                  <div style={{ fontSize: 11.5, color: '#64748b' }}>{timeAgo(commentModalPost.created_at)}</div>
-                </div>
-              </div>
-
-              <div style={{ padding: '0 12px 10px', color: '#0f172a', fontSize: 14.5, whiteSpace: 'pre-wrap', lineHeight: 1.5 }}>
-                {commentModalPost.content}
-              </div>
-
-              <div style={{ flex: 1, minHeight: 260, background: '#f8fafc', borderTop: '1px solid #e2e8f0', borderBottom: '1px solid #e2e8f0', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
-                {commentModalPost.media_url ? (
-                  commentModalPost.media_url.match(/\.(jpg|jpeg|png|gif|webp)$/i) ? (
-                    <img src={commentModalPost.media_url} alt="Post media" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
-                  ) : (
-                    <a
-                      href={commentModalPost.media_url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      style={{ minWidth: 260, minHeight: 120, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 10, color: '#1d4ed8', background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: 12, padding: '14px 18px', textDecoration: 'none', fontWeight: 600, fontSize: 13 }}
-                    >
-                      <FileText size={28} />
-                      Open attached document
-                    </a>
-                  )
-                ) : (
-                  <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#94a3b8', fontWeight: 600 }}>No attachment</div>
-                )}
-              </div>
-
-              <div style={{ padding: '8px 12px', borderTop: '1px solid #e2e8f0' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', color: '#64748b', fontSize: 12.5, marginBottom: 8 }}>
-                  <span>{modalComments.length} comment{modalComments.length === 1 ? '' : 's'}</span>
-                  <span>{commentModalPost.media_url ? '1 attachment' : 'No attachment'}</span>
-                </div>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: 6 }}>
-                  <button
-                    onClick={() => canContactModalAuthor && openContactModal({
-                      recipientId: commentModalPost.author_id,
-                      recipientType: toRecipientAuthorType(commentModalPost.author_type),
-                      recipientName: modalAuthorName,
-                      postId: commentModalPost.id,
-                      sourceLabel: commentModalPost.content,
-                    })}
-                    disabled={!canContactModalAuthor}
-                    style={{ background: canContactModalAuthor ? '#0f172a' : '#e2e8f0', border: 'none', color: canContactModalAuthor ? '#ffffff' : '#94a3b8', fontWeight: 700, padding: '9px 10px', borderRadius: 10, display: 'inline-flex', justifyContent: 'center', alignItems: 'center', gap: 6, cursor: canContactModalAuthor ? 'pointer' : 'not-allowed' }}
-                  >
-                    <MessageSquare size={16} /> {canContactModalAuthor ? 'Contact' : 'Your Post'}
-                  </button>
-                </div>
-              </div>
-            </div>
-
-            <div style={{ flex: '1 1 44%', minHeight: 0, display: 'flex', flexDirection: 'column', background: '#ffffff' }}>
-              <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', overscrollBehavior: 'contain', WebkitOverflowScrolling: 'touch', padding: 12, display: 'flex', flexDirection: 'column', gap: 10, background: '#ffffff' }}>
-                {modalComments.length > 0 ? modalComments.map(comment => {
-                  const commentAuthorName = comment.author_id === currentUser?.id
-                    ? (partner?.companyName || currentUser.companyName || currentUser.name || 'You')
-                    : isStudentAuthorType(comment.author_type)
-                      ? (trainees.find(t => t.id === comment.author_id)?.name || 'Trainee')
-                      : (partners.find(p => p.id === comment.author_id)?.companyName || 'Industry Partner');
-                  const commentAuthorType = toProfileAuthorType(comment.author_type);
-
-                  return (
-                    <div key={comment.id} style={{ display: 'flex', gap: 8, alignItems: 'flex-start' }}>
-                      <button
-                        type="button"
-                        className="ln-feed-avatar"
-                        onClick={() => openProfile({ id: comment.author_id, type: commentAuthorType })}
-                        style={{ width: 30, height: 30, flexShrink: 0, border: 'none', cursor: 'pointer' }}
-                      >
-                        {commentAuthorName?.charAt(0) || 'U'}
-                      </button>
-                      <div style={{ background: '#f1f5f9', borderRadius: 14, padding: '8px 11px', flex: 1 }}>
-                        <button
-                          type="button"
-                          onClick={() => openProfile({ id: comment.author_id, type: commentAuthorType })}
-                          style={{ fontSize: 12, fontWeight: 700, color: '#1e293b', marginBottom: 2, background: 'none', border: 'none', padding: 0, cursor: 'pointer' }}
-                        >
-                          {commentAuthorName}
-                        </button>
-                        <div style={{ fontSize: 13.2, color: '#0f172a', whiteSpace: 'pre-wrap', lineHeight: 1.45 }}>{comment.content}</div>
-                      </div>
-                    </div>
-                  );
-                }) : (
-                  <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 10, color: '#64748b' }}>
-                    <FileText size={56} color="#94a3b8" />
-                    <div style={{ fontSize: 34, fontWeight: 700, color: '#334155' }}>No comments yet</div>
-                    <div style={{ fontSize: 17 }}>Be the first to comment.</div>
-                  </div>
-                )}
-              </div>
-
-              <div style={{ borderTop: '1px solid #e2e8f0', padding: '10px 12px', display: 'flex', flexDirection: 'column', gap: 8, background: '#ffffff' }}>
-                <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8 }}>
-                  <div className="ln-feed-avatar" style={{ width: 32, height: 32, flexShrink: 0, fontSize: 13 }}>
-                    {(partner?.company_logo_url || partner?.photo)
-                      ? <img src={partner.company_logo_url || partner.photo} alt="" style={{ width: '100%', height: '100%', borderRadius: '50%', objectFit: 'cover' }} />
-                      : (partner?.companyName || currentUser?.companyName || currentUser?.name || 'P').charAt(0).toUpperCase()}
-                  </div>
-
-                  <div style={{ flex: 1, background: '#f8fafc', borderRadius: 20, padding: '8px 12px', display: 'flex', flexDirection: 'column', gap: 6 }}>
-                    <textarea
-                      placeholder={`Comment as ${partner?.companyName || currentUser?.companyName || currentUser?.name || 'Industry Partner'}`}
-                      value={commentInput}
-                      onChange={e => setCommentInput(e.target.value)}
-                      maxLength={1000}
-                      style={{ width: '100%', minHeight: 24, maxHeight: 78, resize: 'none', border: 'none', outline: 'none', background: 'transparent', color: '#0f172a', fontSize: 16, lineHeight: 1.3, fontFamily: 'inherit' }}
-                    />
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <div style={{ display: 'inline-flex', alignItems: 'center', gap: 10, color: '#64748b' }}>
-                        <MessageSquare size={14} />
-                        <Camera size={14} />
-                        <FileText size={14} />
-                      </div>
-                      <button
-                        onClick={handleSubmitComment}
-                        disabled={commentSubmitting || !commentInput.trim()}
-                        style={{ background: 'transparent', border: 'none', color: (commentSubmitting || !commentInput.trim()) ? '#94a3b8' : '#2563eb', cursor: (commentSubmitting || !commentInput.trim()) ? 'not-allowed' : 'pointer', padding: 0, display: 'inline-flex', alignItems: 'center' }}
-                      >
-                        <Send size={18} />
-                      </button>
-                    </div>
-                  </div>
-                </div>
-                <div style={{ fontSize: 12, color: '#64748b', textAlign: 'left', marginLeft: 40 }}>{commentInput.length}/1000</div>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-   
       {showPostModal && (
         <div className="ln-modal-bg" style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
           <div className="ln-modal-content" style={{ background: '#fff', width: '100%', maxWidth: 540, borderRadius: 16, overflow: 'hidden', boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1)', margin: '0 20px' }}>
@@ -3037,7 +2504,8 @@ const PostJob = ({ setActivePage, opportunityType = 'Job' }) => {
   const [form, setForm] = useState({
     title: '', opportunityType, programId: firstProgram?.id || '', ncLevel: normalizeNcLevelValue(firstProgram?.ncLevel || firstProgram?.name || ''), description: '',
     employmentType: opportunityType === 'OJT' ? 'OJT' : 'Full-time', location: '', salaryRange: '', salaryCurrency: DEFAULT_SALARY_CURRENCY, salaryMin: '', salaryMax: '',
-    requiredCompetencies: firstProgram?.competencies || [],
+    hideSalary: false,
+    requiredCompetencies: [],
     requiredSkills: '', requirements: '', companyName: livePartner?.companyName || '',
     attachmentName: '', attachmentType: '', attachmentUrl: '',
   });
@@ -3048,7 +2516,7 @@ const PostJob = ({ setActivePage, opportunityType = 'Job' }) => {
         ...prev,
         programId: programOptions[0].id,
         ncLevel: normalizeNcLevelValue(programOptions[0].ncLevel || programOptions[0].name || ''),
-        requiredCompetencies: programOptions[0].competencies || [],
+        requiredCompetencies: [],
       }));
     }
   }, [form.ncLevel, programOptions]);
@@ -3073,13 +2541,14 @@ const PostJob = ({ setActivePage, opportunityType = 'Job' }) => {
       ncLevel: validNcLevel,
       description: editingJob.description || '',
       employmentType: (editingJob.opportunityType || opportunityType) === 'OJT'
-        ? ''
+        ? 'OJT'
         : (editingJob.employmentType || 'Full-time'),
       location: editingJob.location || '',
       salaryRange: editingJob.salaryRange || '',
       salaryCurrency: editingJob.salaryCurrency || parsedSalary.salaryCurrency,
       salaryMin: editingJob.salaryMin ? sanitizeNumericSalaryInput(editingJob.salaryMin) : parsedSalary.salaryMin,
       salaryMax: editingJob.salaryMax ? sanitizeNumericSalaryInput(editingJob.salaryMax) : parsedSalary.salaryMax,
+      hideSalary: editingJob.salaryRange === 'Confidential',
       requiredCompetencies: Array.isArray(editingJob.requiredCompetencies) ? editingJob.requiredCompetencies : [],
       requiredSkills: Array.isArray(editingJob.requiredSkills) ? editingJob.requiredSkills.join(', ') : (editingJob.required_skills ? (Array.isArray(editingJob.required_skills) ? editingJob.required_skills.join(', ') : editingJob.required_skills) : ''),
       requirements: Array.isArray(editingJob.requirements) ? editingJob.requirements.join('\n') : (editingJob.requirements || ''),
@@ -3170,7 +2639,7 @@ const PostJob = ({ setActivePage, opportunityType = 'Job' }) => {
     if (!form.title || !form.location) return toast.error('Title and location are required.');
     if (!form.ncLevel) return toast.error('Please select a TESDA program.');
 
-    const hasSalaryInput = Boolean(form.salaryMin || form.salaryMax);
+    const hasSalaryInput = !form.hideSalary && Boolean(form.salaryMin || form.salaryMax);
     if (hasSalaryInput && (!form.salaryMin || !form.salaryMax)) {
       return toast.error('Please provide both minimum and maximum salary.');
     }
@@ -3178,7 +2647,7 @@ const PostJob = ({ setActivePage, opportunityType = 'Job' }) => {
     const salaryMinNumber = Number(form.salaryMin || 0);
     const salaryMaxNumber = Number(form.salaryMax || 0);
     if (hasSalaryInput && salaryMinNumber > salaryMaxNumber) {
-      return toast.success('Minimum salary cannot be greater than maximum salary.');
+      return toast.error('Minimum salary cannot be greater than maximum salary.');
     }
 
     const formattedSalaryRange = formatSalaryRangeValue(form.salaryMin, form.salaryMax, form.salaryCurrency);
@@ -3208,10 +2677,10 @@ const PostJob = ({ setActivePage, opportunityType = 'Job' }) => {
 
       const payload = {
         ...form,
-        salaryRange: formattedSalaryRange,
+        salaryRange: form.hideSalary ? 'Confidential' : formattedSalaryRange,
         salaryCurrency: form.salaryCurrency,
-        salaryMin: form.salaryMin ? Number(form.salaryMin) : null,
-        salaryMax: form.salaryMax ? Number(form.salaryMax) : null,
+        salaryMin: form.hideSalary ? null : (form.salaryMin ? Number(form.salaryMin) : null),
+        salaryMax: form.hideSalary ? null : (form.salaryMax ? Number(form.salaryMax) : null),
         attachmentName: finalAttachmentName || form.attachmentName || '',
         attachmentType: finalAttachmentType || form.attachmentType || '',
         attachmentUrl: finalAttachmentUrl || form.attachmentUrl || '',
@@ -3346,31 +2815,47 @@ const PostJob = ({ setActivePage, opportunityType = 'Job' }) => {
           </div>
         </div>
 
-        {/* ═══ Section 2: Salary ═══ */}
         <div style={sectionCard}>
           {sectionHeader(<TrendingUp size={16} color="#16a34a" />, 'Salary')}
-          <div style={{ padding: 20, display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 16 }}>
-            <div>
-              {fieldLabel('Currency', false)}
-              <select className="form-select" style={inputStyle} value={form.salaryCurrency} onChange={e => setForm({ ...form, salaryCurrency: e.target.value })}>
-                {SALARY_CURRENCY_OPTIONS.map(option => (
-                  <option key={option.code} value={option.code}>{option.label}</option>
-                ))}
-              </select>
+          <div style={{ padding: 20 }}>
+            <div style={{ marginBottom: 16, display: 'flex', alignItems: 'center', gap: 8 }}>
+              <input 
+                type="checkbox" 
+                id="hideSalary" 
+                checked={form.hideSalary || false} 
+                onChange={e => setForm({ ...form, hideSalary: e.target.checked })} 
+                style={{ width: 16, height: 16, cursor: 'pointer' }}
+              />
+              <label htmlFor="hideSalary" style={{ fontSize: 14, fontWeight: 600, color: '#475569', cursor: 'pointer' }}>
+                Hide salary in public posting (Show as Confidential)
+              </label>
             </div>
-            <div>
-              {fieldLabel('Min Salary', false)}
-              <input className="form-input" style={inputStyle} value={form.salaryMin} onChange={handleSalaryMinInput} placeholder="e.g. 25,000" inputMode="numeric" pattern="[0-9]*" maxLength={12} />
-            </div>
-            <div>
-              {fieldLabel('Max Salary', false)}
-              <input className="form-input" style={inputStyle} value={form.salaryMax} onChange={handleSalaryMaxInput} placeholder="e.g. 35,000" inputMode="numeric" pattern="[0-9]*" maxLength={12} />
-            </div>
-            {(form.salaryMin || form.salaryMax) && (
-              <div style={{ gridColumn: 'span 3' }}>
-                <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '6px 14px', background: '#f0fdf4', borderRadius: 8, border: '1px solid #bbf7d0' }}>
-                  <span style={{ fontSize: 13, color: '#166534', fontWeight: 600 }}>Preview: {previewSalary || 'N/A'}</span>
+
+            {!form.hideSalary && (
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 16 }}>
+                <div>
+                  {fieldLabel('Currency', false)}
+                  <select className="form-select" style={inputStyle} value={form.salaryCurrency} onChange={e => setForm({ ...form, salaryCurrency: e.target.value })}>
+                    {SALARY_CURRENCY_OPTIONS.map(option => (
+                      <option key={option.code} value={option.code}>{option.label}</option>
+                    ))}
+                  </select>
                 </div>
+                <div>
+                  {fieldLabel('Min Salary', false)}
+                  <input className="form-input" style={inputStyle} value={form.salaryMin} onChange={handleSalaryMinInput} placeholder="e.g. 25,000" inputMode="numeric" pattern="[0-9]*" maxLength={12} />
+                </div>
+                <div>
+                  {fieldLabel('Max Salary', false)}
+                  <input className="form-input" style={inputStyle} value={form.salaryMax} onChange={handleSalaryMaxInput} placeholder="e.g. 35,000" inputMode="numeric" pattern="[0-9]*" maxLength={12} />
+                </div>
+                {(form.salaryMin || form.salaryMax) && (
+                  <div style={{ gridColumn: 'span 3' }}>
+                    <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '6px 14px', background: '#f0fdf4', borderRadius: 8, border: '1px solid #bbf7d0' }}>
+                      <span style={{ fontSize: 13, color: '#166534', fontWeight: 600 }}>Preview: {previewSalary || 'N/A'}</span>
+                    </div>
+                  </div>
+                )}
               </div>
             )}
           </div>
@@ -3447,7 +2932,7 @@ const PostJob = ({ setActivePage, opportunityType = 'Job' }) => {
                       ...form,
                       programId: selected?.id || '',
                       ncLevel: normalizeNcLevelValue(selected?.ncLevel || selected?.name || ''),
-                      requiredCompetencies: selected?.competencies || [],
+                      requiredCompetencies: [],
                     });
                   }}
                 >
@@ -3459,20 +2944,13 @@ const PostJob = ({ setActivePage, opportunityType = 'Job' }) => {
               </div>
               <div>
                 {fieldLabel('NC Level Required', true)}
-                <select
-                  className="form-select" style={inputStyle}
-                  value={form.ncLevel}
-                  onChange={e => {
-                    const nextLevel = normalizeNcLevelValue(e.target.value);
-                    setForm({ ...form, ncLevel: ncLevelOptions.includes(nextLevel) ? nextLevel : '' });
-                  }}
-                  required
-                >
-                  <option value="">Select NC Level</option>
-                  {ncLevelOptions.map(level => (
-                    <option key={level} value={level}>{level}</option>
-                  ))}
-                </select>
+                <input
+                  className="form-input"
+                  style={{ ...inputStyle, background: '#f8fafc', color: '#475569', fontWeight: 600, cursor: 'not-allowed' }}
+                  value={form.ncLevel || 'N/A'}
+                  readOnly
+                  placeholder="Select a program first"
+                />
               </div>
             </div>
 
@@ -3655,13 +3133,21 @@ const PostJob = ({ setActivePage, opportunityType = 'Job' }) => {
 
 // --- PAGE: VIEW APPLICANTS ----------------------------------------
 const ViewApplicants = ({ setActivePage }) => {
-  const { currentUser, partners, getPartnerApplicants, updateApplicationStatus, sendRecruitMessage, getPartnerAvailability, interviewBookings } = useApp();
+  const { currentUser, partners, getPartnerApplicants, updateApplicationStatus, saveInterviewBooking, sendRecruitMessage, getPartnerAvailability, interviewBookings, deleteApplication } = useApp();
   const navigate = useNavigate();
   const livePartner = getLivePartner(currentUser, partners);
 
   const applicants = getPartnerApplicants(livePartner?.id);
   const [search, setSearch] = useState('');
   const [activityFilter, setActivityFilter] = useState('All');
+  const [currentPage, setCurrentPage] = useState(1);
+  const pageSize = 20;
+
+  // Reset page when filter or search changes
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [search, activityFilter]);
+
   const [viewApp, setViewApp] = useState(null);
   const [recruitApp, setRecruitApp] = useState(null);
   const [messageModal, setMessageModal] = useState(null);
@@ -3674,6 +3160,8 @@ const ViewApplicants = ({ setActivePage }) => {
   const [proposedDate, setProposedDate] = useState('');
   const [proposedTime, setProposedTime] = useState('');
   const recruitFileInputRef = useRef(null);
+  const [deleteConfirm, setDeleteConfirm] = useState(null);
+  const [deleting, setDeleting] = useState(false);
 
   if (!isVerified(livePartner)) {
     return (
@@ -3699,7 +3187,22 @@ const ViewApplicants = ({ setActivePage }) => {
     if (!target?.id || !target?.type) return;
     navigate(`/partner/profile-view/${target.type}/${target.id}`);
   };
-  const filtered = applicants.filter(a => {
+  const getStatusPriority = (statusInput) => {
+    const raw = String(statusInput || '').trim().toLowerCase();
+    // Tier 1: Action Required
+    if (raw === 'reschedule requested') return 1;
+    // Tier 2: New / Pending
+    if (raw === 'pending' || raw === 'received' || raw === 'sent') return 2;
+    // Tier 3: Active / Scheduled pipeline
+    if (raw === 'interview scheduled' || raw === 'interview confirmed' || raw === 'interview requested') return 3;
+    // Tier 4: Success Finalized
+    if (raw === 'hired' || raw === 'accepted job' || raw === 'accepted') return 5;
+    // Tier 5: Dead Finalized
+    if (raw === 'rejected' || raw === 'declined' || raw === 'interview declined') return 6;
+    return 7;
+  };
+
+  const filtered = [...applicants].filter(a => {
     const q = search.toLowerCase();
     const matchesSearch = [
       a.trainee?.name,
@@ -3712,6 +3215,11 @@ const ViewApplicants = ({ setActivePage }) => {
 
     const matchesFilter = activityFilter === 'All' || a.activityType === activityFilter;
     return matchesSearch && matchesFilter;
+  }).sort((a, b) => {
+    const priA = getStatusPriority(a.status);
+    const priB = getStatusPriority(b.status);
+    if (priA !== priB) return priA - priB;
+    return (b.sortAt || 0) - (a.sortAt || 0);
   });
 
   const openRecruitModal = (application) => {
@@ -3735,6 +3243,7 @@ const ViewApplicants = ({ setActivePage }) => {
       return;
     }
 
+    toast.success('Recruitment message sent successfully!');
     setRecruitApp(null);
   };
 
@@ -3782,7 +3291,7 @@ const ViewApplicants = ({ setActivePage }) => {
               <tr><th>Trainee</th><th>Match %</th><th>Opportunity</th><th>Date</th><th>Status</th><th>Actions</th></tr>
             </thead>
             <tbody>
-              {filtered.map(a => (
+              {filtered.slice((currentPage - 1) * pageSize, currentPage * pageSize).map(a => (
                 <tr key={a.rowKey || a.id}>
                   <td style={{ fontWeight: 600, whiteSpace: 'nowrap' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
@@ -3822,10 +3331,65 @@ const ViewApplicants = ({ setActivePage }) => {
                   <td style={{ fontSize: 12.5, color: 'rgba(0,0,0,0.5)' }}>{a.eventDate || '—'}</td>
                   <td>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 2, alignItems: 'flex-start' }}>
-                      <span className={`ln-badge ${a.status === 'Pending' ? 'ln-badge-yellow' : (a.status === 'Accepted' || a.status === 'Hired') ? 'ln-badge-green' : a.status === 'Rejected' ? 'ln-badge-red' : a.status === 'Interview Scheduled' ? 'ln-badge-purple' : 'ln-badge-blue'}`}>{a.status}</span>
-                      {a.interviewDate && (
-                        <div style={{ fontSize: 10, color: '#64748b', fontWeight: 600 }}>
-                          {new Date(a.interviewDate).toLocaleDateString()} @ {new Date(a.interviewDate).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                      <span className={`ln-badge ${a.status === 'Pending' ? 'ln-badge-yellow' : (a.status === 'Accepted' || a.status === 'Hired') ? 'ln-badge-green' : a.status === 'Rejected' ? 'ln-badge-red' : a.status === 'Interview Scheduled' ? 'ln-badge-purple' : String(a.status).toLowerCase() === 'reschedule requested' ? 'ln-badge-yellow' : 'ln-badge-blue'}`}>{a.status}</span>
+                      {String(a.status).toLowerCase() === 'interview scheduled' && (a.interviewDate || a.proposedInterviewDate || a.proposed_interview_date) && (
+                        <div style={{ fontSize: 10, color: '#7c3aed', fontWeight: 700, marginTop: 2, whiteSpace: 'normal', lineHeight: 1.3 }}>
+                          Set: {new Date(a.interviewDate || a.proposedInterviewDate || a.proposed_interview_date).toLocaleDateString()} @ {new Date(a.interviewDate || a.proposedInterviewDate || a.proposed_interview_date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                        </div>
+                      )}
+                      {String(a.status).toLowerCase() === 'interview requested' && (a.proposedInterviewDate || a.proposed_interview_date) && (
+                        <div style={{ fontSize: 10, color: '#0369a1', fontWeight: 700, marginTop: 2, whiteSpace: 'normal', lineHeight: 1.3 }}>
+                          Requested: {new Date(a.proposedInterviewDate || a.proposed_interview_date).toLocaleDateString()} @ {new Date(a.proposedInterviewDate || a.proposed_interview_date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                        </div>
+                      )}
+                      {(a.proposedInterviewDate || a.proposed_interview_date) && String(a.status).toLowerCase() === 'reschedule requested' && (
+                        <div style={{ fontSize: 10, color: '#ea580c', fontWeight: 700, marginTop: 2, whiteSpace: 'normal', lineHeight: 1.3 }}>
+                          Requested: {new Date(a.proposedInterviewDate || a.proposed_interview_date).toLocaleDateString()} @ {new Date(a.proposedInterviewDate || a.proposed_interview_date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                        </div>
+                      )}
+                      {String(a.status).toLowerCase() === 'reschedule requested' && (
+                        <div style={{ marginTop: 6, display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+                          <button 
+                            className="ln-btn ln-btn-primary" 
+                            style={{ padding: '4px 8px', fontSize: 10, background: '#16a34a', height: 'auto', border: 'none' }}
+                            onClick={async (e) => { 
+                              e.stopPropagation(); 
+                              const proposed = a.proposedInterviewDate || a.proposed_interview_date;
+                              if (proposed) {
+                                const start = new Date(proposed);
+                                const end = new Date(start.getTime() + 60 * 60 * 1000);
+                                await saveInterviewBooking({
+                                  application_id: a.id,
+                                  trainee_id: a.traineeId || a.student_id || a.sender_id || a.trainee?.id,
+                                  partner_id: a.job?.partnerId || a.partnerId || a.recipient_id || livePartner?.id,
+                                  start_time: start.toISOString(),
+                                  end_time: end.toISOString(),
+                                });
+                              }
+                              await updateApplicationStatus(a.id, 'interview scheduled', 'Partner accepted the requested interview schedule.', { proposedInterviewDate: proposed }); 
+                              toast.success('Interview schedule accepted.');
+                            }}
+                          >
+                            Accept
+                          </button>
+                          <button 
+                            className="ln-btn ln-btn-outline" 
+                            style={{ padding: '4px 8px', fontSize: 10, borderColor: '#ef4444', color: '#ef4444', height: 'auto' }}
+                            onClick={async (e) => { 
+                              e.stopPropagation(); 
+                              await updateApplicationStatus(a.id, 'interview scheduled', 'Partner declined the requested interview schedule.'); 
+                              toast.success('Reschedule declined.');
+                            }}
+                          >
+                            Decline
+                          </button>
+                          <button 
+                            className="ln-btn ln-btn-outline" 
+                            style={{ padding: '4px 8px', fontSize: 10, height: 'auto' }}
+                            onClick={(e) => { e.stopPropagation(); setInviteApp(a); }}
+                          >
+                            New Schedule
+                          </button>
                         </div>
                       )}
                     </div>
@@ -3851,8 +3415,13 @@ const ViewApplicants = ({ setActivePage }) => {
                               setOpenMenuId(null);
                             } else {
                               const rect = e.currentTarget.getBoundingClientRect();
+                              const spaceBelow = window.innerHeight - rect.bottom;
+                              const spaceAbove = rect.top;
+                              const showUpward = spaceBelow < 250 && spaceAbove > spaceBelow;
+
                               setMenuPos({
-                                top: rect.bottom + 4,
+                                top: showUpward ? 'auto' : (rect.bottom + 4),
+                                bottom: showUpward ? (window.innerHeight - rect.top + 4) : 'auto',
                                 left: rect.right - 180 // Align right edge of menu to right edge of button
                               });
                               setOpenMenuId(a.id);
@@ -3862,10 +3431,10 @@ const ViewApplicants = ({ setActivePage }) => {
                           <MoreVertical size={16} />
                         </button>
 
-                        {openMenuId === a.id && (
+                        {openMenuId === a.id && createPortal(
                           <>
                             <div
-                              style={{ position: 'fixed', inset: 0, zIndex: 998 }}
+                              style={{ position: 'fixed', inset: 0, zIndex: 9998 }}
                               onClick={() => setOpenMenuId(null)}
                             />
                             <div
@@ -3873,6 +3442,7 @@ const ViewApplicants = ({ setActivePage }) => {
                               style={{
                                 position: 'fixed',
                                 top: menuPos.top,
+                                bottom: menuPos.bottom,
                                 left: menuPos.left,
                                 zIndex: 9999,
                                 minWidth: 180,
@@ -3881,24 +3451,20 @@ const ViewApplicants = ({ setActivePage }) => {
                                 boxShadow: '0 8px 24px rgba(0,0,0,0.2)'
                               }}
                             >
-                              {['Pending', 'Shortlisted', 'Interview Requested', 'Interview Confirmed', 'Reschedule Requested', 'Interview Scheduled'].includes(a.status) && (
+                              {['Pending', 'Interview Requested', 'Interview Confirmed', 'Reschedule Requested', 'Interview Scheduled'].includes(a.status) && (
                                 <>
-                                  {a.status === 'Pending' && (
-                                    <button className="ln-dropdown-item" style={{ color: '#0a66c2' }} onClick={() => { setOpenMenuId(null); updateApplicationStatus(a.id, 'shortlisted', 'Candidate shortlisted.'); }}>
-                                      <UserPlus size={14} /> Shortlist Trainee
-                                    </button>
-                                  )}
-                                  
-                                  {['Pending', 'Shortlisted', 'Reschedule Requested'].includes(a.status) && (
+                                  {['Pending', 'Reschedule Requested', 'Interview Scheduled', 'Interview Requested', 'Interview Confirmed'].includes(a.status) && (
                                     <button className="ln-dropdown-item" style={{ color: '#059669' }} onClick={() => { setOpenMenuId(null); setInviteApp(a); }}>
-                                      <Calendar size={14} /> Schedule Interview
+                                      <Calendar size={14} /> {a.status === 'Pending' ? 'Schedule Interview' : 'Reschedule Interview'}
                                     </button>
                                   )}
+
+
                                   
-                                  <button className="ln-dropdown-item" style={{ color: '#16a34a' }} onClick={() => { setOpenMenuId(null); updateApplicationStatus(a.id, 'Hired', 'Hired by partner.'); }}>
+                                  <button className="ln-dropdown-item" style={{ color: '#16a34a' }} onClick={async () => { setOpenMenuId(null); const res = await updateApplicationStatus(a.id, 'Hired', 'Hired by partner.'); if (res?.success) toast.success('Trainee hired successfully!'); }}>
                                     <CheckCircle size={14} /> Hire Trainee
                                   </button>
-                                  <button className="ln-dropdown-item" style={{ color: '#dc2626' }} onClick={() => { setOpenMenuId(null); updateApplicationStatus(a.id, 'Rejected', 'Not selected.'); }}>
+                                  <button className="ln-dropdown-item" style={{ color: '#dc2626' }} onClick={async () => { setOpenMenuId(null); const res = await updateApplicationStatus(a.id, 'Rejected', 'Not selected.'); if (res?.success) toast.success('Trainee rejected.'); }}>
                                     <XCircle size={14} /> Reject Trainee
                                   </button>
                                   <div className="ln-dropdown-divider" />
@@ -3932,8 +3498,13 @@ const ViewApplicants = ({ setActivePage }) => {
                                   <Download size={14} /> Download Resume
                                 </a>
                               )}
+                              <div style={{ borderTop: '1px solid #f1f5f9', margin: '4px 0' }} />
+                              <button className="ln-dropdown-item" style={{ color: '#dc2626' }} onClick={() => { setOpenMenuId(null); setDeleteConfirm(a); }}>
+                                <Trash2 size={14} /> Delete
+                              </button>
                             </div>
-                          </>
+                          </>,
+                          document.body
                         )}
                       </div>
                     </div>
@@ -3946,6 +3517,12 @@ const ViewApplicants = ({ setActivePage }) => {
             </tbody>
           </table>
         </div>
+        <TablePagination
+          currentPage={currentPage}
+          totalItems={filtered.length}
+          pageSize={pageSize}
+          onPageChange={setCurrentPage}
+        />
       </div>
 
       {messageModal && (
@@ -4144,10 +3721,10 @@ const ViewApplicants = ({ setActivePage }) => {
                 <button className="ln-btn" style={{ flex: 1, background: '#059669', color: 'white', border: 'none' }} onClick={() => { setInviteApp(viewApp); setViewApp(null); }}>
                   <Calendar size={15} /> Interview
                 </button>
-                <button className="ln-btn" style={{ flex: 1, background: '#16a34a', color: 'white', border: 'none' }} onClick={() => { updateApplicationStatus(viewApp.id, 'Hired', 'Hired by partner.'); setViewApp(null); }}>
+                <button className="ln-btn" style={{ flex: 1, background: '#16a34a', color: 'white', border: 'none' }} onClick={async () => { const res = await updateApplicationStatus(viewApp.id, 'Hired', 'Hired by partner.'); if (res?.success) toast.success('Trainee hired successfully!'); setViewApp(null); }}>
                   <CheckCircle size={15} /> Hire
                 </button>
-                <button className="ln-btn" style={{ flex: 1, background: '#dc2626', color: 'white', border: 'none' }} onClick={() => { updateApplicationStatus(viewApp.id, 'Rejected', 'Not selected.'); setViewApp(null); }}>
+                <button className="ln-btn" style={{ flex: 1, background: '#dc2626', color: 'white', border: 'none' }} onClick={async () => { const res = await updateApplicationStatus(viewApp.id, 'Rejected', 'Not selected.'); if (res?.success) toast.success('Trainee rejected.'); setViewApp(null); }}>
                   <XCircle size={15} /> Reject
                 </button>
               </div>
@@ -4306,6 +3883,50 @@ const ViewApplicants = ({ setActivePage }) => {
           </div>
         </div>
       )}
+
+      {/* Delete Confirmation Modal */}
+      {deleteConfirm && (
+        <div className="modal-overlay" onClick={() => !deleting && setDeleteConfirm(null)}>
+          <div className="ln-modal" style={{ maxWidth: 420 }} onClick={e => e.stopPropagation()}>
+            <div className="ln-modal-header">
+              <div>
+                <h3 className="ln-modal-title" style={{ color: '#dc2626' }}>Delete Record</h3>
+                <p style={{ fontSize: 13, color: 'rgba(0,0,0,0.5)', marginTop: 2 }}>This action cannot be undone.</p>
+              </div>
+              <button className="ln-btn-icon" onClick={() => setDeleteConfirm(null)} disabled={deleting}><X size={18} /></button>
+            </div>
+            <div style={{ padding: 20 }}>
+              <p style={{ fontSize: 14, color: '#334155', marginBottom: 8 }}>
+                Are you sure you want to delete this application record?
+              </p>
+              <div style={{ padding: 12, background: '#fef2f2', borderRadius: 8, border: '1px solid #fee2e2', fontSize: 13, color: '#991b1b' }}>
+                <strong>{deleteConfirm.trainee?.name || 'Trainee'}</strong> — {deleteConfirm.job?.title || 'Direct Contact'}
+              </div>
+            </div>
+            <div className="ln-modal-footer">
+              <button className="ln-btn ln-btn-outline" onClick={() => setDeleteConfirm(null)} disabled={deleting}>Cancel</button>
+              <button
+                className="ln-btn"
+                style={{ background: '#dc2626', color: 'white', border: 'none' }}
+                disabled={deleting}
+                onClick={async () => {
+                  setDeleting(true);
+                  const res = await deleteApplication(deleteConfirm.id);
+                  setDeleting(false);
+                  if (res.success) {
+                    toast.success('Record deleted.');
+                    setDeleteConfirm(null);
+                  } else {
+                    toast.error(res.error || 'Failed to delete.');
+                  }
+                }}
+              >
+                <Trash2 size={14} /> {deleting ? 'Deleting...' : 'Delete'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
@@ -4355,7 +3976,7 @@ export const CompanyProfile = ({ viewedPartnerId = null, onBack = null }) => {
   const [viewedPartner, setViewedPartner] = useState(null);
   const [loadingViewedProfile, setLoadingViewedProfile] = useState(false);
   const partner = isOwnProfile
-    ? (partners.find(p => String(p.id) === String(currentUser?.id)) || currentUser)
+    ? currentUser
     : (viewedPartner || partners.find(p => String(p.id) === String(viewedPartnerId)));
 
   const [saving, setSaving] = useState(false);
@@ -4384,7 +4005,8 @@ export const CompanyProfile = ({ viewedPartnerId = null, onBack = null }) => {
     poc_title: '',
     poc_photo_url: '',
     office_location_url: '',
-    banner_url: ''
+    banner_url: '',
+    company_logo_url: ''
   });
   const [companyInfoVisibility, setCompanyInfoVisibility] = useState(() => resolvePartnerVisibility(partner));
 
@@ -4403,7 +4025,7 @@ export const CompanyProfile = ({ viewedPartnerId = null, onBack = null }) => {
       setUrlValidation(prev => ({ ...prev, [section]: null }));
       return;
     }
-    const pattern = new RegExp('^(https?:\\/\\/)?((([a-z\\d]([a-z\\d-]*[a-z\\d])*)\\.)+[a-z]{2,}|((\\d{1,3}\\.){3}\\d{1,3}))(\\:\\d+)?(\\/[-a-z\\d%_.~+]*)*(\\?[;&a-z\\d%_.~+=-]*)?(\\#[-a-z\\d_]*)?$','i');
+    const pattern = new RegExp('^(https?:\\/\\/)?([\\w.-]+)(:[0-9]+)?(\\/[\\w .!@#$%^&*()_+-=\\[\\]{};:\'",.<>?~\\\\|]*)*$', 'i');
     if (!pattern.test(url)) {
       setUrlValidation(prev => ({ ...prev, [section]: 'invalid' }));
       return;
@@ -4487,7 +4109,7 @@ export const CompanyProfile = ({ viewedPartnerId = null, onBack = null }) => {
       try {
         const { data, error } = await supabase
           .from('industry_partners')
-          .select('*')
+          .select('id, company_name, business_type, company_size, website, contact_person, contact_email, contact_phone, company_logo_url, region, province, city, barangay, detailed_address, verification_status, achievements, benefits, company_info_visibility, mission, vision, culture_tags, perks_tags, poc_name, poc_title, poc_photo_url, office_location_url, banner_url, regionCode, provinceCode, cityCode, barangayCode')
           .eq('id', viewedPartnerId)
           .single();
 
@@ -4542,7 +4164,8 @@ export const CompanyProfile = ({ viewedPartnerId = null, onBack = null }) => {
         poc_title: partner.poc_title || '',
         poc_photo_url: partner.poc_photo_url || '',
         office_location_url: partner.office_location_url || '',
-        banner_url: partner.banner_url || ''
+        banner_url: partner.banner_url || '',
+        company_logo_url: partner.company_logo_url || partner.photo || ''
       });
       setCompanyInfoVisibility(resolvePartnerVisibility(partner));
       setUrlValidation({
@@ -4838,6 +4461,7 @@ export const CompanyProfile = ({ viewedPartnerId = null, onBack = null }) => {
           payload = { culture_tags: form.culture_tags, perks_tags: form.perks_tags };
       }
 
+      console.log('>>> [saveSection] Payload prepared for', section, ':', payload);
       const res = await updatePartner(partner.id, payload);
       if (res.success) {
         toast.success('Section updated successfully');
@@ -5946,25 +5570,43 @@ export const CompanyProfile = ({ viewedPartnerId = null, onBack = null }) => {
                     </div>
                   )}
 
-                  {documents.length > 0 ? documents.map(doc => (
-                    <div key={doc.id} className="ln-doc-item">
-                      <div className="ln-doc-info">
-                        <FileText size={16} color="rgba(0,0,0,0.5)" />
-                        <div>
-                          <span style={{ fontWeight: 600, fontSize: 13 }}>{doc.label}</span>
-                          <div style={{ fontSize: 11, color: 'rgba(0,0,0,0.4)' }}>{doc.file_name}</div>
+                  {(documents.length > 0 || partner.business_permit_url) ? (
+                    <>
+                      {partner.business_permit_url && (
+                        <div className="ln-doc-item" style={{ borderLeft: '3px solid #0a66c2' }}>
+                          <div className="ln-doc-info">
+                            <ShieldCheck size={16} color="#0a66c2" />
+                            <div>
+                              <span style={{ fontWeight: 600, fontSize: 13 }}>Business Permit / Registration</span>
+                              <div style={{ fontSize: 11, color: '#64748b' }}>Primary verification document</div>
+                            </div>
+                          </div>
+                          <a href={partner.business_permit_url} target="_blank" rel="noreferrer" className="ln-btn-sm ln-btn-outline">
+                            <Eye size={12} /> View
+                          </a>
                         </div>
-                      </div>
-                      <div style={{ display: 'flex', gap: 6 }}>
-                        <a href={doc.file_url} target="_blank" rel="noreferrer" className="ln-btn-sm ln-btn-outline"><Eye size={12} /> View</a>
-                        {isOwnProfile && editingSection === 'documents' && (
-                          <button className="ln-btn-sm ln-btn-outline" onClick={() => showConfirm('Are you sure you want to delete this document?', () => deleteDoc(doc.id))} style={{ color: '#cc1016' }}>
-                            <Trash2 size={12} />
-                          </button>
-                        )}
-                      </div>
-                    </div>
-                  )) : editingSection !== 'documents' && (
+                      )}
+                      {documents.map(doc => (
+                        <div key={doc.id} className="ln-doc-item">
+                          <div className="ln-doc-info">
+                            <FileText size={16} color="rgba(0,0,0,0.5)" />
+                            <div>
+                              <span style={{ fontWeight: 600, fontSize: 13 }}>{doc.label}</span>
+                              <div style={{ fontSize: 11, color: 'rgba(0,0,0,0.4)' }}>{doc.file_name}</div>
+                            </div>
+                          </div>
+                          <div style={{ display: 'flex', gap: 6 }}>
+                            <a href={doc.file_url} target="_blank" rel="noreferrer" className="ln-btn-sm ln-btn-outline"><Eye size={12} /> View</a>
+                            {isOwnProfile && editingSection === 'documents' && (
+                              <button className="ln-btn-sm ln-btn-outline" onClick={() => showConfirm('Are you sure you want to delete this document?', () => deleteDoc(doc.id))} style={{ color: '#cc1016' }}>
+                                <Trash2 size={12} />
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </>
+                  ) : editingSection !== 'documents' && (
                     <EmptyState
                       illustration={DocumentIllustration}
                       title="No documents yet"
@@ -6136,8 +5778,10 @@ const CalendarView = ({ setActivePage }) => {
   const verified = isVerified(livePartner);
   const navigate = useNavigate();
 
-  const [weekOffset, setWeekOffset] = useState(0);
+  const [monthOffset, setMonthOffset] = useState(0);
   const [saving, setSaving] = useState(false);
+  const [selectedDay, setSelectedDay] = useState(null);
+  const [calView, setCalView] = useState('month'); // 'month' or 'week'
 
   // Drag, Drop, and Invite State
   const [draggedTrainee, setDraggedTrainee] = useState(null);
@@ -6146,8 +5790,7 @@ const CalendarView = ({ setActivePage }) => {
   const [inviteMessage, setInviteMessage] = useState('');
   const [sendingInvite, setSendingInvite] = useState(false);
 
-  const dayLabels = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-  const hours = Array.from({ length: 11 }, (_, i) => i + 7); // 7 AM to 5 PM
+  const dayLabels = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
   useEffect(() => {
     if (livePartner?.id) {
@@ -6156,70 +5799,97 @@ const CalendarView = ({ setActivePage }) => {
     }
   }, [livePartner?.id]);
 
-  const getWeekStart = () => {
+  const getMonthData = () => {
     const now = new Date();
-    const day = now.getDay();
-    const diff = now.getDate() - day + (day === 0 ? -6 : 1) + weekOffset * 7;
-    const mon = new Date(now);
-    mon.setDate(diff);
-    mon.setHours(0, 0, 0, 0);
-    return mon;
-  };
-
-  const weekStart = getWeekStart();
-  const weekDates = Array.from({ length: 7 }, (_, i) => {
-    const d = new Date(weekStart);
-    d.setDate(weekStart.getDate() + i);
-    return d;
-  });
-
-  const getAvailabilitySlot = (dayIdx, hour) => {
-    return availabilitySlots.find(s => {
-      if (s.day_of_week !== dayIdx) return false;
-      const startH = parseInt(String(s.start_time).split(':')[0], 10);
-      const endH = parseInt(String(s.end_time).split(':')[0], 10);
-      return hour >= startH && hour < endH;
-    });
-  };
-
-  const toggleSlot = async (dayIdx, hour, bookedCount) => {
-    if (draggedTrainee) return;
-
-    // Prevent deleting a slot if there are already bookings for it this week
-    if (bookedCount > 0) {
-      toast.error("You cannot remove availability for a slot that already has scheduled interviews. Please cancel the interviews first.");
-      return;
+    const targetMonth = new Date(now.getFullYear(), now.getMonth() + monthOffset, 1);
+    const year = targetMonth.getFullYear();
+    const month = targetMonth.getMonth();
+    
+    const firstDay = new Date(year, month, 1).getDay();
+    const daysInMonth = new Date(year, month + 1, 0).getDate();
+    
+    const weeks = [];
+    let currentWeek = [];
+    
+    for (let i = 0; i < firstDay; i++) currentWeek.push(null);
+    
+    for (let i = 1; i <= daysInMonth; i++) {
+      currentWeek.push(new Date(year, month, i));
+      if (currentWeek.length === 7) {
+        weeks.push(currentWeek);
+        currentWeek = [];
+      }
     }
+    
+    if (currentWeek.length > 0) {
+      while (currentWeek.length < 7) currentWeek.push(null);
+      weeks.push(currentWeek);
+    }
+    
+    return { targetMonth, weeks };
+  };
 
-    setSaving(true);
-    const existing = getAvailabilitySlot(dayIdx, hour);
+  const { targetMonth, weeks } = getMonthData();
 
-    if (existing) {
-      await deleteAvailabilitySlot(existing.id);
-    } else {
-      await saveAvailabilitySlot(livePartner.id, {
-        day_of_week: dayIdx,
-        start_time: `${String(hour).padStart(2, '0')}:00`,
-        end_time: `${String(hour + 1).padStart(2, '0')}:00`,
-        // capacity: 1 // (Handled by DB default, but can be expanded later)
+  // Combine applications with interview statuses into unified bookings
+  const unifiedBookings = React.useMemo(() => {
+    const combined = [];
+    
+    // 1. From applications table (using proposedInterviewDate or interviewDate)
+    applications.forEach(a => {
+      const st = String(a.status || '').toLowerCase();
+      const isInterviewStatus = ['interview requested', 'interview scheduled', 'reschedule requested', 'interview confirmed'].includes(st);
+      if (!isInterviewStatus) return;
+      
+      const dateVal = a.proposedInterviewDate || a.interviewDate;
+      if (!dateVal) return;
+
+      const job = jobPostings.find(j => j.id === a.jobId);
+      if (job?.partnerId !== livePartner?.id) return; // Only for this partner
+
+      const trainee = trainees.find(t => t.id === a.traineeId);
+
+      combined.push({
+        id: `app-${a.id}`,
+        type: 'application',
+        originalId: a.id,
+        date: new Date(dateVal),
+        status: a.status,
+        trainee,
+        job,
+        application: a
       });
-    }
-    setSaving(false);
-  };
+    });
+
+    // 2. From interviewBookings table (if any exist that aren't cancelled)
+    interviewBookings.forEach(b => {
+      if (b.status === 'cancelled') return;
+      const app = applications.find(a => String(a.id) === String(b.application_id));
+      const job = app ? jobPostings.find(j => String(j.id) === String(app.jobId)) : null;
+      if (job?.partnerId !== livePartner?.id && b.partner_id !== livePartner?.id) return;
+
+      // Deduplicate if we already added it via application
+      if (combined.some(c => c.application?.id === app?.id)) return;
+
+      const trainee = trainees.find(t => String(t.id) === String(b.trainee_id));
+
+      combined.push({
+        id: `booking-${b.id}`,
+        type: 'booking',
+        originalId: b.id,
+        date: new Date(b.start_time),
+        status: b.status,
+        trainee,
+        job,
+        booking: b
+      });
+    });
+
+    return combined.sort((a, b) => a.date - b.date);
+  }, [applications, interviewBookings, trainees, jobPostings, livePartner?.id]);
 
   const today = new Date();
-  const todayBookings = interviewBookings.filter(b => {
-    if (b.status === 'cancelled') return false;
-    const bDate = new Date(b.start_time);
-    return bDate.toDateString() === today.toDateString();
-  });
-
-  const resolveBookingInfo = (booking) => {
-    const trainee = trainees.find(t => String(t.id) === String(booking.trainee_id));
-    const app = applications.find(a => String(a.id) === String(booking.application_id));
-    const job = app ? jobPostings.find(j => String(j.id) === String(app.jobId)) : null;
-    return { trainee, job };
-  };
+  const todayBookings = unifiedBookings.filter(b => b.date.toDateString() === today.toDateString());
 
   const currentMonthBookings = interviewBookings.filter(b => {
     if (b.status === 'cancelled') return false;
@@ -6451,119 +6121,127 @@ ${livePartner?.companyName}`);
       <div className="ln-calendar-layout" style={{ display: 'grid', gridTemplateColumns: '1fr 340px', gap: 20, alignItems: 'start' }}>
         {/* Calendar Grid */}
         <div className="ln-card" style={{ padding: 0, overflow: 'hidden' }}>
-          {/* Week Nav */}
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '14px 16px', borderBottom: '1px solid #e5e7eb' }}>
-            <button className="ln-btn-sm ln-btn-outline" onClick={() => setWeekOffset(w => w - 1)}><ChevronLeft size={16} /> Prev</button>
-            <div style={{ fontWeight: 700, fontSize: 15 }}>
-              {weekDates[0].toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} - {weekDates[6].toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+          {/* Calendar Color Legend */}
+          <div style={{ display: 'flex', gap: 12, padding: '12px 16px', background: '#f8fafc', borderBottom: '1px solid #e5e7eb', flexWrap: 'wrap' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, fontWeight: 600 }}>
+              <span style={{ width: 10, height: 10, borderRadius: '50%', background: '#d97706' }} /> 
+              <span style={{ color: '#475569' }}>Pending Decision</span>
             </div>
-            <button className="ln-btn-sm ln-btn-outline" onClick={() => setWeekOffset(w => w + 1)}>Next <ChevronRight size={16} /></button>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, fontWeight: 600 }}>
+              <span style={{ width: 10, height: 10, borderRadius: '50%', background: '#3b82f6' }} /> 
+              <span style={{ color: '#475569' }}>Confirmed Interview</span>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, fontWeight: 600 }}>
+              <span style={{ width: 10, height: 10, borderRadius: '50%', background: '#16a34a' }} /> 
+              <span style={{ color: '#475569' }}>Completed</span>
+            </div>
+          </div>
+          {/* Month Nav */}
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '14px 16px', borderBottom: '1px solid #e5e7eb' }}>
+            <button className="ln-btn-sm ln-btn-outline" onClick={() => setMonthOffset(w => w - 1)}><ChevronLeft size={16} /> Prev</button>
+            <div style={{ fontWeight: 700, fontSize: 15 }}>
+              {targetMonth.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
+            </div>
+            <button className="ln-btn-sm ln-btn-outline" onClick={() => setMonthOffset(w => w + 1)}>Next <ChevronRight size={16} /></button>
           </div>
 
           <div style={{ overflowX: 'auto' }}>
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
               <thead>
                 <tr>
-                  <th style={{ padding: '8px 6px', borderRight: '1px solid #e5e7eb', background: '#f9fafb', width: 60, textAlign: 'center', fontWeight: 600, color: '#475569' }}>Time</th>
-                  {dayLabels.map((d, i) => {
-                    const date = weekDates[i];
-                    const isToday = date.toDateString() === today.toDateString();
-                    return (
-                      <th key={d} style={{ padding: '8px 4px', textAlign: 'center', background: isToday ? '#eff6ff' : '#f9fafb', borderRight: '1px solid #e5e7eb', fontWeight: 700, color: isToday ? '#0a66c2' : '#334155' }}>
-                        {d}<br /><span style={{ fontWeight: 400, fontSize: 11 }}>{date.getDate()}</span>
-                      </th>
-                    );
-                  })}
+                  {dayLabels.map((d) => (
+                    <th key={d} style={{ padding: '8px 4px', textAlign: 'center', background: '#f9fafb', borderRight: '1px solid #e5e7eb', borderBottom: '1px solid #e5e7eb', fontWeight: 700, color: '#334155', width: `${100/7}%` }}>
+                      {d}
+                    </th>
+                  ))}
                 </tr>
               </thead>
               <tbody>
-                {hours.map(hour => (
-                  <tr key={hour}>
-                    <td style={{ padding: '6px', textAlign: 'center', borderRight: '1px solid #e5e7eb', borderTop: '1px solid #f1f5f9', color: '#64748b', fontWeight: 500, whiteSpace: 'nowrap' }}>
-                      {hour > 12 ? `${hour - 12} PM` : hour === 12 ? '12 PM' : `${hour} AM`}
-                    </td>
-                    {dayLabels.map((_, dayIdx) => {
-                      // 1. Check if the slot is marked as available by the partner
-                      const availSlot = getAvailabilitySlot(dayIdx, hour);
-                      const isAvail = !!availSlot;
-                      const capacity = availSlot?.capacity || 1; // Fallback to 1 if the DB column is empty
-
-                      // 2. Fetch specific bookings for this exact Date and Time
-                      const slotDate = new Date(weekDates[dayIdx]);
-                      slotDate.setHours(hour, 0, 0, 0);
-
-                      const slotBookings = interviewBookings.filter(b => {
-                        if (b.status === 'cancelled') return false;
-                        const bDate = new Date(b.start_time);
-                        return bDate.getFullYear() === slotDate.getFullYear() &&
-                          bDate.getMonth() === slotDate.getMonth() &&
-                          bDate.getDate() === slotDate.getDate() &&
-                          bDate.getHours() === hour;
-                      });
-
-                      const bookedCount = slotBookings.length;
-                      const isFull = isAvail && bookedCount >= capacity;
-                      const isHovered = dropHoverSlot === `${dayIdx}-${hour}`;
-
-                      // 3. Determine visual state
-                      let bg = 'transparent';
-                      let cursor = saving ? 'wait' : 'pointer';
-
-                      if (isHovered) {
-                        bg = isFull ? '#fee2e2' : '#bbf7d0'; // Red if full, Green if open
-                        cursor = isFull ? 'not-allowed' : 'copy';
-                      } else if (bookedCount > 0) {
-                        bg = isFull ? '#f1f5f9' : '#eff6ff'; // Grayish if full, Blue if partially booked
-                      } else if (isAvail) {
-                        bg = '#dcfce7'; // Green if empty and available
+                {weeks.map((week, wIdx) => (
+                  <tr key={wIdx}>
+                    {week.map((date, dIdx) => {
+                      if (!date) {
+                        return <td key={dIdx} style={{ padding: '6px', borderRight: '1px solid #e5e7eb', borderBottom: '1px solid #e5e7eb', background: '#f8fafc' }} />;
                       }
+
+                      const isToday = date.toDateString() === today.toDateString();
+                      
+                      const dayBookings = unifiedBookings.filter(b => b.date.toDateString() === date.toDateString());
+                      
+                      const isHovered = dropHoverSlot === date.toISOString();
 
                       return (
                         <td
-                          key={dayIdx}
-                          onClick={() => toggleSlot(dayIdx, hour, bookedCount)}
-                          onDragOver={(e) => handleDragOver(e, dayIdx, hour, isAvail, isFull)}
-                          onDragLeave={handleDragLeave}
-                          onDrop={(e) => handleDrop(e, dayIdx, hour, isAvail, isFull)}
-                          style={{
-                            padding: '4px', height: 48, textAlign: 'center', verticalAlign: 'middle',
-                            borderRight: '1px solid #e5e7eb', borderTop: '1px solid #f1f5f9',
-                            cursor: cursor,
-                            background: bg,
-                            transition: 'all 0.2s',
-                            boxShadow: isHovered && !isFull ? 'inset 0 0 0 2px #22c55e' : (isHovered && isFull ? 'inset 0 0 0 2px #ef4444' : 'none')
+                          key={dIdx}
+                          onDragOver={(e) => {
+                            e.preventDefault();
+                            if (draggedTrainee) {
+                              e.dataTransfer.dropEffect = 'copy';
+                              setDropHoverSlot(date.toISOString());
+                            }
                           }}
-                          onMouseEnter={e => { if (!isAvail && !draggedTrainee) e.currentTarget.style.background = '#f0f9ff'; }}
-                          onMouseLeave={e => { if (!isAvail && !draggedTrainee) e.currentTarget.style.background = 'transparent'; }}
-                          title={isFull ? 'Slot is full' : (isAvail ? `Capacity: ${bookedCount}/${capacity}` : 'Click to mark as available')}
+                          onDragLeave={() => setDropHoverSlot(null)}
+                          onDrop={(e) => {
+                            e.preventDefault();
+                            setDropHoverSlot(null);
+                            if (!draggedTrainee) return;
+                            
+                            const timeStr = '10:00 AM'; // Default time to propose on month view
+                            setInviteMessage(`Hi ${draggedTrainee.trainee.name},\n\nYour profile is a top match for our ${draggedTrainee.job.title} role! I'd love to invite you for an interview on ${date.toLocaleDateString()}.\n\nIf this date works, please let me know what time works best for you. Alternatively, you can book another available slot on my calendar.\n\nBest,\n${livePartner?.companyName}`);
+
+                            setInviteModal({
+                              trainee: draggedTrainee.trainee,
+                              job: draggedTrainee.job,
+                              date: date,
+                              hour: 10,
+                              isGeneral: false
+                            });
+                          }}
+                          style={{
+                            height: 100, verticalAlign: 'top', padding: 4,
+                            borderRight: '1px solid #e5e7eb', borderBottom: '1px solid #e5e7eb',
+                            background: isHovered ? '#f0fdf4' : (isToday ? '#eff6ff' : '#fff'),
+                            position: 'relative',
+                            transition: 'background 0.2s',
+                            boxShadow: isHovered ? 'inset 0 0 0 2px #22c55e' : 'none'
+                          }}
                         >
-                          {/* Render Avatars if there are bookings */}
-                          {bookedCount > 0 ? (
-                            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
-                              <div style={{ display: 'flex', justifyContent: 'center', gap: -4 }}>
-                                {slotBookings.slice(0, 3).map((b, i) => {
-                                  const { trainee } = resolveBookingInfo(b);
-                                  return (
-                                    <div
-                                      key={i}
-                                      title={trainee?.name || 'Trainee'}
-                                      style={{ width: 22, height: 22, borderRadius: '50%', background: '#3b82f6', color: '#fff', fontSize: 10, display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold', border: '2px solid #fff', zIndex: 3 - i }}
-                                    >
-                                      {trainee?.photo ? <img src={trainee.photo} alt="" style={{ width: '100%', height: '100%', borderRadius: '50%', objectFit: 'cover' }} /> : (trainee?.name || 'T').charAt(0).toUpperCase()}
-                                    </div>
-                                  )
-                                })}
-                              </div>
-                              <span style={{ fontSize: 9, fontWeight: 700, color: isFull ? '#64748b' : '#3b82f6' }}>{bookedCount}/{capacity}</span>
-                            </div>
-                          ) : (
-                            /* Render normal availability UI */
-                            <>
-                              {isAvail && !isHovered && <CheckCircle size={14} color="#16a34a" style={{ margin: '0 auto' }} />}
-                              {isHovered && !isFull && <UserPlus size={16} color="#15803d" style={{ margin: '0 auto' }} />}
-                              {isHovered && isFull && <XCircle size={16} color="#dc2626" style={{ margin: '0 auto' }} />}
-                            </>
-                          )}
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4, padding: '2px 4px' }}>
+                            <span style={{ fontWeight: 600, color: isToday ? '#2563eb' : '#64748b', fontSize: 13, background: isToday ? '#dbeafe' : 'transparent', width: 24, height: 24, display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: '50%' }}>
+                              {date.getDate()}
+                            </span>
+                            {dayBookings.length > 0 && (
+                              <span style={{ fontSize: 10, fontWeight: 700, color: '#3b82f6' }}>{dayBookings.length} appts</span>
+                            )}
+                          </div>
+                          
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: 4, overflowY: 'auto', maxHeight: 68 }}>
+                            {dayBookings.slice(0, 3).map((b, i) => {
+                              const st = String(b.status || '').toLowerCase();
+                              const isCompleted = st === 'completed';
+                              const isReq = st === 'interview requested' || st === 'reschedule requested';
+                              let color = '#3b82f6';
+                              let bg = '#eff6ff';
+                              if (isCompleted) { color = '#16a34a'; bg = '#f0fdf4'; }
+                              if (isReq) { color = '#d97706'; bg = '#fef3c7'; }
+                              let statusLabel = 'Confirmed';
+                              if (st === 'interview requested') statusLabel = 'You Invited';
+                              if (st === 'reschedule requested') statusLabel = 'Trainee Req';
+
+                              return (
+                                <div key={b.id} title={`${b.job?.title || 'Job'} - ${b.trainee?.name || 'Trainee'} (${statusLabel})`} style={{ padding: '2px 4px', borderRadius: 4, background: bg, borderLeft: `3px solid ${color}`, fontSize: 10, display: 'flex', flexDirection: 'column', gap: 1, cursor: 'pointer' }}>
+                                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                    <span style={{ fontWeight: 700, color }}>{b.date.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}</span>
+                                    {isReq && <span style={{ fontSize: 8, fontWeight: 600, color: '#64748b', background: '#f1f5f9', padding: '1px 3px', borderRadius: 3 }}>{statusLabel}</span>}
+                                  </div>
+                                  <span style={{ color: '#1e293b', fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{b.trainee?.name || 'Trainee'}</span>
+                                </div>
+                              )
+                            })}
+                            {dayBookings.length > 3 && (
+                              <div style={{ fontSize: 10, color: '#64748b', textAlign: 'center', fontWeight: 600 }}>+{dayBookings.length - 3} more</div>
+                            )}
+                          </div>
                         </td>
                       );
                     })}
@@ -6571,12 +6249,6 @@ ${livePartner?.companyName}`);
                 ))}
               </tbody>
             </table>
-          </div>
-
-          <div style={{ padding: '10px 16px', borderTop: '1px solid #e5e7eb', display: 'flex', gap: 16, fontSize: 12, color: '#64748b', alignItems: 'center' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}><div style={{ width: 14, height: 14, borderRadius: 4, background: '#dcfce7', border: '1px solid #86efac' }} /> Available</div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}><div style={{ width: 14, height: 14, borderRadius: 4, background: '#eff6ff', border: '1px solid #bfdbfe' }} /> Booked</div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}><div style={{ width: 14, height: 14, borderRadius: 4, background: '#f1f5f9', border: '1px solid #cbd5e1' }} /> Full</div>
           </div>
         </div>
 
@@ -6745,7 +6417,7 @@ ${livePartner?.companyName}`);
   );
 };
 
-const PartnerProfileViewRoute = () => {
+const PartnerProfileViewRoute = (props) => {
   const { profileType, profileId } = useParams();
   const navigate = useNavigate();
   const normalizedProfileType = normalizeProfileType(profileType);
@@ -6757,16 +6429,17 @@ const PartnerProfileViewRoute = () => {
   if (normalizedProfileType === 'trainee') {
     return (
       <React.Suspense fallback={<div className="ln-page-content"><div className="ln-empty-state"><p>Loading profile...</p></div></div>}>
-        <TraineeProfileContent viewedProfileId={profileId} onBack={() => navigate(-1)} />
+        <TraineeProfileContent viewedProfileId={profileId} onBack={() => navigate(-1)} {...props} />
       </React.Suspense>
     );
   }
 
   return (
-    <ProfilePage
+    <TraineeProfileContent
       profileId={profileId}
       profileType={normalizedProfileType || profileType}
       onBack={() => navigate(-1)}
+      {...props}
     />
   );
 };
@@ -6783,9 +6456,16 @@ const VerificationRouteGuard = ({ setActivePage }) => {
 
 // --- MAIN EXPORT --------------------------------------------------
 export default function PartnerDashboard() {
-  const { currentUser } = useApp();
+  const { currentUser, sendContactRequest } = useApp();
   const navigate = useNavigate();
   const location = useLocation();
+
+  // Unified Action States
+  const [contactTarget, setContactTarget] = useState(null);
+  const [contactMessage, setContactMessage] = useState('');
+  const [contactAttachment, setContactAttachment] = useState(null);
+  const [contactSubmitting, setContactSubmitting] = useState(false);
+  const contactFileInputRef = useRef(null);
 
   // Deduce active page from URL for visual consistency in child components
   const path = location.pathname.split('/').pop();
@@ -6800,6 +6480,59 @@ export default function PartnerDashboard() {
     }
   };
 
+  const openContactModal = (target) => {
+    setContactTarget(target);
+    setContactMessage('');
+    setContactAttachment(null);
+  };
+
+  const handleSubmitContact = async () => {
+    if (!contactTarget) return;
+    const trimmed = contactMessage.trim();
+    if (!trimmed) { toast.error('Message is required.'); return; }
+
+    setContactSubmitting(true);
+    let attachmentUrl = null;
+    let attachmentName = null;
+
+    try {
+      if (contactAttachment) {
+        const path = `contact-files/${currentUser.id}/${Date.now()}_${contactAttachment.name}`;
+        const { error: uploadError } = await supabase.storage
+          .from('registration-uploads')
+          .upload(path, contactAttachment, { contentType: contactAttachment.type, upsert: true });
+        if (uploadError) throw uploadError;
+        const { data: urlData } = supabase.storage.from('registration-uploads').getPublicUrl(path);
+        attachmentUrl = urlData?.publicUrl || null;
+        attachmentName = contactAttachment.name;
+      }
+
+      const result = await sendContactRequest({
+        recipientId: contactTarget.recipientId,
+        recipientType: contactTarget.recipientType,
+        postId: contactTarget.postId || null,
+        jobPostingId: contactTarget.jobPostingId || null,
+        message: trimmed,
+        attachmentName,
+        attachmentUrl,
+        attachmentKind: 'document',
+      });
+
+      if (!result.success) {
+        toast.error(result.error || 'Failed to send contact request.');
+        return;
+      }
+
+      setContactTarget(null);
+      toast.success('Contact request sent.');
+    } catch (err) {
+      console.error('Contact submit error:', err);
+      toast.error(err.message || 'Failed to send contact request.');
+    } finally {
+      setContactSubmitting(false);
+    }
+  };
+
   if (!currentUser) return null;
 
   return (
@@ -6808,17 +6541,60 @@ export default function PartnerDashboard() {
 
       <PartnerLayout activePage={activePage} setActivePage={setActivePage}>
         <Routes>
-          <Route path="/" element={<PartnerHome setActivePage={setActivePage} />} />
+          <Route path="/" element={<PartnerHome setActivePage={setActivePage} openContactModal={openContactModal} />} />
           <Route path="/post-job" element={<PostJob setActivePage={setActivePage} />} />
           <Route path="/calendar" element={<CalendarView setActivePage={setActivePage} />} />
           <Route path="/applicants" element={<ViewApplicants setActivePage={setActivePage} />} />
           <Route path="/profile" element={<CompanyProfile />} />
           <Route path="/verification" element={<VerificationRouteGuard setActivePage={setActivePage} />} />
           <Route path="/settings" element={<SettingsPage />} />
-          <Route path="/profile-view/:profileType/:profileId" element={<PartnerProfileViewRoute />} />
+          <Route path="/profile-view/:profileType/:profileId" element={<PartnerProfileViewRoute openContactModal={openContactModal} />} />
+          <Route path="/notifications" element={<NotificationsPage />} />
           <Route path="*" element={<Navigate to="/partner" replace />} />
         </Routes>
       </PartnerLayout>
+
+      {/* Unified Contact Modal */}
+      {contactTarget && (
+        <div className="modal-overlay" onClick={() => setContactTarget(null)}>
+          <div className="ln-modal" onClick={e => e.stopPropagation()} style={{ width: '100%', maxWidth: 520 }}>
+            <div className="ln-modal-header">
+              <div>
+                <h3 className="ln-modal-title">Contact {contactTarget.recipientName}</h3>
+                <p style={{ fontSize: 13, color: 'rgba(0,0,0,0.5)', marginTop: 2 }}>Send a message to this user.</p>
+              </div>
+              <button className="ln-btn-icon" onClick={() => setContactTarget(null)}><X size={18} /></button>
+            </div>
+            <div style={{ padding: 20 }}>
+              <div style={{ marginBottom: 16 }}>
+                <label style={{ fontSize: 13, fontWeight: 700, color: '#334155', display: 'block', marginBottom: 6 }}>Your Message</label>
+                <textarea
+                  className="ln-search-input"
+                  style={{ width: '100%', minHeight: 120, resize: 'none', borderRadius: 8, padding: 12 }}
+                  placeholder="Type your message here..."
+                  value={contactMessage}
+                  onChange={e => setContactMessage(e.target.value)}
+                />
+              </div>
+              <div style={{ marginBottom: 20 }}>
+                <label style={{ fontSize: 13, fontWeight: 700, color: '#334155', display: 'block', marginBottom: 6 }}>Attachment (Optional)</label>
+                <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+                  <button onClick={() => contactFileInputRef.current?.click()} className="ln-btn ln-btn-outline" style={{ flex: 1 }}>
+                    <Upload size={14} /> {contactAttachment ? contactAttachment.name : 'Choose File'}
+                  </button>
+                  <input ref={contactFileInputRef} type="file" onChange={e => setContactAttachment(e.target.files?.[0] || null)} style={{ display: 'none' }} />
+                </div>
+              </div>
+              <div className="ln-modal-footer" style={{ padding: 0 }}>
+                <button className="ln-btn ln-btn-outline" onClick={() => setContactTarget(null)} disabled={contactSubmitting}>Cancel</button>
+                <button className="ln-btn ln-btn-primary" onClick={handleSubmitContact} disabled={contactSubmitting || !contactMessage.trim()}>
+                  {contactSubmitting ? 'Sending...' : 'Send Message'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 }

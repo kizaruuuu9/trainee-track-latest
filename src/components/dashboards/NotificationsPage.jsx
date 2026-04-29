@@ -25,11 +25,24 @@ const timeAgo = (dateStr) => {
 const NotificationsPage = () => {
     const { notifications, markNotificationRead, markAllNotificationsRead, deleteNotification, clearAllNotifications } = useApp();
     const [activeTab, setActiveTab] = useState('All');
+    const [timeFilter, setTimeFilter] = useState('All');
     const [menuOpenId, setMenuOpenId] = useState(null);
     const navigate = useNavigate();
 
     const filtered = (notifications || []).filter(n => {
-        if (activeTab === 'Unread') return !n.read;
+        if (activeTab === 'Unread' && n.read) return false;
+
+        if (timeFilter !== 'All') {
+            const notifDate = new Date(n.created_at);
+            const now = new Date();
+            const diffMs = now - notifDate;
+
+            if (timeFilter === 'Hour' && diffMs > 60 * 60 * 1000) return false;
+            if (timeFilter === 'Day' && diffMs > 24 * 60 * 60 * 1000) return false;
+            if (timeFilter === 'Week' && diffMs > 7 * 24 * 60 * 60 * 1000) return false;
+            if (timeFilter === 'Month' && diffMs > 30 * 24 * 60 * 60 * 1000) return false;
+        }
+
         return true;
     });
 
@@ -98,8 +111,22 @@ const NotificationsPage = () => {
                             border: 'none', cursor: 'pointer'
                         }}
                     >
-                        Unread {unreadCount > 0 && `(${unreadCount})`}
+                        Unread {unreadCount > 0 && `(${unreadCount > 99 ? '99+' : unreadCount})`}
                     </button>
+                    
+                    <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center' }}>
+                        <select 
+                            style={{ fontSize: 13, padding: '6px 12px', borderRadius: 20, border: '1px solid #cbd5e1', background: '#fff', outline: 'none', cursor: 'pointer', color: '#475569' }}
+                            value={timeFilter}
+                            onChange={(e) => setTimeFilter(e.target.value)}
+                        >
+                            <option value="All">Any time</option>
+                            <option value="Hour">Past hour</option>
+                            <option value="Day">Past 24 hours</option>
+                            <option value="Week">Past week</option>
+                            <option value="Month">Past month</option>
+                        </select>
+                    </div>
                 </div>
 
                 <div className="notifications-list">

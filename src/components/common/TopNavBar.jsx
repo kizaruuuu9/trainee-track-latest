@@ -2,12 +2,12 @@ import React, { useState, useRef, useEffect } from 'react';
 import BrandLogo from './BrandLogo';
 import { Search, Menu, Bell, Settings, LogOut } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
-import { useNavigate } from 'react-router-dom';
+
 import NotificationsDropdown from './NotificationsDropdown';
 
 const TopNavBar = ({ activePage, setActivePage }) => {
     const { logout, notifications, lastSeenNotificationsAt, updateLastSeenNotificationsAt } = useApp();
-    const navigate = useNavigate();
+
     const [menuOpen, setMenuOpen] = useState(false);
     const [notificationsOpen, setNotificationsOpen] = useState(false);
     const dropdownRef = useRef(null);
@@ -64,7 +64,7 @@ const TopNavBar = ({ activePage, setActivePage }) => {
                             title="Notifications"
                         >
                             <Bell size={24} color="white" />
-                            {unseenCount > 0 && <span className="tt-hamburger-badge">{unseenCount > 9 ? '9+' : unseenCount}</span>}
+                            {unseenCount > 0 && <span className="tt-hamburger-badge">{unseenCount > 99 ? '99+' : unseenCount}</span>}
                         </button>
 
                         {notificationsOpen && (
@@ -92,7 +92,7 @@ const TopNavBar = ({ activePage, setActivePage }) => {
                                     <span>Settings</span>
                                 </button>
                                 <div className="tt-dropdown-divider" />
-                                <button className="tt-dropdown-item tt-dropdown-danger" onClick={() => { setMenuOpen(false); logout(); navigate('/login'); }}>
+                                <button className="tt-dropdown-item tt-dropdown-danger" onClick={() => { setMenuOpen(false); logout(); }}>
                                     <LogOut size={18} />
                                     <span>Sign Out</span>
                                 </button>

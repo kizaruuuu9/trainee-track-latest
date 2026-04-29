@@ -64,7 +64,7 @@ export default function RegistrationFlow({ onBackToLogin }) {
   const [currentStep, setCurrentStep] = useState(1);
   const [traineeData, setTraineeData] = useState({
     step1: {
-      frontID: null, backID: null, fullName: '', studentId: '', programId: '', program: '',
+      frontID: null, backID: null, fullName: '', studentId: '', programId: '', program: '', ncLevel: '',
       address: '', gender: '', trainingStatus: '', graduationYear: '', ocrStatus: null,
     },
     step2: {
@@ -242,7 +242,7 @@ export default function RegistrationFlow({ onBackToLogin }) {
 
         payload = {
           email: step2.email, password: step2.password, fullName: step1.fullName,
-          studentId: step1.studentId, programId: step1.programId, program: step1.program, address: step1.address,
+          studentId: step1.studentId, programId: step1.programId, program: step1.program, ncLevel: step1.ncLevel, address: step1.address,
           gender: step1.gender, trainingStatus: step1.trainingStatus,
           graduationYear: step1.graduationYear, birthdate: step2.birthdate,
           frontIdUrl: frontPrepared.uploadedUrl,

@@ -1430,7 +1430,7 @@ export const CompanyProfile = ({ viewedPartnerId = null, onBack = null }) => {
       try {
         const { data, error } = await supabase
           .from('industry_partners')
-          .select('*')
+          .select('id, company_name, business_type, company_size, website, contact_person, contact_email, contact_phone, company_logo_url, region, province, city, barangay, detailed_address, verification_status, achievements, benefits, company_info_visibility, mission, vision, culture_tags, perks_tags, poc_name, poc_title, poc_photo_url, office_location_url, banner_url, regionCode, provinceCode, cityCode, barangayCode')
           .eq('id', viewedPartnerId)
           .single();
 

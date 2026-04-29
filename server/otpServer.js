@@ -29,7 +29,7 @@ app.use(cors());
 app.use(express.json({ limit: '5mb' }));
 
 const PORT = 3001;
-const PRESENCE_ONLINE_WINDOW_MS = 45 * 1000;
+const PRESENCE_ONLINE_WINDOW_MS = 2 * 60 * 1000; // 2 minutes
 
 const deriveActivityStatus = (isoDateString) => {
     if (!isoDateString) return 'Offline';
@@ -297,34 +297,113 @@ app.post('/api/send-notification-email', rateLimit, async (req, res) => {
     }
 });
 
+const runSafe = async (q) => {
+    try {
+        const result = await q;
+        return result || { data: null, error: null };
+    } catch (err) {
+        return { data: null, error: err };
+    }
+};
+const runSafeCount = async (q) => {
+    try {
+        const result = await q;
+        return result || { count: 0, error: null };
+    } catch (err) {
+        return { count: 0, error: err };
+    }
+};
+
 // Admin Data Endpoint (Bypass RLS for Admin Dashboard)
 app.get('/api/admin/data', adminLimiter, async (req, res) => {
+    let page = parseInt(req.query.page) || 1;
+    let limit = parseInt(req.query.limit) || 15;
+    let search = req.query.search || '';
+
     try {
+        const timestamp = req.query.t || Date.now();
+        
         // Run presence cleanup before fetching data
         await runStalePresenceCleanup();
 
-        const { data: stds, error: stdsErr } = await supabaseAdmin
+        let stdsQuery = supabaseAdmin
             .from('students')
-            .select('*, programs(name)');
+            .select('id, full_name, student_id, program_id, training_status, activity_status, last_seen_at, contact_email, employment_status, employer, date_hired, graduation_year, updated_at', { count: 'exact' });
 
-        const { data: parts, error: partsErr } = await supabaseAdmin
+        let partsQuery = supabaseAdmin
             .from('industry_partners')
-            .select('*');
+            .select('id, company_name, business_type, contact_person, contact_email, verification_status, activity_status, last_seen_at, updated_at', { count: 'exact' });
 
-        const { data: submittedRows, error: submittedErr } = await supabaseAdmin
-            .from('partner_verifications')
-            .select('partner_id');
+        if (search) {
+            const q = `%${search}%`;
+            stdsQuery = stdsQuery.or(`full_name.ilike.${q},contact_email.ilike.${q}`);
+            partsQuery = partsQuery.or(`company_name.ilike.${q},contact_email.ilike.${q}`);
+        }
 
-        const { data: profiles, error: profilesErr } = await supabaseAdmin
+        if (page > 0 && limit > 0) {
+            const from = (page - 1) * limit;
+            const to = from + limit - 1;
+            stdsQuery = stdsQuery.range(from, to);
+            partsQuery = partsQuery.range(from, to);
+        }
+
+        let accountsQuery = supabaseAdmin
             .from('profiles')
-            .select('id, user_type');
+            .select('id, user_type')
+            .in('user_type', ['student', 'trainee', 'partner', 'industry_partner'])
+            .order('created_at', { ascending: false });
 
-        if (stdsErr) throw stdsErr;
-        if (partsErr) throw partsErr;
+        if (page > 0 && limit > 0) {
+            const from = (page - 1) * limit;
+            const to = from + limit - 1;
+            accountsQuery = accountsQuery.range(from, to);
+        }
+
+
+        const [
+            { data: stds, error: stdsErr },
+            { data: parts, error: partsErr },
+            { data: accs, error: accsErr },
+            { data: submittedRows, error: submittedErr },
+            { data: profiles, error: profilesErr },
+            { data: empStats, error: empStatsErr },
+            { data: allProgs, error: progsErr },
+            { count: totalStdsCount, error: totalStdsErr },
+            { count: totalPartsCount, error: totalPartsErr },
+            { count: totalAccsCount, error: totalAccsErr }
+        ] = await Promise.all([
+            runSafe(stdsQuery),
+            runSafe(partsQuery),
+            runSafe(accountsQuery),
+            runSafe(supabaseAdmin.from('partner_verifications').select('partner_id')),
+            runSafe(supabaseAdmin.from('profiles').select('id, user_type')),
+            runSafe(supabaseAdmin.from('students').select('employment_status')),
+            runSafe(supabaseAdmin.from('programs').select('id, name')),
+            runSafeCount(supabaseAdmin.from('students').select('id', { count: 'exact', head: true })),
+            runSafeCount(supabaseAdmin.from('industry_partners').select('id', { count: 'exact', head: true })),
+            runSafeCount(supabaseAdmin.from('profiles').select('id', { count: 'exact', head: true }).in('user_type', ['student', 'trainee', 'partner', 'industry_partner']))
+        ]);
+
+        const isRangeError = (err) => err && err.code === 'PGRST103';
+
+        if (stdsErr && !isRangeError(stdsErr)) console.warn('[Admin API] Students query error:', stdsErr);
+        if (partsErr && !isRangeError(partsErr)) console.warn('[Admin API] Partners query error:', partsErr);
+        
+        // If it was a range error, treat data as empty array
+        const finalStds = isRangeError(stdsErr) ? [] : (stds || []);
+        const finalParts = isRangeError(partsErr) ? [] : (parts || []);
+
+        console.log(`[Admin] Fetched ${finalStds.length} students (Page ${page}).`);
+        if (progsErr) console.warn('Could not fetch programs for mapping:', progsErr);
+
         if (submittedErr) console.warn('Could not fetch partner submission rows:', submittedErr);
         if (profilesErr) console.warn('Could not fetch profiles for role filtering:', profilesErr);
 
-        const { data: authUsers, error: usersErr } = await supabaseAdmin.auth.admin.listUsers();
+        if (empStatsErr) console.warn('Could not fetch global employment stats:', empStatsErr);
+
+        const authUsersRes = await supabaseAdmin.auth.admin.listUsers().catch(err => ({ data: null, error: err }));
+        const authUsers = authUsersRes?.data;
+        const usersErr = authUsersRes?.error;
         if (usersErr) console.warn('Could not fetch auth users for emails:', usersErr);
 
         const submittedPartnerIds = [...new Set((submittedRows || []).map(row => row.partner_id))];
@@ -337,26 +416,39 @@ app.get('/api/admin/data', adminLimiter, async (req, res) => {
         const allowedStudentRoles = new Set(['student', 'trainee']);
         const allowedPartnerRoles = new Set(['industry_partner', 'partner']);
 
-        const filteredStds = (stds || []).filter(std => allowedStudentRoles.has(profileRoleById.get(std.id)));
-        const filteredPartners = (parts || []).filter(partner => allowedPartnerRoles.has(profileRoleById.get(partner.id)));
+        const programNameById = new Map();
+        if (allProgs) {
+            allProgs.forEach(p => {
+                if (p.id && p.name) programNameById.set(String(p.id), p.name);
+            });
+        }
+        console.log(`[Admin] Mapped ${programNameById.size} programs for display.`);
 
-        const mappedStds = filteredStds.map(std => {
+        const mappedStds = (finalStds || []).map(std => {
             const authRecord = authUsers?.users?.find(u => u.id === std.id);
             const latestSeenAt = std.last_seen_at || authRecord?.last_sign_in_at || null;
             return {
                 ...std,
+                name: std.full_name || 'Trainee',
+                fullName: std.full_name,
+                employmentStatus: std.employment_status,
+                dateHired: std.date_hired,
                 profile_name: std.full_name || 'Trainee',
                 email: authRecord?.email || 'None',
                 activity_status: resolvePresenceStatus(std.activity_status, latestSeenAt),
                 last_seen_at: latestSeenAt,
+                program_name: std.program_id ? (programNameById.get(String(std.program_id)) || `Unmapped ID: ${String(std.program_id).slice(0,8)}`) : 'No Program'
             };
         });
 
-        const mappedPartners = filteredPartners.map(partner => {
+        const mappedPartners = (finalParts || []).map(partner => {
             const authRecord = authUsers?.users?.find(u => u.id === partner.id);
             const latestSeenAt = partner.last_seen_at || authRecord?.last_sign_in_at || null;
             return {
                 ...partner,
+                companyName: partner.company_name,
+                contactPerson: partner.contact_person,
+                verificationStatus: partner.verification_status,
                 profile_name: partner.company_name || partner.contact_person || 'Industry Partner',
                 email: authRecord?.email || 'None',
                 activity_status: resolvePresenceStatus(partner.activity_status, latestSeenAt),
@@ -364,10 +456,85 @@ app.get('/api/admin/data', adminLimiter, async (req, res) => {
             };
         });
 
-        res.json({ students: mappedStds, partners: mappedPartners, submittedPartnerIds });
+        // Calculate Employment Stats (Global)
+        const totalEmp = empStats?.length || 0;
+        const employedCount = (empStats || []).filter(s => s.employment_status === 'employed').length;
+        const seekingCount = (empStats || []).filter(s => s.employment_status === 'seeking_employment').length;
+        const notEmployedCount = (empStats || []).filter(s => s.employment_status === 'not_employed' || !s.employment_status).length;
+        const empRate = totalEmp > 0 ? Math.round((employedCount / totalEmp) * 100) : 0;
+
+        const accountIds = (accs || []).map(a => a.id);
+        const [accStds, accParts] = await Promise.all([
+            runSafe(supabaseAdmin.from('students').select('*').in('id', accountIds)),
+            runSafe(supabaseAdmin.from('industry_partners').select('*').in('id', accountIds))
+        ]);
+
+        const accStdsMap = new Map((accStds.data || []).map(s => [s.id, s]));
+        const accPartsMap = new Map((accParts.data || []).map(p => [p.id, p]));
+
+        const mappedAccounts = (accs || []).map(acc => {
+            const isStudent = ['student', 'trainee'].includes(acc.user_type);
+            const data = isStudent ? accStdsMap.get(acc.id) : accPartsMap.get(acc.id);
+            if (!data) return null;
+
+            const authRecord = authUsers?.users?.find(u => u.id === acc.id);
+            const latestSeenAt = data.last_seen_at || authRecord?.last_sign_in_at || null;
+            const activity_status = resolvePresenceStatus(data.activity_status, latestSeenAt);
+
+            if (isStudent) {
+                return {
+                    ...data,
+                    type: 'trainee',
+                    name: data.full_name || 'Trainee',
+                    fullName: data.full_name,
+                    employmentStatus: data.employment_status,
+                    dateHired: data.date_hired,
+                    profile_name: data.full_name || 'Trainee',
+                    email: authRecord?.email || 'None',
+                    activity_status,
+                    last_seen_at: latestSeenAt,
+                    program_name: data.program_id ? (programNameById.get(String(data.program_id)) || `Unmapped ID: ${String(data.program_id).slice(0,8)}`) : 'No Program'
+                };
+            } else {
+                return {
+                    ...data,
+                    type: 'partner',
+                    companyName: data.company_name,
+                    contactPerson: data.contact_person,
+                    verificationStatus: data.verification_status,
+                    profile_name: data.company_name || data.contact_person || 'Industry Partner',
+                    email: authRecord?.email || 'None',
+                    activity_status,
+                    last_seen_at: latestSeenAt,
+                };
+            }
+        }).filter(Boolean);
+
+        res.json({ 
+            students: mappedStds, 
+            partners: mappedPartners, 
+            accounts: mappedAccounts,
+            submittedPartnerIds,
+            totalStudents: totalStdsCount || 0,
+            totalPartners: totalPartsCount || 0,
+            totalAccounts: totalAccsCount || 0,
+            employmentStats: {
+                total: totalEmp,
+                employed: employedCount,
+                seeking_employment: seekingCount,
+                not_employed: notEmployedCount,
+                employmentRate: empRate
+            }
+        });
+
     } catch (error) {
         console.error('Admin data fetch error:', error);
-        res.status(500).json({ error: 'Failed to fetch admin data.' });
+        res.status(500).json({ 
+            error: 'Failed to fetch admin data.',
+            details: error.message || String(error),
+            context: { page, limit, search, timestamp: new Date().toISOString() },
+            stack: process.env.NODE_ENV !== 'production' ? error.stack : undefined
+        });
     }
 });
 
@@ -718,9 +885,10 @@ const isColumnShapeError = (error) => {
 };
 
 const toEmploymentDbValue = (value, opportunityType) => {
-    if (String(opportunityType || '').trim().toUpperCase() === 'OJT') return null;
-
     const raw = String(value || '').trim().toLowerCase();
+    const type = String(opportunityType || '').trim().toUpperCase();
+
+    if (type === 'OJT' || raw === 'ojt') return 'ojt';
     if (!raw) return null;
 
     const map = {
@@ -730,8 +898,9 @@ const toEmploymentDbValue = (value, opportunityType) => {
         'part-time': 'part_time',
         'part time': 'part_time',
         'part_time': 'part_time',
-        contract: 'contract',
-        internship: 'internship',
+        'contract': 'contract',
+        'internship': 'internship',
+        'ojt': 'ojt'
     };
 
     return map[raw] || raw.replace(/\s+/g, '_').replace(/-/g, '_');
@@ -745,6 +914,7 @@ const toEmploymentUiValue = (value) => {
     if (raw === 'part_time' || raw === 'part-time' || raw === 'parttime') return 'Part-time';
     if (raw === 'contract') return 'Contract';
     if (raw === 'internship') return 'Internship';
+    if (raw === 'ojt') return 'OJT';
 
     return String(value);
 };
@@ -1250,6 +1420,7 @@ app.post('/api/register', rateLimit, async (req, res) => {
         trainingStatus,
         graduationYear,
         birthdate,
+        ncLevel,
         frontIdBase64,
         backIdBase64,
         selfieBase64,
@@ -1405,6 +1576,7 @@ app.post('/api/register', rateLimit, async (req, res) => {
                 selfie_url: selfieUrl,
                 birthdate: birthdate || null,
                 detailed_address: address || null,
+                nc_level: String(ncLevel || '').trim() || null,
             });
 
         if (studentError) throw new Error(`Student record creation failed: ${studentError.message}`);
@@ -1610,7 +1782,7 @@ app.get('/api/documents/:traineeId', async (req, res) => {
     try {
         const { data, error } = await supabaseAdmin
             .from('student_documents')
-            .select('*')
+            .select('id, student_id, category, label, file_url, file_name, file_type, uploaded_at')
             .eq('student_id', traineeId)
             .order('uploaded_at', { ascending: false });
 
@@ -1644,7 +1816,7 @@ app.delete('/api/documents/:docId', rateLimit, async (req, res) => {
         // Get the document first to find the storage path
         const { data: doc, error: fetchErr } = await supabaseAdmin
             .from('student_documents')
-            .select('*')
+            .select('id, student_id, file_url, file_name, file_type, label, category')
             .eq('id', docId)
             .single();
 
@@ -1746,7 +1918,7 @@ app.get('/api/partner-verification/:partnerId', async (req, res) => {
     try {
         const { data, error } = await supabaseAdmin
             .from('partner_verifications')
-            .select('*')
+            .select('id, partner_id, document_type, label, file_url, file_name, file_type, uploaded_at, notes')
             .eq('partner_id', partnerId)
             .order('uploaded_at', { ascending: false });
 
@@ -1781,7 +1953,7 @@ app.delete('/api/partner-verification/:docId', rateLimit, async (req, res) => {
     try {
         const { data: doc, error: fetchErr } = await supabaseAdmin
             .from('partner_verifications')
-            .select('*')
+            .select('id, file_url')
             .eq('id', docId)
             .single();
 
@@ -1851,7 +2023,7 @@ app.put('/api/partner-verification/status/:partnerId', rateLimit, async (req, re
 // Runs every 30 seconds server-side. Marks any user whose last_seen_at
 // is older than PRESENCE_ONLINE_WINDOW_MS as Offline in the DB.
 // Supabase Realtime then fires the change to the admin dashboard instantly.
-const runStalePresenceCleanup = async () => {
+async function runStalePresenceCleanup() {
     try {
         const staleThreshold = new Date(Date.now() - PRESENCE_ONLINE_WINDOW_MS).toISOString();
 
@@ -1904,7 +2076,7 @@ app.get('/api/cron/presence-cleanup', async (req, res) => {
 
 if (process.env.VERCEL !== '1') {
     runStalePresenceCleanup();
-    setInterval(runStalePresenceCleanup, 30 * 1000);
+    setInterval(runStalePresenceCleanup, 2 * 60 * 1000); // Run every 2 minutes
 }
 
 if (process.env.NODE_ENV !== 'production') {

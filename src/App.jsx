@@ -2,9 +2,9 @@ import React from 'react';
 import { BrowserRouter, Routes, Route, Navigate, useNavigate } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
 import { AppProvider, useApp } from './context/AppContext';
-import LoginScreen from './components/LoginScreen';
-import Dashboard from './components/Dashboard';
-import RegistrationFlow from './components/auth/RegistrationFlow';
+const LoginScreen = React.lazy(() => import('./components/LoginScreen'));
+const Dashboard = React.lazy(() => import('./components/Dashboard'));
+const RegistrationFlow = React.lazy(() => import('./components/auth/RegistrationFlow'));
 
 import GlobalConfirmModal from './components/common/GlobalConfirmModal';
 
@@ -57,7 +57,9 @@ export default function App() {
           }} 
         />
         <GlobalConfirmModal />
-        <AppRoutes />
+        <React.Suspense fallback={<div className="min-h-screen flex items-center justify-center"><div className="w-12 h-12 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div></div>}>
+          <AppRoutes />
+        </React.Suspense>
       </AppProvider>
     </BrowserRouter>
   );
