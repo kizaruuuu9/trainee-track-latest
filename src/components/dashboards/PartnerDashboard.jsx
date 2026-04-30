@@ -6335,8 +6335,8 @@ ${livePartner?.companyName}`);
           <div className="ln-card">
             <div className="ln-widget-header"><span>Upcoming Interviews Today</span></div>
             {todayBookings.length > 0 ? todayBookings.map(b => {
-              const { trainee, job } = resolveBookingInfo(b);
-              const bStart = new Date(b.start_time);
+              const { trainee, job } = b;
+              const bStart = b.date;
               return (
                 <div key={b.id} style={{ padding: '10px 14px', borderBottom: '1px solid #f1f5f9', display: 'flex', gap: 10, alignItems: 'center' }}>
                   <div style={{ width: 36, height: 36, borderRadius: '50%', background: '#ede9fe', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#7c3aed', fontWeight: 700, flexShrink: 0 }}>

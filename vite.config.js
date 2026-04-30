@@ -7,7 +7,13 @@ import autoprefixer from 'autoprefixer'
 export default defineConfig({
   plugins: [react()],
   optimizeDeps: {
-    include: ['tesseract.js', 'face-api.js'],
+    include: ['tesseract.js'],
+    exclude: ['face-api.js'],
+  },
+  resolve: {
+    alias: {
+      'face-api.js': 'face-api.js/dist/face-api.min.js',
+    },
   },
   server: {
     proxy: {
