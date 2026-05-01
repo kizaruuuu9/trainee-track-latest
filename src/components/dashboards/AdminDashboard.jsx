@@ -20,7 +20,7 @@ import NotificationsDropdown from '../common/NotificationsDropdown';
 import toast from 'react-hot-toast';
 import NotificationsPage from './NotificationsPage';
 
-// ─── SHARED: TABLE PAGINATION ──────────────────────────────────────
+// --- SHARED: TABLE PAGINATION ---
 const TablePagination = ({ currentPage, totalItems, pageSize, onPageChange }) => {
     const totalPages = Math.ceil(totalItems / pageSize);
     if (totalPages <= 1) return null;
@@ -70,7 +70,7 @@ const TablePagination = ({ currentPage, totalItems, pageSize, onPageChange }) =>
     );
 };
 
-// ─── TIME AGO HELPER ──────────────────────────────────────────────
+// --- TIME AGO HELPER ---
 const timeAgo = (dateStr) => {
     const raw = String(dateStr || '').trim();
     if (!raw) return 'Just now';
@@ -107,7 +107,7 @@ const timeAgo = (dateStr) => {
     return `${years}y ago`;
 };
 
-// ─── LAYOUT ────────────────────────────────────────────────────────────────
+// --- LAYOUT ---
 const AppLayout = ({ sidebar, children, pageTitle, pageSubtitle }) => {
     const { currentUser, logout, notifications, lastSeenNotificationsAt, updateLastSeenNotificationsAt, confirmAction } = useApp();
     const [showProfile, setShowProfile] = useState(false);
@@ -186,7 +186,7 @@ const AppLayout = ({ sidebar, children, pageTitle, pageSubtitle }) => {
     );
 };
 
-// - SIDEBAR —————————————————————————————————————————————————————————————————
+// --- SIDEBAR ---
 const AdminSidebar = ({ activePage, setActivePage, mobileOpen, closeSidebar }) => {
     const { logout } = useApp();
 
@@ -370,8 +370,8 @@ const AdminSidebar = ({ activePage, setActivePage, mobileOpen, closeSidebar }) =
     );
 };
 
-// - PAGE 1: ADMIN DASHBOARD —————————————————————————————————————————————————
-// ——— PAGE 1: ADMIN DASHBOARD (COMMAND CENTER) ——————————————————————————————
+// --- PAGE 1: ADMIN DASHBOARD ---
+// --- PAGE 1: ADMIN DASHBOARD (COMMAND CENTER) ---
 const AdminHome = ({ setActivePage }) => {
     const { trainees, partners, posts, applications, getEmploymentStats, getSkillsDemand } = useApp();
     const stats = getEmploymentStats();
@@ -534,7 +534,7 @@ const AdminHome = ({ setActivePage }) => {
     );
 };
 
-// â”€â”€â”€ PAGE 2: MANAGE TRAINEES â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// --- PAGE 2: MANAGE TRAINEES ---
 const ManageTrainees = () => {
     const { trainees, totalTrainees, updateTrainee, deleteTrainee, confirmAction, fetchAdminDirectoryData } = useApp();
     const [search, setSearch] = useState('');
@@ -761,7 +761,7 @@ const ManageTrainees = () => {
     );
 };
 
-// TESDA PROGRAMS: ADD / EDIT / DELETE WITH COMPETENCIES
+// --- TESDA PROGRAMS: ADD / EDIT / DELETE WITH COMPETENCIES ---
 const ManageTesdaPrograms = () => {
     const ncLevelOptions = ['NC I', 'NC II', 'NC III', 'NC IV'];
     const { programs, fetchPrograms } = useApp();

@@ -147,18 +147,18 @@ export default function RegistrationFlow({ onBackToLogin }) {
     }
   };
 
-  // ─── OTP Cooldown Timer ──────────────────────────────────────
+  // --- OTP Cooldown Timer ---
   useEffect(() => {
     if (otpCooldown <= 0) return;
     const timer = setTimeout(() => setOtpCooldown(prev => prev - 1), 1000);
     return () => clearTimeout(timer);
   }, [otpCooldown]);
 
-  // ─── Trainee Step Handlers ─────────────────────────────────────
+  // --- Trainee Step Handlers ---
   const updateTrainee1 = (data) => setTraineeData(prev => ({ ...prev, step1: { ...prev.step1, ...data } }));
   const updateTrainee2 = (data) => setTraineeData(prev => ({ ...prev, step2: { ...prev.step2, ...data } }));
 
-  // ─── Partner OTP Logic ─────────────────────────────────────────
+  // --- Partner OTP Logic ---
   const handleSendOTP = async () => {
     if (!partnerData.email || otpCooldown > 0) return;
     setOtpLoading(true);
@@ -221,7 +221,7 @@ export default function RegistrationFlow({ onBackToLogin }) {
     partnerData.password && partnerData.password === partnerData.confirmPassword &&
     passwordRegex.test(partnerData.password) && otpVerified;
 
-  // ─── Final Submit ────────────────────────────────────────────
+  // --- Final Submit ---
   const handleFinalSubmit = async () => {
     setSaving(true);
     setSaveError('');
@@ -275,7 +275,7 @@ export default function RegistrationFlow({ onBackToLogin }) {
     }
   };
 
-  // ─── Renderers ──────────────────────────────────────────────
+  // --- Renderers ---
 
   const renderRoleSelection = () => (
     <div className="page-enter">

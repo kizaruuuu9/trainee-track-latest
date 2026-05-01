@@ -28,11 +28,11 @@ import { CompactFeedItem } from './FeedComponents';
 
 const CompanyProfile = React.lazy(() => import('./PartnerDashboard').then(m => ({ default: m.CompanyProfile })));
 
-/* ════════════════════════════════════════════════════════════════════
+/* ====================================================================
    LINKEDIN-STYLE TRAINEE DASHBOARD
-   ═══════════════════════════════════════════════════════════════ */
+   ==================================================================== */
 
-// ─── TIME AGO HELPER ──────────────────────────────────────────────
+// --- TIME AGO HELPER ---
 const isValidUrl = (string) => {
     try {
         const url = new URL(string.includes('://') ? string : `https://${string}`);
@@ -285,8 +285,8 @@ const BULLETIN_CONFIG = {
     announcement: { label: 'Announcement', color: '#d97706', bg: '#fef3c7', emoji: '📢', traineeLabel: 'Inquire', type: 'inquire' },
 };
 
-// ─── TOP NAVIGATION BAR (LinkedIn-style) ─────────────────────────
-// ─── LEFT NAVIGATION BAR ─────────────
+// --- TOP NAVIGATION BAR (LinkedIn-style) ---
+// --- LEFT NAVIGATION BAR ---
 const TraineeSideNav = ({ activePage, setActivePage }) => {
     const { currentUser } = useApp();
     const navigate = useNavigate();
@@ -342,7 +342,7 @@ const TraineeSideNav = ({ activePage, setActivePage }) => {
     );
 };
 
-// ─── LAYOUT WRAPPER ──────────────────────────────────────────────
+// --- LAYOUT WRAPPER ---
 const TraineeLayout = ({ children, activePage, setActivePage }) => (
     <div className="ln-app">
         <TopNavBar activePage={activePage} setActivePage={setActivePage} />
@@ -353,7 +353,7 @@ const TraineeLayout = ({ children, activePage, setActivePage }) => (
     </div>
 );
 
-// ─── LEFT PROFILE CARD (LinkedIn-style) ──────────────────────────
+// --- LEFT PROFILE CARD (LinkedIn-style) ---
 const ProfileSideCard = ({ trainee, setActivePage }) => {
     const initials = (trainee?.name || '').split(' ').filter(Boolean).map(n => n[0]).join('').slice(0, 2).toUpperCase() || 'T';
     const visiblePersonalInfo = new Set(resolveTraineeVisibility(trainee));
@@ -409,7 +409,7 @@ const ProfileSideCard = ({ trainee, setActivePage }) => {
     );
 };
 
-// ─── RIGHT SIDEBAR WIDGET ────────────────────────────────────────
+// --- RIGHT SIDEBAR WIDGET ---
 const SuggestedOpportunities = ({ recJobs, setActivePage, onViewProfile }) => (
     <div className="ln-card ln-widget">
         <div className="ln-widget-header">
@@ -459,7 +459,7 @@ const QuickLinksWidget = ({ setActivePage }) => (
     </div>
 );
 
-// ─── PROGRESS BAR HELPER ─────────────────────────────────────────
+// --- PROGRESS BAR HELPER ---
 const ProgressBar = ({ value, showLabel = true }) => {
     const cls = value >= 70 ? 'progress-high' : value >= 40 ? 'progress-mid' : 'progress-low';
     return (
@@ -472,7 +472,7 @@ const ProgressBar = ({ value, showLabel = true }) => {
     );
 };
 
-// ─── PAGE 1: DASHBOARD HOME (LinkedIn Feed-style) ───────────────
+// --- PAGE 1: DASHBOARD HOME (LinkedIn Feed-style) ---
 const TraineeDashboardHome = ({ setActivePage, openBulletinModal, openContactModal, openApplyModal, toggleBookmark }) => {
     const {
         currentUser, trainees, applications, getTraineeRecommendedJobs,
@@ -684,7 +684,7 @@ ${postContent.description || ''}
         setActivePage('recommendations');
     };
 
-    // ── Feed Apply Modal logic ──
+    // --- Feed Apply Modal logic ---
     const feedLoadResumeInfo = async () => {
         if (!trainee?.id) return;
         setFeedResumeInfo(null);
@@ -1801,7 +1801,7 @@ const ApplicationTimeline = ({ traineeId }) => {
 
 // SavedItemsView is now a separate component in SavedItemsView.jsx
 
-// ─── PAGE 2: PROFILE ─────────────────────────────────────────────
+// --- PAGE 2: PROFILE ---
 export const TraineeProfileContent = ({ viewedProfileId = null, onBack = null, openBulletinModal }) => {
     const { currentUser, userRole, trainees, updateTrainee, getSkillInterestRecommendations, programs, getSkillsDemand, applyToJob } = useApp();
     const isOwnProfile = !viewedProfileId || String(viewedProfileId) === String(currentUser?.id);
@@ -2162,7 +2162,7 @@ export const TraineeProfileContent = ({ viewedProfileId = null, onBack = null, o
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [trainee]);
 
-    // ─── Photo upload handler ──────────────────────────────
+    // --- Photo upload handler ---
     const handlePhotoUpload = async (file) => {
         if (!isOwnProfile || !file || !trainee?.id) return;
         const allowed = ['image/png', 'image/jpeg', 'image/jpg', 'image/webp'];
@@ -2189,7 +2189,7 @@ export const TraineeProfileContent = ({ viewedProfileId = null, onBack = null, o
         }
     };
 
-    // ─── Banner upload handler ─────────────────────────────
+    // --- Banner upload handler ---
     const handleBannerUpload = async (file) => {
         if (!isOwnProfile || !file || !trainee?.id) return;
         const allowed = ['image/png', 'image/jpeg', 'image/jpg', 'image/webp'];
@@ -5069,6 +5069,13 @@ const MyApplications = () => {
     const trainee = currentUser || trainees[0];
     const myApps = getTraineeApplications(trainee?.id);
     const [search, setSearch] = useState('');
+    const [currentPage, setCurrentPage] = useState(1);
+    const pageSize = 10;
+
+    useEffect(() => {
+        setCurrentPage(1);
+    }, [search]);
+
     const [messageModal, setMessageModal] = useState(null);
     const [bookingApp, setBookingApp] = useState(null);
     const [actionMenuId, setActionMenuId] = useState(null);
@@ -5121,6 +5128,9 @@ const MyApplications = () => {
         if (priA !== priB) return priA - priB;
         return new Date(b.applied_at || b.created_at || 0) - new Date(a.applied_at || a.created_at || 0);
     });
+
+    const paginated = sortedAndFiltered.slice((currentPage - 1) * pageSize, currentPage * pageSize);
+
 
     const statusBadge = (s) => {
         const raw = String(s || '').toLowerCase();
@@ -5261,7 +5271,7 @@ const MyApplications = () => {
                             </tr>
                         </thead>
                         <tbody>
-                            {sortedAndFiltered.map(a => {
+                            {paginated.map(a => {
                                 const partner = a.partner || { companyName: a.job?.companyName || '—', id: a.job?.partnerId };
                                 const initials = (partner.companyName || 'P').charAt(0).toUpperCase();
                                 const rate = a.matchRate || 0;
@@ -5428,7 +5438,59 @@ const MyApplications = () => {
                         </tbody>
                     </table>
                 </div>
+                
+                {sortedAndFiltered.length > 0 && (
+                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', marginTop: 20, padding: '16px 0', borderTop: '1px solid #e2e8f0', gap: 12 }}>
+                        <div style={{ fontSize: 13, color: '#64748b' }}>
+                            Showing <b>{Math.min(sortedAndFiltered.length, (currentPage - 1) * pageSize + 1)}</b> to <b>{Math.min(sortedAndFiltered.length, currentPage * pageSize)}</b> of <b>{sortedAndFiltered.length}</b> items
+                        </div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                            <button
+                                disabled={currentPage === 1}
+                                onClick={() => { setCurrentPage(prev => prev - 1); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
+                                style={{ padding: '6px 12px', borderRadius: 8, border: '1px solid #cbd5e1', background: '#fff', cursor: currentPage === 1 ? 'not-allowed' : 'pointer', opacity: currentPage === 1 ? 0.5 : 1, fontSize: 13, display: 'flex', alignItems: 'center', gap: 4 }}
+                            >
+                                <ChevronLeft size={16} /> Previous
+                            </button>
+
+                            <div style={{ display: 'flex', gap: 4 }}>
+                                {Array.from({ length: Math.ceil(sortedAndFiltered.length / pageSize) }, (_, i) => i + 1)
+                                    .filter(p => p === 1 || p === Math.ceil(sortedAndFiltered.length / pageSize) || (p >= currentPage - 1 && p <= currentPage + 1))
+                                    .map((p, i, arr) => (
+                                        <React.Fragment key={p}>
+                                            {i > 0 && arr[i - 1] !== p - 1 && <span style={{ color: '#64748b', alignSelf: 'center' }}>...</span>}
+                                            <button
+                                                style={{
+                                                    padding: '6px 10px',
+                                                    borderRadius: 8,
+                                                    border: '1px solid',
+                                                    borderColor: currentPage === p ? '#0a66c2' : '#cbd5e1',
+                                                    background: currentPage === p ? '#0a66c2' : '#fff',
+                                                    color: currentPage === p ? '#fff' : '#1e293b',
+                                                    fontWeight: currentPage === p ? 700 : 500,
+                                                    cursor: 'pointer',
+                                                    fontSize: 13
+                                                }}
+                                                onClick={() => { setCurrentPage(p); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
+                                            >
+                                                {p}
+                                            </button>
+                                        </React.Fragment>
+                                    ))}
+                            </div>
+
+                            <button
+                                disabled={currentPage === Math.ceil(sortedAndFiltered.length / pageSize) || Math.ceil(sortedAndFiltered.length / pageSize) === 0}
+                                onClick={() => { setCurrentPage(prev => prev + 1); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
+                                style={{ padding: '6px 12px', borderRadius: 8, border: '1px solid #cbd5e1', background: '#fff', cursor: (currentPage === Math.ceil(sortedAndFiltered.length / pageSize) || Math.ceil(sortedAndFiltered.length / pageSize) === 0) ? 'not-allowed' : 'pointer', opacity: (currentPage === Math.ceil(sortedAndFiltered.length / pageSize) || Math.ceil(sortedAndFiltered.length / pageSize) === 0) ? 0.5 : 1, fontSize: 13, display: 'flex', alignItems: 'center', gap: 4 }}
+                            >
+                                Next <ChevronRight size={16} />
+                            </button>
+                        </div>
+                    </div>
+                )}
             </div>
+
 
 
             {messageModal && (

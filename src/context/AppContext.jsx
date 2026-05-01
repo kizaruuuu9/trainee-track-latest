@@ -273,11 +273,11 @@ export const AppProvider = ({ children }) => {
   const adminRefreshTimeoutRef = useRef(null);
   const adminLastPageRef = useRef(1);
 
-  // ΓöÇΓöÇΓöÇ TRAINEES ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+  // --- TRAINEES ---
   const [trainees, setTrainees] = useState([]);
   const [totalTrainees, setTotalTrainees] = useState(0);
 
-  // ΓöÇΓöÇΓöÇ INDUSTRY PARTNERS ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+  // --- INDUSTRY PARTNERS ---
   const [partners, setPartners] = useState([]);
   const [totalPartners, setTotalPartners] = useState(0);
   const [accounts, setAccounts] = useState([]);
@@ -285,19 +285,19 @@ export const AppProvider = ({ children }) => {
   const [adminEmploymentStats, setAdminEmploymentStats] = useState(null);
 
 
-  // ─── TESDA PROGRAMS (DB-DRIVEN) ────────────────────────────────────
+  // --- TESDA PROGRAMS (DB-DRIVEN) ---
   const [programs, setPrograms] = useState([]);
   const [industries, setIndustries] = useState([]);
 
-  // ─── PQF EDUCATION FRAMEWORK (DB-DRIVEN) ──────────────────────────
+  // --- PQF EDUCATION FRAMEWORK (DB-DRIVEN) ---
   const [pqfLevels, setPqfLevels] = useState([]);
   const [pqfPrograms, setPqfPrograms] = useState([]);
 
-  // ΓöÇΓöÇΓöÇ JOB / OPPORTUNITY POSTINGS ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+  // --- JOB / OPPORTUNITY POSTINGS ---
   const [jobPostings, setJobPostings] = useState([]);
   const [feedLimit, setFeedLimit] = useState(20);
 
-  // ΓöÇΓöÇΓöÇ APPLICATIONS ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+  // --- APPLICATIONS ---
   const [applications, setApplications] = useState([
     {
       id: 1,
@@ -349,7 +349,7 @@ export const AppProvider = ({ children }) => {
     },
   ]);
 
-  // ΓöÇΓöÇΓöÇ SETTINGS BACKEND LOGIC ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+  // --- SETTINGS BACKEND LOGIC ---
 
   const [isDarkMode, setIsDarkMode] = useState(() => {
     if (typeof window !== 'undefined') {
@@ -411,7 +411,7 @@ export const AppProvider = ({ children }) => {
     }
   };
 
-  // ─── NOTIFICATIONS LOGIC ──────────────────────────────────────────────────────
+  // --- NOTIFICATIONS LOGIC ---
   const [notifications, setNotifications] = useState([]);
   const [lastSeenNotificationsAt, setLastSeenNotificationsAt] = useState(null);
   const [adminUserId, setAdminUserId] = useState(null);
@@ -660,7 +660,7 @@ export const AppProvider = ({ children }) => {
     }
   };
 
-  // ─── INTERVIEW SCHEDULING ──────────────────────────────────────────
+  // --- INTERVIEW SCHEDULING ---
   const [availabilitySlots, setAvailabilitySlots] = useState([]);
   const [interviewBookings, setInterviewBookings] = useState([]);
 
@@ -830,7 +830,7 @@ export const AppProvider = ({ children }) => {
     } catch (err) { console.error('Error fetching partner availability:', err); return []; }
   };
 
-  // ΓöÇΓöÇΓöÇ COMMUNITY POSTS ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+  // --------- COMMUNITY POSTS ------------------------------------------------------------------------------------------------------------------------------------------------------
   const [posts, setPosts] = useState([]);
   const [jobPostingComments, setJobPostingComments] = useState([]);
   const [contactRequests, setContactRequests] = useState([]);
@@ -1218,7 +1218,7 @@ export const AppProvider = ({ children }) => {
     }
   };
 
-  // ΓöÇΓöÇΓöÇ POST INTERACTIONS ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+  // --------- POST INTERACTIONS ------------------------------------------------------------------------------------------------------------------------------------------------------------
   const [postInteractions, setPostInteractions] = useState([]);
 
   const fetchPostInteractions = async (postId = null, forceRefresh = false) => {
@@ -1338,7 +1338,7 @@ export const AppProvider = ({ children }) => {
     ) || null;
   };
 
-  // ΓöÇΓöÇΓöÇ ADMIN ACCOUNT ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+  // --------- ADMIN ACCOUNT ------------------------------------------------------------------------------------------------------------------------------------------------------------------------
   const [adminAccount] = useState({
     id: 1,
     name: 'PSTDII Admin',
@@ -1351,7 +1351,7 @@ export const AppProvider = ({ children }) => {
     accountStatus: 'Active',
   });
 
-  // ΓöÇΓöÇΓöÇ ACTIVITY LOG ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+  // --------- ACTIVITY LOG ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
   const [activityLog, setActivityLog] = useState([
     { id: 1, user: 'PSTDII Admin', action: 'Create', module: 'Trainees', description: 'Added trainee Juan Dela Cruz', prevValue: null, newValue: 'Juan Dela Cruz', timestamp: '2026-02-01T09:00:00' },
     { id: 2, user: 'PSTDII Admin', action: 'Create', module: 'Trainees', description: 'Added trainee Maria Santos', prevValue: null, newValue: 'Maria Santos', timestamp: '2026-02-01T09:15:00' },
@@ -1406,7 +1406,7 @@ export const AppProvider = ({ children }) => {
     }
   }, [currentUser?.id]);
 
-  // ΓöÇΓöÇΓöÇ ML-INSPIRED RECOMMENDATION ENGINE ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+  // --------- ML-INSPIRED RECOMMENDATION ENGINE ------------------------------------------------------------------------------------------------------------
   // Hybrid cold-start ranker with explainable signals and ML-ready metadata
 
   const RECOMMENDER_ENGINE_VERSION = 'hybrid-coldstart-v1';
@@ -2203,17 +2203,14 @@ export const AppProvider = ({ children }) => {
     const prevStatus = targetRec?.status;
     const reviewedAt = new Date().toISOString().split('T')[0];
 
-    const isSupabaseApplication = typeof applicationId === 'string' && applicationId.length === 36;
+    const isSupabaseApplication = !!targetRec?.sourceTable;
     if (isSupabaseApplication) {
       let persisted = false;
       let lastErrorMessage = '';
 
-      let fallbackTable = 'job_applications';
-      if (conRec && !appRec) fallbackTable = 'contact_requests';
-
       const candidateTables = targetRec?.sourceTable
         ? [targetRec.sourceTable]
-        : [fallbackTable];
+        : ['job_applications', 'applications', 'contact_requests'];
 
       for (const table of candidateTables) {
         let statusToPersist = status.toLowerCase();
@@ -2334,7 +2331,7 @@ export const AppProvider = ({ children }) => {
 
     if (!targetRec) return { success: false, error: 'Record not found.' };
 
-    const isSupabaseRecord = typeof applicationId === 'string' && applicationId.length === 36;
+    const isSupabaseRecord = !!targetRec?.sourceTable;
 
     if (isSupabaseRecord) {
       let deleted = false;
@@ -2343,28 +2340,28 @@ export const AppProvider = ({ children }) => {
       // Determine which table(s) to try
       const candidateTables = targetRec.sourceTable
         ? [targetRec.sourceTable]
-        : conRec && !appRec
-          ? ['contact_requests']
-          : ['job_applications', 'contact_requests'];
+        : ['job_applications', 'applications', 'contact_requests'];
 
       for (const table of candidateTables) {
-        const { error } = await supabase
+        const { error, count } = await supabase
           .from(table)
-          .delete()
+          .delete({ count: 'exact' })
           .eq('id', applicationId);
 
         if (!error) {
-          deleted = true;
-          break;
+          if (count > 0) {
+            deleted = true;
+            break;
+          }
         }
 
-        lastError = error.message;
-        if (isSchemaMissingError(error)) continue;
+        lastError = error?.message || 'No rows were affected. You might not have permission to delete this record.';
+        if (error && isSchemaMissingError(error)) continue;
       }
 
       if (!deleted) {
         console.error('Failed to delete application from database:', lastError);
-        toast.error('Failed to delete: ' + (lastError || 'Record not found in database.'));
+        toast.error('Failed to delete: ' + lastError);
         return { success: false, error: lastError };
       }
     }
@@ -2390,7 +2387,7 @@ export const AppProvider = ({ children }) => {
 
     const nowIso = new Date().toISOString();
 
-    const isSupabaseApplication = typeof applicationId === 'string' && applicationId.length === 36;
+    const isSupabaseApplication = !!app?.sourceTable;
     if (isSupabaseApplication) {
       const candidateTables = app?.sourceTable ? [app.sourceTable] : ['job_applications'];
       let persisted = false;
