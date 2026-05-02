@@ -550,6 +550,7 @@ export const FeedItemDetailModal = ({ item, onClose, onApply, onSave, onInquire,
               <div style={{ fontWeight: 800, color: '#0f172a', fontSize: 16 }}>{author.name}</div>
               <div style={{ fontSize: 12, color: '#64748b' }}>{timeAgo(item.created_at || item.createdAt)}</div>
             </div>
+
           </div>
           <button onClick={onClose} style={{ background: '#f1f5f9', border: 'none', width: 36, height: 36, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', transition: 'all 0.2s' }}>
             <X size={20} color="#64748b" />
@@ -1008,8 +1009,59 @@ export const FeedItem = ({
 
       {/* Content */}
       <div className="tt-feed-card-content">
-        <div className="tt-feed-card-title">{card.title}</div>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+          <div className="tt-feed-card-title">{card.title}</div>
+          {isOwnPost && setPostMenuId && (
+            <div style={{ position: 'relative' }} onClick={e => e.stopPropagation()}>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setPostMenuId(postMenuId === item.id ? null : item.id);
+                }}
+                style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '0 4px', borderRadius: '50%', color: '#65676b', display: 'flex', alignItems: 'center' }}
+                title="More options"
+              >
+                <span style={{ fontSize: 18, fontWeight: 700, letterSpacing: 2, lineHeight: 1 }}>...</span>
+              </button>
+              {postMenuId === item.id && (
+                <div style={{
+                  position: 'absolute', right: 0, top: 24, background: '#fff',
+                  borderRadius: 8, boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+                  border: '1px solid #e4e6eb', zIndex: 10, minWidth: 150, overflow: 'hidden'
+                }}>
+                  <button
+                    onClick={() => {
+                      onEdit?.(item);
+                      setPostMenuId(null);
+                    }}
+                    style={{
+                      display: 'flex', alignItems: 'center', gap: 10, width: '100%',
+                      padding: '10px 16px', border: 'none', background: 'none',
+                      cursor: 'pointer', fontSize: 13, color: '#1c1e21', textAlign: 'left'
+                    }}
+                  >
+                    <Edit size={14} /> Edit post
+                  </button>
+                  <button
+                    onClick={() => {
+                      onDelete?.(item.id);
+                      setPostMenuId(null);
+                    }}
+                    style={{
+                      display: 'flex', alignItems: 'center', gap: 10, width: '100%',
+                      padding: '10px 16px', border: 'none', background: 'none',
+                      cursor: 'pointer', fontSize: 13, color: '#dc3545', textAlign: 'left'
+                    }}
+                  >
+                    <Trash2 size={14} /> Delete post
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
         <div className="tt-feed-card-subtitle" style={{ color: card.subtitleColor }}>{card.subtitle}</div>
+
         <div className="tt-feed-card-text">{card.text}</div>
 
         {card.tags && card.tags.length > 0 && (
@@ -1054,6 +1106,8 @@ export const CompactFeedItem = ({
   onApply,
   openProfile,
   onViewDetail,
+  postMenuId,
+  setPostMenuId,
   hideApply = false,
   applied = false
 }) => {
@@ -1076,9 +1130,61 @@ export const CompactFeedItem = ({
 
   let title = '';
   let subtitle = '';
+  let moreOptionsMenu = null;
   let description = '';
   let iconContent = null;
   let buttons = [];
+
+  if (isOwnPost && setPostMenuId) {
+    moreOptionsMenu = (
+      <div style={{ position: 'relative' }} onClick={e => e.stopPropagation()}>
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            setPostMenuId(postMenuId === item.id ? null : item.id);
+          }}
+          style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '0 4px', borderRadius: '50%', color: '#65676b', display: 'flex', alignItems: 'center' }}
+          title="More options"
+        >
+          <span style={{ fontSize: 18, fontWeight: 700, letterSpacing: 2, lineHeight: 1 }}>...</span>
+        </button>
+        {postMenuId === item.id && (
+          <div style={{
+            position: 'absolute', right: 0, top: 24, background: '#fff',
+            borderRadius: 8, boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+            border: '1px solid #e4e6eb', zIndex: 10, minWidth: 150, overflow: 'hidden'
+          }}>
+            <button
+              onClick={() => {
+                onEdit?.(item);
+                setPostMenuId(null);
+              }}
+              style={{
+                display: 'flex', alignItems: 'center', gap: 10, width: '100%',
+                padding: '10px 16px', border: 'none', background: 'none',
+                cursor: 'pointer', fontSize: 13, color: '#1c1e21', textAlign: 'left'
+              }}
+            >
+              <Edit size={14} /> Edit post
+            </button>
+            <button
+              onClick={() => {
+                onDelete?.(item.id);
+                setPostMenuId(null);
+              }}
+              style={{
+                display: 'flex', alignItems: 'center', gap: 10, width: '100%',
+                padding: '10px 16px', border: 'none', background: 'none',
+                cursor: 'pointer', fontSize: 13, color: '#dc3545', textAlign: 'left'
+              }}
+            >
+              <Trash2 size={14} /> Delete post
+            </button>
+          </div>
+        )}
+      </div>
+    );
+  }
 
   if (isBulletin) {
     const cfg = BULLETIN_CONFIG[item.post_type] || BULLETIN_CONFIG.announcement;
@@ -1125,14 +1231,14 @@ export const CompactFeedItem = ({
       ];
     } else {
       buttons = [
+        { label: 'Details', primary: false, onClick: (e) => { e.stopPropagation(); onViewDetail?.(item); } },
+        { label: isSaved ? 'Saved' : 'Save', primary: false, onClick: (e) => { e.stopPropagation(); onSave?.(item.id); }, active: isSaved },
         !hideApply ? { 
             label: applied ? 'Applied' : 'Apply', 
-            primary: !applied, 
+            primary: true, 
             disabled: applied || item.status !== 'Open',
             onClick: (e) => { e.stopPropagation(); onApply?.(item); } 
-        } : null,
-        { label: 'Inquire', onClick: (e) => { e.stopPropagation(); onInquire?.(item); } },
-        { label: isSaved ? 'Saved' : 'Save', onClick: (e) => { e.stopPropagation(); onSave?.(item.id); }, active: isSaved }
+        } : null
       ].filter(Boolean);
     }
   } else {
@@ -1174,24 +1280,25 @@ export const CompactFeedItem = ({
       }}
       style={{
         display: 'flex',
-        alignItems: 'center',
         padding: '16px',
         border: '1px solid #e2e8f0',
         borderRadius: '12px',
         backgroundColor: '#ffffff',
-        boxShadow: '0 1px 3px rgba(0,0,0,0.05)',
+        boxShadow: '0 1px 2px rgba(0,0,0,0.05)',
         gap: '16px',
         cursor: 'pointer',
-        transition: 'background-color 0.2s'
+        transition: 'background-color 0.2s',
+        position: 'relative'
       }}
       onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#f8fafc'}
       onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#ffffff'}
     >
       <div style={{
-        width: 64,
-        height: 64,
-        borderRadius: 16,
-        backgroundColor: bgColor,
+        width: 48,
+        height: 48,
+        borderRadius: 8,
+        backgroundColor: isJob ? '#f0f7ff' : bgColor,
+        color: isJob ? '#0a66c2' : 'inherit',
         flexShrink: 0,
         display: 'flex',
         alignItems: 'center',
@@ -1201,33 +1308,85 @@ export const CompactFeedItem = ({
         {iconContent}
       </div>
 
-      <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: '4px' }}>
-         <div style={{ fontWeight: 700, fontSize: 15, color: '#0f172a', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{title}</div>
-         <div style={{ fontSize: 13, color: '#64748b', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{subtitle}</div>
-         <div style={{ fontSize: 13, color: '#94a3b8', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '80%' }}>{description}</div>
-      </div>
+      <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: '8px' }}>
+          {/* Top row: Title/Company vs Status Badges */}
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+            <div>
+              <div style={{ fontWeight: 700, fontSize: 16, color: '#0f172a' }}>{title}</div>
+              <div style={{ fontSize: 14, color: '#475569', marginTop: 2 }}>
+                {isJob ? (
+                  <>
+                    <div style={{ color: '#334155', marginBottom: 4 }}>{item.companyName}</div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 12, fontSize: 13, color: '#64748b' }}>
+                      <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}><MapPin size={13} /> {item.location}</span>
+                      {item.employmentType && <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}><Clock size={13} /> {item.employmentType}</span>}
+                      <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}><Clock size={13} /> {timeAgo(item.createdAt || item.created_at)}</span>
+                    </div>
+                  </>
+                ) : (
+                   subtitle
+                )}
+              </div>
+            </div>
+            
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 6 }}>
+               {isJob && (
+                 <>
+                   <span style={{ padding: '2px 10px', borderRadius: 12, fontSize: 12, fontWeight: 700, background: item.status === 'Open' ? '#dcfce7' : '#f1f5f9', color: item.status === 'Open' ? '#16a34a' : '#64748b' }}>{item.status}</span>
+                   <span style={{ padding: '2px 10px', borderRadius: 12, fontSize: 12, fontWeight: 700, background: '#eff6ff', color: '#2563eb' }}>{item.opportunityType}</span>
+                 </>
+               )}
+               {moreOptionsMenu}
+            </div>
+          </div>
 
-      <div style={{ display: 'flex', gap: '8px', flexShrink: 0, flexWrap: 'wrap', justifyContent: 'flex-end', maxWidth: '30%' }}>
-        {buttons.map((btn, i) => (
-           <button 
-             key={i} 
-             onClick={btn.onClick}
-             disabled={btn.disabled}
-             style={{
-               padding: '8px 16px',
-               borderRadius: 8,
-               fontSize: 13,
-               fontWeight: 600,
-               border: btn.primary ? 'none' : '1px solid #e2e8f0',
-               backgroundColor: btn.primary ? '#0ea5e9' : '#fff',
-               color: btn.primary ? '#fff' : '#64748b',
-               cursor: btn.disabled ? 'default' : 'pointer',
-               opacity: btn.disabled ? 0.5 : 1
-             }}
-           >
-             {btn.label}
-           </button>
-        ))}
+          {/* Middle: Description for non-jobs, or tags for jobs */}
+          {!isJob && (
+             <div style={{ fontSize: 13, color: '#94a3b8', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '80%' }}>{description}</div>
+          )}
+
+          {/* Bottom row: Salary/NC vs Buttons */}
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: isJob ? 8 : 0 }}>
+             <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                {isJob && item.ncLevel && (
+                   <span style={{ padding: '2px 8px', borderRadius: 4, fontSize: 12, fontWeight: 600, background: '#f3e8ff', color: '#9333ea' }}>{item.ncLevel}</span>
+                )}
+                {isJob && item.salaryRange && (
+                   <span style={{ fontWeight: 700, fontSize: 14, color: '#16a34a' }}>{formatSalaryDisplay(item.salaryRange)}</span>
+                )}
+             </div>
+             
+             <div style={{ display: 'flex', gap: '8px' }}>
+                {buttons.map((btn, i) => (
+                   <button 
+                     key={i} 
+                     onClick={btn.onClick}
+                     disabled={btn.disabled}
+                     style={{
+                       padding: '6px 16px',
+                       borderRadius: 20,
+                       fontSize: 13,
+                       fontWeight: 600,
+                       border: btn.primary ? 'none' : '1px solid #cbd5e1',
+                       backgroundColor: btn.primary ? (btn.disabled && btn.label === 'Applied' ? '#818cf8' : '#4f46e5') : 'transparent',
+                       color: btn.primary ? '#fff' : '#475569',
+                       cursor: btn.disabled ? 'default' : 'pointer',
+                       display: 'flex',
+                       alignItems: 'center',
+                       gap: 6,
+                       opacity: btn.disabled && btn.label !== 'Applied' ? 0.5 : 1
+                     }}
+                   >
+                     {btn.label === 'Applied' && <CheckCircle size={14} />}
+                     {btn.label === 'Apply' && <Send size={14} />}
+                     {btn.label === 'Details' && <Eye size={14} />}
+                     {btn.label === 'Saved' && <Bookmark size={14} fill="currentColor" />}
+                     {btn.label === 'Save' && <Bookmark size={14} />}
+                     {['Applied', 'Apply', 'Details', 'Saved', 'Save'].includes(btn.label) ? btn.label : btn.label}
+                   </button>
+                ))}
+             </div>
+          </div>
       </div>
     </div>
   );

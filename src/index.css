@@ -7670,7 +7670,7 @@ body {
 
 /* Clamp all text content to 2 lines */
 .tt-feed-grid .ln-feed-content p,
-.tt-feed-grid .ln-feed-content > div > p {
+.tt-feed-grid .ln-feed-content>div>p {
   display: -webkit-box;
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
@@ -7750,7 +7750,7 @@ body {
 }
 
 /* Hide comment previews and long metadata in grid view */
-.tt-feed-grid .ln-feed-content > div:last-child > div[style*="borderTop"] {
+.tt-feed-grid .ln-feed-content>div:last-child>div[style*="borderTop"] {
   display: none;
 }
 
@@ -7766,17 +7766,127 @@ body {
   gap: 4px !important;
 }
 
-.tt-feed-grid div[style*="gridTemplateColumns"] > div {
+.tt-feed-grid div[style*="gridTemplateColumns"]>div {
   padding: 4px 8px !important;
 }
 
 
 @keyframes fadeInScale {
-  from { opacity: 0; transform: scale(0.95); }
-  to { opacity: 1; transform: scale(1); }
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
 }
 
 @keyframes spin {
   from { transform: rotate(0deg); }
   to { transform: rotate(360deg); }
+}
+
+/* Coursera Style Grid Cards */
+.tt-feed-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 20px;
+}
+
+.coursera-card {
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  overflow: hidden;
+  background: #ffffff;
+  display: flex;
+  flex-direction: column;
+  transition: box-shadow 0.2s, transform 0.2s;
+  cursor: pointer;
+}
+
+.coursera-card:hover {
+  box-shadow: 0 10px 20px rgba(0,0,0,0.08);
+  transform: translateY(-2px);
+}
+
+.coursera-card-image {
+  height: 140px;
+  background-size: cover;
+  background-position: center;
+  position: relative;
+  background-color: #f1f5f9;
+}
+
+.coursera-card-free-badge {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  background: #ffffff;
+  color: #0f172a;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 4px 8px;
+  border-radius: 4px;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.coursera-card-content {
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+}
+
+.coursera-card-provider {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+  font-size: 12px;
+  color: #64748b;
+}
+
+.coursera-provider-logo {
+  width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #f8fafc;
+  border-radius: 4px;
+}
+
+.coursera-card-title {
+  font-size: 16px;
+  font-weight: 700;
+  color: #0f172a;
+  margin: 0 0 12px 0;
+  line-height: 1.4;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.coursera-card-skills {
+  font-size: 12px;
+  color: #475569;
+  line-height: 1.5;
+  margin: 0 0 16px 0;
+  flex: 1;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.coursera-card-skills strong {
+  color: #0f172a;
+}
+
+.coursera-card-meta {
+  font-size: 12px;
+  color: #64748b;
 }

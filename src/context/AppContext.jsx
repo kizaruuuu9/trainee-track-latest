@@ -2913,14 +2913,25 @@ export const AppProvider = ({ children }) => {
 
   const deleteJobPosting = async (jobId) => {
     const existing = jobPostings.find(j => j.id === jobId);
+    
+    // Security check: Only owner or admin can delete
+    if (currentUser?.role !== 'admin' && String(existing?.partnerId) !== String(currentUser?.id)) {
+      console.warn('Unauthorized delete attempt on job:', jobId, 'by user:', currentUser?.id);
+      return { success: false, error: 'You are not authorized to delete this job posting.' };
+    }
 
-    // If ID is a string, it's likely a Supabase UUID
-    if (typeof jobId === 'string' && jobId.length === 36) {
+    // Attempt database deletion if it looks like a Supabase ID
+    // We'll try to delete regardless if it's a string, as long as it's not a temporary ID
+    if (typeof jobId === 'string' && jobId.length > 5) {
       try {
-        const { error } = await supabase
-          .from('job_postings')
-          .delete()
-          .eq('id', jobId);
+        const query = supabase.from('job_postings').delete().eq('id', jobId);
+        
+        // Add partner_id constraint if not admin for extra security
+        if (currentUser?.role !== 'admin') {
+          query.eq('partner_id', currentUser.id);
+        }
+
+        const { error } = await query;
         if (error) throw error;
       } catch (err) {
         console.error('Error deleting job posting from Supabase:', err);
@@ -2929,9 +2940,14 @@ export const AppProvider = ({ children }) => {
     }
 
     setJobPostings(prev => prev.filter(j => j.id !== jobId));
-    logActivity('Delete', 'Opportunities', `Deleted opportunity: ${existing?.title}`, existing?.title, null);
+    
+    if (existing) {
+      logActivity('Delete', 'Opportunities', `Deleted opportunity: ${existing.title}`, existing.title, null);
+    }
+    
     return { success: true };
   };
+
 
   // ΓöÇΓöÇΓöÇ PARTNER FUNCTIONS ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
   const approvePartner = async (partnerId) => {

@@ -2,7 +2,7 @@ import React from 'react';
 import { Bookmark, Building2, MapPin, Trash2, Send, Eye, MessageSquare, CheckCircle } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 
-const SavedItemsView = ({ userId, userType, onApply, onOpenBulletin }) => {
+const SavedItemsView = ({ userId, userType, onApply, onOpenBulletin, onViewDetail }) => {
     const { 
         jobPostings, posts, postInteractions, updateTrainee, 
         applications, createPostInteraction, currentUser, 

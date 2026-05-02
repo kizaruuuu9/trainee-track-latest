@@ -505,21 +505,21 @@ const TraineeDashboardHome = ({ setActivePage, openBulletinModal, openContactMod
                 feedType: (BULLETIN_TYPES.includes(p.post_type) && p.author_type !== 'industry_partner') ? 'bulletin' : 'post'
             }))
         ]
-        .filter(p => {
-            const authorType = String(p.author_type || '').toLowerCase();
-            // Hide job posts from main feed (they belong in Opportunities tab)
-            if (p.post_type === 'hiring_update' || p.feedType === 'job') return false;
-            return true;
-        })
-        .sort((a, b) => new Date(b.created_at || b.createdAt || b.datePosted) - new Date(a.created_at || a.createdAt || a.datePosted));
+            .filter(p => {
+                const authorType = String(p.author_type || '').toLowerCase();
+                // Hide job posts from main feed (they belong in Opportunities tab)
+                if (p.post_type === 'hiring_update' || p.feedType === 'job') return false;
+                return true;
+            })
+            .sort((a, b) => new Date(b.created_at || b.createdAt || b.datePosted) - new Date(a.created_at || a.createdAt || a.datePosted));
     }, [posts]);
 
     const filteredFeed = useMemo(() => {
         let list = unifiedFeed;
         if (feedFilter === 'All' || feedFilter === 'Recommended') {
         } else if (feedFilter === 'Announcement') {
-            list = list.filter(item => (item.post_type === 'announcement' || item.feedType === 'bulletin') && 
-['industry_partner', 'admin', 'partner'].includes(item.author_type || item.role));
+            list = list.filter(item => (item.post_type === 'announcement' || item.feedType === 'bulletin') &&
+                ['industry_partner', 'admin', 'partner'].includes(item.author_type || item.role));
         }
 
         if (feedSearchText.trim()) {
@@ -1038,15 +1038,15 @@ ${postContent.description || ''}
                         </select>
 
                         <div style={{ display: 'flex', border: '1px solid #cbd5e1', borderRadius: 8, overflow: 'hidden', background: '#fff' }}>
-                            <button 
-                                style={{ padding: '8px 12px', border: 'none', background: feedViewMode === 'grid' ? '#f1f5f9' : 'transparent', cursor: 'pointer', color: feedViewMode === 'grid' ? '#0f172a' : '#64748b', display: 'flex', alignItems: 'center' }} 
+                            <button
+                                style={{ padding: '8px 12px', border: 'none', background: feedViewMode === 'grid' ? '#f1f5f9' : 'transparent', cursor: 'pointer', color: feedViewMode === 'grid' ? '#0f172a' : '#64748b', display: 'flex', alignItems: 'center' }}
                                 onClick={() => setFeedViewMode('grid')}
                                 title="Grid View"
                             >
                                 <LayoutDashboard size={16} />
                             </button>
-                            <button 
-                                style={{ padding: '8px 12px', border: 'none', borderLeft: '1px solid #e2e8f0', background: feedViewMode === 'list' ? '#f1f5f9' : 'transparent', cursor: 'pointer', color: feedViewMode === 'list' ? '#0f172a' : '#64748b', display: 'flex', alignItems: 'center' }} 
+                            <button
+                                style={{ padding: '8px 12px', border: 'none', borderLeft: '1px solid #e2e8f0', background: feedViewMode === 'list' ? '#f1f5f9' : 'transparent', cursor: 'pointer', color: feedViewMode === 'list' ? '#0f172a' : '#64748b', display: 'flex', alignItems: 'center' }}
                                 onClick={() => setFeedViewMode('list')}
                                 title="List View"
                             >
@@ -1060,8 +1060,8 @@ ${postContent.description || ''}
                 <div className={feedViewMode === 'list' ? "tt-feed-list" : "tt-feed-grid"} style={feedViewMode === 'list' ? { display: 'flex', flexDirection: 'column', gap: '16px' } : {}}>
                     {filteredFeed.slice((feedCurrentPage - 1) * feedPageSize, feedCurrentPage * feedPageSize).map(item => {
                         if (feedViewMode === 'list') {
-                            return <CompactFeedItem 
-                                key={`compact-${item.id}`} 
+                            return <CompactFeedItem
+                                key={`compact-${item.id}`}
                                 item={item}
                                 isOwnPost={item.author_id === currentUser?.id}
                                 onInquire={(i) => {
@@ -1078,7 +1078,7 @@ ${postContent.description || ''}
                                 onApply={(i, type) => i.feedType === 'job' ? feedOpenApplyModal(i) : openBulletinModal(i, type)}
                                 openProfile={openProfile}
                                 onViewDetail={(i) => {
-                                   if (i.feedType === 'bulletin') openBulletinModal(i, 'view');
+                                    if (i.feedType === 'bulletin') openBulletinModal(i, 'view');
                                 }}
                             />;
                         }
@@ -1538,7 +1538,7 @@ ${postContent.description || ''}
                         <div className="ln-empty-state"><Search size={48} /><h3>No posts found</h3><p>Try changing your filter or updating your profile.</p></div>
                     )}
                 </div>
-                
+
                 {filteredFeed.length > 0 && (
                     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', marginTop: 20, padding: '16px 0', borderTop: '1px solid #e2e8f0', gap: 12 }}>
                         <div style={{ fontSize: 13, color: '#64748b' }}>
@@ -1802,7 +1802,7 @@ const ApplicationTimeline = ({ traineeId }) => {
 // SavedItemsView is now a separate component in SavedItemsView.jsx
 
 // --- PAGE 2: PROFILE ---
-export const TraineeProfileContent = ({ viewedProfileId = null, onBack = null, openBulletinModal }) => {
+export const TraineeProfileContent = ({ viewedProfileId = null, onBack = null, openBulletinModal, onViewDetail }) => {
     const { currentUser, userRole, trainees, updateTrainee, getSkillInterestRecommendations, programs, getSkillsDemand, applyToJob } = useApp();
     const isOwnProfile = !viewedProfileId || String(viewedProfileId) === String(currentUser?.id);
     const isEmployer = userRole === 'partner';
@@ -1856,7 +1856,7 @@ export const TraineeProfileContent = ({ viewedProfileId = null, onBack = null, o
     });
     // eslint-disable-next-line no-unused-vars
     const [savingEduc, setSavingEduc] = useState(false);
-    
+
     // PQF Education Options
     const [customEducationLevels, setCustomEducationLevels] = useState([]);
     const [pqfProgramsFull, setPqfProgramsFull] = useState([]);
@@ -1868,7 +1868,7 @@ export const TraineeProfileContent = ({ viewedProfileId = null, onBack = null, o
                     supabase.from('education_levels').select('id, name, requires_program, sort_order').order('sort_order'),
                     supabase.from('pqf_programs').select('id, pqf_level_id, sector, program_name, program_type').eq('is_active', true).order('program_name')
                 ]);
-                
+
                 let finalLevels = levelsRes.data || [];
                 if (finalLevels.length === 0) {
                     finalLevels = [
@@ -1911,10 +1911,10 @@ export const TraineeProfileContent = ({ viewedProfileId = null, onBack = null, o
     });
     const [learnerProfile, setLearnerProfile] = useState(() => buildLearnerProfileState(trainee));
 
-    const updateTraining = (idx, field, val) => { 
-        const arr = [...trainings]; 
-        arr[idx] = { ...arr[idx], [field]: val }; 
-        setTrainings(arr); 
+    const updateTraining = (idx, field, val) => {
+        const arr = [...trainings];
+        arr[idx] = { ...arr[idx], [field]: val };
+        setTrainings(arr);
     };
     const addTrainingObj = () => setTrainings(prev => [...prev, { program: '', year: '' }]);
     const removeTrainingIdx = (idx) => { setTrainings(prev => prev.filter((_, i) => i !== idx)); };
@@ -1952,14 +1952,14 @@ export const TraineeProfileContent = ({ viewedProfileId = null, onBack = null, o
 
     const handleCareerStatusChange = (newStatus) => {
         setPendingCareerStatus(newStatus);
-        
+
         toast((t) => (
             <div>
                 <p style={{ margin: '0 0 10px', fontSize: 14, fontWeight: 500, color: '#1e293b' }}>
                     Do you want to save changes to your career status?
                 </p>
                 <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
-                    <button 
+                    <button
                         onClick={() => {
                             toast.dismiss(t.id);
                             setIsEditingCareerStatus(false);
@@ -1968,14 +1968,14 @@ export const TraineeProfileContent = ({ viewedProfileId = null, onBack = null, o
                     >
                         Cancel
                     </button>
-                    <button 
+                    <button
                         onClick={async () => {
                             toast.dismiss(t.id);
                             try {
                                 await updateTrainee(trainee.id, { employmentStatus: newStatus });
                                 toast.success('Career status updated!');
                                 setIsEditingCareerStatus(false);
-                            } catch(err) {
+                            } catch (err) {
                                 toast.error('Failed to update status.');
                             }
                         }}
@@ -2003,7 +2003,7 @@ export const TraineeProfileContent = ({ viewedProfileId = null, onBack = null, o
     const [docFile, setDocFile] = useState(null);
     const [linkTitle, setLinkTitle] = useState('');
     const [docLinkUrl, setDocLinkUrl] = useState('');
-    
+
     // URL real-time validation state for links
     const [urlValidation, setUrlValidation] = useState({ social: null, work: null });
     const checkWebsiteReachability = async (url, section) => {
@@ -2011,7 +2011,7 @@ export const TraineeProfileContent = ({ viewedProfileId = null, onBack = null, o
             setUrlValidation(prev => ({ ...prev, [section]: null }));
             return;
         }
-        const pattern = new RegExp('^(https?:\\/\\/)?((([a-z\\d]([a-z\\d-]*[a-z\\d])*)\\.)+[a-z]{2,}|((\\d{1,3}\\.){3}\\d{1,3}))(\\:\\d+)?(\\/[-a-z\\d%_.~+]*)*(\\?[;&a-z\\d%_.~+=-]*)?(\\#[-a-z\\d_]*)?$','i');
+        const pattern = new RegExp('^(https?:\\/\\/)?((([a-z\\d]([a-z\\d-]*[a-z\\d])*)\\.)+[a-z]{2,}|((\\d{1,3}\\.){3}\\d{1,3}))(\\:\\d+)?(\\/[-a-z\\d%_.~+]*)*(\\?[;&a-z\\d%_.~+=-]*)?(\\#[-a-z\\d_]*)?$', 'i');
         if (!pattern.test(url)) {
             setUrlValidation(prev => ({ ...prev, [section]: 'invalid' }));
             return;
@@ -2034,7 +2034,7 @@ export const TraineeProfileContent = ({ viewedProfileId = null, onBack = null, o
     const handleUrlChange = (value, section, updateStateCallback) => {
         updateStateCallback(value);
         setUrlValidation(prev => ({ ...prev, [section]: value.trim() ? 'checking' : null }));
-        
+
         if (urlCheckTimeoutRef.current[section]) {
             clearTimeout(urlCheckTimeoutRef.current[section]);
         }
@@ -2061,11 +2061,11 @@ export const TraineeProfileContent = ({ viewedProfileId = null, onBack = null, o
     const [submittingApplication, setSubmittingApplication] = useState(false);
 
     const [cropModal, setCropModal] = useState({ isOpen: false, image: null, type: 'photo', aspect: 1 });
-    
+
     const handleCropComplete = async (croppedBlob) => {
         setCropModal(prev => ({ ...prev, isOpen: false }));
         const file = new File([croppedBlob], `${cropModal.type}_${Date.now()}.jpeg`, { type: 'image/jpeg' });
-        
+
         if (cropModal.type === 'banner') {
             await handleBannerUpload(file);
         } else {
@@ -2277,16 +2277,16 @@ export const TraineeProfileContent = ({ viewedProfileId = null, onBack = null, o
         if (Number(edu.from) > Number(edu.to)) return false;
         if (!edu.level && edu.degree?.trim()) return true; // legacy fallback
         if (!edu.level) return false;
-        
+
         const selectedLvl = customEducationLevels.find(l => l.name === edu.level);
         if (selectedLvl && selectedLvl.requires_program && !edu.course) return false;
         return true;
     };
 
-    const updateEduc = (idx, field, val) => { 
-        const arr = [...educHistory]; 
-        arr[idx] = { ...arr[idx], [field]: val }; 
-        setEducHistory(arr); 
+    const updateEduc = (idx, field, val) => {
+        const arr = [...educHistory];
+        arr[idx] = { ...arr[idx], [field]: val };
+        setEducHistory(arr);
     };
     const addEducObj = () => {
         for (let i = 0; i < educHistory.length; i++) {
@@ -2303,30 +2303,30 @@ export const TraineeProfileContent = ({ viewedProfileId = null, onBack = null, o
     };
     const removeEducIdx = (idx) => { setEducHistory(prev => prev.filter((_, i) => i !== idx)); };
     // eslint-disable-next-line no-unused-vars
-    const saveEduc = async () => { 
-        if (!isOwnProfile) return; 
-        setSavingEduc(true); 
-        const res = await updateTrainee(trainee.id, { educHistory }); 
+    const saveEduc = async () => {
+        if (!isOwnProfile) return;
+        setSavingEduc(true);
+        const res = await updateTrainee(trainee.id, { educHistory });
         if (res?.success) toast.success('Education history updated!');
         else toast.error('Failed to update education history.');
-        setSavingEduc(false); 
+        setSavingEduc(false);
     };
 
-    const updateWork = (idx, field, val) => { 
-        const arr = [...workExperience]; 
-        arr[idx] = { ...arr[idx], [field]: val }; 
-        setWorkExperience(arr); 
+    const updateWork = (idx, field, val) => {
+        const arr = [...workExperience];
+        arr[idx] = { ...arr[idx], [field]: val };
+        setWorkExperience(arr);
     };
     const addWorkObj = () => setWorkExperience(prev => [{ company: '', position: '', website: '', from: '', to: '', description: '' }, ...prev]);
     const removeWorkIdx = (idx) => { setWorkExperience(prev => prev.filter((_, i) => i !== idx)); };
     // eslint-disable-next-line no-unused-vars
-    const saveWork = async () => { 
-        if (!isOwnProfile) return; 
-        setSavingWork(true); 
-        const res = await updateTrainee(trainee.id, { workExperience }); 
+    const saveWork = async () => {
+        if (!isOwnProfile) return;
+        setSavingWork(true);
+        const res = await updateTrainee(trainee.id, { workExperience });
         if (res?.success) toast.success('Work experience updated!');
         else toast.error('Failed to update work experience.');
-        setSavingWork(false); 
+        setSavingWork(false);
     };
 
     const loadResumeInfo = async () => {
@@ -2398,7 +2398,7 @@ export const TraineeProfileContent = ({ viewedProfileId = null, onBack = null, o
         }
     }, [trainee?.id]);
 
-    
+
     // Click outside listener for 3-dot menus
     useEffect(() => {
         const handleClickOutside = (e) => {
@@ -2898,24 +2898,24 @@ export const TraineeProfileContent = ({ viewedProfileId = null, onBack = null, o
             )}
             {/* Hidden file inputs */}
             <input ref={profilePicRef} type="file" accept="image/*" style={{ display: 'none' }}
-                onChange={e => { 
+                onChange={e => {
                     const file = e.target.files[0];
                     if (file) {
                         const reader = new FileReader();
                         reader.onload = () => setCropModal({ isOpen: true, image: reader.result, type: 'photo', aspect: 1 });
                         reader.readAsDataURL(file);
                     }
-                    e.target.value = ''; 
+                    e.target.value = '';
                 }} />
             <input ref={bannerInputRef} type="file" accept="image/*" style={{ display: 'none' }}
-                onChange={e => { 
+                onChange={e => {
                     const file = e.target.files[0];
                     if (file) {
                         const reader = new FileReader();
                         reader.onload = () => setCropModal({ isOpen: true, image: reader.result, type: 'banner', aspect: 4 });
                         reader.readAsDataURL(file);
                     }
-                    e.target.value = ''; 
+                    e.target.value = '';
                 }} />
             <input ref={certInputRef} type="file" accept="image/*,application/pdf" style={{ display: 'none' }}
                 onChange={e => { if (uploadingIdx !== null) handleCertUpload(uploadingIdx, e.target.files[0]); e.target.value = ''; }} />
@@ -2955,7 +2955,7 @@ export const TraineeProfileContent = ({ viewedProfileId = null, onBack = null, o
             )}
 
             {cropModal.isOpen && (
-                <ImageCropModal 
+                <ImageCropModal
                     image={cropModal.image}
                     aspect={cropModal.aspect}
                     onCropComplete={handleCropComplete}
@@ -3024,8 +3024,8 @@ export const TraineeProfileContent = ({ viewedProfileId = null, onBack = null, o
                                     {showHeaderName ? trainee?.name : 'Trainee'}
                                     {trainee?.employmentStatus && (
                                         <div style={{ position: 'relative', display: 'inline-flex', alignItems: 'center' }}>
-                                            <span 
-                                                className="ln-badge" 
+                                            <span
+                                                className="ln-badge"
                                                 onClick={() => {
                                                     if (isOwnProfile) {
                                                         setIsEditingCareerStatus(!isEditingCareerStatus);
@@ -3042,7 +3042,7 @@ export const TraineeProfileContent = ({ viewedProfileId = null, onBack = null, o
                                                 {trainee.employmentStatus}
                                                 {isOwnProfile && <ChevronDown size={12} style={{ marginLeft: 4, opacity: 0.9 }} />}
                                             </span>
-                                            
+
                                             {isEditingCareerStatus && (
                                                 <div style={{
                                                     position: 'absolute', top: '100%', left: 12, marginTop: 4,
@@ -3050,7 +3050,7 @@ export const TraineeProfileContent = ({ viewedProfileId = null, onBack = null, o
                                                     boxShadow: '0 4px 12px rgba(0,0,0,0.15)', zIndex: 100, minWidth: 140
                                                 }}>
                                                     {['Seeking Employment', 'Employed', 'Not Employed'].map(status => (
-                                                        <div 
+                                                        <div
                                                             key={status}
                                                             onClick={() => {
                                                                 setIsEditingCareerStatus(false);
@@ -3254,7 +3254,7 @@ export const TraineeProfileContent = ({ viewedProfileId = null, onBack = null, o
                                                     {editingSection === 'personalInfo' && f.required && !String(form[f.key] || '').trim() && (
                                                         <div style={{ fontSize: 12, color: '#cc1016', marginTop: 4, display: 'flex', alignItems: 'center', gap: 4 }}><AlertCircle size={12} /> {f.label} is required</div>
                                                     )}
-                                                    {editingSection === 'personalInfo' && f.key === 'birthday' && form.birthday && (function() {
+                                                    {editingSection === 'personalInfo' && f.key === 'birthday' && form.birthday && (function () {
                                                         const bd = new Date(form.birthday);
                                                         const today = new Date();
                                                         let age = today.getFullYear() - bd.getFullYear();
@@ -3334,7 +3334,7 @@ export const TraineeProfileContent = ({ viewedProfileId = null, onBack = null, o
                                                                 </>
                                                             ) : <div className="ln-info-value" style={{ fontSize: 15, fontWeight: 700, color: '#1e293b' }}>{edu.school || '—'}</div>}
                                                         </div>
-                                                        
+
                                                         {/* Education Level */}
                                                         <div className="ln-info-item" style={{ gridColumn: '1 / -1' }}>
                                                             <label className="ln-info-label" style={{ fontWeight: 700 }}>Education Level{(editingSection === 'educHistory') && <span style={{ color: '#cc1016', marginLeft: 4 }}>*</span>}</label>
@@ -3343,8 +3343,8 @@ export const TraineeProfileContent = ({ viewedProfileId = null, onBack = null, o
                                                                     <select className="form-select" value={edu.level || ''} onChange={e => {
                                                                         const newLevel = e.target.value;
                                                                         const updatedEduc = [...educHistory];
-                                                                        updatedEduc[i] = { 
-                                                                            ...updatedEduc[i], 
+                                                                        updatedEduc[i] = {
+                                                                            ...updatedEduc[i],
                                                                             level: newLevel,
                                                                             course: '', // Reset specific course
                                                                             strand: '',
@@ -3361,7 +3361,7 @@ export const TraineeProfileContent = ({ viewedProfileId = null, onBack = null, o
                                                                 </>
                                                             ) : (
                                                                 <div className="ln-info-value" style={{ fontSize: 14, color: '#475569' }}>
-                                                                    {edu.level ? edu.level : (edu.degree ? 'Legacy Entry' : '—')} 
+                                                                    {edu.level ? edu.level : (edu.degree ? 'Legacy Entry' : '—')}
                                                                 </div>
                                                             )}
                                                         </div>
@@ -3528,12 +3528,12 @@ export const TraineeProfileContent = ({ viewedProfileId = null, onBack = null, o
                                                             <label className="ln-info-label" style={{ fontWeight: 700 }}>Company Website</label>
                                                             {(editingSection === 'workExp') ? (
                                                                 <>
-                                                                    <input 
-                                                                        type="text" 
-                                                                        className="form-input" 
-                                                                        placeholder="e.g. https://company.com (Optional)" 
-                                                                        value={work.website || ''} 
-                                                                        onChange={e => handleUrlChange(e.target.value, 'work', val => updateWork(i, 'website', val))} 
+                                                                    <input
+                                                                        type="text"
+                                                                        className="form-input"
+                                                                        placeholder="e.g. https://company.com (Optional)"
+                                                                        value={work.website || ''}
+                                                                        onChange={e => handleUrlChange(e.target.value, 'work', val => updateWork(i, 'website', val))}
                                                                         style={urlValidation.work === 'invalid' || urlValidation.work === 'error' || urlValidation.work === 'unreachable' ? { borderColor: '#ef4444' } : urlValidation.work === 'valid' ? { borderColor: '#10b981' } : {}}
                                                                     />
                                                                     {urlValidation.work === 'checking' && <div style={{ fontSize: 11, color: '#3b82f6', marginTop: 4, display: 'flex', alignItems: 'center', gap: 4 }}><AlertCircle size={12} /> Verifying website...</div>}
@@ -4159,6 +4159,7 @@ export const TraineeProfileContent = ({ viewedProfileId = null, onBack = null, o
                                     userType="trainee"
                                     onApply={openApplyModal}
                                     onOpenBulletin={(p) => openBulletinModal(p, 'inquire')}
+                                    onViewDetail={onViewDetail || ((job) => alert('View job details from the Opportunities tab.'))}
                                 />
                             </div>
                         </div>
@@ -4671,7 +4672,7 @@ const Opportunities = ({ openContactModal, openApplyModal, toggleBookmark }) => 
     const navigate = useNavigate();
     const trainee = currentUser || trainees[0];
     const myApps = applications.filter(a => a.traineeId === trainee?.id).map(a => a.jobId);
-    
+
     const allJobs = useMemo(() => {
         const jobs = getTraineeRecommendedJobs(trainee?.id) || [];
         const partnerPosts = (posts || []).filter(p => {
@@ -4683,9 +4684,9 @@ const Opportunities = ({ openContactModal, openApplyModal, toggleBookmark }) => 
             industry: 'General',
             location: p.location || 'Various'
         }));
-        
+
         const combined = [...jobs.map(j => ({ ...j, feedType: 'job' })), ...partnerPosts];
-        
+
         // Deduplicate by ID to prevent React key collisions
         const uniqueJobsMap = new Map();
         combined.forEach(job => {
@@ -4693,7 +4694,7 @@ const Opportunities = ({ openContactModal, openApplyModal, toggleBookmark }) => 
                 uniqueJobsMap.set(job.id, job);
             }
         });
-        
+
         return Array.from(uniqueJobsMap.values())
             .sort((a, b) => new Date(b.created_at || b.createdAt || b.datePosted || 0) - new Date(a.created_at || a.createdAt || a.datePosted || 0));
     }, [getTraineeRecommendedJobs, trainee?.id, posts]);
@@ -4721,7 +4722,7 @@ const Opportunities = ({ openContactModal, openApplyModal, toggleBookmark }) => 
     useEffect(() => {
         const totalPages = Math.ceil((allJobs?.length || 0) / pageSize);
         if (currentPage >= totalPages - 1 && (allJobs?.length || 0) >= 20) {
-            try { loadMoreFeeds(); } catch (e) {}
+            try { loadMoreFeeds(); } catch (e) { }
         }
     }, [currentPage, allJobs?.length]);
     const openProfile = (target) => {
@@ -4739,12 +4740,12 @@ const Opportunities = ({ openContactModal, openApplyModal, toggleBookmark }) => 
 
     const filtered = allJobs.filter(j => {
         const q = search.toLowerCase();
-        
+
         // for partner posts, search content/title/author
         const sTitle = (j.title || '').toLowerCase();
         const sCompany = (j.companyName || j.author?.company_name || j.profileName || '').toLowerCase();
         const sContent = (j.content || '').toLowerCase();
-        
+
         return (
             (sTitle.includes(q) || sCompany.includes(q) || sContent.includes(q)) &&
             (filterIndustry === 'All' || j.industry === filterIndustry) &&
@@ -4777,25 +4778,25 @@ const Opportunities = ({ openContactModal, openApplyModal, toggleBookmark }) => 
                         <input className="ln-search-input" placeholder="Search title or company..." value={search} onChange={e => setSearch(e.target.value)} />
                     </div>
                     {[
-                        { label: 'Type', val: filterOpType, set: setFilterOpType, opts: opTypes },
-                        { label: 'Industry', val: filterIndustry, set: setFilterIndustry, opts: industries },
-                        { label: 'Location', val: filterLocation, set: setFilterLocation, opts: locations },
-                        { label: 'Employment', val: filterType, set: setFilterType, opts: types },
+                        { label: 'Type', val: filterOpType, set: setFilterOpType, opts: opTypes, allLabel: 'All Types' },
+                        { label: 'Industry', val: filterIndustry, set: setFilterIndustry, opts: industries, allLabel: 'All Industries' },
+                        { label: 'Location', val: filterLocation, set: setFilterLocation, opts: locations, allLabel: 'All Locations' },
+                        { label: 'Employment', val: filterType, set: setFilterType, opts: types, allLabel: 'All Employment' },
                     ].map(f => (
                         <select key={f.label} className="ln-filter-select" value={f.val} onChange={e => f.set(e.target.value)}>
-                            {f.opts.map(o => <option key={o}>{o}</option>)}
+                            {f.opts.map(o => <option key={o} value={o}>{o === 'All' ? f.allLabel : o}</option>)}
                         </select>
                     ))}
                     <div style={{ display: 'flex', border: '1px solid #cbd5e1', borderRadius: 8, overflow: 'hidden', background: '#fff', height: '38px', flexShrink: 0 }}>
-                        <button 
-                            style={{ padding: '0 12px', border: 'none', background: viewMode === 'grid' ? '#f1f5f9' : 'transparent', cursor: 'pointer', color: viewMode === 'grid' ? '#0f172a' : '#64748b', display: 'flex', alignItems: 'center' }} 
+                        <button
+                            style={{ padding: '0 12px', border: 'none', background: viewMode === 'grid' ? '#f1f5f9' : 'transparent', cursor: 'pointer', color: viewMode === 'grid' ? '#0f172a' : '#64748b', display: 'flex', alignItems: 'center' }}
                             onClick={() => setViewMode('grid')}
                             title="Grid View"
                         >
                             <LayoutDashboard size={16} />
                         </button>
-                        <button 
-                            style={{ padding: '0 12px', border: 'none', borderLeft: '1px solid #e2e8f0', background: viewMode === 'list' ? '#f1f5f9' : 'transparent', cursor: 'pointer', color: viewMode === 'list' ? '#0f172a' : '#64748b', display: 'flex', alignItems: 'center' }} 
+                        <button
+                            style={{ padding: '0 12px', border: 'none', borderLeft: '1px solid #e2e8f0', background: viewMode === 'list' ? '#f1f5f9' : 'transparent', cursor: 'pointer', color: viewMode === 'list' ? '#0f172a' : '#64748b', display: 'flex', alignItems: 'center' }}
                             onClick={() => setViewMode('list')}
                             title="List View"
                         >
@@ -4808,14 +4809,14 @@ const Opportunities = ({ openContactModal, openApplyModal, toggleBookmark }) => 
             {/* Job Cards - LinkedIn Style */}
             <div className={viewMode === 'list' ? "tt-feed-list" : "tt-feed-grid"} style={viewMode === 'list' ? { display: 'flex', flexDirection: 'column', gap: '16px' } : {}}>
                 {displayedJobs.map(job => {
-                    const applied = job.feedType === 'job' 
-                        ? myApps.includes(job.id) 
+                    const applied = job.feedType === 'job'
+                        ? myApps.includes(job.id)
                         : !!getUserPostInteraction(job.id, 'apply');
                     if (viewMode === 'list' || job.feedType === 'post') {
                         return (
-                            <CompactFeedItem 
-                                key={`opp-compact-${job.id}`} 
-                                item={{...job}}
+                            <CompactFeedItem
+                                key={`opp-compact-${job.id}`}
+                                item={{ ...job }}
                                 isOwnPost={false}
                                 applied={applied}
                                 onInquire={(j) => openContactModal({
@@ -4833,81 +4834,42 @@ const Opportunities = ({ openContactModal, openApplyModal, toggleBookmark }) => 
                             />
                         );
                     }
+                    const pastelColors = ['#bfdbfe', '#bbf7d0', '#e9d5ff', '#fed7aa', '#bae6fd', '#fbcfe8', '#fef08a'];
+                    const hashString = (str) => {
+                        let hash = 0;
+                        for (let i = 0; i < str.length; i++) {
+                            hash = str.charCodeAt(i) + ((hash << 5) - hash);
+                        }
+                        return Math.abs(hash);
+                    };
+                    const bgColor = pastelColors[hashString(job.id || '123') % pastelColors.length];
+                    const hasAttachment = job.attachmentUrl && isImageAttachment(job.attachmentUrl, job.attachmentType);
+                    
+                    const jobSkills = Array.isArray(job.skills) && job.skills.length > 0 ? job.skills : (Array.isArray(job.tags) && job.tags.length > 0 ? job.tags : []);
+                    const displaySkills = jobSkills.length > 0 ? jobSkills.join(', ') : (job.ncLevel ? `${job.ncLevel}, Technical Skills, Professionalism` : 'Industry Skills, Professionalism, Teamwork');
+
                     return (
-                        <div key={job.id} className="ln-card ln-feed-card" style={{ marginBottom: 0 }}>
-                            <div className="ln-feed-card-header">
-                                <button
-                                    type="button"
-                                    className="ln-feed-avatar"
-                                    onClick={() => openProfile({ id: job.partnerId, type: 'partner' })}
-                                    style={{ background: '#f0f7ff', color: '#0a66c2', border: 'none', cursor: job.partnerId ? 'pointer' : 'default' }}
-                                    disabled={!job.partnerId}
-                                >
-                                    <Building2 size={20} />
-                                </button>
-                                <div>
-                                    <div className="ln-feed-author">
-                                        <button
-                                            type="button"
-                                            onClick={() => openProfile({ id: job.partnerId, type: 'partner' })}
-                                            style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', fontWeight: 700, color: 'inherit', fontSize: 'inherit', fontFamily: 'inherit' }}
-                                        >
-                                            {job.companyName}
-                                        </button>
-                                        <span style={{ fontWeight: 400, color: 'rgba(0,0,0,0.45)', marginLeft: 4 }}>posted a new {job.opportunityType}</span>
-                                    </div>
-                                    <div className="ln-feed-meta">
-                                        {[
-                                            (job.industry && String(job.industry).trim().toLowerCase() !== 'general') ? job.industry : '',
-                                            job.location,
-                                            timeAgo(job.createdAt),
-                                        ].filter(Boolean).join(' | ')}
-                                    </div>
-                                </div>
+                        <div key={job.id} className="coursera-card" onClick={() => setSelectedJob(job)}>
+                            <div className="coursera-card-image" style={{ 
+                                backgroundColor: hasAttachment ? '#f1f5f9' : bgColor,
+                                backgroundImage: hasAttachment ? `url(${job.attachmentUrl})` : 'none',
+                                display: 'flex', alignItems: 'center', justifyContent: 'center'
+                            }}>
+                                {!hasAttachment && <Building2 size={48} color="rgba(0,0,0,0.1)" />}
+                                <div className="coursera-card-free-badge">Verified</div>
                             </div>
-                            <div className="ln-feed-content">
-                                <h4 style={{ fontSize: 15, fontWeight: 700, marginBottom: 4 }}>{job.title}</h4>
-                                <p style={{ fontSize: 13, color: 'rgba(0,0,0,0.6)', marginBottom: 8 }}>
-                                    {job.description ? job.description.substring(0, 150) + '...' : ''}
+                            <div className="coursera-card-content">
+                                <div className="coursera-card-provider">
+                                    <div className="coursera-provider-logo"><Building2 size={12} color="#0a66c2" /></div>
+                                    <span style={{fontWeight: 500, color: '#0f172a'}}>{job.companyName || job.author?.company_name || job.profileName || 'Partner Company'}</span>
+                                </div>
+                                <h3 className="coursera-card-title">{job.title}</h3>
+                                <p className="coursera-card-skills">
+                                    <strong>Skills required:</strong> {displaySkills}
                                 </p>
-                                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 8 }}>
-                                    <span className="ln-opp-type-badge">{job.opportunityType}</span>
-                                    {job.opportunityType !== 'OJT' && job.employmentType && (
-                                        <span className="ln-opp-type-badge" style={{ background: '#f8fafc', color: '#64748b' }}>{job.employmentType}</span>
-                                    )}
-                                    {job.ncLevel && (
-                                        <span className="ln-opp-type-badge" style={{ background: '#ede9fe', color: '#6d28d9' }}>{job.ncLevel}</span>
-                                    )}
+                                <div className="coursera-card-meta">
+                                    {job.ncLevel || 'Beginner'} • {job.opportunityType} • {job.employmentType || 'Flexible'}
                                 </div>
-                                {job.salaryRange && (
-                                    <div style={{ marginBottom: 8 }}>
-                                        <span style={{ fontSize: 15, color: '#057642', fontWeight: 700 }}>{formatSalaryDisplay(job.salaryRange)}</span>
-                                    </div>
-                                )}
-                            </div>
-                            <div className="ln-feed-actions" style={{ borderTop: '1px solid #f3f3f3', padding: '8px 12px', display: 'flex', gap: 4 }}>
-                                <button className="ln-btn-sm ln-btn-outline" onClick={() => setSelectedJob(job)}>
-                                    <Eye size={13} style={{ marginRight: 4 }} /> Details
-                                </button>
-                                <button
-                                    className="ln-btn-sm ln-btn-outline"
-                                    onClick={() => openContactModal({
-                                        recipientId: job.partnerId,
-                                        recipientName: job.companyName,
-                                        recipientType: 'industry_partner',
-                                        jobPostingId: job.id,
-                                        postTitle: job.title
-                                    })}
-                                >
-                                    <MessageSquare size={13} style={{ marginRight: 4 }} /> Contact
-                                </button>
-                                <button
-                                    className="ln-btn-sm ln-btn-primary"
-                                    disabled={applied || job.status !== 'Open'}
-                                    onClick={() => openApplyModal(job)}
-                                >
-                                    {applied ? <><CheckCircle size={13} style={{ marginRight: 4 }} /> Applied</> : <><Send size={13} style={{ marginRight: 4 }} /> Apply</>}
-                                </button>
                             </div>
                         </div>
                     );
@@ -5340,22 +5302,22 @@ const MyApplications = () => {
                                                 })()}
                                                 {String(a.status).toLowerCase() === 'interview requested' && (
                                                     <div style={{ marginTop: 8, display: 'flex', flexWrap: 'wrap', gap: 4 }}>
-                                                        <button 
-                                                            className="ln-btn ln-btn-primary" 
+                                                        <button
+                                                            className="ln-btn ln-btn-primary"
                                                             style={{ padding: '4px 8px', fontSize: 10, background: '#16a34a', height: 'auto', border: 'none' }}
                                                             onClick={(e) => { e.stopPropagation(); updateApplicationStatus(a.id, 'interview confirmed', 'Interview confirmed by trainee.'); }}
                                                         >
                                                             Accept
                                                         </button>
-                                                        <button 
-                                                            className="ln-btn ln-btn-outline" 
+                                                        <button
+                                                            className="ln-btn ln-btn-outline"
                                                             style={{ padding: '4px 8px', fontSize: 10, borderColor: '#ef4444', color: '#ef4444', height: 'auto' }}
                                                             onClick={(e) => { e.stopPropagation(); updateApplicationStatus(a.id, 'interview declined', 'Interview declined by trainee.'); }}
                                                         >
                                                             Decline
                                                         </button>
-                                                        <button 
-                                                            className="ln-btn ln-btn-outline" 
+                                                        <button
+                                                            className="ln-btn ln-btn-outline"
                                                             style={{ padding: '4px 8px', fontSize: 10, height: 'auto' }}
                                                             onClick={(e) => { e.stopPropagation(); setBookingApp(a); }}
                                                         >
@@ -5438,7 +5400,7 @@ const MyApplications = () => {
                         </tbody>
                     </table>
                 </div>
-                
+
                 {sortedAndFiltered.length > 0 && (
                     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', marginTop: 20, padding: '16px 0', borderTop: '1px solid #e2e8f0', gap: 12 }}>
                         <div style={{ fontSize: 13, color: '#64748b' }}>
@@ -5635,35 +5597,35 @@ const MyApplications = () => {
                                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                                     <div className="ln-info-item">
                                         <label className="ln-info-label" style={{ fontSize: 12, fontWeight: 700, color: '#64748b', marginBottom: 6, display: 'block' }}>Proposed Date</label>
-                                        <input 
-                                            type="date" 
-                                            className="form-input" 
+                                        <input
+                                            type="date"
+                                            className="form-input"
                                             style={{ width: '100%', padding: '10px 12px', borderRadius: 8, border: '1px solid #e2e8f0', fontSize: 14 }}
-                                            value={proposedDate} 
-                                            onChange={e => setProposedDate(e.target.value)} 
+                                            value={proposedDate}
+                                            onChange={e => setProposedDate(e.target.value)}
                                             min={new Date().toISOString().split('T')[0]}
                                         />
                                     </div>
                                     <div className="ln-info-item">
                                         <label className="ln-info-label" style={{ fontSize: 12, fontWeight: 700, color: '#64748b', marginBottom: 6, display: 'block' }}>Proposed Time</label>
-                                        <input 
-                                            type="time" 
-                                            className="form-input" 
+                                        <input
+                                            type="time"
+                                            className="form-input"
                                             style={{ width: '100%', padding: '10px 12px', borderRadius: 8, border: '1px solid #e2e8f0', fontSize: 14 }}
-                                            value={proposedTime} 
-                                            onChange={e => setProposedTime(e.target.value)} 
+                                            value={proposedTime}
+                                            onChange={e => setProposedTime(e.target.value)}
                                         />
                                     </div>
                                 </div>
 
                                 <button
-                                    className="ln-btn ln-btn-primary" 
+                                    className="ln-btn ln-btn-primary"
                                     style={{ width: '100%', justifyContent: 'center', gap: 8, height: 44, fontSize: 15, fontWeight: 600, background: '#4f46e5', color: 'white', border: 'none', borderRadius: 8 }}
                                     disabled={!proposedDate || !proposedTime}
-                                    onClick={async () => { 
+                                    onClick={async () => {
                                         const fullDateTime = `${proposedDate}T${proposedTime}`;
-                                        await updateApplicationStatus(bookingApp.id, 'reschedule requested', `Trainee requested a reschedule for ${proposedDate} at ${proposedTime}.`, { proposedInterviewDate: fullDateTime }); 
-                                        setBookingApp(null); 
+                                        await updateApplicationStatus(bookingApp.id, 'reschedule requested', `Trainee requested a reschedule for ${proposedDate} at ${proposedTime}.`, { proposedInterviewDate: fullDateTime });
+                                        setBookingApp(null);
                                         setProposedDate('');
                                         setProposedTime('');
                                         toast.success('Reschedule request sent to partner');
@@ -5675,7 +5637,7 @@ const MyApplications = () => {
                         </div>
                     </div>
                 </div>
-             )}
+            )}
 
             {/* Delete Confirmation Modal */}
             {deleteConfirm && (
