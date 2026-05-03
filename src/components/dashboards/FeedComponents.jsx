@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import {
   Building2, MapPin, Clock, Briefcase, Users, CheckCircle,
   Target, ShieldCheck, Plus, X, Camera, FileText,
-  MessageSquare, Bookmark, Send, Trash2, Edit, Mail, Info, ChevronRight, Eye
+  MessageSquare, Bookmark, Send, Trash2, Edit, Mail, Info, ChevronRight, Eye, MoreVertical
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import toast from 'react-hot-toast';
@@ -46,6 +46,7 @@ export const isImageAttachment = (attachmentUrl, attachmentType) => {
 export const formatSalaryDisplay = (value = '') => {
   const raw = String(value || '').trim();
   if (!raw) return '';
+  if (raw === 'Confidential') return 'To Be Discussed';
   const digitsOnly = raw.replace(/,/g, '');
   if (/^\d+$/.test(digitsOnly)) {
     return '₱' + Number(digitsOnly).toLocaleString('en-US');
@@ -1112,6 +1113,21 @@ export const CompactFeedItem = ({
   applied = false
 }) => {
   const { currentUser, trainees, partners, getUserPostInteraction, getJobPostingComments } = useApp();
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const mobileMenuRef = useRef(null);
+
+  // Close menu when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (mobileMenuRef.current && !mobileMenuRef.current.contains(event.target)) {
+        setMobileMenuOpen(false);
+      }
+    };
+    if (mobileMenuOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [mobileMenuOpen]);
 
   const isJob = item.feedType === 'job';
   const isBulletin = item.feedType === 'bulletin';
@@ -1143,10 +1159,10 @@ export const CompactFeedItem = ({
             e.stopPropagation();
             setPostMenuId(postMenuId === item.id ? null : item.id);
           }}
-          style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '0 4px', borderRadius: '50%', color: '#65676b', display: 'flex', alignItems: 'center' }}
+          style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '8px', borderRadius: '50%', color: '#65676b', display: 'flex', alignItems: 'center' }}
           title="More options"
         >
-          <span style={{ fontSize: 18, fontWeight: 700, letterSpacing: 2, lineHeight: 1 }}>...</span>
+          <MoreVertical size={18} />
         </button>
         {postMenuId === item.id && (
           <div style={{
@@ -1308,86 +1324,248 @@ export const CompactFeedItem = ({
         {iconContent}
       </div>
 
-      <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: '8px' }}>
-          {/* Top row: Title/Company vs Status Badges */}
+      {isJob ? (
+        /* 3-Zone Grid Layout for Jobs — fills the width evenly */
+        <div style={{ flex: 1, minWidth: 0, display: 'grid', gridTemplateColumns: '1.2fr 1fr auto', alignItems: 'center', gap: '16px' }}>
+          {/* Zone 1: Title, Company, Location */}
+          <div style={{ minWidth: 0 }}>
+            <div style={{ fontWeight: 700, fontSize: 16, color: '#0f172a', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{title}</div>
+            <div style={{ color: '#334155', fontSize: 14, marginTop: 2 }}>{item.companyName}</div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12, fontSize: 13, color: '#64748b', marginTop: 4, flexWrap: 'wrap' }}>
+              <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}><MapPin size={13} /> {item.location}</span>
+              {item.employmentType && <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}><Clock size={13} /> {item.employmentType}</span>}
+              <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}><Clock size={13} /> {timeAgo(item.createdAt || item.created_at)}</span>
+            </div>
+          </div>
+
+          {/* Zone 2: Tags & Salary */}
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 6 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+              {item.ncLevel && (
+                <span style={{ padding: '2px 8px', borderRadius: 4, fontSize: 12, fontWeight: 600, background: '#f3e8ff', color: '#9333ea' }}>
+                  {item.ncLevel}{item.ncLevelRaw ? ` ${item.ncLevelRaw}` : ''}
+                </span>
+              )}
+            </div>
+            {item.salaryRange && (
+              <span style={{ fontWeight: 700, fontSize: 14, color: '#16a34a' }}>{formatSalaryDisplay(item.salaryRange)}</span>
+            )}
+          </div>
+
+          {/* Zone 3: Status + Action Buttons */}
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 8 }}>
+            <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+              <span className="tt-hide-mobile" style={{ padding: '2px 10px', borderRadius: 12, fontSize: 12, fontWeight: 700, background: item.status === 'Open' ? '#dcfce7' : '#f1f5f9', color: item.status === 'Open' ? '#16a34a' : '#64748b' }}>{item.status}</span>
+              <span className="tt-hide-mobile" style={{ padding: '2px 10px', borderRadius: 12, fontSize: 12, fontWeight: 700, background: '#eff6ff', color: '#2563eb' }}>{item.opportunityType}</span>
+              
+              {/* Mobile Actions Kebab */}
+              <div className="tt-show-mobile" style={{ position: 'relative' }} ref={mobileMenuRef} onClick={e => e.stopPropagation()}>
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setMobileMenuOpen(!mobileMenuOpen);
+                  }}
+                  style={{ background: '#f1f5f9', border: 'none', cursor: 'pointer', padding: '8px', borderRadius: '8px', color: '#475569', display: 'flex', alignItems: 'center' }}
+                >
+                  <MoreVertical size={20} />
+                </button>
+                {mobileMenuOpen && (
+                  <div style={{
+                    position: 'absolute', right: 0, top: 40, background: '#fff',
+                    borderRadius: 12, boxShadow: '0 10px 25px -5px rgba(0,0,0,0.1), 0 8px 10px -6px rgba(0,0,0,0.1)',
+                    border: '1px solid #e2e8f0', zIndex: 100, minWidth: 180, overflow: 'hidden',
+                    animation: 'ttFadeSlide 0.2s ease'
+                  }}>
+                    {buttons.map((btn, i) => (
+                      <button
+                        key={i}
+                        onClick={(e) => { btn.onClick(e); setMobileMenuOpen(false); }}
+                        disabled={btn.disabled}
+                        style={{
+                          display: 'flex', alignItems: 'center', gap: 10, width: '100%',
+                          padding: '12px 16px', border: 'none', background: 'none',
+                          cursor: btn.disabled ? 'default' : 'pointer', fontSize: 14, 
+                          color: btn.primary ? '#4f46e5' : '#475569', textAlign: 'left',
+                          fontWeight: btn.primary ? 700 : 500, borderBottom: i < buttons.length - 1 ? '1px solid #f1f5f9' : 'none',
+                          opacity: btn.disabled ? 0.5 : 1
+                        }}
+                      >
+                        {btn.label === 'Applied' && <CheckCircle size={16} />}
+                        {btn.label === 'Apply' && <Send size={16} />}
+                        {btn.label === 'Details' && <Eye size={16} />}
+                        {btn.label === 'Saved' && <Bookmark size={16} fill="currentColor" />}
+                        {btn.label === 'Save' && <Bookmark size={16} />}
+                        {btn.label}
+                      </button>
+                    ))}
+                    {isOwnPost && (
+                      <>
+                        <div style={{ height: 1, background: '#f1f5f9' }} />
+                        <button
+                          onClick={() => { onEdit?.(item); setMobileMenuOpen(false); }}
+                          style={{ display: 'flex', alignItems: 'center', gap: 10, width: '100%', padding: '12px 16px', border: 'none', background: 'none', cursor: 'pointer', fontSize: 14, color: '#475569', textAlign: 'left' }}
+                        >
+                          <Edit size={16} /> Edit
+                        </button>
+                        <button
+                          onClick={() => { onDelete?.(item.id); setMobileMenuOpen(false); }}
+                          style={{ display: 'flex', alignItems: 'center', gap: 10, width: '100%', padding: '12px 16px', border: 'none', background: 'none', cursor: 'pointer', fontSize: 14, color: '#dc2626', textAlign: 'left' }}
+                        >
+                          <Trash2 size={16} /> Delete
+                        </button>
+                      </>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              {/* Desktop Kebab (if owner) */}
+              <div className="tt-hide-mobile">
+                {moreOptionsMenu}
+              </div>
+            </div>
+
+            {/* Desktop Actions */}
+            <div className="tt-hide-mobile" style={{ display: 'flex', gap: '8px' }}>
+              {buttons.map((btn, i) => (
+                <button
+                  key={i}
+                  onClick={btn.onClick}
+                  disabled={btn.disabled}
+                  style={{
+                    padding: '6px 16px',
+                    borderRadius: 20,
+                    fontSize: 13,
+                    fontWeight: 600,
+                    border: btn.primary ? 'none' : '1px solid #cbd5e1',
+                    backgroundColor: btn.primary ? (btn.disabled && btn.label === 'Applied' ? '#818cf8' : '#4f46e5') : 'transparent',
+                    color: btn.primary ? '#fff' : '#475569',
+                    cursor: btn.disabled ? 'default' : 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 6,
+                    opacity: btn.disabled && btn.label !== 'Applied' ? 0.5 : 1
+                  }}
+                >
+                  {btn.label === 'Applied' && <CheckCircle size={14} />}
+                  {btn.label === 'Apply' && <Send size={14} />}
+                  {btn.label === 'Details' && <Eye size={14} />}
+                  {btn.label === 'Saved' && <Bookmark size={14} fill="currentColor" />}
+                  {btn.label === 'Save' && <Bookmark size={14} />}
+                  {btn.label}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      ) : (
+        /* Original Column Layout for non-jobs (posts, bulletins) */
+        <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: '8px' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
             <div>
               <div style={{ fontWeight: 700, fontSize: 16, color: '#0f172a' }}>{title}</div>
-              <div style={{ fontSize: 14, color: '#475569', marginTop: 2 }}>
-                {isJob ? (
-                  <>
-                    <div style={{ color: '#334155', marginBottom: 4 }}>{item.companyName}</div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 12, fontSize: 13, color: '#64748b' }}>
-                      <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}><MapPin size={13} /> {item.location}</span>
-                      {item.employmentType && <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}><Clock size={13} /> {item.employmentType}</span>}
-                      <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}><Clock size={13} /> {timeAgo(item.createdAt || item.created_at)}</span>
-                    </div>
-                  </>
-                ) : (
-                   subtitle
+              <div style={{ fontSize: 14, color: '#475569', marginTop: 2 }}>{subtitle}</div>
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 6 }}>
+              {moreOptionsMenu}
+            </div>
+          </div>
+          <div style={{ fontSize: 13, color: '#94a3b8', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '80%' }}>{description}</div>
+          <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center' }}>
+            {/* Mobile Actions Kebab */}
+            <div className="tt-show-mobile" style={{ position: 'relative' }} ref={mobileMenuRef} onClick={e => e.stopPropagation()}>
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setMobileMenuOpen(!mobileMenuOpen);
+                  }}
+                  style={{ background: '#f1f5f9', border: 'none', cursor: 'pointer', padding: '8px', borderRadius: '8px', color: '#475569', display: 'flex', alignItems: 'center' }}
+                >
+                  <MoreVertical size={20} />
+                </button>
+                {mobileMenuOpen && (
+                  <div style={{
+                    position: 'absolute', right: 0, top: 40, background: '#fff',
+                    borderRadius: 12, boxShadow: '0 10px 25px -5px rgba(0,0,0,0.1), 0 8px 10px -6px rgba(0,0,0,0.1)',
+                    border: '1px solid #e2e8f0', zIndex: 100, minWidth: 180, overflow: 'hidden',
+                    animation: 'ttFadeSlide 0.2s ease'
+                  }}>
+                    {buttons.map((btn, i) => (
+                      <button
+                        key={i}
+                        onClick={(e) => { btn.onClick(e); setMobileMenuOpen(false); }}
+                        disabled={btn.disabled}
+                        style={{
+                          display: 'flex', alignItems: 'center', gap: 10, width: '100%',
+                          padding: '12px 16px', border: 'none', background: 'none',
+                          cursor: btn.disabled ? 'default' : 'pointer', fontSize: 14, 
+                          color: btn.primary ? '#4f46e5' : '#475569', textAlign: 'left',
+                          fontWeight: btn.primary ? 700 : 500, borderBottom: i < buttons.length - 1 ? '1px solid #f1f5f9' : 'none',
+                          opacity: btn.disabled ? 0.5 : 1
+                        }}
+                      >
+                        {btn.label === 'Applied' && <CheckCircle size={16} />}
+                        {btn.label === 'Apply' && <Send size={16} />}
+                        {btn.label === 'Details' && <Eye size={16} />}
+                        {btn.label === 'Saved' && <Bookmark size={16} fill="currentColor" />}
+                        {btn.label === 'Save' && <Bookmark size={16} />}
+                        {btn.label}
+                      </button>
+                    ))}
+                    {isOwnPost && (
+                      <>
+                        <div style={{ height: 1, background: '#f1f5f9' }} />
+                        <button
+                          onClick={() => { onEdit?.(item); setMobileMenuOpen(false); }}
+                          style={{ display: 'flex', alignItems: 'center', gap: 10, width: '100%', padding: '12px 16px', border: 'none', background: 'none', cursor: 'pointer', fontSize: 14, color: '#475569', textAlign: 'left' }}
+                        >
+                          <Edit size={16} /> Edit
+                        </button>
+                        <button
+                          onClick={() => { onDelete?.(item.id); setMobileMenuOpen(false); }}
+                          style={{ display: 'flex', alignItems: 'center', gap: 10, width: '100%', padding: '12px 16px', border: 'none', background: 'none', cursor: 'pointer', fontSize: 14, color: '#dc2626', textAlign: 'left' }}
+                        >
+                          <Trash2 size={16} /> Delete
+                        </button>
+                      </>
+                    )}
+                  </div>
                 )}
               </div>
-            </div>
-            
-            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 6 }}>
-               {isJob && (
-                 <>
-                   <span style={{ padding: '2px 10px', borderRadius: 12, fontSize: 12, fontWeight: 700, background: item.status === 'Open' ? '#dcfce7' : '#f1f5f9', color: item.status === 'Open' ? '#16a34a' : '#64748b' }}>{item.status}</span>
-                   <span style={{ padding: '2px 10px', borderRadius: 12, fontSize: 12, fontWeight: 700, background: '#eff6ff', color: '#2563eb' }}>{item.opportunityType}</span>
-                 </>
-               )}
-               {moreOptionsMenu}
+
+            <div className="tt-hide-mobile" style={{ display: 'flex', gap: '8px' }}>
+              {buttons.map((btn, i) => (
+                <button
+                  key={i}
+                  onClick={btn.onClick}
+                  disabled={btn.disabled}
+                  style={{
+                    padding: '6px 16px',
+                    borderRadius: 20,
+                    fontSize: 13,
+                    fontWeight: 600,
+                    border: btn.primary ? 'none' : '1px solid #cbd5e1',
+                    backgroundColor: btn.primary ? (btn.disabled && btn.label === 'Applied' ? '#818cf8' : '#4f46e5') : 'transparent',
+                    color: btn.primary ? '#fff' : '#475569',
+                    cursor: btn.disabled ? 'default' : 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 6,
+                    opacity: btn.disabled && btn.label !== 'Applied' ? 0.5 : 1
+                  }}
+                >
+                  {btn.label === 'Applied' && <CheckCircle size={14} />}
+                  {btn.label === 'Apply' && <Send size={14} />}
+                  {btn.label === 'Details' && <Eye size={14} />}
+                  {btn.label === 'Saved' && <Bookmark size={14} fill="currentColor" />}
+                  {btn.label === 'Save' && <Bookmark size={14} />}
+                  {btn.label}
+                </button>
+              ))}
             </div>
           </div>
-
-          {/* Middle: Description for non-jobs, or tags for jobs */}
-          {!isJob && (
-             <div style={{ fontSize: 13, color: '#94a3b8', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '80%' }}>{description}</div>
-          )}
-
-          {/* Bottom row: Salary/NC vs Buttons */}
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: isJob ? 8 : 0 }}>
-             <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                {isJob && item.ncLevel && (
-                   <span style={{ padding: '2px 8px', borderRadius: 4, fontSize: 12, fontWeight: 600, background: '#f3e8ff', color: '#9333ea' }}>{item.ncLevel}</span>
-                )}
-                {isJob && item.salaryRange && (
-                   <span style={{ fontWeight: 700, fontSize: 14, color: '#16a34a' }}>{formatSalaryDisplay(item.salaryRange)}</span>
-                )}
-             </div>
-             
-             <div style={{ display: 'flex', gap: '8px' }}>
-                {buttons.map((btn, i) => (
-                   <button 
-                     key={i} 
-                     onClick={btn.onClick}
-                     disabled={btn.disabled}
-                     style={{
-                       padding: '6px 16px',
-                       borderRadius: 20,
-                       fontSize: 13,
-                       fontWeight: 600,
-                       border: btn.primary ? 'none' : '1px solid #cbd5e1',
-                       backgroundColor: btn.primary ? (btn.disabled && btn.label === 'Applied' ? '#818cf8' : '#4f46e5') : 'transparent',
-                       color: btn.primary ? '#fff' : '#475569',
-                       cursor: btn.disabled ? 'default' : 'pointer',
-                       display: 'flex',
-                       alignItems: 'center',
-                       gap: 6,
-                       opacity: btn.disabled && btn.label !== 'Applied' ? 0.5 : 1
-                     }}
-                   >
-                     {btn.label === 'Applied' && <CheckCircle size={14} />}
-                     {btn.label === 'Apply' && <Send size={14} />}
-                     {btn.label === 'Details' && <Eye size={14} />}
-                     {btn.label === 'Saved' && <Bookmark size={14} fill="currentColor" />}
-                     {btn.label === 'Save' && <Bookmark size={14} />}
-                     {['Applied', 'Apply', 'Details', 'Saved', 'Save'].includes(btn.label) ? btn.label : btn.label}
-                   </button>
-                ))}
-             </div>
-          </div>
-      </div>
+        </div>
+      )}
     </div>
   );
 };

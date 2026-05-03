@@ -6,7 +6,7 @@ import SavedItemsView from './SavedItemsView';
 import SettingsPage from './SettingsPage';
 import NotificationsPage from './NotificationsPage';
 import {
-    User, Briefcase, FileText, CheckCircle, Bell, ChevronDown, Search, Filter, MapPin, Clock, Building2,
+    User, Briefcase, FileText, CheckCircle, Bell, ChevronDown, ChevronUp, Search, Filter, MapPin, Clock, Building2,
     Award, Send, CheckSquare, Check, X, Eye, EyeOff, Plus, Menu, Home, Settings, LogOut, MessageSquare, Bookmark,
     Trash2, Camera, Loader, GraduationCap, MoveRight, ExternalLink, ShieldCheck, Mail, Calendar, AlignLeft, Users, ChevronRight, ChevronLeft, Edit, Upload, Link, Star, Heart, MoreVertical, Info, LayoutDashboard, Target, FileCheck, AlertCircle
 } from 'lucide-react';
@@ -101,6 +101,7 @@ const getCurrencySymbol = (currency = 'PHP') => {
 const formatSalaryDisplay = (value = '') => {
     const raw = String(value || '').trim();
     if (!raw) return '';
+    if (raw === 'Confidential') return 'To Be Discussed';
     const digitsOnly = raw.replace(/,/g, '');
     if (/^\d+$/.test(digitsOnly)) {
         return `${getCurrencySymbol('PHP')}${Number(digitsOnly).toLocaleString('en-US')}`;
@@ -4706,17 +4707,19 @@ const Opportunities = ({ openContactModal, openApplyModal, toggleBookmark }) => 
     const [filterLocation, setFilterLocation] = useState('All');
     const [filterOpType, setFilterOpType] = useState('All');
     const [selectedJob, setSelectedJob] = useState(null);
+    const [showAllCompetencies, setShowAllCompetencies] = useState(false);
 
     const [currentPage, setCurrentPage] = useState(1);
     const pageSize = 10;
 
 
-    // Reset page when filters change
     useEffect(() => {
-        // Use a functional update or a slight delay to avoid cascading render warning in some linters
-        // though in this case we just want to reset to page 1.
         setCurrentPage(prev => prev === 1 ? prev : 1);
     }, [search, filterIndustry, filterType, filterLocation, filterOpType]);
+
+    useEffect(() => {
+        setShowAllCompetencies(false);
+    }, [selectedJob]);
 
     // Auto-fetch next pages from DB as we approach the end of the loaded array
     useEffect(() => {
@@ -4925,7 +4928,7 @@ const Opportunities = ({ openContactModal, openApplyModal, toggleBookmark }) => 
             {/* Detail Modal */}
             {selectedJob && (
                 <div className="modal-overlay" onClick={() => setSelectedJob(null)}>
-                    <div className="ln-modal" onClick={e => e.stopPropagation()}>
+                    <div className="ln-modal ln-modal-wide" onClick={e => e.stopPropagation()}>
                         <div className="ln-modal-header">
                             <div>
                                 <h3 className="ln-modal-title">{selectedJob.title}</h3>
@@ -4942,46 +4945,87 @@ const Opportunities = ({ openContactModal, openApplyModal, toggleBookmark }) => 
                             </div>
                             <button className="ln-btn-icon" onClick={() => setSelectedJob(null)}><X size={18} /></button>
                         </div>
-                        <div style={{ display: 'flex', gap: 8, marginBottom: 16, flexWrap: 'wrap' }}>
-                            <span className={`ln-badge ln-badge-${selectedJob.status === 'Open' ? 'green' : 'gray'}`}>{selectedJob.status}</span>
-                            <span className="ln-badge ln-badge-blue">{selectedJob.opportunityType}</span>
-                            <span className="ln-badge ln-badge-purple">{selectedJob.ncLevel}</span>
-                            <span className="ln-badge ln-badge-gray">{selectedJob.employmentType}</span>
-                        </div>
-                        <div style={{ marginBottom: 16 }}>
-                            <div style={{ fontWeight: 600, fontSize: 14, marginBottom: 6, color: 'rgba(0,0,0,0.9)' }}>Description</div>
-                            <p style={{ fontSize: 14, color: 'rgba(0,0,0,0.6)', lineHeight: 1.7 }}>{selectedJob.description}</p>
-                        </div>
-                        {selectedJob.attachmentUrl && (
-                            <div style={{ marginBottom: 16 }}>
-                                <div style={{ fontWeight: 600, fontSize: 14, marginBottom: 8, color: 'rgba(0,0,0,0.9)' }}>Attachment</div>
-                                {isImageAttachment(selectedJob.attachmentUrl, selectedJob.attachmentType) ? (
-                                    <a href={selectedJob.attachmentUrl} target="_blank" rel="noreferrer" style={{ display: 'block' }}>
-                                        <img
-                                            src={selectedJob.attachmentUrl}
-                                            alt={selectedJob.attachmentName || 'Opportunity attachment'}
-                                            style={{ width: '100%', maxHeight: 300, objectFit: 'cover', borderRadius: 10, border: '1px solid #e2e8f0' }}
-                                        />
-                                    </a>
-                                ) : (
-                                    <a href={selectedJob.attachmentUrl} target="_blank" rel="noreferrer" style={{ display: 'inline-flex', alignItems: 'center', gap: 7, color: '#2563eb', textDecoration: 'none', fontSize: 13 }}>
-                                        <FileText size={15} />
-                                        {selectedJob.attachmentName || decodeURIComponent(String(selectedJob.attachmentUrl).split('/').pop()?.split('?')[0] || 'Attachment')}
-                                    </a>
+
+                        <div className="ln-modal-grid">
+                            <div className="ln-modal-main-col">
+                                <div style={{ display: 'flex', gap: 8, marginBottom: 16, flexWrap: 'wrap' }}>
+                                    <span className={`ln-badge ln-badge-${selectedJob.status === 'Open' ? 'green' : 'gray'}`}>{selectedJob.status}</span>
+                                    <span className="ln-badge ln-badge-blue">{selectedJob.opportunityType}</span>
+                                    <span className="ln-badge ln-badge-purple">{selectedJob.ncLevel}</span>
+                                    <span className="ln-badge ln-badge-gray">{selectedJob.employmentType}</span>
+                                </div>
+                                <div style={{ marginBottom: 16 }}>
+                                    <div style={{ fontWeight: 600, fontSize: 14, marginBottom: 6, color: 'rgba(0,0,0,0.9)' }}>Description</div>
+                                    <p style={{ fontSize: 14, color: 'rgba(0,0,0,0.6)', lineHeight: 1.7 }}>{selectedJob.description}</p>
+                                </div>
+                                {selectedJob.attachmentUrl && (
+                                    <div style={{ marginBottom: 16 }}>
+                                        <div style={{ fontWeight: 600, fontSize: 14, marginBottom: 8, color: 'rgba(0,0,0,0.9)' }}>Attachment</div>
+                                        {isImageAttachment(selectedJob.attachmentUrl, selectedJob.attachmentType) ? (
+                                            <a href={selectedJob.attachmentUrl} target="_blank" rel="noreferrer" style={{ display: 'block' }}>
+                                                <img
+                                                    src={selectedJob.attachmentUrl}
+                                                    alt={selectedJob.attachmentName || 'Opportunity attachment'}
+                                                    style={{ width: '100%', maxHeight: 300, objectFit: 'cover', borderRadius: 10, border: '1px solid #e2e8f0' }}
+                                                />
+                                            </a>
+                                        ) : (
+                                            <a href={selectedJob.attachmentUrl} target="_blank" rel="noreferrer" style={{ display: 'inline-flex', alignItems: 'center', gap: 7, color: '#2563eb', textDecoration: 'none', fontSize: 13 }}>
+                                                <FileText size={15} />
+                                                {selectedJob.attachmentName || decodeURIComponent(String(selectedJob.attachmentUrl).split('/').pop()?.split('?')[0] || 'Attachment')}
+                                            </a>
+                                        )}
+                                    </div>
                                 )}
                             </div>
-                        )}
-                        <div style={{ marginBottom: 16 }}>
-                            <div style={{ fontWeight: 600, fontSize: 14, marginBottom: 8, color: 'rgba(0,0,0,0.9)' }}>Required Competencies</div>
-                            {(selectedJob.requiredCompetencies || []).map((c, i) => (
-                                <div key={i} className="ln-skill-item" style={{ borderBottom: '1px solid #f3f2ef' }}>
-                                    <div className="ln-skill-row">
-                                        <CheckSquare size={14} color="#0a66c2" />
-                                        <span className="ln-skill-name">{c}</span>
-                                    </div>
+
+                            <div className="ln-modal-side-col">
+                                <div style={{ marginBottom: 16 }}>
+                                    <div style={{ fontWeight: 600, fontSize: 14, marginBottom: 8, color: 'rgba(0,0,0,0.9)' }}>Required Competencies</div>
+                                    {(() => {
+                                        const competencies = selectedJob.requiredCompetencies || [];
+                                        const displayList = showAllCompetencies ? competencies : competencies.slice(0, 10);
+                                        return (
+                                            <>
+                                                {displayList.map((c, i) => (
+                                                    <div key={i} className="ln-skill-item" style={{ borderBottom: '1px solid #f3f2ef' }}>
+                                                        <div className="ln-skill-row">
+                                                            <CheckSquare size={14} color="#0a66c2" />
+                                                            <span className="ln-skill-name">{c}</span>
+                                                        </div>
+                                                    </div>
+                                                ))}
+                                                {competencies.length > 10 && (
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => setShowAllCompetencies(!showAllCompetencies)}
+                                                        style={{
+                                                            background: 'none',
+                                                            border: 'none',
+                                                            color: '#0a66c2',
+                                                            fontSize: 13,
+                                                            fontWeight: 600,
+                                                            padding: '8px 0',
+                                                            cursor: 'pointer',
+                                                            display: 'flex',
+                                                            alignItems: 'center',
+                                                            gap: 4
+                                                        }}
+                                                    >
+                                                        {showAllCompetencies ? (
+                                                            <>See less <ChevronUp size={14} /></>
+                                                        ) : (
+                                                            <>See more ({competencies.length - 10} more) <ChevronDown size={14} /></>
+                                                        )}
+                                                    </button>
+                                                )}
+                                            </>
+                                        );
+                                    })()}
                                 </div>
-                            ))}
+                            </div>
                         </div>
+
                         <div className="ln-modal-footer">
                             <div style={{ display: 'flex', alignItems: 'center', gap: 12, width: '100%' }}>
                                 <span style={{ fontSize: 15, fontWeight: 700, color: '#057642' }}>{formatSalaryDisplay(selectedJob.salaryRange)}</span>

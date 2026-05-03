@@ -889,6 +889,7 @@ export const AppProvider = ({ children }) => {
           companyName: j.industry_partners?.company_name || 'Industry Partner',
           programId: j.program_id,
           ncLevel: j.programs?.name || j.nc_level || '',
+          ncLevelRaw: normalizeNcLevelValue(j.nc_level || ''),
           requiredCompetencies: Array.isArray(j.programs?.competencies) ? j.programs.competencies : [],
           feedType: 'job',
         })));

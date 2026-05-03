@@ -244,6 +244,7 @@ const normalizeNcLevelValue = (value = '') => {
 const formatSalaryDisplay = (value = '') => {
   const raw = String(value || '').trim();
   if (!raw) return '';
+  if (raw === 'Confidential') return 'To Be Discussed';
   const digitsOnly = raw.replace(/,/g, '');
   if (/^\d+$/.test(digitsOnly)) {
     return formatSalaryAmount(digitsOnly, DEFAULT_SALARY_CURRENCY);
@@ -2548,7 +2549,7 @@ const PostJob = ({ setActivePage, opportunityType = 'Job' }) => {
       salaryCurrency: editingJob.salaryCurrency || parsedSalary.salaryCurrency,
       salaryMin: editingJob.salaryMin ? sanitizeNumericSalaryInput(editingJob.salaryMin) : parsedSalary.salaryMin,
       salaryMax: editingJob.salaryMax ? sanitizeNumericSalaryInput(editingJob.salaryMax) : parsedSalary.salaryMax,
-      hideSalary: editingJob.salaryRange === 'Confidential',
+      hideSalary: editingJob.salaryRange === 'To Be Discussed' || editingJob.salaryRange === 'Confidential',
       requiredCompetencies: Array.isArray(editingJob.requiredCompetencies) ? editingJob.requiredCompetencies : [],
       requiredSkills: Array.isArray(editingJob.requiredSkills) ? editingJob.requiredSkills.join(', ') : (editingJob.required_skills ? (Array.isArray(editingJob.required_skills) ? editingJob.required_skills.join(', ') : editingJob.required_skills) : ''),
       requirements: Array.isArray(editingJob.requirements) ? editingJob.requirements.join('\n') : (editingJob.requirements || ''),
@@ -2677,7 +2678,7 @@ const PostJob = ({ setActivePage, opportunityType = 'Job' }) => {
 
       const payload = {
         ...form,
-        salaryRange: form.hideSalary ? 'Confidential' : formattedSalaryRange,
+        salaryRange: form.hideSalary ? 'To Be Discussed' : formattedSalaryRange,
         salaryCurrency: form.salaryCurrency,
         salaryMin: form.hideSalary ? null : (form.salaryMin ? Number(form.salaryMin) : null),
         salaryMax: form.hideSalary ? null : (form.salaryMax ? Number(form.salaryMax) : null),
@@ -2827,7 +2828,7 @@ const PostJob = ({ setActivePage, opportunityType = 'Job' }) => {
                 style={{ width: 16, height: 16, cursor: 'pointer' }}
               />
               <label htmlFor="hideSalary" style={{ fontSize: 14, fontWeight: 600, color: '#475569', cursor: 'pointer' }}>
-                Hide salary in public posting (Show as Confidential)
+                Hide salary in public posting (Show as To Be Discussed)
               </label>
             </div>
 

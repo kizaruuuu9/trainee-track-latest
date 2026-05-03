@@ -290,6 +290,10 @@ svg {
   outline: none;
 }
 
+.tt-mobile-profile-item {
+  display: none !important;
+}
+
 .tt-dropdown-badge {
   margin-left: auto;
   background: #ef4444;
@@ -313,6 +317,23 @@ svg {
 .tt-dropdown-danger:hover {
   background: #fef2f2;
   color: #b91c1c;
+}
+
+.tt-hide-mobile {
+  display: flex !important;
+}
+
+.tt-show-mobile {
+  display: none !important;
+}
+
+@media (max-width: 768px) {
+  .tt-hide-mobile {
+    display: none !important;
+  }
+  .tt-show-mobile {
+    display: flex !important;
+  }
 }
 
 .ln-app {
@@ -4928,6 +4949,28 @@ a text and a able to upload documents but not needed .two-col {
   overflow-y: auto;
 }
 
+.ln-modal-wide {
+  max-width: 900px !important;
+}
+
+.ln-modal-grid {
+  display: grid;
+  grid-template-columns: 1.6fr 1fr;
+  gap: 32px;
+  margin-top: 16px;
+}
+
+@media (max-width: 992px) {
+  .ln-modal-grid {
+    grid-template-columns: 1fr;
+    gap: 16px;
+  }
+  
+  .ln-modal-wide {
+    max-width: 600px !important;
+  }
+}
+
 .ln-modal-header {
   display: flex;
   align-items: flex-start;
@@ -7227,6 +7270,10 @@ body {
   .data-table th,
   .data-table td {
     padding: 8px 10px;
+  }
+
+  .tt-mobile-profile-item {
+    display: flex !important;
   }
 }
 

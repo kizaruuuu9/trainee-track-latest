@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import BrandLogo from './BrandLogo';
-import { Search, Menu, Bell, Settings, LogOut } from 'lucide-react';
+import { Search, Menu, Bell, Settings, LogOut, User } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 
 import NotificationsDropdown from './NotificationsDropdown';
@@ -87,6 +87,11 @@ const TopNavBar = ({ activePage, setActivePage }) => {
 
                         {menuOpen && (
                             <div className="tt-hamburger-dropdown">
+                                <button className="tt-dropdown-item tt-mobile-profile-item" onClick={() => handleNavigate('profile')}>
+                                    <User size={18} />
+                                    <span>Profile</span>
+                                </button>
+                                <div className="tt-dropdown-divider tt-mobile-profile-item" />
                                 <button className="tt-dropdown-item" onClick={() => handleNavigate('settings')}>
                                     <Settings size={18} />
                                     <span>Settings</span>
