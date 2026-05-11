@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useApp } from '../../context/AppContext';
+import { useNotifications } from '../../hooks';
 import { MoreHorizontal, Trash2, Check, Bell, Briefcase, FileText, Users, ExternalLink } from 'lucide-react';
 
 const timeAgoShort = (dateStr) => {
@@ -38,7 +39,8 @@ const getIcon = (notif) => {
 
 const NotificationsDropdown = ({ onClose }) => {
     const navigate = useNavigate();
-    const { userRole, notifications, markNotificationRead, markAllNotificationsRead, deleteNotification, clearAllNotifications } = useApp();
+    const { userRole, markNotificationRead, markAllNotificationsRead, deleteNotification, clearAllNotifications } = useApp();
+    const { data: notifications = [] } = useNotifications();
     const [visibleCount, setVisibleCount] = useState(10);
     const [menuOpenId, setMenuOpenId] = useState(null);
     const [activeTab, setActiveTab] = useState('All');

@@ -2,9 +2,10 @@ import React, { useState, useRef, useEffect } from 'react';
 import {
   Building2, MapPin, Clock, Briefcase, Users, CheckCircle,
   Target, ShieldCheck, Plus, X, Camera, FileText,
-  MessageSquare, Bookmark, Send, Trash2, Edit, Mail, Info, ChevronRight, Eye, MoreVertical
+  MessageSquare, Bookmark, Send, Trash2, Edit, Mail, Info, ChevronRight, Eye, MoreVertical, Check
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
+import { useTrainees, usePartners } from '../../hooks';
 import toast from 'react-hot-toast';
 
 // --- FILE SIZE HELPER ---
@@ -54,6 +55,12 @@ export const formatSalaryDisplay = (value = '') => {
   return raw;
 };
 
+export const formatBulletinDate = (dateStr) => {
+  if (!dateStr) return '';
+  const d = new Date(dateStr);
+  return d.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+};
+
 const isStudentAuthorType = (authorType = '') => {
   const normalized = String(authorType || '').toLowerCase();
   return normalized === 'student' || normalized === 'trainee';
@@ -98,6 +105,22 @@ export const StatusBadge = ({ status }) => {
     );
 };
 
+export const VerifiedBadge = ({ size = 14 }) => (
+  <div style={{
+    width: size,
+    height: size,
+    borderRadius: '50%',
+    backgroundColor: '#0ea5e9',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexShrink: 0,
+    boxShadow: '0 1px 2px rgba(0,0,0,0.1)'
+  }} title="Verified Partner">
+    <Check size={size * 0.7} color="white" strokeWidth={4} />
+  </div>
+);
+
 // --- SHARED COMPONENTS ---
 
 export const BULLETIN_CONFIG = {
@@ -110,6 +133,27 @@ export const BULLETIN_CONFIG = {
   training_batch: { label: 'Training Batch', color: '#7c3aed', bg: '#ede9fe', emoji: '📚', traineeLabel: 'Apply', type: 'apply' },
   exam_schedule: { label: 'Exam Schedule', color: '#0ea5e9', bg: '#e0f2fe', emoji: '📝', traineeLabel: 'Register', type: 'register' },
   certification_assessment: { label: 'Certification Assessment', color: '#16a34a', bg: '#dcfce7', emoji: '🏆', traineeLabel: 'Register', type: 'register' }
+};
+
+export const POST_THEME = {
+  // Common Types
+  general: { color: '#64748b', bg: '#f1f5f9', emoji: '📝' },
+  achievement: { color: '#d97706', bg: '#fff7ed', emoji: '🏆' },
+  certification: { color: '#16a34a', bg: '#f0fdf4', emoji: '📜' },
+  project: { color: '#7c3aed', bg: '#f5f3ff', emoji: '🚀' },
+  hiring_update: { color: '#0a66c2', bg: '#f0f7ff', emoji: '💼' },
+  announcement: { color: '#d97706', bg: '#fef3c7', emoji: '📢' },
+  
+  // Special categories
+  job: { color: '#0a66c2', bg: '#f0f7ff', emoji: '💼' },
+  
+  // Fallbacks mapped from Bulletin Config (Internal)
+  training: { color: '#7c3aed', bg: '#ede9fe', emoji: '📚' },
+  event: { color: '#0ea5e9', bg: '#e0f2fe', emoji: '📅' },
+  scholarship: { color: '#16a34a', bg: '#dcfce7', emoji: '🎓' },
+  ojt_opportunity: { color: '#ef4444', bg: '#fee2e2', emoji: '💼' },
+  exam_schedule: { color: '#0ea5e9', bg: '#e0f2fe', emoji: '📝' },
+  certification_assessment: { color: '#16a34a', bg: '#dcfce7', emoji: '🏆' }
 };
 
 /**
@@ -131,10 +175,7 @@ export const CreatePostTrigger = ({ onClick, userAvatar, placeholder }) => (
 // --- CONSTANTS ---
 
 export const TRAINEE_POST_TYPES = [
-  { value: 'general', label: 'Public', icon: '📝' },
-  { value: 'achievement', label: 'Achievement', icon: '🏆' },
-  { value: 'certification', label: 'Certification', icon: '📜' },
-  { value: 'project', label: 'Project', icon: '🚀' }
+  { value: 'general', label: 'Public', icon: '📝' }
 ];
 
 export const PARTNER_POST_TYPES = [
@@ -244,33 +285,38 @@ export const UniversalPostModal = ({
           </div>
           <div>
             <div style={{ fontWeight: 600, fontSize: 15 }}>{currentUser?.name || currentUser?.profileName}</div>
-            <select
-              style={{
-                background: '#e4e6eb', border: 'none', borderRadius: 6,
-                padding: '2px 8px', fontSize: 12, fontWeight: 600, cursor: 'pointer',
-                marginTop: 4
-              }}
-              value={type}
-              onChange={e => setType(e.target.value)}
-            >
-              {postTypes.map(pt => (
-                <option key={pt.value} value={pt.value}>{pt.icon} {pt.label}</option>
-              ))}
-            </select>
+            <span style={{ fontSize: 12, color: '#65676b', marginTop: 2, display: 'inline-block' }}>📝 Public Post</span>
           </div>
         </div>
+
+        <input
+          type="text"
+          placeholder="Title (optional)"
+          value={title}
+          onChange={e => setTitle(e.target.value)}
+          maxLength={100}
+          style={{
+            width: '100%', border: 'none', borderBottom: '1px solid #f0f2f5', fontSize: 16,
+            fontWeight: 600, padding: '0 0 8px', outline: 'none', marginBottom: 12,
+            color: '#1c1e21', background: 'transparent'
+          }}
+        />
 
         <textarea
           autoFocus
           placeholder="What's on your mind?"
           style={{
-            width: '100%', border: 'none', resize: 'none', fontSize: 18,
-            minHeight: filePreview ? 80 : 150, padding: 0, outline: 'none', marginBottom: 20,
+            width: '100%', border: 'none', resize: 'none', fontSize: 15,
+            minHeight: filePreview ? 80 : 120, padding: 0, outline: 'none', marginBottom: 4,
             color: '#1c1e21'
           }}
           value={content}
-          onChange={e => setContent(e.target.value)}
+          onChange={e => { if (e.target.value.length <= 500) setContent(e.target.value); }}
+          maxLength={500}
         />
+        <div style={{ fontSize: 12, color: content.length >= 450 ? '#dc2626' : '#94a3b8', textAlign: 'right', marginBottom: 16 }}>
+          {content.length}/500
+        </div>
 
         {filePreview && (
           <div style={{ position: 'relative', marginBottom: 20, borderRadius: 8, overflow: 'hidden', border: '1px solid #e4e6eb' }}>
@@ -287,29 +333,15 @@ export const UniversalPostModal = ({
           </div>
         )}
 
-        {selectedFile && !filePreview && (
-          <div style={{ marginBottom: 20, padding: '12px', background: '#f0f2f5', borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-              <FileText size={20} color="#65676b" />
-              <div>
-                <div style={{ fontSize: 14, fontWeight: 500 }}>{selectedFile.name}</div>
-                <div style={{ fontSize: 12, color: '#65676b' }}>{formatFileSize(selectedFile.size)}</div>
-              </div>
-            </div>
-            <X size={18} color="#65676b" cursor="pointer" onClick={() => setSelectedFile(null)} />
-          </div>
-        )}
-
         <div style={{
           border: '1px solid #e4e6eb', borderRadius: 8, padding: '12px',
           display: 'flex', alignItems: 'center', justifyContent: 'space-between',
           marginBottom: 16
         }}>
-          <span style={{ fontWeight: 600, fontSize: 14 }}>Add to your post</span>
+          <span style={{ fontWeight: 600, fontSize: 14 }}>Add a photo</span>
           <div style={{ display: 'flex', gap: 12, color: '#65676b' }}>
-            <input type="file" hidden ref={fileInputRef} onChange={handleFileChange} accept="image/*,.pdf,.doc,.docx" />
+            <input type="file" hidden ref={fileInputRef} onChange={handleFileChange} accept="image/*" />
             <Camera size={22} cursor="pointer" onClick={() => fileInputRef.current.click()} />
-            <Plus size={22} cursor="pointer" onClick={() => fileInputRef.current.click()} />
           </div>
         </div>
 
@@ -494,9 +526,7 @@ export const UniversalPostModal = ({
  * FeedItemDetailModal: A premium modal to show the full details of a post, job, or bulletin.
  */
 export const FeedItemDetailModal = ({ item, onClose, onApply, onSave, onInquire, openProfile }) => {
-  const { currentUser, trainees, partners, getUserPostInteraction, getJobPostingComments, addJobPostingComment } = useApp();
-  const [newComment, setNewComment] = useState('');
-  const [isSubmittingComment, setIsSubmittingComment] = useState(false);
+  const { currentUser, getUserPostInteraction } = useApp();
   const [imageOrientation, setImageOrientation] = useState('landscape'); // default
 
   useEffect(() => {
@@ -512,9 +542,8 @@ export const FeedItemDetailModal = ({ item, onClose, onApply, onSave, onInquire,
 
   if (!item) return null;
 
-  const isJob = item.feedType === 'job';
-  const isBulletin = item.feedType === 'bulletin';
-  const comments = isJob ? getJobPostingComments(item.id) : [];
+    const isJob = item.feedType === 'job';
+    const isBulletin = item.feedType === 'bulletin';
 
   const getAuthor = () => {
     if (isBulletin) return { name: 'PSTDII Admin', photo: null };
@@ -528,14 +557,6 @@ export const FeedItemDetailModal = ({ item, onClose, onApply, onSave, onInquire,
 
   const author = getAuthor();
 
-  const handleSendComment = async () => {
-    if (!newComment.trim() || !isJob) return;
-    setIsSubmittingComment(true);
-    const res = await addJobPostingComment(item.id, newComment);
-    if (res.success) setNewComment('');
-    else toast.error(res.error || 'Comment failed');
-    setIsSubmittingComment(false);
-  };
 
   return (
     <div className="ln-modal-overlay" style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(8px)', zIndex: 10000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }} onClick={onClose}>
@@ -637,64 +658,6 @@ export const FeedItemDetailModal = ({ item, onClose, onApply, onSave, onInquire,
             </button>
           </div>
 
-          {/* Comments Section */}
-          <div>
-            {isJob && <h3 style={{ fontSize: 18, fontWeight: 800, color: '#0f172a', marginBottom: 20 }}>Comments ({comments.length})</h3>}
-
-            {isJob && (
-              <div style={{ display: 'flex', gap: 12, marginBottom: 24 }}>
-                <div style={{ width: 40, height: 40, borderRadius: '50%', background: '#e2e8f0', flexShrink: 0, overflow: 'hidden' }}>
-                  {currentUser?.photo || currentUser?.company_logo_url ? <img src={currentUser.photo || currentUser.company_logo_url} style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700 }}>{(currentUser?.name || 'U').charAt(0)}</div>}
-                </div>
-                <div style={{ flex: 1, position: 'relative' }}>
-                  <textarea
-                    placeholder="Share your thoughts..."
-                    value={newComment}
-                    onChange={e => setNewComment(e.target.value)}
-                    style={{ width: '100%', border: '1px solid #e2e8f0', borderRadius: 16, padding: '12px 60px 12px 16px', fontSize: 14, minHeight: 48, outline: 'none', resize: 'none', background: '#f8fafc' }}
-                  />
-                  <button
-                    disabled={!newComment.trim() || isSubmittingComment}
-                    onClick={handleSendComment}
-                    style={{ position: 'absolute', right: 10, top: 4, bottom: 4, background: newComment.trim() ? '#0a66c2' : 'transparent', color: newComment.trim() ? '#fff' : '#94a3b8', border: 'none', width: 40, height: 40, borderRadius: 12, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: newComment.trim() ? 'pointer' : 'default', transition: 'all 0.2s' }}
-                  >
-                    <Send size={18} />
-                  </button>
-                </div>
-              </div>
-            )}
-
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-              {comments.map(c => {
-                let cAuthorName = 'Unknown User';
-                let cAuthorPhoto = null;
-                if (c.author_type === 'industry_partner') {
-                  const p = partners.find(p => p.id === c.author_id);
-                  cAuthorName = p?.companyName || 'Industry Partner';
-                  cAuthorPhoto = p?.company_logo_url;
-                } else {
-                  const t = trainees.find(t => t.id === c.author_id);
-                  cAuthorName = t?.name || 'Student';
-                  cAuthorPhoto = t?.photo;
-                }
-
-                return (
-                  <div key={c.id} style={{ display: 'flex', gap: 12 }}>
-                    <div style={{ width: 36, height: 36, borderRadius: '50%', background: '#f1f5f9', flexShrink: 0, overflow: 'hidden' }}>
-                      {cAuthorPhoto ? <img src={cAuthorPhoto} style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 700 }}>{cAuthorName.charAt(0)}</div>}
-                    </div>
-                    <div style={{ flex: 1 }}>
-                      <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginBottom: 2 }}>
-                        <span style={{ fontWeight: 700, fontSize: 14, color: '#0f172a' }}>{cAuthorName}</span>
-                        <span style={{ fontSize: 11, color: '#94a3b8' }}>{timeAgo(c.created_at)}</span>
-                      </div>
-                      <div style={{ fontSize: 14, color: '#475569', lineHeight: 1.5 }}>{c.content}</div>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
         </div>
       </div>
     </div>
@@ -716,101 +679,12 @@ export const FeedItem = ({
   onOpenMediaModal,
   postMenuId,
   setPostMenuId,
-  onComment,
   onViewDetail
 }) => {
-  const {
-    currentUser, trainees, partners, getUserPostInteraction,
-    getJobPostingComments, addJobPostingComment
-  } = useApp();
-
-  const [showComments, setShowComments] = useState(false);
-  const [newComment, setNewComment] = useState('');
-  const [isSubmittingComment, setIsSubmittingComment] = useState(false);
+  const { currentUser, getUserPostInteraction } = useApp();
 
   const isJob = item.feedType === 'job';
-  const comments = isJob ? getJobPostingComments(item.id) : [];
-  const commentCount = comments?.length || 0;
 
-  const handleToggleComments = () => {
-    if (onComment) onComment(item);
-    setShowComments(!showComments);
-  };
-
-  const handleSubmitComment = async () => {
-    if (!newComment.trim() || !isJob) return;
-    setIsSubmittingComment(true);
-    let res = await addJobPostingComment(item.id, newComment);
-    if (res?.success) {
-      setNewComment('');
-    } else {
-      toast.error(res?.error || 'Failed to post comment');
-    }
-    setIsSubmittingComment(false);
-  };
-
-  const renderCommentsSection = () => {
-    if (!showComments) return null;
-    return (
-      <div className="ln-comments-section" style={{ padding: '12px 16px', borderTop: '1px solid #f3f3f3', background: '#f9fafb' }}>
-        {comments.length === 0 ? (
-          <p style={{ fontSize: 13, color: '#65676b', textAlign: 'center', margin: '10px 0' }}>No comments yet. Be the first to comment!</p>
-        ) : (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginBottom: 12, maxHeight: 300, overflowY: 'auto' }}>
-            {comments.map(c => {
-              let authorName = 'Unknown User';
-              let authorPhoto = null;
-              if (c.author_type === 'industry_partner') {
-                const p = partners.find(p => p.id === c.author_id);
-                authorName = p?.companyName || p?.profileName || 'Industry Partner';
-                authorPhoto = p?.company_logo_url || p?.photo;
-              } else {
-                const t = trainees.find(t => t.id === c.author_id);
-                authorName = t?.name || t?.profileName || 'Student';
-                authorPhoto = t?.photo;
-              }
-
-              return (
-                <div key={c.id} style={{ display: 'flex', gap: 8 }}>
-                  <div style={{ width: 32, height: 32, borderRadius: '50%', background: '#e4e6eb', flexShrink: 0, overflow: 'hidden' }}>
-                    {authorPhoto ? <img loading="lazy" src={authorPhoto} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', fontSize: 14, fontWeight: 600 }}>{authorName.charAt(0)}</span>}
-                  </div>
-                  <div style={{ background: '#fff', padding: '8px 12px', borderRadius: 12, border: '1px solid #e4e6eb', flex: 1 }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                      <span style={{ fontWeight: 600, fontSize: 13, color: '#1c1e21' }}>{authorName}</span>
-                      <span style={{ fontSize: 11, color: '#65676b' }}>{timeAgo(c.created_at)}</span>
-                    </div>
-                    <p style={{ fontSize: 13, margin: '4px 0 0', color: '#1c1e21', whiteSpace: 'pre-wrap' }}>{c.content}</p>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        )}
-        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-          <div style={{ width: 32, height: 32, borderRadius: '50%', background: '#e4e6eb', flexShrink: 0, overflow: 'hidden' }}>
-            {currentUser?.photo || currentUser?.company_logo_url ? <img loading="lazy" src={currentUser?.photo || currentUser?.company_logo_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', fontSize: 14, fontWeight: 600 }}>{(currentUser?.name || currentUser?.companyName || 'U').charAt(0)}</span>}
-          </div>
-          <input
-            type="text"
-            placeholder="Write a comment..."
-            value={newComment}
-            onChange={e => setNewComment(e.target.value)}
-            onKeyDown={e => { if (e.key === 'Enter') handleSubmitComment(); }}
-            disabled={isSubmittingComment}
-            style={{ flex: 1, padding: '8px 16px', borderRadius: 20, border: '1px solid #e4e6eb', fontSize: 13, outline: 'none' }}
-          />
-          <button
-            onClick={handleSubmitComment}
-            disabled={!newComment.trim() || isSubmittingComment}
-            style={{ background: newComment.trim() ? '#0a66c2' : '#e4e6eb', color: newComment.trim() ? '#fff' : '#a5a7ab', border: 'none', borderRadius: 20, padding: '6px 16px', fontSize: 13, fontWeight: 600, cursor: newComment.trim() ? 'pointer' : 'default', transition: 'all 0.2s' }}
-          >
-            {isSubmittingComment ? '...' : 'Send'}
-          </button>
-        </div>
-      </div>
-    );
-  };
 
   // --- Shared helpers for tt-feed-card rendering ---
   const COVER_COLORS = [
@@ -867,9 +741,10 @@ export const FeedItem = ({
       };
     }
     if (item.feedType === 'job') {
+      const theme = POST_THEME.job;
       const p = partners.find(p => String(p.id) === String(item.partnerId));
       return {
-        coverColor: getCoverColor(item.id),
+        coverColor: theme.bg,
         coverImage: (item.attachmentUrl && isImageAttachment(item.attachmentUrl, item.attachmentType)) ? item.attachmentUrl : null,
         iconEmoji: null,
         iconPhoto: p?.company_logo_url || p?.photo,
@@ -887,13 +762,14 @@ export const FeedItem = ({
       };
     }
     // Post
+    const theme = POST_THEME[item.post_type] || POST_THEME.general;
     const author = isOwnPost ? currentUser : (isStudentAuthorType(item.author_type) ? trainees.find(t => t.id === item.author_id) : partners.find(p => p.id === item.author_id));
     const authorName = author?.name || author?.profileName || author?.companyName || 'Unknown User';
     const authorPhoto = author?.photo || author?.company_logo_url;
     const allTypes = [...TRAINEE_POST_TYPES, ...PARTNER_POST_TYPES];
     const matchType = allTypes.find(t => t.value === item.post_type);
     return {
-      coverColor: getCoverColor(item.id),
+      coverColor: theme.bg,
       coverImage: (item.media_url || item.attachmentUrl) && isImageAttachment(item.media_url || item.attachmentUrl) ? (item.media_url || item.attachmentUrl) : null,
       iconEmoji: null,
       iconPhoto: authorPhoto,
@@ -915,7 +791,6 @@ export const FeedItem = ({
       if (isOwnPost) {
         return [
           { label: 'Applicants', primary: true, onClick: (e) => { e.stopPropagation(); onApply?.(item, 'applicants'); } },
-          { label: `Comment (${commentCount})`, onClick: (e) => { e.stopPropagation(); handleToggleComments(); } },
           { label: 'Save', onClick: (e) => { e.stopPropagation(); onSave(item.id); }, active: !!getUserPostInteraction(item.id, 'save') }
         ];
       }
@@ -925,17 +800,16 @@ export const FeedItem = ({
           primary: !alreadyInteracted,
           disabled: !!alreadyInteracted || item.status === 'Closed' || item.status === 'Full',
           onClick: (e) => { e.stopPropagation(); onApply(item, cfg.type); }
-        } : { label: `Comment (${commentCount})`, onClick: (e) => { e.stopPropagation(); handleToggleComments(); } },
+        } : null,
         { label: 'Inquire', onClick: (e) => { e.stopPropagation(); onInquire(item); } },
         { label: getUserPostInteraction(item.id, 'save') ? 'Saved' : 'Save', onClick: (e) => { e.stopPropagation(); onSave(item.id); }, active: !!getUserPostInteraction(item.id, 'save') }
-      ];
+      ].filter(Boolean);
     }
     if (item.feedType === 'job') {
       const isSaved = Array.isArray(currentUser?.savedOpportunities) && currentUser.savedOpportunities.includes(item.id);
       if (isOwnPost) {
         return [
           { label: 'Applicants', primary: true, onClick: (e) => { e.stopPropagation(); onApply?.(item, 'applicants'); } },
-          { label: `Comment (${commentCount})`, onClick: (e) => { e.stopPropagation(); handleToggleComments(); } },
           { label: 'Your Listing', disabled: true }
         ];
       }
@@ -948,13 +822,11 @@ export const FeedItem = ({
     // Post
     if (isOwnPost) {
       return [
-        { label: `Comment (${commentCount})`, onClick: (e) => { e.stopPropagation(); handleToggleComments(); } },
         { label: 'Contact', primary: true, onClick: (e) => { e.stopPropagation(); onInquire?.(item); } },
         { label: 'Save', onClick: (e) => { e.stopPropagation(); onSave?.(item.id); } }
       ];
     }
     return [
-      { label: `Comment (${commentCount})`, onClick: (e) => { e.stopPropagation(); handleToggleComments(); } },
       { label: 'Contact', primary: true, onClick: (e) => { e.stopPropagation(); onInquire?.(item); } },
       { label: getUserPostInteraction(item.id, 'save') ? 'Saved' : 'Save', onClick: (e) => { e.stopPropagation(); onSave?.(item.id); }, active: !!getUserPostInteraction(item.id, 'save') }
     ];
@@ -1089,10 +961,6 @@ export const FeedItem = ({
         </div>
       </div>
 
-      {/* Comment section (expands below the card) */}
-      <div onClick={(e) => e.stopPropagation()}>
-        {renderCommentsSection()}
-      </div>
     </div>
   );
 };
@@ -1112,7 +980,7 @@ export const CompactFeedItem = ({
   hideApply = false,
   applied = false
 }) => {
-  const { currentUser, trainees, partners, getUserPostInteraction, getJobPostingComments } = useApp();
+  const { currentUser, trainees, partners, getUserPostInteraction } = useApp();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const mobileMenuRef = useRef(null);
 
@@ -1131,8 +999,6 @@ export const CompactFeedItem = ({
 
   const isJob = item.feedType === 'job';
   const isBulletin = item.feedType === 'bulletin';
-  const comments = isJob ? getJobPostingComments(item.id) : [];
-  const commentCount = comments?.length || 0;
 
   const pastelColors = ['#bfdbfe', '#bbf7d0', '#e9d5ff', '#fed7aa', '#bae6fd', '#fbcfe8', '#fef08a'];
   const hashString = (str) => {
@@ -1142,7 +1008,9 @@ export const CompactFeedItem = ({
     }
     return Math.abs(hash);
   };
-  const bgColor = pastelColors[hashString(item.id || '123') % pastelColors.length];
+  const theme = isJob ? POST_THEME.job : (isBulletin ? (POST_THEME[item.post_type] || POST_THEME.announcement) : (POST_THEME[item.post_type] || POST_THEME.general));
+  const borderColor = theme.color;
+  const bgColor = theme.bg;
 
   let title = '';
   let subtitle = '';
@@ -1205,8 +1073,26 @@ export const CompactFeedItem = ({
   if (isBulletin) {
     const cfg = BULLETIN_CONFIG[item.post_type] || BULLETIN_CONFIG.announcement;
     const alreadyInteracted = getUserPostInteraction(item.id, cfg.type);
+    const authorId = String(item.author_id || '');
+    const ADMIN_ID = 'de305d54-75b4-431b-adb2-eb6b9e546014';
+    let authorName = 'PSTDII Admin';
+    if (item.author_type === 'industry_partner' || item.author_type === 'partner') {
+      const p = partners.find(p => String(p.id) === authorId);
+      authorName = p ? (p.companyName || p.profileName) : 'Partner';
+    } else if (item.author_type === 'student' || item.author_type === 'trainee') {
+      const t = trainees.find(t => String(t.id) === authorId);
+      authorName = t?.name || t?.profileName || 'Trainee';
+    }
     title = item.title;
-    subtitle = `${cfg.label} | ${item.status || 'Open'}`;
+    subtitle = (
+      <span style={{ display: 'flex', alignItems: 'center', gap: 4, flexWrap: 'wrap' }}>
+        <strong style={{ color: '#1e293b' }}>{authorName}</strong> | {cfg.label} | {item.status || 'Open'}
+        {(item.schedule || item.time_range || item.slots) && <span style={{ color: '#94a3b8', margin: '0 4px' }}>•</span>}
+        {item.schedule && <span style={{ color: '#64748b' }}>{formatBulletinDate(item.schedule)}</span>}
+        {item.time_range && <><span style={{ color: '#94a3b8', margin: '0 2px' }}>•</span><span style={{ color: '#64748b' }}>{item.time_range}</span></>}
+        {item.slots && <><span style={{ color: '#94a3b8', margin: '0 2px' }}>•</span><span style={{ color: BULLETIN_CONFIG[item.post_type]?.color || '#7c3aed', fontWeight: 700 }}>{item.slots} Slots</span></>}
+      </span>
+    );
     description = item.content || '';
     iconContent = <span style={{ fontSize: 24 }}>{cfg.emoji}</span>;
 
@@ -1247,7 +1133,7 @@ export const CompactFeedItem = ({
       ];
     } else {
       buttons = [
-        { label: 'Details', primary: false, onClick: (e) => { e.stopPropagation(); onViewDetail?.(item); } },
+        { label: 'Contact', primary: false, onClick: (e) => { e.stopPropagation(); onInquire?.(item); } },
         { label: isSaved ? 'Saved' : 'Save', primary: false, onClick: (e) => { e.stopPropagation(); onSave?.(item.id); }, active: isSaved },
         !hideApply ? { 
             label: applied ? 'Applied' : 'Apply', 
@@ -1265,7 +1151,12 @@ export const CompactFeedItem = ({
     title = authorName;
     const allTypes = [...TRAINEE_POST_TYPES, ...PARTNER_POST_TYPES];
     const matchType = allTypes.find(t => t.value === item.post_type);
-    subtitle = `Post | ${matchType?.label || (item.post_type || 'general').replace('_', ' ')}`;
+    const typeLabel = matchType?.label || (item.post_type || 'general').replace('_', ' ');
+    subtitle = (
+      <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+        Public | {item.title || typeLabel}
+      </span>
+    );
     description = item.content || '';
 
     if (authorPhoto) {
@@ -1291,19 +1182,19 @@ export const CompactFeedItem = ({
     <div 
       className="compact-feed-item"
       onClick={() => {
-         if (isBulletin) return; // Bulletins don't have a detail modal
          onViewDetail?.(item);
       }}
       style={{
         display: 'flex',
         padding: '16px',
         border: '1px solid #e2e8f0',
+        borderLeft: `4px solid ${borderColor}`,
         borderRadius: '12px',
         backgroundColor: '#ffffff',
         boxShadow: '0 1px 2px rgba(0,0,0,0.05)',
         gap: '16px',
         cursor: 'pointer',
-        transition: 'background-color 0.2s',
+        transition: 'all 0.2s ease',
         position: 'relative'
       }}
       onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#f8fafc'}
@@ -1329,10 +1220,20 @@ export const CompactFeedItem = ({
         <div style={{ flex: 1, minWidth: 0, display: 'grid', gridTemplateColumns: '1.2fr 1fr auto', alignItems: 'center', gap: '16px' }}>
           {/* Zone 1: Title, Company, Location */}
           <div style={{ minWidth: 0 }}>
-            <div style={{ fontWeight: 700, fontSize: 16, color: '#0f172a', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{title}</div>
-            <div style={{ color: '#334155', fontSize: 14, marginTop: 2 }}>{item.companyName}</div>
+            <div style={{ fontWeight: 800, fontSize: 20, color: '#0f172a', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{title}</div>
+            <div style={{ color: '#334155', fontSize: 14, marginTop: 2, display: 'flex', alignItems: 'center', gap: 4 }}>
+              {item.companyName}
+              {partners.find(p => String(p.id) === String(item.partnerId))?.verificationStatus === 'Verified' && (
+                <VerifiedBadge size={14} />
+              )}
+            </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 12, fontSize: 13, color: '#64748b', marginTop: 4, flexWrap: 'wrap' }}>
-              <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}><MapPin size={13} /> {item.location}</span>
+              <span style={{ display: 'flex', alignItems: 'center', gap: 4 }} title={item.detailed_address || item.location}>
+                <MapPin size={13} /> {item.location || 'Remote'}
+                {item.detailed_address && (
+                  <span style={{ opacity: 0.8, fontSize: 11, fontWeight: 400 }}>• {item.detailed_address}</span>
+                )}
+              </span>
               {item.employmentType && <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}><Clock size={13} /> {item.employmentType}</span>}
               <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}><Clock size={13} /> {timeAgo(item.createdAt || item.created_at)}</span>
             </div>
@@ -1463,14 +1364,33 @@ export const CompactFeedItem = ({
         <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: '8px' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
             <div>
-              <div style={{ fontWeight: 700, fontSize: 16, color: '#0f172a' }}>{title}</div>
+              <div style={{ fontWeight: 800, fontSize: 20, color: '#0f172a', display: 'flex', alignItems: 'center', gap: 6 }}>
+                {title}
+                {!isJob && !isBulletin && (
+                  (item.author_id === currentUser?.id ? currentUser?.verificationStatus === 'Verified' : partners.find(p => String(p.id) === String(item.author_id))?.verificationStatus === 'Verified') && (
+                    <VerifiedBadge size={16} />
+                  )
+                )}
+              </div>
               <div style={{ fontSize: 14, color: '#475569', marginTop: 2 }}>{subtitle}</div>
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 6 }}>
               {moreOptionsMenu}
             </div>
           </div>
-          <div style={{ fontSize: 13, color: '#94a3b8', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '80%' }}>{description}</div>
+          <div style={{ 
+            fontSize: 15.5, 
+            color: '#475569', 
+            display: '-webkit-box',
+            WebkitLineClamp: 3,
+            WebkitBoxOrient: 'vertical',
+            overflow: 'hidden',
+            width: '100%',
+            lineHeight: 1.6,
+            marginTop: 6
+          }}>
+            {description}
+          </div>
           <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center' }}>
             {/* Mobile Actions Kebab */}
             <div className="tt-show-mobile" style={{ position: 'relative' }} ref={mobileMenuRef} onClick={e => e.stopPropagation()}>

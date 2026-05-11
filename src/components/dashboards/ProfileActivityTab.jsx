@@ -2,17 +2,20 @@ import React, { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 import { useApp } from '../../context/AppContext';
+import { usePosts, useJobPostings } from '../../hooks';
 import { FeedItem, BULLETIN_CONFIG, UniversalPostModal } from './FeedComponents';
 import { supabase } from '../../lib/supabase';
 import toast from 'react-hot-toast';
 
 const ProfileActivityTab = ({ profileId, profileType, isOwnProfile }) => {
     const {
-        posts, jobPostings, currentUser,
+        currentUser,
         createPost, updatePost, deletePost,
         updatePartnerJobPosting, deleteJobPosting,
         uploadOptimizedImage
     } = useApp();
+    const { data: posts = [] } = usePosts();
+    const { data: jobPostings = [] } = useJobPostings();
     const navigate = useNavigate();
 
 

@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import toast from 'react-hot-toast';
 import { useApp } from '../../context/AppContext';
+import { usePosts, usePrograms, usePostInteractions } from '../../hooks';
 import {
     Plus, Eye, Edit, Trash2, X, CheckCircle, XCircle, Clock,
     Calendar, Users, FileText, Award, Megaphone, ChevronDown,
@@ -34,8 +35,8 @@ const POST_TYPES = [
         icon: <Megaphone size={16} />,
         color: '#d97706',
         bg: '#fef3c7',
-        traineeActions: ['View', 'Comment'],
-        partnerActions: ['View', 'Comment'],
+        traineeActions: ['View'],
+        partnerActions: ['View'],
     },
 ];
 
@@ -189,7 +190,6 @@ const PreviewCard = ({ form, viewAs }) => {
                             {action === 'Apply' && <Send size={13} />}
                             {action === 'Register' && <CheckCircle size={13} />}
                             {action === 'Register for Exam' && <CheckCircle size={13} />}
-                            {action === 'Comment' && <MessageSquare size={13} />}
                             {action}
                         </button>
                     ))}
@@ -478,9 +478,14 @@ const InteractionBadge = ({ status }) => {
 
 // ─── MAIN COMPONENT ───────────────────────────────────────────────────────────
 export default function TrainingBulletin() {
-    const { posts, createPost, adminUpdatePost, adminDeletePost,
-        postInteractions, fetchPostInteractions, updatePostInteractionStatus, getPostInteractions,
-        currentUser, fetchPosts, trainees, partners, programs, confirmAction } = useApp();
+    const { createPost, adminUpdatePost, adminDeletePost,
+        fetchPostInteractions, updatePostInteractionStatus, getPostInteractions,
+        currentUser, trainees, partners, confirmAction } = useApp();
+        
+    const { data: posts = [] } = usePosts();
+    const { data: programsData } = usePrograms();
+    const programs = programsData?.data || [];
+    const { data: postInteractions = [] } = usePostInteractions();
 
     const [showForm, setShowForm] = useState(false);
     const [editPost, setEditPost] = useState(null);
@@ -501,7 +506,6 @@ export default function TrainingBulletin() {
 
     // Refresh data on mount
     useEffect(() => {
-        fetchPosts();
         fetchPostInteractions();
     }, []);
 

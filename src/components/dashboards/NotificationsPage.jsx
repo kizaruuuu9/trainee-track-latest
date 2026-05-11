@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useApp } from '../../context/AppContext';
+import { useNotifications } from '../../hooks';
 import { Bell, Check, Trash2, MoreVertical, Briefcase, FileText, Users, ExternalLink } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
@@ -23,7 +24,8 @@ const timeAgo = (dateStr) => {
 };
 
 const NotificationsPage = () => {
-    const { notifications, markNotificationRead, markAllNotificationsRead, deleteNotification, clearAllNotifications } = useApp();
+    const { markNotificationRead, markAllNotificationsRead, deleteNotification, clearAllNotifications } = useApp();
+    const { data: notifications = [] } = useNotifications();
     const [activeTab, setActiveTab] = useState('All');
     const [timeFilter, setTimeFilter] = useState('All');
     const [menuOpenId, setMenuOpenId] = useState(null);

@@ -5,13 +5,15 @@ import {
     Award, Send, X, Eye, EyeOff, Plus, Trash2, Camera, Loader, 
     GraduationCap, ExternalLink, ShieldCheck, Mail, Calendar, 
     Users, ChevronRight, Edit, Upload, Star, Heart, Info, 
-    CheckCircle2, UserPlus, Navigation, FileCheck, Bookmark, AlertTriangle, Target
+    CheckCircle2, UserPlus, Navigation, FileCheck, Bookmark, AlertTriangle, Target, Sparkles
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
+import { usePrograms, useJobPostings } from '../../hooks';
 import { supabase } from '../../lib/supabase';
 import SavedItemsView from './SavedItemsView';
 import PhilAddressSelector from '../common/PhilAddressSelector';
 import ProfileActivityTab from './ProfileActivityTab';
+import AIResumeBuilder from './AIResumeBuilder';
 import EmptyState, {
     TrophyIllustration,
     BriefcaseIllustration,
@@ -180,10 +182,12 @@ export const PREDEFINED_PERKS_TAGS = [
 export const TraineeProfileContent = ({ viewedProfileId = null, onBack = null, openBulletinModal }) => {
     const { 
         currentUser, userRole, trainees, updateTrainee, 
-        getSkillInterestRecommendations, programs, getSkillsDemand, 
+        getSkillInterestRecommendations, getSkillsDemand, 
         applyToJob, uploadOptimizedImage,
         pqfLevels, pqfPrograms
     } = useApp();
+    const { data: programsData } = usePrograms();
+    const programs = programsData?.data || [];
     const isOwnProfile = !viewedProfileId || String(viewedProfileId) === String(currentUser?.id);
     const isEmployer = userRole === 'partner';
     const [viewedTrainee, setViewedTrainee] = useState(null);
@@ -224,6 +228,9 @@ export const TraineeProfileContent = ({ viewedProfileId = null, onBack = null, o
 
     // Certificate Preview
     const [previewImage, setPreviewImage] = useState(null);
+
+    // AI Resume Builder state
+    const [showAIBuilder, setShowAIBuilder] = useState(false);
 
     // Application Modal for Saved tab
     const [applyJob, setApplyJob] = useState(null);
@@ -341,8 +348,8 @@ export const TraineeProfileContent = ({ viewedProfileId = null, onBack = null, o
             setLoadingViewedProfile(true);
             try {
                 const { data, error } = await supabase
-                    .from('trainees')
-                    .select('*, programs(*)')
+                    .from('students')
+                    .select('id, full_name, student_id, program_id, phone, birthdate, gender, region, province, city, barangay, detailed_address, selfie_url, banner_url, front_id_url, back_id_url, employment_status, employment_work, employment_start, graduate_school, educ_history, work_experience, resume_url, profile_completed, created_at, updated_at, profile_picture_url, skills, interests, certifications, graduation_year, training_status, contact_email, activity_status, last_seen_at, personal_info_visibility, trainings, bio, employer, job_title, date_hired, programs(id, name, nc_level, duration_hours, description)')
                     .eq('id', viewedProfileId)
                     .single();
 
@@ -579,6 +586,12 @@ export const TraineeProfileContent = ({ viewedProfileId = null, onBack = null, o
 
     return (
         <form className="ln-page-content" onSubmit={e => e.preventDefault()}>
+            {showAIBuilder && (
+                <AIResumeBuilder 
+                    trainee={trainee} 
+                    onBack={() => setShowAIBuilder(false)} 
+                />
+            )}
             {!isOwnProfile && onBack && (
                 <div style={{ marginBottom: 12 }}>
                     <button type="button" className="ln-btn ln-btn-outline" onClick={onBack}>
@@ -599,10 +612,32 @@ export const TraineeProfileContent = ({ viewedProfileId = null, onBack = null, o
                     }}
                 >
                     {isOwnProfile && (
-                        <div style={{ position: 'absolute', top: 12, right: 12 }}>
+                        <div style={{ position: 'absolute', top: 12, right: 12, display: 'flex', gap: 10 }}>
                             <input type="file" ref={bannerInputRef} onChange={handleBannerUpload} style={{ display: 'none' }} accept="image/*" />
                             <button type="button" onClick={() => bannerInputRef.current?.click()} className="ln-btn-sm" style={{ background: 'rgba(255,255,255,0.9)', border: 'none', borderRadius: 8, display: 'flex', alignItems: 'center', gap: 6, padding: '6px 12px', fontWeight: 600 }}>
                                 <Camera size={14} /> Change Banner
+                            </button>
+                            <button 
+                                type="button" 
+                                onClick={() => setShowAIBuilder(true)} 
+                                className="ln-btn-sm" 
+                                style={{ 
+                                    background: 'linear-gradient(135deg, #6366f1 0%, #a855f7 100%)', 
+                                    color: 'white',
+                                    border: 'none', 
+                                    borderRadius: 8, 
+                                    display: 'flex', 
+                                    alignItems: 'center', 
+                                    gap: 6, 
+                                    padding: '6px 16px', 
+                                    fontWeight: 700,
+                                    boxShadow: '0 4px 12px rgba(99, 102, 241, 0.3)',
+                                    transition: 'all 0.2s',
+                                    cursor: 'pointer',
+                                    zIndex: 10
+                                }}
+                            >
+                                <Sparkles size={14} /> AI Resume Builder
                             </button>
                         </div>
                     )}
@@ -1353,7 +1388,8 @@ export const TraineeProfileContent = ({ viewedProfileId = null, onBack = null, o
 };
 
 export const CompanyProfile = ({ viewedPartnerId = null, onBack = null }) => {
-  const { currentUser, partners, updatePartner, jobPostings, createPostInteraction, fetchPostInteractions } = useApp();
+  const { currentUser, partners, updatePartner, createPostInteraction, fetchPostInteractions } = useApp();
+  const { data: jobPostings = [] } = useJobPostings();
   const navigate = useNavigate();
   const isOwnProfile = !viewedPartnerId || String(viewedPartnerId) === String(currentUser?.id);
   const [viewedPartner, setViewedPartner] = useState(null);

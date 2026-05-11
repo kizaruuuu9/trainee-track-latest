@@ -11,12 +11,17 @@
     "otp-server": "node server/otpServer.js"
   },
   "dependencies": {
+    "@google/generative-ai": "^0.24.1",
     "@supabase/supabase-js": "^2.98.0",
+    "@tanstack/react-query": "^5.100.9",
+    "@tanstack/react-query-devtools": "^5.100.9",
     "bcryptjs": "^3.0.3",
     "cors": "^2.8.6",
     "dotenv": "^17.3.1",
     "express": "^5.2.1",
     "face-api.js": "^0.20.0",
+    "html2canvas": "^1.4.1",
+    "jspdf": "^4.2.1",
     "lucide-react": "^0.563.0",
     "nodemailer": "^8.0.1",
     "pg": "^8.20.0",
@@ -26,6 +31,7 @@
     "react-hot-toast": "^2.6.0",
     "react-router": "^7.14.2",
     "react-router-dom": "^7.13.1",
+    "react-to-print": "^3.3.0",
     "recharts": "^3.7.0",
     "tesseract.js": "^7.0.0"
   },

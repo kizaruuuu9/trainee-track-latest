@@ -328,7 +328,7 @@ app.get('/api/admin/data', adminLimiter, async (req, res) => {
 
         let stdsQuery = supabaseAdmin
             .from('students')
-            .select('id, full_name, student_id, program_id, training_status, activity_status, last_seen_at, contact_email, employment_status, employer, date_hired, graduation_year, updated_at', { count: 'exact' });
+            .select('id, full_name, student_id, program_id, programs(name), training_status, activity_status, last_seen_at, contact_email, employment_status, employer, date_hired, graduation_year, trainings, updated_at', { count: 'exact' });
 
         let partsQuery = supabaseAdmin
             .from('industry_partners')
@@ -437,7 +437,7 @@ app.get('/api/admin/data', adminLimiter, async (req, res) => {
                 email: authRecord?.email || 'None',
                 activity_status: resolvePresenceStatus(std.activity_status, latestSeenAt),
                 last_seen_at: latestSeenAt,
-                program_name: std.program_id ? (programNameById.get(String(std.program_id)) || `Unmapped ID: ${String(std.program_id).slice(0,8)}`) : 'No Program'
+                program_name: std.programs?.name || (std.program_id ? (programNameById.get(String(std.program_id)) || `Unmapped ID: ${String(std.program_id).slice(0,8)}`) : 'No Program')
             };
         });
 
@@ -465,8 +465,8 @@ app.get('/api/admin/data', adminLimiter, async (req, res) => {
 
         const accountIds = (accs || []).map(a => a.id);
         const [accStds, accParts] = await Promise.all([
-            runSafe(supabaseAdmin.from('students').select('*').in('id', accountIds)),
-            runSafe(supabaseAdmin.from('industry_partners').select('*').in('id', accountIds))
+            runSafe(supabaseAdmin.from('students').select('id, full_name, student_id, program_id, phone, birthdate, gender, region, province, city, barangay, detailed_address, employment_status, employment_work, employment_start, profile_picture_url, skills, interests, certifications, graduation_year, training_status, activity_status, last_seen_at, bio, employer, job_title, date_hired').in('id', accountIds)),
+            runSafe(supabaseAdmin.from('industry_partners').select('id, company_name, contact_person, business_type, company_size, website, contact_email, contact_phone, company_logo_url, region, province, city, barangay, detailed_address, verification_status, activity_status, last_seen_at').in('id', accountIds))
         ]);
 
         const accStdsMap = new Map((accStds.data || []).map(s => [s.id, s]));
@@ -545,14 +545,14 @@ app.get('/api/public-directory', rateLimit, async (_req, res) => {
 
         const studentsWithProfileName = await supabaseAdmin
             .from('students')
-            .select('id, full_name, profile_name, profile_picture_url, training_status, personal_info_visibility');
+            .select('id, full_name, profile_name, profile_picture_url, training_status, personal_info_visibility, program_id, programs(name), trainings');
         students = studentsWithProfileName.data;
         studentsError = studentsWithProfileName.error;
 
         if (studentsError && ['PGRST204', '42703'].includes(studentsError.code)) {
             const studentsFallback = await supabaseAdmin
                 .from('students')
-                .select('id, full_name, profile_picture_url, training_status');
+                .select('id, full_name, profile_picture_url, training_status, program_id, programs(name), trainings');
             students = studentsFallback.data;
             studentsError = studentsFallback.error;
         }
@@ -582,7 +582,10 @@ app.get('/api/public-directory', rateLimit, async (_req, res) => {
             profileName: student.profile_name || student.full_name || 'Trainee',
             photo: student.profile_picture_url || null,
             trainingStatus: student.training_status || 'Student',
-            personalInfoVisibility: Array.isArray(student.personal_info_visibility) ? student.personal_info_visibility : ['name', 'birthday', 'gender'],
+            program: student.programs?.name || '',
+            programId: student.program_id || '',
+            trainings: Array.isArray(student.trainings) ? student.trainings : [],
+            personalInfoVisibility: Array.isArray(student.personal_info_visibility) ? student.personal_info_visibility : ['name', 'birthday', 'gender', 'program'],
         }));
 
         const mappedPartners = (partnerRows || []).map(partner => ({
@@ -1088,7 +1091,7 @@ app.post('/api/partner/opportunities', uploadRateLimit, async (req, res) => {
             const { data, error } = await supabaseAdmin
                 .from('job_postings')
                 .insert([cleanPayload])
-                .select('*, industry_partners(company_name), programs(name, competencies, description)')
+                .select('id, partner_id, program_id, title, company_name, description, requirements, location, salary_min, salary_max, employment_type, slots, source, source_url, is_active, created_at, expires_at, opportunity_type, nc_level, salary_range, status, industry, attachment_name, attachment_type, attachment_url, detailed_address, industry_partners(company_name), programs(name, competencies, description)')
                 .single();
 
             if (!error) {
@@ -1279,7 +1282,7 @@ app.put('/api/partner/opportunities/:jobId', uploadRateLimit, async (req, res) =
                 .update(cleanPayload)
                 .eq('id', jobId)
                 .eq('partner_id', partnerId)
-                .select('*, industry_partners(company_name), programs(name, competencies, description)')
+                .select('id, partner_id, program_id, title, company_name, description, requirements, location, salary_min, salary_max, employment_type, slots, source, source_url, is_active, created_at, expires_at, opportunity_type, nc_level, salary_range, status, industry, attachment_name, attachment_type, attachment_url, detailed_address, industry_partners(company_name), programs(name, competencies, description)')
                 .single();
 
             if (!error) {

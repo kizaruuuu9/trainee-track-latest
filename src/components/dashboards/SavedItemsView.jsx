@@ -1,13 +1,17 @@
 import React from 'react';
 import { Bookmark, Building2, MapPin, Trash2, Send, Eye, MessageSquare, CheckCircle } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
+import { usePosts, useJobPostings, useApplications, usePostInteractions } from '../../hooks';
 
 const SavedItemsView = ({ userId, userType, onApply, onOpenBulletin, onViewDetail }) => {
     const { 
-        jobPostings, posts, postInteractions, updateTrainee, 
-        applications, createPostInteraction, currentUser, 
+        updateTrainee, createPostInteraction, currentUser, 
         partners, trainees 
     } = useApp();
+    const { data: jobPostings = [] } = useJobPostings();
+    const { data: posts = [] } = usePosts();
+    const { data: applications = [] } = useApplications();
+    const { data: postInteractions = [] } = usePostInteractions();
 
     // 1. Get saved Jobs (Trainee only for now based on current schema)
     const trainee = userType === 'trainee' ? (currentUser || trainees.find(t => t.id === userId)) : null;

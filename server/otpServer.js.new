@@ -1,0 +1,224 @@
+// Admin Data Endpoint (Bypass RLS for Admin Dashboard)
+app.get('/api/admin/data', adminLimiter, async (req, res) => {
+    let page = parseInt(req.query.page) || 1;
+    let limit = parseInt(req.query.limit) || 15;
+    let search = req.query.search || '';
+
+    try {
+        const timestamp = req.query.t || Date.now();
+        
+        // Run presence cleanup before fetching data
+        await runStalePresenceCleanup();
+
+        let stdsQuery = supabaseAdmin
+            .from('students')
+            .select('id, full_name, student_id, program_id, training_status, activity_status, last_seen_at, contact_email, employment_status, employer, date_hired, graduation_year, updated_at', { count: 'exact' });
+
+        let partsQuery = supabaseAdmin
+            .from('industry_partners')
+            .select('id, company_name, business_type, contact_person, contact_email, verification_status, activity_status, last_seen_at, updated_at', { count: 'exact' });
+
+        if (search) {
+            const q = `%${search}%`;
+            stdsQuery = stdsQuery.or(`full_name.ilike.${q},contact_email.ilike.${q}`);
+            partsQuery = partsQuery.or(`company_name.ilike.${q},contact_email.ilike.${q}`);
+        }
+
+        if (page > 0 && limit > 0) {
+            const from = (page - 1) * limit;
+            const to = from + limit - 1;
+            stdsQuery = stdsQuery.range(from, to);
+            partsQuery = partsQuery.range(from, to);
+        }
+
+        let accountsQuery = supabaseAdmin
+            .from('profiles')
+            .select('id, user_type')
+            .in('user_type', ['student', 'trainee', 'partner', 'industry_partner'])
+            .order('created_at', { ascending: false });
+
+        if (page > 0 && limit > 0) {
+            const from = (page - 1) * limit;
+            const to = from + limit - 1;
+            accountsQuery = accountsQuery.range(from, to);
+        }
+
+
+        const [
+            { data: stds, error: stdsErr },
+            { data: parts, error: partsErr },
+            { data: accs, error: accsErr },
+            { data: submittedRows, error: submittedErr },
+            { data: profiles, error: profilesErr },
+            { data: empStats, error: empStatsErr },
+            { data: allProgs, error: progsErr },
+            { count: totalStdsCount, error: totalStdsErr },
+            { count: totalPartsCount, error: totalPartsErr },
+            { count: totalAccsCount, error: totalAccsErr }
+        ] = await Promise.all([
+            runSafe(stdsQuery),
+            runSafe(partsQuery),
+            runSafe(accountsQuery),
+            runSafe(supabaseAdmin.from('partner_verifications').select('partner_id')),
+            runSafe(supabaseAdmin.from('profiles').select('id, user_type')),
+            runSafe(supabaseAdmin.from('students').select('employment_status')),
+            runSafe(supabaseAdmin.from('programs').select('id, name')),
+            runSafeCount(supabaseAdmin.from('students').select('id', { count: 'exact', head: true })),
+            runSafeCount(supabaseAdmin.from('industry_partners').select('id', { count: 'exact', head: true })),
+            runSafeCount(supabaseAdmin.from('profiles').select('id', { count: 'exact', head: true }).in('user_type', ['student', 'trainee', 'partner', 'industry_partner']))
+        ]);
+
+        const isRangeError = (err) => err && err.code === 'PGRST103';
+
+        if (stdsErr && !isRangeError(stdsErr)) console.warn('[Admin API] Students query error:', stdsErr);
+        if (partsErr && !isRangeError(partsErr)) console.warn('[Admin API] Partners query error:', partsErr);
+        if (accsErr && !isRangeError(accsErr)) console.warn('[Admin API] Accounts query error:', accsErr);
+        
+        // If it was a range error, treat data as empty array
+        const finalStds = isRangeError(stdsErr) ? [] : (stds || []);
+        const finalParts = isRangeError(partsErr) ? [] : (parts || []);
+
+        console.log(`[Admin] Fetched ${finalStds.length} students (Page ${page}).`);
+        if (progsErr) console.warn('Could not fetch programs for mapping:', progsErr);
+
+        if (submittedErr) console.warn('Could not fetch partner submission rows:', submittedErr);
+        if (profilesErr) console.warn('Could not fetch profiles for role filtering:', profilesErr);
+
+        if (empStatsErr) console.warn('Could not fetch global employment stats:', empStatsErr);
+
+        const authUsersRes = await supabaseAdmin.auth.admin.listUsers().catch(err => ({ data: null, error: err }));
+        const authUsers = authUsersRes?.data;
+        const usersErr = authUsersRes?.error;
+        if (usersErr) console.warn('Could not fetch auth users for emails:', usersErr);
+
+        const submittedPartnerIds = [...new Set((submittedRows || []).map(row => row.partner_id))];
+
+        const profileRoleById = new Map((profiles || []).map(profile => [
+            profile.id,
+            String(profile.user_type || '').toLowerCase(),
+        ]));
+
+        const allowedStudentRoles = new Set(['student', 'trainee']);
+        const allowedPartnerRoles = new Set(['industry_partner', 'partner']);
+
+        const programNameById = new Map();
+        if (allProgs) {
+            allProgs.forEach(p => {
+                if (p.id && p.name) programNameById.set(String(p.id), p.name);
+            });
+        }
+        console.log(`[Admin] Mapped ${programNameById.size} programs for display.`);
+
+        const mappedStds = (finalStds || []).map(std => {
+            const authRecord = authUsers?.users?.find(u => u.id === std.id);
+            const latestSeenAt = std.last_seen_at || authRecord?.last_sign_in_at || null;
+            return {
+                ...std,
+                name: std.full_name || 'Trainee',
+                fullName: std.full_name,
+                employmentStatus: std.employment_status,
+                dateHired: std.date_hired,
+                profile_name: std.full_name || 'Trainee',
+                email: authRecord?.email || 'None',
+                activity_status: resolvePresenceStatus(std.activity_status, latestSeenAt),
+                last_seen_at: latestSeenAt,
+                program_name: std.program_id ? (programNameById.get(String(std.program_id)) || `Unmapped ID: ${String(std.program_id).slice(0,8)}`) : 'No Program'
+            };
+        });
+
+        const mappedPartners = (finalParts || []).map(partner => {
+            const authRecord = authUsers?.users?.find(u => u.id === partner.id);
+            const latestSeenAt = partner.last_seen_at || authRecord?.last_sign_in_at || null;
+            return {
+                ...partner,
+                companyName: partner.company_name,
+                contactPerson: partner.contact_person,
+                verificationStatus: partner.verification_status,
+                profile_name: partner.company_name || partner.contact_person || 'Industry Partner',
+                email: authRecord?.email || 'None',
+                activity_status: resolvePresenceStatus(partner.activity_status, latestSeenAt),
+                last_seen_at: latestSeenAt,
+            };
+        });
+
+        // Calculate Employment Stats (Global)
+        const totalEmp = empStats?.length || 0;
+        const employedCount = (empStats || []).filter(s => s.employment_status === 'employed').length;
+        const seekingCount = (empStats || []).filter(s => s.employment_status === 'seeking_employment').length;
+        const notEmployedCount = (empStats || []).filter(s => s.employment_status === 'not_employed' || !s.employment_status).length;
+        const empRate = totalEmp > 0 ? Math.round((employedCount / totalEmp) * 100) : 0;
+
+        const accountIds = (accs || []).map(a => a.id);
+        const [accStds, accParts] = await Promise.all([
+            runSafe(supabaseAdmin.from('students').select('*').in('id', accountIds)),
+            runSafe(supabaseAdmin.from('industry_partners').select('*').in('id', accountIds))
+        ]);
+
+        const accStdsMap = new Map((accStds.data || []).map(s => [s.id, s]));
+        const accPartsMap = new Map((accParts.data || []).map(p => [p.id, p]));
+
+        const mappedAccounts = (accs || []).map(acc => {
+            const isStudent = ['student', 'trainee'].includes(acc.user_type);
+            const data = isStudent ? accStdsMap.get(acc.id) : accPartsMap.get(acc.id);
+            if (!data) return null;
+
+            const authRecord = authUsers?.users?.find(u => u.id === acc.id);
+            const latestSeenAt = data.last_seen_at || authRecord?.last_sign_in_at || null;
+            const activity_status = resolvePresenceStatus(data.activity_status, latestSeenAt);
+
+            if (isStudent) {
+                return {
+                    ...data,
+                    type: 'trainee',
+                    name: data.full_name || 'Trainee',
+                    fullName: data.full_name,
+                    employmentStatus: data.employment_status,
+                    dateHired: data.date_hired,
+                    profile_name: data.full_name || 'Trainee',
+                    email: authRecord?.email || 'None',
+                    activity_status,
+                    last_seen_at: latestSeenAt,
+                    program_name: data.program_id ? (programNameById.get(String(data.program_id)) || `Unmapped ID: ${String(data.program_id).slice(0,8)}`) : 'No Program'
+                };
+            } else {
+                return {
+                    ...data,
+                    type: 'partner',
+                    companyName: data.company_name,
+                    contactPerson: data.contact_person,
+                    verificationStatus: data.verification_status,
+                    profile_name: data.company_name || data.contact_person || 'Industry Partner',
+                    email: authRecord?.email || 'None',
+                    activity_status,
+                    last_seen_at: latestSeenAt,
+                };
+            }
+        }).filter(Boolean);
+
+        res.json({ 
+            students: mappedStds, 
+            partners: mappedPartners, 
+            accounts: mappedAccounts,
+            submittedPartnerIds,
+            totalStudents: totalStdsCount || 0,
+            totalPartners: totalPartsCount || 0,
+            totalAccounts: totalAccsCount || 0,
+            employmentStats: {
+                total: totalEmp,
+                employed: employedCount,
+                seeking_employment: seekingCount,
+                not_employed: notEmployedCount,
+                employmentRate: empRate
+            }
+        });
+
+    } catch (error) {
+        console.error('Admin data fetch error:', error);
+        res.status(500).json({ 
+            error: 'Failed to fetch admin data.',
+            details: error.message || String(error),
+            context: { page, limit, search, timestamp: new Date().toISOString() },
+            stack: process.env.NODE_ENV !== 'production' ? error.stack : undefined
+        });
+    }
+});

@@ -2,11 +2,13 @@ import React, { useState, useRef, useEffect } from 'react';
 import BrandLogo from './BrandLogo';
 import { Search, Menu, Bell, Settings, LogOut, User } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
+import { useNotifications } from '../../hooks';
 
 import NotificationsDropdown from './NotificationsDropdown';
 
 const TopNavBar = ({ activePage, setActivePage }) => {
-    const { logout, notifications, lastSeenNotificationsAt, updateLastSeenNotificationsAt } = useApp();
+    const { logout, lastSeenNotificationsAt, updateLastSeenNotificationsAt } = useApp();
+    const { data: notifications = [] } = useNotifications();
 
     const [menuOpen, setMenuOpen] = useState(false);
     const [notificationsOpen, setNotificationsOpen] = useState(false);

@@ -3,16 +3,7 @@ import {
     GraduationCap, Briefcase, Award, Sparkles, Heart,
     FileText, Plus, X, ChevronDown, Upload, Trash2, ExternalLink, Link2
 } from 'lucide-react';
-
-// ─── Predefined suggestions ────────────────────────────────────
-const SKILL_SUGGESTIONS = [
-    'JavaScript', 'Python', 'Java', 'React', 'Node.js', 'SQL', 'Excel',
-    'Communication', 'Leadership', 'Project Management', 'Data Analysis',
-    'Graphic Design', 'UI/UX Design', 'Marketing', 'Public Speaking',
-    'Problem Solving', 'Teamwork', 'Critical Thinking', 'Time Management',
-    'Customer Service', 'Accounting', 'Research', 'Writing', 'AutoCAD',
-    'Photoshop', 'Video Editing', 'Social Media', 'SEO', 'Sales',
-];
+import { useAppContext } from '../../context/AppContext';
 
 const MAX_INTERESTS = 10;
 
@@ -56,8 +47,6 @@ const getWordCloudStyle = (word) => {
     };
 };
 
-
-
 const isValidUrl = (string) => {
     try {
         const url = new URL(string.includes('://') ? string : `https://${string}`);
@@ -69,11 +58,19 @@ const isValidUrl = (string) => {
 };
 
 export default function Step3ProfileSetup({ data, onChange, onValidChange }) {
+    const { competencies, fetchCompetencies } = useAppContext();
     const [errors, setErrors] = useState({});
     const [touched, setTouched] = useState({});
     const [newSkill, setNewSkill] = useState('');
     const [showSkillSuggestions, setShowSkillSuggestions] = useState(false);
     const [newInterest, setNewInterest] = useState('');
+
+    // Safety check: if competencies is empty, try fetching
+    useEffect(() => {
+        if (!competencies || competencies.length === 0) {
+            fetchCompetencies();
+        }
+    }, [competencies, fetchCompetencies]);
 
     // Auto-detect API base
     const API_BASE = window.location.hostname === 'localhost'
@@ -243,9 +240,8 @@ export default function Step3ProfileSetup({ data, onChange, onValidChange }) {
         setErrors(prev => { const { resume: _resume, ...rest } = prev; return rest; });
     };
 
-
     const existingSkillNames = (data.skills || []).map(s => s.name);
-    const filteredSkillSuggestions = SKILL_SUGGESTIONS.filter(
+    const filteredSkillSuggestions = (competencies || []).filter(
         s => s.toLowerCase().includes(newSkill.toLowerCase()) && !existingSkillNames.includes(s)
     ).slice(0, 6);
 

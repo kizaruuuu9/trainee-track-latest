@@ -1,6 +1,7 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { useApp } from '../../context/AppContext';
+import { usePosts, useJobPostings, useApplications, usePrograms, useDeleteApplication, useTrainees, usePartners, useContactRequests, useInterviewBookings, useAvailability, useSaveAvailabilitySlot, useDeleteAvailabilitySlot, useSaveInterviewBooking, useSendContactRequest } from '../../hooks';
 
 import SavedItemsView from './SavedItemsView';
 import ProfileActivityTab from './ProfileActivityTab';
@@ -13,7 +14,7 @@ import {
   Bell, Home, Settings, TrendingUp, Bookmark, Target, Star,
   Camera, MessageSquare, MessageCircle, Edit, Loader, ExternalLink, EyeOff, MoreVertical,
   RefreshCw, MousePointerClick, CheckCircle2, UserPlus, Info, Share2,
-  Calendar, ChevronLeft, Heart, Download, Navigation, User, Check, AlignLeft
+  Calendar, ChevronLeft, Heart, Download, Navigation, User, Check, AlignLeft, Mail
 } from 'lucide-react';
 import EmptyState, {
   TrophyIllustration,
@@ -24,7 +25,7 @@ import EmptyState, {
 } from '../EmptyState';
 import BrandLogo from '../common/BrandLogo';
 import { supabase } from '../../lib/supabase';
-import { CompactFeedItem } from './FeedComponents';
+import { CompactFeedItem, POST_THEME, VerifiedBadge } from './FeedComponents';
 import { Routes, Route, useNavigate, useLocation, Navigate, useParams } from 'react-router-dom';
 import PhilAddressSelector from '../common/PhilAddressSelector';
 import ProfilePage from '../ProfilePage';
@@ -32,6 +33,8 @@ import TopNavBar from '../common/TopNavBar';
 import ImageCropModal from '../common/ImageCropModal';
 import toast from 'react-hot-toast';
 import NotificationsPage from './NotificationsPage';
+import LocationPicker from '../common/LocationPicker';
+import { normalizeLocation } from '../../lib/psgc';
 
 const TraineeProfileContent = React.lazy(() =>
   import('./TraineeDashboard').then(module => ({ default: module.TraineeProfileContent }))
@@ -358,8 +361,8 @@ const StatusBadge = ({ status }) => {
 // --- TOP NAVIGATION BAR (LinkedIn-style for Partners) -------------
 // --- LEFT NAVIGATION BAR -------------
 const PartnerSideNav = ({ activePage, setActivePage }) => {
-    const { currentUser, partners, confirmAction } = useApp();
-    const navigate = useNavigate();
+    const { currentUser, confirmAction } = useApp();
+    const { data: partners = [] } = usePartners();
 
     // Partner-specific data
     const livePartner = getLivePartner(currentUser, partners);
@@ -538,18 +541,25 @@ const RecruitmentStatsWidget = ({ myJobs, myApplicants }) => (
 // --- PAGE 1: PARTNER DASHBOARD HOME ------------------------------
 const PartnerHome = ({ setActivePage, openContactModal }) => {
   const { 
-    currentUser, partners, jobPostings, programs, updatePartnerJobPosting, 
-    getPartnerApplicants, posts, createPost, updatePost, deletePost, 
-    deleteJobPosting, trainees, 
-    addJobPostingComment, getJobPostingComments, updateJobPostingComment, 
-    deleteJobPostingComment, sendContactRequest, createPostInteraction, 
+    currentUser, updatePartnerJobPosting, 
+    getPartnerApplicants, createPost, updatePost, deletePost, 
+    deleteJobPosting, 
+    createPostInteraction, 
     getUserPostInteraction, fetchPostInteractions, fetchPosts, fetchJobPostings, 
     uploadOptimizedImage, confirmAction, loadMoreFeeds
   } = useApp();
+  const sendContactMutation = useSendContactRequest();
+
+  const { data: partners = [] } = usePartners();
+  const { data: trainees = [] } = useTrainees();
+  const { data: posts = [] } = usePosts();
+  const { data: jobPostings = [] } = useJobPostings();
+  const { data: programsData } = usePrograms();
+  const programs = programsData?.data || [];
 
   useEffect(() => {
-    fetchPosts();
-    fetchJobPostings();
+    // fetchPosts(); // Managed by TanStack Query
+    // fetchJobPostings(); // Managed by TanStack Query
     fetchPostInteractions();
   }, [currentUser?.id]);
   const [feedViewMode, setFeedViewMode] = useState('list'); // 'grid' or 'list'
@@ -615,6 +625,7 @@ const PartnerHome = ({ setActivePage, openContactModal }) => {
       attachmentName: job.attachmentName || '',
       attachmentType: job.attachmentType || '',
       attachmentUrl: job.attachmentUrl || '',
+      detailedAddress: job.detailed_address || job.detailedAddress || '',
     };
   };
 
@@ -626,6 +637,8 @@ const PartnerHome = ({ setActivePage, openContactModal }) => {
   const [postTitle, setPostTitle] = useState('');
   const [postExpiryEnabled, setPostExpiryEnabled] = useState(false);
   const [postExpiryDate, setPostExpiryDate] = useState('');
+  const [postLocation, setPostLocation] = useState('');
+  const [postDetailedAddress, setPostDetailedAddress] = useState('');
   const [editingPostId, setEditingPostId] = useState(null);
   const [editContent, setEditContent] = useState('');
   const [postMenuId, setPostMenuId] = useState(null);
@@ -731,6 +744,8 @@ const PartnerHome = ({ setActivePage, openContactModal }) => {
         media_url: media_url,
         attachment_type: attachmentType || null,
         expires_at: postExpiryEnabled && postExpiryDate ? new Date(postExpiryDate + 'T23:59:59').toISOString() : null,
+        location: postLocation || null,
+        detailed_address: postDetailedAddress || null,
         tags: []
       });
 
@@ -741,6 +756,8 @@ const PartnerHome = ({ setActivePage, openContactModal }) => {
         setPostTitle('');
         setPostExpiryEnabled(false);
         setPostExpiryDate('');
+        setPostLocation('');
+        setPostDetailedAddress('');
         setSelectedFile(null);
         setFilePreview(null);
         setShowPostModal(false);
@@ -935,6 +952,7 @@ const PartnerHome = ({ setActivePage, openContactModal }) => {
         attachmentName: finalAttachmentName,
         attachmentType: finalAttachmentType,
         attachmentUrl: finalAttachmentUrl,
+        detailed_address: editJobForm.detailedAddress || null,
       };
 
       const result = await updatePartnerJobPosting(editJobModal.id, payload);
@@ -964,19 +982,29 @@ const PartnerHome = ({ setActivePage, openContactModal }) => {
 
   // Unified Feed: tag bulletin posts - NO job postings in community feed (they belong in Opportunities tab)
   const BULLETIN_TYPES = ['training_batch', 'exam_schedule', 'certification_assessment', 'announcement'];
-  const unifiedFeed = [
-    ...posts.map(p => ({
-      ...p,
-      feedType: (BULLETIN_TYPES.includes(p.post_type) && p.author_type !== 'industry_partner') ? 'bulletin' : 'post'
-    }))
-  ]
-  .filter(p => {
-    // Hide job posts (they belong in Opportunities tab)
-    if (p.post_type === 'hiring_update' || p.feedType === 'job') return false;
-    // Show trainee + admin + other partner non-job posts
-    return true;
-  })
-  .sort((a, b) => new Date(b.created_at || b.createdAt || b.datePosted) - new Date(a.created_at || a.createdAt || a.datePosted));
+  const unifiedFeed = useMemo(() => {
+    const BULLETIN_TYPES = ['training_batch', 'exam_schedule', 'certification_assessment', 'announcement'];
+    return [
+      ...posts.map(p => ({
+        ...p,
+        feedType: (BULLETIN_TYPES.includes(p.post_type) && p.author_type !== 'industry_partner') ? 'bulletin' : 'post'
+      }))
+    ]
+    .filter(p => {
+      const authorType = String(p.author_type || '').toLowerCase();
+      const isPartner = authorType === 'industry_partner' || authorType === 'partner';
+      const isOwnPost = String(p.author_id) === String(partner?.id || currentUser?.id);
+
+      // Hide job posts (they belong in Opportunities tab)
+      if (p.post_type === 'hiring_update' || p.feedType === 'job') return false;
+
+      // Partner should not see other partner posts
+      if (isPartner && !isOwnPost) return false;
+
+      return true;
+    })
+    .sort((a, b) => new Date(b.created_at || b.createdAt || b.datePosted) - new Date(a.created_at || a.createdAt || a.datePosted));
+  }, [posts, partner?.id, currentUser?.id]);
     const filteredFeed = React.useMemo(() => {
         let list = unifiedFeed;
         if (feedFilter === "All" || feedFilter === "Recommended") {
@@ -1306,8 +1334,8 @@ const PartnerHome = ({ setActivePage, openContactModal }) => {
                     )}
                   </div>
                   <div style={{ padding: '0 16px 12px' }}>
-                    <h4 style={{ fontSize: 15, fontWeight: 800, color: '#0f172a', marginBottom: 6 }}>{item.title}</h4>
-                    <p style={{ fontSize: 13.5, color: '#475569', lineHeight: 1.6 }}>{item.content}</p>
+                    <h4 style={{ fontSize: 18, fontWeight: 800, color: '#0f172a', marginBottom: 8 }}>{item.title}</h4>
+                    <p style={{ fontSize: 14.5, color: '#475569', lineHeight: 1.6 }}>{item.content}</p>
                     {(item.schedule || item.time_range || item.slots) && (
                       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))', gap: 8, marginTop: 10 }}>
                         {item.schedule && <div style={{ background: '#f8fafc', borderRadius: 8, padding: '8px 12px' }}><div style={{ fontSize: 10, color: '#94a3b8', fontWeight: 700, textTransform: 'uppercase' }}>Schedule</div><div style={{ fontSize: 12.5, fontWeight: 600, color: '#334155', marginTop: 2 }}>{formatBulletinDate(item.schedule)}</div></div>}
@@ -1349,9 +1377,9 @@ const PartnerHome = ({ setActivePage, openContactModal }) => {
               );
             } else if (item.feedType === 'job') {
               const myJob = item.partnerId === currentUser?.id;
-              const jobComments = getJobPostingComments(item.id);
+              const tColor = POST_THEME['job']?.color || '#0a66c2';
               return (
-                <div key={`job-${item.id}`} className="ln-card ln-feed-card" style={{ marginBottom: 0 }}>
+                <div key={`job-${item.id}`} className="ln-card ln-feed-card" style={{ marginBottom: 0, borderLeft: `4px solid ${tColor}` }}>
                   <div className="ln-feed-card-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                     <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
                       <button
@@ -1368,9 +1396,12 @@ const PartnerHome = ({ setActivePage, openContactModal }) => {
                           <button
                             type="button"
                             onClick={() => openProfile({ id: item.partnerId, type: 'partner' })}
-                            style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', color: 'inherit', font: 'inherit', textAlign: 'left' }}
+                            style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', color: 'inherit', font: 'inherit', textAlign: 'left', display: 'flex', alignItems: 'center', gap: 4, fontWeight: 700 }}
                           >
                             {item.companyName}
+                            {partners.find(p => String(p.id) === String(item.partnerId))?.verificationStatus === 'Verified' && (
+                              <VerifiedBadge size={14} />
+                            )}
                           </button>
                           {myJob && <span className="ln-badge ln-badge-blue" style={{ fontSize: 10, marginLeft: 4 }}>Your Post</span>}
                         </div>
@@ -1428,8 +1459,8 @@ const PartnerHome = ({ setActivePage, openContactModal }) => {
                     )}
                   </div>
                   <div className="ln-feed-content">
-                    <h4 style={{ fontSize: 15, fontWeight: 700, marginBottom: 4 }}>{item.title}</h4>
-                    <p style={{ fontSize: 13, color: 'rgba(0,0,0,0.6)', marginBottom: 8 }}>{item.description.substring(0, 150)}...</p>
+                    <h4 style={{ fontSize: 18, fontWeight: 800, color: '#0f172a', marginBottom: 8, lineHeight: 1.3 }}>{item.title}</h4>
+                    <p style={{ fontSize: 14.5, color: '#475569', lineHeight: 1.6, marginBottom: 8 }}>{item.description.substring(0, 150)}...</p>
                     {item.attachmentUrl && isImageAttachment(item.attachmentUrl, item.attachmentType) && (
                       <div style={{ display: 'block', marginBottom: 10 }}>
                         <div className="ln-media-frame">
@@ -1460,11 +1491,6 @@ const PartnerHome = ({ setActivePage, openContactModal }) => {
                         <span style={{ fontSize: 15, color: '#057642', fontWeight: 700 }}>{formatSalaryDisplay(item.salaryRange)}</span>
                       </div>
                     )}
-                    {jobComments.length > 0 && (
-                      <div style={{ marginTop: 10, fontSize: 12, color: '#64748b', display: 'flex', gap: 14 }}>
-                        {jobComments.length > 0 && <span>{jobComments.length} comment{jobComments.length === 1 ? '' : 's'}</span>}
-                      </div>
-                    )}
                   </div>
                   <div className="ln-feed-actions" style={{ borderTop: '1px solid #f3f3f3', padding: '8px 12px' }}>
                     {myJob && (
@@ -1472,9 +1498,6 @@ const PartnerHome = ({ setActivePage, openContactModal }) => {
                         <Users size={14} /> View Applicants
                       </button>
                     )}
-                    <button className="ln-feed-action-btn" onClick={() => openJobMediaModal(item, true)}>
-                      <MessageSquare size={14} /> Comment ({jobComments.length})
-                    </button>
                     <button
                       className="ln-feed-action-btn"
                       onClick={() => !myJob && openContactModal({
@@ -1509,19 +1532,11 @@ const PartnerHome = ({ setActivePage, openContactModal }) => {
               const authorInitial = author?.name?.charAt(0) || author?.companyName?.charAt(0) || '?';
               const isMe = item.author_id === currentUser?.id;
 
-              const getCommentAuthorName = (comment) => {
-                if (comment.author_id === currentUser?.id) return partner?.companyName || currentUser.companyName || currentUser.name || 'You';
-                if (comment.author_type === 'admin' || comment.author_id === 'de305d54-75b4-431b-adb2-eb6b9e546014') return 'PSTDII Admin';
-                if (isStudentAuthorType(comment.author_type)) {
-                  const student = trainees.find(t => t.id === comment.author_id);
-                  return student?.name || 'Trainee';
-                }
-                const company = partners.find(p => p.id === comment.author_id);
-                return company?.companyName || 'Industry Partner';
-              };
+
+              const tColor = POST_THEME[item.post_type]?.color || POST_THEME['general'].color;
 
               return (
-                <div key={`post-${item.id}`} className="ln-card ln-feed-card" style={{ marginBottom: 0 }}>
+                <div key={`post-${item.id}`} className="ln-card ln-feed-card" style={{ marginBottom: 0, borderLeft: `4px solid ${tColor}` }}>
                   <div className="ln-feed-card-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                     <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
                       <button
@@ -1539,9 +1554,12 @@ const PartnerHome = ({ setActivePage, openContactModal }) => {
                           <button
                             type="button"
                             onClick={() => openProfile({ id: item.author_id, type: authorProfileType })}
-                            style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', color: 'inherit', font: 'inherit', textAlign: 'left' }}
+                            style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', color: 'inherit', font: 'inherit', textAlign: 'left', display: 'flex', alignItems: 'center', gap: 4, fontWeight: 700 }}
                           >
                             {author?.name || author?.profileName || author?.companyName || 'Unknown User'}
+                            {author?.verificationStatus === 'Verified' && (
+                              <VerifiedBadge size={14} />
+                            )}
                           </button>
                           {isMe && <span className="ln-badge ln-badge-gray" style={{ fontSize: 10 }}>You</span>}
                           {item.post_type !== 'general' && (
@@ -1633,7 +1651,7 @@ const PartnerHome = ({ setActivePage, openContactModal }) => {
                           value={editContent}
                           onChange={e => setEditContent(e.target.value)}
                           style={{
-                            width: '100%', minHeight: 100, padding: 12, fontSize: 14,
+                            width: '100%', minHeight: 100, padding: 12, fontSize: 14.5,
                             border: '1px solid #0a66c2', borderRadius: 8, resize: 'none',
                             outline: 'none', fontFamily: 'inherit'
                           }}
@@ -1658,7 +1676,10 @@ const PartnerHome = ({ setActivePage, openContactModal }) => {
                         </div>
                       </div>
                     ) : (
-                      <p style={{ whiteSpace: 'pre-wrap', fontSize: 14 }}>{item.content}</p>
+                      <>
+                        <h4 style={{ fontSize: 18, fontWeight: 800, color: '#0f172a', marginBottom: 8, lineHeight: 1.3 }}>{item.title}</h4>
+                        <p style={{ whiteSpace: 'pre-wrap', fontSize: 14.5, color: '#475569', lineHeight: 1.6 }}>{item.content}</p>
+                      </>
                     )}
                     {item.media_url && (
                       <div style={{ marginTop: 12 }}>
@@ -1940,15 +1961,35 @@ const PartnerHome = ({ setActivePage, openContactModal }) => {
                   />
                 </div>
 
-                <div className="form-group">
-                  <label className="ln-info-label">Location *</label>
-                  <input
-                    className="form-input"
+                <div className="form-group" style={{ gridColumn: '1 / -1' }}>
+                  <label className="ln-info-label">Location (City/Municipality) *</label>
+                  <LocationPicker 
                     value={editJobForm.location}
-                    onChange={e => setEditJobForm(prev => ({ ...prev, location: e.target.value }))}
-                    maxLength={100}
+                    onChange={val => setEditJobForm(prev => ({ ...prev, location: val }))}
                     required
                   />
+                  <p style={{ fontSize: 11, color: '#64748b', marginTop: 4 }}>Standardized for filtering.</p>
+                </div>
+
+                <div className="form-group" style={{ gridColumn: '1 / -1', marginTop: 8 }}>
+                  <label className="ln-info-label">Specific Address (Building/Street)</label>
+                  <div style={{ position: 'relative' }}>
+                    <input
+                      className="form-input"
+                      style={{ paddingLeft: 38 }}
+                      value={editJobForm.detailedAddress || ''}
+                      onChange={e => setEditJobForm(prev => ({ ...prev, detailedAddress: e.target.value.slice(0, 100) }))}
+                      maxLength={100}
+                      placeholder="e.g. 456 Ayala Ave, Makati"
+                    />
+                    <MapPin size={16} style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: '#94a3b8' }} />
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 4 }}>
+                    <p style={{ fontSize: 11, color: '#64748b' }}>Limit to 100 characters.</p>
+                    <p style={{ fontSize: 11, color: (editJobForm.detailedAddress?.length || 0) >= 100 ? '#ef4444' : '#94a3b8' }}>
+                      {editJobForm.detailedAddress?.length || 0}/100
+                    </p>
+                  </div>
                 </div>
 
                 <div className="form-group">
@@ -2083,6 +2124,32 @@ const PartnerHome = ({ setActivePage, openContactModal }) => {
               <div style={{ marginBottom: 16 }}>
                 <textarea value={postContent} onChange={e => setPostContent(e.target.value)} placeholder="What do you want to announce to the community?" rows={4} style={{ width: '100%', padding: '10px 0', border: 'none', fontSize: 15, color: '#1e293b', outline: 'none', resize: 'vertical', minHeight: 80, boxSizing: 'border-box' }} />
               </div>
+
+              <div style={{ marginBottom: 16 }}>
+                <div style={{ fontSize: 13, fontWeight: 600, color: '#475569', marginBottom: 8 }}>Location (City/Municipality)</div>
+                <LocationPicker 
+                  value={postLocation}
+                  onChange={setPostLocation}
+                  placeholder="Tag a location (Optional)"
+                />
+              </div>
+
+              {postLocation && (
+                <div style={{ marginBottom: 16 }}>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: '#475569', marginBottom: 8 }}>Specific Address</div>
+                  <div style={{ position: 'relative' }}>
+                    <input 
+                      className="form-input" 
+                      style={{ paddingLeft: 38, fontSize: 13, borderRadius: 8 }} 
+                      value={postDetailedAddress} 
+                      onChange={e => setPostDetailedAddress(e.target.value.slice(0, 100))} 
+                      placeholder="Street, Building, etc." 
+                      maxLength={100} 
+                    />
+                    <MapPin size={16} style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: '#94a3b8' }} />
+                  </div>
+                </div>
+              )}
               {(true) && (
                 <div style={{ marginBottom: 16, background: '#f8fafc', padding: 12, borderRadius: 8 }}>
                   <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, fontWeight: 600, color: '#475569', marginBottom: 8, cursor: 'pointer' }}>
@@ -2133,7 +2200,8 @@ const PartnerHome = ({ setActivePage, openContactModal }) => {
 
 // --- PAGE: VERIFICATION -------------------------------------------
 const VerificationPage = ({ setActivePage }) => {
-  const { currentUser, partners, submitPartnerDocuments, withdrawPartnerSubmission } = useApp();
+  const { currentUser, submitPartnerDocuments, withdrawPartnerSubmission } = useApp();
+  const { data: partners = [] } = usePartners();
   const livePartner = getLivePartner(currentUser, partners);
   const status = livePartner?.verificationStatus || 'Pending';
   const [documents, setDocuments] = useState([]);
@@ -2489,7 +2557,11 @@ const VerificationPage = ({ setActivePage }) => {
 const ncLevelOptions = ['NC I', 'NC II', 'NC III', 'NC IV'];
 const PostJob = ({ setActivePage, opportunityType = 'Job' }) => {
   const location = useLocation();
-  const { addJobPosting, updatePartnerJobPosting, currentUser, partners, programs, jobPostings, uploadOptimizedImage, formatFileSize } = useApp();
+  const { addJobPosting, updatePartnerJobPosting, currentUser, uploadOptimizedImage, formatFileSize } = useApp();
+  const { data: partners = [] } = usePartners();
+  const { data: jobPostings = [] } = useJobPostings();
+  const { data: programsData } = usePrograms();
+  const programs = programsData?.data || [];
   const livePartner = getLivePartner(currentUser, partners);
   const programOptions = React.useMemo(() => Array.isArray(programs) ? programs : [], [programs]);
   const firstProgram = programOptions[0] || null;
@@ -2499,12 +2571,16 @@ const PostJob = ({ setActivePage, opportunityType = 'Job' }) => {
   ) || null;
   const isEditMode = Boolean(editingJob);
   const [posting, setPosting] = useState(false);
+  const [viewMode, setViewMode] = useState('card'); // 'card' or 'list'
   const [showAllComps, setShowAllComps] = useState(false);
   const [attachmentFile, setAttachmentFile] = useState(null);
   const [skillInput, setSkillInput] = useState('');
   const [form, setForm] = useState({
     title: '', opportunityType, programId: firstProgram?.id || '', ncLevel: normalizeNcLevelValue(firstProgram?.ncLevel || firstProgram?.name || ''), description: '',
-    employmentType: opportunityType === 'OJT' ? 'OJT' : 'Full-time', location: '', salaryRange: '', salaryCurrency: DEFAULT_SALARY_CURRENCY, salaryMin: '', salaryMax: '',
+    employmentType: opportunityType === 'OJT' ? 'OJT' : 'Full-time', 
+    location: livePartner?.city ? normalizeLocation(`${livePartner.city}${livePartner.province ? `, ${livePartner.province}` : ''}`) : '', 
+    detailedAddress: livePartner?.detailed_address || '', 
+    salaryRange: '', salaryCurrency: DEFAULT_SALARY_CURRENCY, salaryMin: '', salaryMax: '',
     hideSalary: false,
     requiredCompetencies: [],
     requiredSkills: '', requirements: '', companyName: livePartner?.companyName || '',
@@ -2637,7 +2713,7 @@ const PostJob = ({ setActivePage, opportunityType = 'Job' }) => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!form.title || !form.location) return toast.error('Title and location are required.');
+    if (!form.title || !form.location) return toast.error('Title and standardized location are required.');
     if (!form.ncLevel) return toast.error('Please select a TESDA program.');
 
     const hasSalaryInput = !form.hideSalary && Boolean(form.salaryMin || form.salaryMax);
@@ -2685,6 +2761,7 @@ const PostJob = ({ setActivePage, opportunityType = 'Job' }) => {
         attachmentName: finalAttachmentName || form.attachmentName || '',
         attachmentType: finalAttachmentType || form.attachmentType || '',
         attachmentUrl: finalAttachmentUrl || form.attachmentUrl || '',
+        detailed_address: form.detailedAddress || null,
         requiredSkills: form.requiredSkills ? form.requiredSkills.split(',').map(s => s.trim()).filter(Boolean) : [],
         requirements: form.requirements ? form.requirements.split('\n').map(r => r.trim()).filter(Boolean) : [],
         companyName: form.companyName || livePartner?.companyName || '',
@@ -2866,8 +2943,36 @@ const PostJob = ({ setActivePage, opportunityType = 'Job' }) => {
         <div style={sectionCard}>
           {sectionHeader(<MapPin size={16} color="#dc2626" />, 'Location')}
           <div style={{ padding: 20 }}>
-            {fieldLabel('Location', true)}
-            <input className="form-input" style={inputStyle} value={form.location} onChange={e => setForm({ ...form, location: e.target.value })} placeholder="e.g. Cebu City, Cebu or full address" maxLength={200} required />
+          <div className="form-group">
+            {fieldLabel('Location (City/Municipality)', true)}
+            <LocationPicker 
+              value={form.location} 
+              onChange={val => setForm({ ...form, location: val })} 
+              required 
+            />
+            <p style={{ fontSize: 11, color: '#64748b', marginTop: 4 }}>Used for standardized filtering and search.</p>
+          </div>
+
+          <div className="form-group" style={{ marginTop: 16 }}>
+            {fieldLabel('Specific Address', false)}
+            <div style={{ position: 'relative' }}>
+              <input 
+                className="form-input" 
+                style={{ ...inputStyle, paddingLeft: 38 }} 
+                value={form.detailedAddress || ''} 
+                onChange={e => setForm({ ...form, detailedAddress: e.target.value.slice(0, 100) })} 
+                placeholder="e.g. 123 Rizal St., BGC" 
+                maxLength={100} 
+              />
+              <MapPin size={16} style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: '#94a3b8' }} />
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 4 }}>
+              <p style={{ fontSize: 11, color: '#64748b' }}>Specific location details for candidates.</p>
+              <p style={{ fontSize: 11, color: (form.detailedAddress?.length || 0) >= 100 ? '#ef4444' : '#94a3b8' }}>
+                {form.detailedAddress?.length || 0}/100
+              </p>
+            </div>
+          </div>
             <p style={{ fontSize: 11, color: '#94a3b8', marginTop: 4, margin: '4px 0 0' }}>Enter a city, province, or full address.</p>
           </div>
         </div>
@@ -3042,88 +3147,113 @@ const PostJob = ({ setActivePage, opportunityType = 'Job' }) => {
         </div>
 
         {/* ═══ Live Post Preview ═══ */}
-        <div className="ln-card ln-feed-card" style={{ marginTop: 0 }}>
-          <div className="ln-section-header" style={{ marginBottom: 0 }}>
-            <h3 style={{ fontSize: 14, textTransform: 'uppercase', letterSpacing: '0.5px', color: 'rgba(0,0,0,0.6)' }}>Live Post Preview</h3>
-            <span className="ln-badge ln-badge-blue" style={{ fontSize: 11 }}>How trainees will see it</span>
-          </div>
-
-          <div className="ln-feed-card-header">
-            <button
-              type="button"
-              className="ln-feed-avatar"
-              onClick={() => setActivePage('profile')}
-              style={{ background: '#f0f7ff', color: '#0a66c2', border: 'none', cursor: 'pointer' }}
-            >
-              <Building2 size={20} />
-            </button>
-            <div>
-              <div className="ln-feed-author">
+        <div className="ln-card" style={{ marginTop: 0, overflow: 'visible' }}>
+          <div className="ln-section-header" style={{ marginBottom: 0, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+              <h3 style={{ fontSize: 14, textTransform: 'uppercase', letterSpacing: '0.5px', color: 'rgba(0,0,0,0.6)', margin: 0 }}>Live Post Preview</h3>
+              <div style={{ display: 'flex', border: '1px solid #cbd5e1', borderRadius: 8, overflow: 'hidden', background: '#fff', height: '32px' }}>
                 <button
                   type="button"
-                  onClick={() => setActivePage('profile')}
-                  style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', color: 'inherit', font: 'inherit', textAlign: 'left' }}
+                  style={{ padding: '0 10px', border: 'none', background: viewMode === 'card' ? '#f1f5f9' : 'transparent', cursor: 'pointer', color: viewMode === 'card' ? '#0f172a' : '#64748b', display: 'flex', alignItems: 'center' }}
+                  onClick={() => setViewMode('card')}
+                  title="Card View"
                 >
-                  {previewCompany}
+                  <LayoutDashboard size={14} />
                 </button>
-                <span className="ln-badge ln-badge-blue" style={{ fontSize: 10, marginLeft: 4 }}>Your Post</span>
-              </div>
-              <div className="ln-feed-meta">
-                {[
-                  (previewIndustry && String(previewIndustry).trim().toLowerCase() !== 'general') ? previewIndustry : '',
-                  previewLocation,
-                  previewSalary,
-                  'Just now',
-                ].filter(Boolean).join(' | ')}
+                <button
+                  type="button"
+                  style={{ padding: '0 10px', border: 'none', borderLeft: '1px solid #e2e8f0', background: viewMode === 'list' ? '#f1f5f9' : 'transparent', cursor: 'pointer', color: viewMode === 'list' ? '#0f172a' : '#64748b', display: 'flex', alignItems: 'center' }}
+                  onClick={() => setViewMode('list')}
+                  title="List View"
+                >
+                  <AlignLeft size={14} />
+                </button>
               </div>
             </div>
+            <span className="ln-badge ln-badge-blue" style={{ fontSize: 11 }}>How trainees will see it</span>
           </div>
-
-          <div className="ln-feed-content">
-            <h4 style={{ fontSize: 15, fontWeight: 700, marginBottom: 4 }}>{previewTitle}</h4>
-            <p style={{ fontSize: 13, color: 'rgba(0,0,0,0.6)', marginBottom: 8 }}>{previewDescription}</p>
-
-            {form.attachmentUrl && isImageAttachment(form.attachmentUrl, form.attachmentType) && (
-              <div style={{ marginBottom: 10 }}>
-                <div className="ln-media-frame">
-                  <img
-                    src={form.attachmentUrl}
-                    alt={form.attachmentName || 'Opportunity attachment'}
-                    className="ln-media-image"
-                  />
+          <div style={{ padding: 20 }}>
+            {viewMode === 'list' ? (
+              <CompactFeedItem
+                item={{
+                  id: 'preview',
+                  feedType: 'job',
+                  title: previewTitle,
+                  companyName: previewCompany,
+                  location: previewLocation,
+                  detailed_address: form.detailedAddress,
+                  opportunityType: form.opportunityType,
+                  employmentType: form.employmentType,
+                  ncLevel: form.ncLevel,
+                  salaryRange: previewSalary,
+                  description: previewDescription,
+                  createdAt: new Date().toISOString(),
+                  partnerId: currentUser?.id,
+                }}
+                isOwnPost={false} // To show trainee-facing buttons
+                onInquire={() => {}}
+                onSave={() => {}}
+                onApply={() => {}}
+                openProfile={() => {}}
+                onViewDetail={() => {}}
+              />
+            ) : (
+              <div style={{ display: 'flex', justifyContent: 'flex-start' }}>
+                <div className="coursera-card" style={{ 
+                  borderLeft: `4px solid ${POST_THEME.job.color}`, 
+                  width: '100%',
+                  maxWidth: '360px',
+                  height: '407px',
+                  margin: 0,
+                  flexShrink: 0,
+                  display: 'flex',
+                  flexDirection: 'column'
+                }}>
+                  <div className="coursera-card-image" style={{ 
+                    backgroundColor: form.attachmentUrl && isImageAttachment(form.attachmentUrl, form.attachmentType) ? '#f1f5f9' : POST_THEME.job.bg,
+                    backgroundImage: form.attachmentUrl && isImageAttachment(form.attachmentUrl, form.attachmentType) ? `url(${form.attachmentUrl})` : 'none',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    minHeight: 160, position: 'relative'
+                  }}>
+                    {!(form.attachmentUrl && isImageAttachment(form.attachmentUrl, form.attachmentType)) && <Building2 size={48} color="rgba(0,0,0,0.1)" />}
+                  </div>
+                  <div className="coursera-card-content">
+                    <div className="coursera-card-provider">
+                      <div className="coursera-provider-logo"><Building2 size={12} color="#0a66c2" /></div>
+                      <span style={{ fontWeight: 500, color: '#0f172a', display: 'flex', alignItems: 'center', gap: 4 }}>
+                        {previewCompany}
+                        {livePartner?.verificationStatus === 'Verified' && <VerifiedBadge size={14} />}
+                      </span>
+                    </div>
+                    <h3 className="coursera-card-title">{previewTitle}</h3>
+                    <p className="coursera-card-skills">
+                      <strong>Skills required:</strong> {skillTags.length > 0 ? skillTags.join(', ') : (form.ncLevel ? `${form.ncLevel}, Technical Skills, Professionalism` : 'Industry Skills, Professionalism, Teamwork')}
+                    </p>
+                    <div className="coursera-card-meta">
+                      {form.ncLevel || 'Beginner'} • {form.opportunityType} • {form.employmentType || 'Flexible'}
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginTop: 8, color: '#64748b', fontSize: 12 }}>
+                      <MapPin size={14} color="#7c3aed" />
+                      <span style={{ fontWeight: 500 }}>{previewLocation}</span>
+                      {form.detailedAddress && (
+                        <span style={{ color: '#94a3b8' }}>• {form.detailedAddress}</span>
+                      )}
+                    </div>
+                    <div style={{ borderTop: '1px solid #f1f5f9', marginTop: '12px', paddingTop: '12px', display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
+                      <button type="button" disabled style={{ padding: '6px 12px', borderRadius: 20, fontSize: 11, fontWeight: 600, border: '1px solid #cbd5e1', backgroundColor: 'transparent', color: '#475569', cursor: 'default', display: 'flex', alignItems: 'center', gap: 4 }}>
+                        <Mail size={12} /> Contact
+                      </button>
+                      <button type="button" disabled style={{ padding: '6px 12px', borderRadius: 20, fontSize: 11, fontWeight: 600, border: '1px solid #cbd5e1', backgroundColor: 'transparent', color: '#475569', cursor: 'default', display: 'flex', alignItems: 'center', gap: 4 }}>
+                        <Bookmark size={12} /> Save
+                      </button>
+                      <button type="button" disabled style={{ padding: '6px 12px', borderRadius: 20, fontSize: 11, fontWeight: 600, border: 'none', backgroundColor: '#4f46e5', color: '#fff', cursor: 'default', display: 'flex', alignItems: 'center', gap: 4 }}>
+                        <Send size={12} /> Apply
+                      </button>
+                    </div>
+                  </div>
                 </div>
               </div>
             )}
-
-            {form.attachmentUrl && !isImageAttachment(form.attachmentUrl, form.attachmentType) && (
-              <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12, color: '#2563eb', marginBottom: 8 }}>
-                <FileText size={13} /> {form.attachmentName || 'Attachment'}
-              </div>
-            )}
-
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-              {form.employmentType && (
-                <span className="ln-opp-type-badge" style={{ background: '#f8fafc', color: '#64748b' }}>{form.employmentType}</span>
-              )}
-              {form.ncLevel && (
-                <span className="ln-opp-type-badge" style={{ background: '#ede9fe', color: '#6d28d9' }}>{form.ncLevel}</span>
-              )}
-              {previewSalary && (
-                <span style={{ fontSize: 15, color: '#057642', fontWeight: 700 }}>{previewSalary}</span>
-              )}
-            </div>
-          </div>
-
-          <div className="ln-feed-actions" style={{ borderTop: '1px solid #f3f3f3', padding: '8px 12px' }}>
-            <button type="button" className="ln-feed-action-btn" disabled style={{ opacity: 0.65, cursor: 'not-allowed' }}>
-              <Users size={14} /> View Applicants
-            </button>
-            <button type="button" className="ln-feed-action-btn" disabled style={{ opacity: 0.65, cursor: 'not-allowed' }}>
-              <MessageSquare size={14} /> Comment (0)
-            </button>
-            <button type="button" className="ln-feed-action-btn" disabled style={{ opacity: 0.65, cursor: 'not-allowed' }}>
-              <MessageSquare size={14} /> Your Listing
-            </button>
           </div>
         </div>
 
@@ -3134,11 +3264,88 @@ const PostJob = ({ setActivePage, opportunityType = 'Job' }) => {
 
 // --- PAGE: VIEW APPLICANTS ----------------------------------------
 const ViewApplicants = ({ setActivePage }) => {
-  const { currentUser, partners, getPartnerApplicants, updateApplicationStatus, saveInterviewBooking, sendRecruitMessage, getPartnerAvailability, interviewBookings, deleteApplication } = useApp();
+  const { 
+    currentUser, updateApplicationStatus, 
+    sendRecruitMessage, 
+    getPartnerAvailability
+  } = useApp();
+  const saveInterviewMutation = useSaveInterviewBooking();
+  const deleteApplicationMutation = useDeleteApplication();
   const navigate = useNavigate();
+  const { data: partners = [] } = usePartners();
+  const { data: jobPostings = [] } = useJobPostings();
+  const { data: trainees = [] } = useTrainees();
   const livePartner = getLivePartner(currentUser, partners);
 
-  const applicants = getPartnerApplicants(livePartner?.id);
+  // TanStack Query for applicants data
+  const { data: rawApps = [] } = useApplications(currentUser?.id, 'partner', jobPostings);
+  const { data: rawContacts = [] } = useContactRequests(currentUser?.id, 'partner');
+  const { data: interviewBookings = [] } = useInterviewBookings(currentUser?.id, 'partner');
+
+  const applicants = React.useMemo(() => {
+    if (!livePartner) return [];
+    
+    const partnerJobs = jobPostings.filter(j => String(j.partnerId) === String(livePartner.id));
+    
+    const applicationRecords = partnerJobs.flatMap(job =>
+      rawApps
+        .filter(a => String(a.jobId) === String(job.id))
+        .map(a => {
+          const trainee = trainees.find(t => String(t.id) === String(a.traineeId));
+          const booking = interviewBookings.find(b => String(b.application_id) === String(a.id) && b.status !== 'cancelled');
+
+          return {
+            ...a,
+            rowKey: `application-${a.id}`,
+            recordType: 'application',
+            activityType: 'Job Application',
+            directionLabel: 'Student applied',
+            eventDate: a.appliedAt,
+            trainee,
+            job,
+            outgoingMessage: a.recruitMessage || null,
+            incomingMessage: a.applicationMessage || null,
+            attachmentName: a.resumeFileName || null,
+            attachmentUrl: a.resumeUrl || null,
+            attachmentKind: a.resumeUrl ? 'resume' : null,
+            matchRate: a.matchRate || 0,
+            interviewDate: booking?.start_time || null,
+            sortAt: new Date(a.appliedAt || 0).getTime(),
+          };
+        })
+    );
+
+    const contactRecords = rawContacts
+      .filter(request => String(request.sender_id) === String(livePartner.id) || String(request.recipient_id) === String(livePartner.id))
+      .map(request => {
+        const isOutgoing = String(request.sender_id) === String(livePartner.id);
+        const traineeId = isOutgoing ? request.recipient_id : request.sender_id;
+        const trainee = trainees.find(t => String(t.id) === String(traineeId));
+        const jobId = request.jobPostingId || request.job_posting_id;
+        const job = jobPostings.find(j => String(j.id) === String(jobId));
+
+        return {
+          id: request.id,
+          rowKey: `contact-${request.id}`,
+          recordType: 'contact',
+          sourceTable: request.sourceTable || 'contact_requests',
+          activityType: isOutgoing ? 'Partner Outreach' : 'Student Contact',
+          directionLabel: isOutgoing ? 'You contacted student' : 'Student contacted you',
+          status: request.status ? (request.status.charAt(0).toUpperCase() + request.status.slice(1)) : (isOutgoing ? 'Sent' : 'Pending'),
+          trainee,
+          job,
+          outgoingMessage: isOutgoing ? request.message : null,
+          incomingMessage: isOutgoing ? null : request.message,
+          attachmentName: request.attachment_name || null,
+          attachmentUrl: request.attachment_url || null,
+          attachmentKind: request.attachment_kind || null,
+          matchRate: 0,
+          sortAt: new Date(request.created_at || 0).getTime(),
+        };
+      });
+
+    return [...applicationRecords, ...contactRecords].sort((a, b) => b.sortAt - a.sortAt);
+  }, [livePartner, jobPostings, rawApps, rawContacts, trainees, interviewBookings]);
   const [search, setSearch] = useState('');
   const [activityFilter, setActivityFilter] = useState('All');
   const [currentPage, setCurrentPage] = useState(1);
@@ -3191,7 +3398,7 @@ const ViewApplicants = ({ setActivePage }) => {
   const getStatusPriority = (statusInput) => {
     const raw = String(statusInput || '').trim().toLowerCase();
     // Tier 1: Action Required
-    if (raw === 'reschedule requested') return 1;
+    if (raw === 'reschedule requested' || raw === 'interview requested') return 1;
     // Tier 2: New / Pending
     if (raw === 'pending' || raw === 'received' || raw === 'sent') return 2;
     // Tier 3: Active / Scheduled pipeline
@@ -3332,7 +3539,7 @@ const ViewApplicants = ({ setActivePage }) => {
                   <td style={{ fontSize: 12.5, color: 'rgba(0,0,0,0.5)' }}>{a.eventDate || '—'}</td>
                   <td>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 2, alignItems: 'flex-start' }}>
-                      <span className={`ln-badge ${a.status === 'Pending' ? 'ln-badge-yellow' : (a.status === 'Accepted' || a.status === 'Hired') ? 'ln-badge-green' : a.status === 'Rejected' ? 'ln-badge-red' : a.status === 'Interview Scheduled' ? 'ln-badge-purple' : String(a.status).toLowerCase() === 'reschedule requested' ? 'ln-badge-yellow' : 'ln-badge-blue'}`}>{a.status}</span>
+                      <span className={`ln-badge ${a.status === 'Pending' ? 'ln-badge-yellow' : (a.status === 'Accepted' || a.status === 'Hired') ? 'ln-badge-green' : a.status === 'Rejected' ? 'ln-badge-red' : a.status === 'Interview Scheduled' ? 'ln-badge-purple' : ['reschedule requested', 'interview requested'].includes(String(a.status).toLowerCase()) ? 'ln-badge-yellow' : 'ln-badge-blue'}`}>{a.status}</span>
                       {String(a.status).toLowerCase() === 'interview scheduled' && (a.interviewDate || a.proposedInterviewDate || a.proposed_interview_date) && (
                         <div style={{ fontSize: 10, color: '#7c3aed', fontWeight: 700, marginTop: 2, whiteSpace: 'normal', lineHeight: 1.3 }}>
                           Set: {new Date(a.interviewDate || a.proposedInterviewDate || a.proposed_interview_date).toLocaleDateString()} @ {new Date(a.interviewDate || a.proposedInterviewDate || a.proposed_interview_date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
@@ -3348,7 +3555,7 @@ const ViewApplicants = ({ setActivePage }) => {
                           Requested: {new Date(a.proposedInterviewDate || a.proposed_interview_date).toLocaleDateString()} @ {new Date(a.proposedInterviewDate || a.proposed_interview_date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                         </div>
                       )}
-                      {String(a.status).toLowerCase() === 'reschedule requested' && (
+                      {['interview requested', 'reschedule requested'].includes(String(a.status).toLowerCase()) && (
                         <div style={{ marginTop: 6, display: 'flex', flexWrap: 'wrap', gap: 4 }}>
                           <button 
                             className="ln-btn ln-btn-primary" 
@@ -3359,15 +3566,16 @@ const ViewApplicants = ({ setActivePage }) => {
                               if (proposed) {
                                 const start = new Date(proposed);
                                 const end = new Date(start.getTime() + 60 * 60 * 1000);
-                                await saveInterviewBooking({
+                                await saveInterviewMutation.mutateAsync({
                                   application_id: a.id,
                                   trainee_id: a.traineeId || a.student_id || a.sender_id || a.trainee?.id,
                                   partner_id: a.job?.partnerId || a.partnerId || a.recipient_id || livePartner?.id,
                                   start_time: start.toISOString(),
                                   end_time: end.toISOString(),
+                                  status: 'scheduled'
                                 });
                               }
-                              await updateApplicationStatus(a.id, 'interview scheduled', 'Partner accepted the requested interview schedule.', { proposedInterviewDate: proposed }); 
+                              await updateApplicationStatus(a.id, 'interview scheduled', 'Partner accepted the requested interview schedule.', { proposedInterviewDate: proposed, sourceTable: a.sourceTable }); 
                               toast.success('Interview schedule accepted.');
                             }}
                           >
@@ -3378,7 +3586,7 @@ const ViewApplicants = ({ setActivePage }) => {
                             style={{ padding: '4px 8px', fontSize: 10, borderColor: '#ef4444', color: '#ef4444', height: 'auto' }}
                             onClick={async (e) => { 
                               e.stopPropagation(); 
-                              await updateApplicationStatus(a.id, 'interview scheduled', 'Partner declined the requested interview schedule.'); 
+                              await updateApplicationStatus(a.id, 'interview scheduled', 'Partner declined the requested interview schedule.', { sourceTable: a.sourceTable }); 
                               toast.success('Reschedule declined.');
                             }}
                           >
@@ -3397,16 +3605,6 @@ const ViewApplicants = ({ setActivePage }) => {
                   </td>
                   <td>
                     <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-                      {a.recordType === 'application' && (
-                        <button
-                          className="ln-btn-icon"
-                          title="Schedule Interview"
-                          onClick={() => setInviteApp(a)}
-                          style={{ color: '#7c3aed' }}
-                        >
-                          <Calendar size={16} />
-                        </button>
-                      )}
                       <div style={{ position: 'relative' }}>
                         <button
                           className="ln-btn-icon"
@@ -3462,10 +3660,10 @@ const ViewApplicants = ({ setActivePage }) => {
 
 
                                   
-                                  <button className="ln-dropdown-item" style={{ color: '#16a34a' }} onClick={async () => { setOpenMenuId(null); const res = await updateApplicationStatus(a.id, 'Hired', 'Hired by partner.'); if (res?.success) toast.success('Trainee hired successfully!'); }}>
+                                  <button className="ln-dropdown-item" style={{ color: '#16a34a' }} onClick={async () => { setOpenMenuId(null); const res = await updateApplicationStatus(a.id, 'Hired', 'Hired by partner.', { sourceTable: a.sourceTable }); if (res?.success) toast.success('Trainee hired successfully!'); }}>
                                     <CheckCircle size={14} /> Hire Trainee
                                   </button>
-                                  <button className="ln-dropdown-item" style={{ color: '#dc2626' }} onClick={async () => { setOpenMenuId(null); const res = await updateApplicationStatus(a.id, 'Rejected', 'Not selected.'); if (res?.success) toast.success('Trainee rejected.'); }}>
+                                  <button className="ln-dropdown-item" style={{ color: '#dc2626' }} onClick={async () => { setOpenMenuId(null); const res = await updateApplicationStatus(a.id, 'Rejected', 'Not selected.', { sourceTable: a.sourceTable }); if (res?.success) toast.success('Trainee rejected.'); }}>
                                     <XCircle size={14} /> Reject Trainee
                                   </button>
                                   <div className="ln-dropdown-divider" />
@@ -3722,10 +3920,10 @@ const ViewApplicants = ({ setActivePage }) => {
                 <button className="ln-btn" style={{ flex: 1, background: '#059669', color: 'white', border: 'none' }} onClick={() => { setInviteApp(viewApp); setViewApp(null); }}>
                   <Calendar size={15} /> Interview
                 </button>
-                <button className="ln-btn" style={{ flex: 1, background: '#16a34a', color: 'white', border: 'none' }} onClick={async () => { const res = await updateApplicationStatus(viewApp.id, 'Hired', 'Hired by partner.'); if (res?.success) toast.success('Trainee hired successfully!'); setViewApp(null); }}>
+                <button className="ln-btn" style={{ flex: 1, background: '#16a34a', color: 'white', border: 'none' }} onClick={async () => { const res = await updateApplicationStatus(viewApp.id, 'Hired', 'Hired by partner.', { sourceTable: viewApp.sourceTable }); if (res?.success) toast.success('Trainee hired successfully!'); setViewApp(null); }}>
                   <CheckCircle size={15} /> Hire
                 </button>
-                <button className="ln-btn" style={{ flex: 1, background: '#dc2626', color: 'white', border: 'none' }} onClick={async () => { const res = await updateApplicationStatus(viewApp.id, 'Rejected', 'Not selected.'); if (res?.success) toast.success('Trainee rejected.'); setViewApp(null); }}>
+                <button className="ln-btn" style={{ flex: 1, background: '#dc2626', color: 'white', border: 'none' }} onClick={async () => { const res = await updateApplicationStatus(viewApp.id, 'Rejected', 'Not selected.', { sourceTable: viewApp.sourceTable }); if (res?.success) toast.success('Trainee rejected.'); setViewApp(null); }}>
                   <XCircle size={15} /> Reject
                 </button>
               </div>
@@ -3912,13 +4110,14 @@ const ViewApplicants = ({ setActivePage }) => {
                 disabled={deleting}
                 onClick={async () => {
                   setDeleting(true);
-                  const res = await deleteApplication(deleteConfirm.id);
-                  setDeleting(false);
-                  if (res.success) {
+                  try {
+                    await deleteApplicationMutation.mutateAsync({ applicationId: deleteConfirm.id, sourceTable: deleteConfirm.sourceTable });
                     toast.success('Record deleted.');
                     setDeleteConfirm(null);
-                  } else {
-                    toast.error(res.error || 'Failed to delete.');
+                  } catch (err) {
+                    toast.error(err.message || 'Failed to delete.');
+                  } finally {
+                    setDeleting(false);
                   }
                 }}
               >
@@ -3971,7 +4170,9 @@ const PREDEFINED_PERKS_TAGS = [
 ];
 
 export const CompanyProfile = ({ viewedPartnerId = null, onBack = null }) => {
-  const { currentUser, partners, updatePartner, jobPostings, createPostInteraction, fetchPostInteractions, uploadOptimizedImage } = useApp();
+  const { currentUser, updatePartner, createPostInteraction, fetchPostInteractions, uploadOptimizedImage } = useApp();
+  const { data: partners = [] } = usePartners();
+  const { data: jobPostings = [] } = useJobPostings();
   const navigate = useNavigate();
   const isOwnProfile = !viewedPartnerId || String(viewedPartnerId) === String(currentUser?.id);
   const [viewedPartner, setViewedPartner] = useState(null);
@@ -5774,8 +5975,21 @@ export const CompanyProfile = ({ viewedPartnerId = null, onBack = null }) => {
 
 // --- PAGE: INTERVIEW CALENDAR -------------------------------------
 const CalendarView = ({ setActivePage }) => {
-  const { currentUser, partners, availabilitySlots, interviewBookings, fetchAvailability, fetchBookings, saveAvailabilitySlot, deleteAvailabilitySlot, trainees, applications, jobPostings, getMatchRate, sendContactRequest } = useApp();
+  const { currentUser, getMatchRate } = useApp();
+  const { data: partners = [] } = usePartners();
+  const { data: trainees = [] } = useTrainees();
+  const { data: applications = [] } = useApplications();
+  const { data: jobPostings = [] } = useJobPostings();
   const livePartner = getLivePartner(currentUser, partners);
+
+  // TanStack Query Hooks
+  const { data: availabilitySlots = [] } = useAvailability(livePartner?.id);
+  const { data: interviewBookings = [] } = useInterviewBookings(livePartner?.id, 'partner');
+  const saveAvailabilityMutation = useSaveAvailabilitySlot();
+  const deleteAvailabilityMutation = useDeleteAvailabilitySlot();
+  const saveInterviewMutation = useSaveInterviewBooking();
+  const sendContactMutation = useSendContactRequest();
+
   const verified = isVerified(livePartner);
   const navigate = useNavigate();
 
@@ -5793,12 +6007,7 @@ const CalendarView = ({ setActivePage }) => {
 
   const dayLabels = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
-  useEffect(() => {
-    if (livePartner?.id) {
-      fetchAvailability(livePartner.id);
-      fetchBookings(livePartner.id);
-    }
-  }, [livePartner?.id]);
+
 
   const getMonthData = () => {
     const now = new Date();
@@ -6008,12 +6217,13 @@ ${livePartner?.companyName}`);
     if (!inviteModal) return;
     setSendingInvite(true);
 
-    const result = await sendContactRequest({
+    const result = await sendContactMutation.mutateAsync({
       recipientId: inviteModal.trainee.id,
       recipientType: 'student',
       jobPostingId: inviteModal.job.id,
       message: inviteMessage,
     });
+
 
     setSendingInvite(false);
     if (result.success) {
@@ -6447,7 +6657,8 @@ const PartnerProfileViewRoute = (props) => {
 
 // --- VERIFICATION ROUTE GUARD ------------------------------------
 const VerificationRouteGuard = ({ setActivePage }) => {
-  const { currentUser, partners } = useApp();
+  const { currentUser } = useApp();
+  const { data: partners = [] } = usePartners();
   const livePartner = getLivePartner(currentUser, partners);
   if (isVerified(livePartner)) {
     return <Navigate to="/partner" replace />;
@@ -6457,7 +6668,9 @@ const VerificationRouteGuard = ({ setActivePage }) => {
 
 // --- MAIN EXPORT --------------------------------------------------
 export default function PartnerDashboard() {
-  const { currentUser, sendContactRequest } = useApp();
+  const { currentUser } = useApp();
+  const sendContactMutation = useSendContactRequest();
+
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -6508,7 +6721,7 @@ export default function PartnerDashboard() {
         attachmentName = contactAttachment.name;
       }
 
-      const result = await sendContactRequest({
+      const result = await sendContactMutation.mutateAsync({
         recipientId: contactTarget.recipientId,
         recipientType: contactTarget.recipientType,
         postId: contactTarget.postId || null,
@@ -6518,6 +6731,7 @@ export default function PartnerDashboard() {
         attachmentUrl,
         attachmentKind: 'document',
       });
+
 
       if (!result.success) {
         toast.error(result.error || 'Failed to send contact request.');

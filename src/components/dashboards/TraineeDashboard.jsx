@@ -1,14 +1,39 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { createPortal } from 'react-dom';
+import { 
+    usePosts, 
+    useJobPostings, 
+    useApplications, 
+    useTrainees, 
+    usePartners, 
+    useContactRequests,
+    useApplyToJob, 
+    useUpdateTrainee, 
+    useUpdateApplicationStatus, 
+    useDeleteApplication, 
+    useSaveInterviewBooking,
+    useCreatePost,
+    useUpdatePost,
+    useDeletePost,
+    useCreatePostInteraction,
+    useSendContactRequest,
+    usePostInteractions,
+    useToggleBookmark,
+    useInterviewBookings,
+    useAvailability,
+    usePrograms
+} from '../../hooks';
 import { useApp } from '../../context/AppContext';
+import { getTraineeRecommendedJobs, getMatchRate } from '../../utils/matching';
 
 import SavedItemsView from './SavedItemsView';
 import SettingsPage from './SettingsPage';
 import NotificationsPage from './NotificationsPage';
+import AIResumeBuilder from './AIResumeBuilder';
 import {
     User, Briefcase, FileText, CheckCircle, Bell, ChevronDown, ChevronUp, Search, Filter, MapPin, Clock, Building2,
     Award, Send, CheckSquare, Check, X, Eye, EyeOff, Plus, Menu, Home, Settings, LogOut, MessageSquare, Bookmark,
-    Trash2, Camera, Loader, GraduationCap, MoveRight, ExternalLink, ShieldCheck, Mail, Calendar, AlignLeft, Users, ChevronRight, ChevronLeft, Edit, Upload, Link, Star, Heart, MoreVertical, Info, LayoutDashboard, Target, FileCheck, AlertCircle
+    Trash2, Camera, Loader, GraduationCap, MoveRight, ExternalLink, ShieldCheck, Mail, Calendar, AlignLeft, Users, ChevronRight, ChevronLeft, Edit, Upload, Link, Star, Heart, MoreVertical, Info, LayoutDashboard, Target, FileCheck, AlertCircle, Sparkles
 } from 'lucide-react';
 import ProfileActivityTab from './ProfileActivityTab';
 import EmptyState, {
@@ -24,7 +49,8 @@ import toast from 'react-hot-toast';
 import { Routes, Route, useNavigate, useLocation, Navigate, useParams } from 'react-router-dom';
 import TopNavBar from '../common/TopNavBar';
 import ImageCropModal from '../common/ImageCropModal';
-import { CompactFeedItem } from './FeedComponents';
+import { normalizeLocation } from '../../lib/psgc';
+import { CompactFeedItem, POST_THEME, VerifiedBadge } from './FeedComponents';
 
 const CompanyProfile = React.lazy(() => import('./PartnerDashboard').then(m => ({ default: m.CompanyProfile })));
 
@@ -474,20 +500,30 @@ const ProgressBar = ({ value, showLabel = true }) => {
 };
 
 // --- PAGE 1: DASHBOARD HOME (LinkedIn Feed-style) ---
-const TraineeDashboardHome = ({ setActivePage, openBulletinModal, openContactModal, openApplyModal, toggleBookmark }) => {
-    const {
-        currentUser, trainees, applications, getTraineeRecommendedJobs,
-        posts, createPost, updatePost, deletePost, partners,
-        addJobPostingComment, getJobPostingComments, updateJobPostingComment,
-        deleteJobPostingComment, sendContactRequest, applyToJob,
-        updateTrainee, createPostInteraction, getUserPostInteraction,
-        fetchPostInteractions, postInteractions, fetchPosts, fetchJobPostings, loadMoreFeeds
-    } = useApp();
+const TraineeDashboardHome = ({ 
+    setActivePage, openBulletinModal, openContactModal, openApplyModal, toggleBookmark,
+    editingPostId, setEditingPostId, editContent, setEditContent, postMenuId, setPostMenuId,
+    handleEditPost, handleSaveEdit, setConfirmDeleteId
+}) => {
+    const { currentUser, getUserPostInteraction, createPostInteraction } = useApp();
+    const createPostMutation = useCreatePost();
+    const updatePostMutation = useUpdatePost();
+    const deletePostMutation = useDeletePost();
+    const applyToJobMutation = useApplyToJob();
+    const updateTraineeMutation = useUpdateTrainee();
+    const createPostInteractionMutation = useCreatePostInteraction();
+    const sendContactRequestMutation = useSendContactRequest();
+    const { data: trainees = [] } = useTrainees();
+    const { data: partners = [] } = usePartners();
+    const { data: posts = [] } = usePosts();
+    const { data: jobPostings = [] } = useJobPostings();
+    const { data: applications = [] } = useApplications();
+    const { data: postInteractions = [] } = usePostInteractions();
     const navigate = useNavigate();
     const trainee = currentUser || trainees[0];
     const myApps = applications.filter(a => a.traineeId === trainee?.id);
     const myAppJobIds = myApps.map(a => a.jobId);
-    const recJobs = getTraineeRecommendedJobs(trainee?.id);
+    const recJobs = useMemo(() => getTraineeRecommendedJobs(trainee, jobPostings), [trainee, jobPostings]);
 
     // Feed Filter and Search state
     const [feedViewMode, setFeedViewMode] = useState('list');
@@ -508,12 +544,19 @@ const TraineeDashboardHome = ({ setActivePage, openBulletinModal, openContactMod
         ]
             .filter(p => {
                 const authorType = String(p.author_type || '').toLowerCase();
+                const isTrainee = authorType === 'student' || authorType === 'trainee';
+                const isOwnPost = String(p.author_id) === String(trainee?.id || currentUser?.id);
+
                 // Hide job posts from main feed (they belong in Opportunities tab)
                 if (p.post_type === 'hiring_update' || p.feedType === 'job') return false;
+
+                // Trainee should not see other trainee posts
+                if (isTrainee && !isOwnPost) return false;
+
                 return true;
             })
             .sort((a, b) => new Date(b.created_at || b.createdAt || b.datePosted) - new Date(a.created_at || a.createdAt || a.datePosted));
-    }, [posts]);
+    }, [posts, trainee?.id, currentUser?.id]);
 
     const filteredFeed = useMemo(() => {
         let list = unifiedFeed;
@@ -533,12 +576,7 @@ const TraineeDashboardHome = ({ setActivePage, openBulletinModal, openContactMod
         return list;
     }, [unifiedFeed, feedFilter, feedSearchText]);
 
-    // Edit/Delete post state
-    const [editingPostId, setEditingPostId] = useState(null);
-    const [editContent, setEditContent] = useState('');
-    const [postMenuId, setPostMenuId] = useState(null);
-    const [confirmDeleteId, setConfirmDeleteId] = useState(null);
-    const [confirmSaveId, setConfirmSaveId] = useState(null);
+    // Post interactions use parent props
 
     // Modal state
     const [showPostModal, setShowPostModal] = useState(false);
@@ -547,18 +585,8 @@ const TraineeDashboardHome = ({ setActivePage, openBulletinModal, openContactMod
     const [postType, setPostType] = useState('lf_job');
     const [selectedFile, setSelectedFile] = useState(null);
     const [filePreview, setFilePreview] = useState(null);
-    useEffect(() => {
-        fetchPosts();
-        fetchJobPostings();
-        fetchPostInteractions();
-    }, [currentUser?.id]);
-    const [jobMediaCommentMenuId, setJobMediaCommentMenuId] = useState(null);
-    const [isCompactCommentViewport, setIsCompactCommentViewport] = useState(() => (
-        typeof window !== 'undefined' ? window.innerWidth <= 1024 : false
-    ));
     const fileInputRef = useRef(null);
     const contactFileInputRef = useRef(null);
-    const jobMediaCommentInputRef = useRef(null);
     const openProfile = (target) => {
         if (!target?.id || !target?.type) return;
         const profileType = normalizeProfileType(target.type);
@@ -573,7 +601,6 @@ const TraineeDashboardHome = ({ setActivePage, openBulletinModal, openContactMod
         if (typeof window === 'undefined') return undefined;
 
         const handleResize = () => {
-            setIsCompactCommentViewport(window.innerWidth <= 1024);
         };
 
         handleResize();
@@ -637,28 +664,17 @@ const TraineeDashboardHome = ({ setActivePage, openBulletinModal, openContactMod
                 media_url = urlData?.publicUrl;
             }
 
-            const title = `Looking for ${postContent.role || 'Job'}`;
-            const tags = postContent.skills ? postContent.skills.split(',').map(s => s.trim()).filter(Boolean) : [];
-            const finalContent = `
-Experience: ${postContent.experience || 'Not specified'}
-Availability: ${postContent.availability || 'Not specified'}
-Location: ${postContent.location || 'Not specified'}
-
-${postContent.description || ''}
-            `.trim();
-
-            const res = await createPost({
-                content: finalContent,
-                post_type: postType,
-                title: title,
+            const res = await createPostMutation.mutateAsync({
+                content: (postContent.description || '').trim(),
+                post_type: 'general',
+                title: (postContent.title || '').trim() || null,
                 media_url: media_url,
-                tags: tags
+                tags: []
             });
 
-            if (res.success) {
+            if (res) {
                 toast.success('Post created successfully!');
                 setPostContent({});
-                setPostType('lf_job');
                 setSelectedFile(null);
                 setFilePreview(null);
                 setShowPostModal(false);
@@ -685,83 +701,15 @@ ${postContent.description || ''}
         setActivePage('recommendations');
     };
 
-    // --- Feed Apply Modal logic ---
-    const feedLoadResumeInfo = async () => {
-        if (!trainee?.id) return;
-        setFeedResumeInfo(null);
-        let resolvedResume = null;
-        const isSupabaseUser = typeof trainee.id === 'string' && trainee.id.includes('-');
-        if (isSupabaseUser) {
-            try {
-                const { data, error } = await supabase
-                    .from('student_documents')
-                    .select('file_url, file_name, label, uploaded_at')
-                    .eq('student_id', trainee.id)
-                    .ilike('label', '%resume%')
-                    .order('uploaded_at', { ascending: false })
-                    .limit(1);
-                if (!error && data?.length) {
-                    resolvedResume = { file_url: data[0].file_url, file_name: data[0].file_name || 'Resume' };
-                }
-            } catch (err) { console.warn('Resume fetch exception:', err); }
-        }
-        if (!resolvedResume && (trainee?.resumeUrl || trainee?.registrationResumeUrl)) {
-            resolvedResume = { file_url: trainee.resumeUrl || trainee.registrationResumeUrl, file_name: 'Resume' };
-        }
-        setFeedResumeInfo(resolvedResume);
-    };
-
-    const feedHandleSubmitApplication = async () => {
-        if (!feedApplyJob) return;
-        setFeedSubmittingApp(true);
-        const r = await applyToJob(trainee?.id, feedApplyJob.id, {
-            applicationMessage: feedApplicationMessage,
-            resumeUrl: feedResumeInfo?.file_url,
-            resumeFileName: feedResumeInfo?.file_name || 'Resume',
-        });
-        setFeedSubmittingApp(false);
-        if (!r.success) {
-            alert(r.error || 'Failed to submit application.');
-            return;
-        }
-        setFeedApplyJob(null);
-        setFeedApplicationMessage('');
-    };
+    // Application logic is managed by parent TraineeDashboard component
 
 
 
 
 
 
-    const handleEditPost = (post) => {
-        setEditingPostId(post.id);
-        setEditContent(post.content);
-        setPostMenuId(null);
-    };
 
-    const handleSaveEdit = async (postId) => {
-        if (!editContent.trim()) return;
-        const res = await updatePost(postId, { content: editContent });
-        if (res.success) {
-            setEditingPostId(null);
-            setEditContent('');
-            setConfirmSaveId(null);
-            toast.success('Post updated!');
-        } else {
-            toast.error(res.error || 'Failed to update post.');
-            setConfirmSaveId(null);
-        }
-    };
-
-    const handleDeletePost = async (postId) => {
-        const res = await deletePost(postId);
-        if (res.success) {
-            setConfirmDeleteId(null);
-            toast.success('Post deleted.');
-        } else {
-            toast.error(res.error || 'Failed to delete post.');
-        }
-    };
+    // Handlers are now passed as props from parent TraineeDashboard
 
     const stats = [
         { label: 'Job Applications', value: myApps.length, icon: <Send size={20} />, color: '#057642' },
@@ -853,75 +801,38 @@ ${postContent.description || ''}
                                         >
                                             {trainee?.name}
                                         </button>
-                                        <select
-                                            style={{
-                                                background: '#e4e6eb', border: 'none', borderRadius: 6,
-                                                padding: '2px 8px', fontSize: 12, fontWeight: 600, cursor: 'pointer',
-                                                marginTop: 4
-                                            }}
-                                            value={postType}
-                                            onChange={e => setPostType(e.target.value)}
-                                        >
-                                            <option value="lf_job">Trainee Finding Job</option>
-                                        </select>
+                                        <span style={{ fontSize: 12, color: '#65676b', marginTop: 2, display: 'block' }}>📝 Public Post</span>
                                     </div>
                                 </div>
 
-                                {/* Dynamic Post Fields */}
-                                <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1fr)', gap: 12, marginBottom: 12 }}>
-                                    <input
-                                        type="text"
-                                        placeholder="Preferred Role (e.g. Web Developer)"
-                                        value={postContent.role || ''}
-                                        onChange={e => setPostContent({ ...postContent, role: e.target.value })}
-                                        style={{ width: '100%', border: '1px solid #e4e6eb', borderRadius: 6, padding: '8px 12px', fontSize: 14 }}
-                                    />
-                                    <input
-                                        type="text"
-                                        placeholder="Skills (comma separated)"
-                                        value={postContent.skills || ''}
-                                        onChange={e => setPostContent({ ...postContent, skills: e.target.value })}
-                                        style={{ width: '100%', border: '1px solid #e4e6eb', borderRadius: 6, padding: '8px 12px', fontSize: 14 }}
-                                    />
-                                    <select
-                                        value={postContent.experience || ''}
-                                        onChange={e => setPostContent({ ...postContent, experience: e.target.value })}
-                                        style={{ width: '100%', border: '1px solid #e4e6eb', borderRadius: 6, padding: '8px 12px', fontSize: 14 }}
-                                    >
-                                        <option value="" disabled>Select Experience Level</option>
-                                        <option value="Beginner">Beginner</option>
-                                        <option value="Intermediate">Intermediate</option>
-                                        <option value="Advanced">Advanced</option>
-                                    </select>
-                                    <select
-                                        value={postContent.availability || ''}
-                                        onChange={e => setPostContent({ ...postContent, availability: e.target.value })}
-                                        style={{ width: '100%', border: '1px solid #e4e6eb', borderRadius: 6, padding: '8px 12px', fontSize: 14 }}
-                                    >
-                                        <option value="" disabled>Select Availability</option>
-                                        <option value="Full-time">Full-time</option>
-                                        <option value="Part-time">Part-time</option>
-                                        <option value="Internship">Internship</option>
-                                    </select>
-                                    <input
-                                        type="text"
-                                        placeholder="Location (Optional)"
-                                        value={postContent.location || ''}
-                                        onChange={e => setPostContent({ ...postContent, location: e.target.value })}
-                                        style={{ width: '100%', border: '1px solid #e4e6eb', borderRadius: 6, padding: '8px 12px', fontSize: 14, gridColumn: 'span 2' }}
-                                    />
-                                </div>
+                                <input
+                                    type="text"
+                                    placeholder="Title (optional)"
+                                    value={postContent.title || ''}
+                                    onChange={e => setPostContent({ ...postContent, title: e.target.value })}
+                                    maxLength={100}
+                                    style={{
+                                        width: '100%', border: 'none', borderBottom: '1px solid #f0f2f5', fontSize: 16,
+                                        fontWeight: 600, padding: '0 0 8px', outline: 'none', marginBottom: 12,
+                                        color: '#1c1e21', background: 'transparent'
+                                    }}
+                                />
 
                                 <textarea
                                     autoFocus
-                                    placeholder="Short intro about yourself..."
+                                    placeholder="What's on your mind?"
                                     style={{
-                                        width: '100%', border: '1px solid #e4e6eb', resize: 'none', fontSize: 14, borderRadius: 6,
-                                        minHeight: 80, padding: '12px', outline: 'none', marginBottom: 20
+                                        width: '100%', border: 'none', resize: 'none', fontSize: 15,
+                                        minHeight: filePreview ? 80 : 120, padding: 0, outline: 'none', marginBottom: 4,
+                                        color: '#1c1e21'
                                     }}
                                     value={postContent.description || ''}
-                                    onChange={e => setPostContent({ ...postContent, description: e.target.value })}
+                                    onChange={e => { if (e.target.value.length <= 500) setPostContent({ ...postContent, description: e.target.value }); }}
+                                    maxLength={500}
                                 />
+                                <div style={{ fontSize: 12, color: (postContent.description || '').length >= 450 ? '#dc2626' : '#94a3b8', textAlign: 'right', marginBottom: 16 }}>
+                                    {(postContent.description || '').length}/500
+                                </div>
 
                                 {filePreview && (
                                     <div style={{ position: 'relative', marginBottom: 20, borderRadius: 8, overflow: 'hidden', border: '1px solid #e4e6eb' }}>
@@ -935,37 +846,21 @@ ${postContent.description || ''}
                                     </div>
                                 )}
 
-                                {selectedFile && !filePreview && (
-                                    <div style={{ marginBottom: 20, padding: '12px', background: '#f0f2f5', borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                                        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                                            <FileText size={20} color="#65676b" />
-                                            <span style={{ fontSize: 14, fontWeight: 500 }}>{selectedFile.name}</span>
-                                        </div>
-                                        <button
-                                            style={{ background: 'none', border: 'none', color: '#65676b', cursor: 'pointer' }}
-                                            onClick={() => setSelectedFile(null)}
-                                        >
-                                            <X size={18} />
-                                        </button>
-                                    </div>
-                                )}
-
                                 <div style={{
                                     border: '1px solid #e4e6eb', borderRadius: 8, padding: '12px',
                                     display: 'flex', alignItems: 'center', justifyContent: 'space-between',
                                     marginBottom: 16
                                 }}>
-                                    <span style={{ fontWeight: 600, fontSize: 14 }}>Add to your post</span>
+                                    <span style={{ fontWeight: 600, fontSize: 14 }}>Add a photo</span>
                                     <div style={{ display: 'flex', gap: 12, color: '#65676b' }}>
                                         <input
                                             type="file"
                                             hidden
                                             ref={fileInputRef}
                                             onChange={handleFileChange}
-                                            accept="image/*,.pdf,.doc,.docx"
+                                            accept="image/*"
                                         />
                                         <Camera size={22} cursor="pointer" onClick={() => fileInputRef.current.click()} />
-                                        <Plus size={22} cursor="pointer" onClick={() => fileInputRef.current.click()} />
                                     </div>
                                 </div>
 
@@ -1061,10 +956,45 @@ ${postContent.description || ''}
                 <div className={feedViewMode === 'list' ? "tt-feed-list" : "tt-feed-grid"} style={feedViewMode === 'list' ? { display: 'flex', flexDirection: 'column', gap: '16px' } : {}}>
                     {filteredFeed.slice((feedCurrentPage - 1) * feedPageSize, feedCurrentPage * feedPageSize).map(item => {
                         if (feedViewMode === 'list') {
+                            if (editingPostId === item.id) {
+                                return (
+                                    <div key={`edit-${item.id}`} className="ln-card ln-feed-card" style={{ padding: 20 }}>
+                                        <div style={{ fontSize: 14, fontWeight: 700, color: '#0f172a', marginBottom: 12 }}>Edit Post</div>
+                                        <textarea
+                                            value={editContent}
+                                            onChange={(e) => setEditContent(e.target.value)}
+                                            style={{
+                                                width: '100%', minHeight: 120, padding: 12, borderRadius: 8,
+                                                border: '1px solid #4f46e5', fontSize: 14, outline: 'none', resize: 'vertical',
+                                                fontFamily: 'inherit'
+                                            }}
+                                            placeholder="What's on your mind?"
+                                        />
+                                        <div style={{ display: 'flex', gap: 10, marginTop: 16, justifyContent: 'flex-end' }}>
+                                            <button
+                                                onClick={() => { setEditingPostId(null); setEditContent(''); }}
+                                                style={{ padding: '8px 20px', borderRadius: 20, border: '1px solid #cbd5e1', background: '#fff', cursor: 'pointer', fontSize: 13, fontWeight: 600, color: '#475569' }}
+                                            >
+                                                Cancel
+                                            </button>
+                                            <button
+                                                onClick={() => handleSaveEdit(item.id)}
+                                                style={{ padding: '8px 20px', borderRadius: 20, border: 'none', background: '#4f46e5', color: '#fff', cursor: 'pointer', fontSize: 13, fontWeight: 600 }}
+                                            >
+                                                Save Changes
+                                            </button>
+                                        </div>
+                                    </div>
+                                );
+                            }
                             return <CompactFeedItem
                                 key={`compact-${item.id}`}
                                 item={item}
                                 isOwnPost={item.author_id === currentUser?.id}
+                                postMenuId={postMenuId}
+                                setPostMenuId={setPostMenuId}
+                                onEdit={handleEditPost}
+                                onDelete={(id) => setConfirmDeleteId(id)}
                                 onInquire={(i) => {
                                     openContactModal({
                                         recipientId: i.partnerId || i.author_id,
@@ -1076,7 +1006,7 @@ ${postContent.description || ''}
                                 }}
                                 onSave={(i) => toggleBookmark(i.id)}
                                 isSaved={(i) => Array.isArray(trainee?.savedOpportunities) && trainee.savedOpportunities.includes(i.id)}
-                                onApply={(i, type) => i.feedType === 'job' ? feedOpenApplyModal(i) : openBulletinModal(i, type)}
+                                onApply={(i, type) => i.feedType === 'job' ? openApplyModal(i) : openBulletinModal(i, type)}
                                 openProfile={openProfile}
                                 onViewDetail={(i) => {
                                     if (i.feedType === 'bulletin') openBulletinModal(i, 'view');
@@ -1180,8 +1110,8 @@ ${postContent.description || ''}
                                     </div>
                                     {/* Body */}
                                     <div style={{ padding: '0 16px 12px' }}>
-                                        <h4 style={{ fontSize: 15, fontWeight: 800, color: '#0f172a', marginBottom: 6 }}>{item.title}</h4>
-                                        <p style={{ fontSize: 13.5, color: '#475569', lineHeight: 1.6 }}>{item.content}</p>
+                                        <h4 style={{ fontSize: 18, fontWeight: 800, color: '#0f172a', marginBottom: 8 }}>{item.title}</h4>
+                                        <p style={{ fontSize: 14.5, color: '#475569', lineHeight: 1.6 }}>{item.content}</p>
                                         {/* Details grid */}
                                         {(item.schedule || item.time_range || item.slots) && (
                                             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))', gap: 8, marginTop: 10 }}>
@@ -1226,9 +1156,9 @@ ${postContent.description || ''}
                         } else if (item.feedType === 'job') {
                             const applied = myAppJobIds.includes(item.id);
                             const isSaved = Array.isArray(trainee?.savedOpportunities) && trainee.savedOpportunities.includes(item.id);
-                            const jobComments = getJobPostingComments(item.id);
+                            const tColor = POST_THEME['job']?.color || '#0a66c2';
                             return (
-                                <div key={`job-${item.id}`} className="ln-card ln-feed-card" style={{ marginBottom: 0 }}>
+                                <div key={`job-${item.id}`} className="ln-card ln-feed-card" style={{ marginBottom: 0, borderLeft: `4px solid ${tColor}` }}>
                                     <div className="ln-feed-card-header">
                                         <button
                                             type="button"
@@ -1244,9 +1174,12 @@ ${postContent.description || ''}
                                                 <button
                                                     type="button"
                                                     onClick={() => openProfile({ id: item.partnerId, type: 'partner' })}
-                                                    style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', fontWeight: 700, color: 'inherit', fontSize: 'inherit', fontFamily: 'inherit' }}
+                                                    style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', fontWeight: 700, color: 'inherit', fontSize: 'inherit', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: 4 }}
                                                 >
                                                     {item.companyName}
+                                                    {partners.find(p => p.id === item.partnerId)?.verificationStatus === 'Verified' && (
+                                                        <VerifiedBadge size={14} />
+                                                    )}
                                                 </button>
                                                 <span style={{ fontWeight: 400, color: 'rgba(0,0,0,0.45)', marginLeft: 4 }}>posted a new {item.opportunityType}</span>
                                             </div>
@@ -1292,17 +1225,12 @@ ${postContent.description || ''}
                                                 <span style={{ fontSize: 15, color: '#057642', fontWeight: 700 }}>{formatSalaryDisplay(item.salaryRange)}</span>
                                             </div>
                                         )}
-                                        {jobComments.length > 0 && (
-                                            <div style={{ marginTop: 10, fontSize: 12, color: '#64748b', display: 'flex', gap: 14 }}>
-                                                {jobComments.length > 0 && <span>{jobComments.length} comment{jobComments.length === 1 ? '' : 's'}</span>}
-                                            </div>
-                                        )}
                                     </div>
                                     <div className="ln-feed-actions" style={{ borderTop: '1px solid #f3f3f3', padding: '8px 12px', display: 'flex', gap: 4 }}>
                                         <button
                                             className="ln-feed-action-btn"
                                             disabled={applied || item.status !== 'Open'}
-                                            onClick={() => feedOpenApplyModal(item)}
+                                            onClick={() => openApplyModal(item)}
                                             style={applied ? { color: '#057642', fontWeight: 600 } : {}}
                                         >
                                             {applied ? <><CheckCircle size={14} /> Applied</> : <><Send size={14} /> Apply</>}
@@ -1340,9 +1268,10 @@ ${postContent.description || ''}
                             const authorName = author?.name || author?.profileName || author?.companyName || 'Unknown User';
                             const authorPhoto = author?.photo || author?.company_logo_url;
                             const authorInitial = authorName.charAt(0) || '?';
+                            const tColor = POST_THEME[item.post_type]?.color || POST_THEME['general'].color;
 
                             return (
-                                <div key={`post-${item.id}`} className="ln-card ln-feed-card" style={{ marginBottom: 0 }}>
+                                <div key={`post-${item.id}`} className="ln-card ln-feed-card" style={{ marginBottom: 0, borderLeft: `4px solid ${tColor}` }}>
                                     <div className="ln-feed-card-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                                         <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
                                             <button
@@ -1360,9 +1289,12 @@ ${postContent.description || ''}
                                                     <button
                                                         type="button"
                                                         onClick={() => openProfile({ id: item.author_id, type: authorProfileType })}
-                                                        style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', fontWeight: 700, color: 'inherit', fontSize: 'inherit', fontFamily: 'inherit' }}
+                                                        style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', fontWeight: 700, color: 'inherit', fontSize: 'inherit', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: 4 }}
                                                     >
                                                         {authorName}
+                                                        {author?.verificationStatus === 'Verified' && (
+                                                            <VerifiedBadge size={14} />
+                                                        )}
                                                     </button>
                                                     {item.post_type !== 'general' && (
                                                         <span
@@ -1406,10 +1338,10 @@ ${postContent.description || ''}
                                             <div style={{ position: 'relative' }}>
                                                 <button
                                                     onClick={() => setPostMenuId(postMenuId === item.id ? null : item.id)}
-                                                    style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 4, borderRadius: '50%', color: '#65676b' }}
+                                                    style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 8, borderRadius: '50%', color: '#65676b', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
                                                     title="More options"
                                                 >
-                                                    <span style={{ fontSize: 20, fontWeight: 700, letterSpacing: 2, lineHeight: 1 }}>...</span>
+                                                    <MoreVertical size={20} />
                                                 </button>
                                                 {postMenuId === item.id && (
                                                     <div style={{
@@ -1468,7 +1400,7 @@ ${postContent.description || ''}
                                                         Cancel
                                                     </button>
                                                     <button
-                                                        onClick={() => setConfirmSaveId(item.id)}
+                                                        onClick={() => handleSaveEdit(item.id)}
                                                         className="ln-btn-sm ln-btn-primary"
                                                         style={{ padding: '6px 16px', borderRadius: 20, fontSize: 13, fontWeight: 600 }}
                                                         disabled={!editContent.trim()}
@@ -1593,73 +1525,6 @@ ${postContent.description || ''}
             </div>
 
 
-            {/* Delete Confirmation Dialog */}
-            {confirmDeleteId && (
-                <div style={{
-                    position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
-                    background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(2px)',
-                    zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center'
-                }}>
-                    <div className="ln-card" style={{ padding: 24, maxWidth: 400, width: '90%', borderRadius: 12, textAlign: 'center' }}>
-                        <Trash2 size={36} style={{ color: '#e74c3c', marginBottom: 12 }} />
-                        <h3 style={{ fontSize: 18, fontWeight: 700, marginBottom: 8 }}>Delete Post?</h3>
-                        <p style={{ fontSize: 14, color: 'rgba(0,0,0,0.6)', marginBottom: 20 }}>
-                            This action cannot be undone. Are you sure you want to delete this post?
-                        </p>
-                        <div style={{ display: 'flex', gap: 10, justifyContent: 'center' }}>
-                            <button
-                                onClick={() => setConfirmDeleteId(null)}
-                                className="ln-btn-sm"
-                                style={{ padding: '8px 24px', borderRadius: 20, fontSize: 14 }}
-                            >
-                                Cancel
-                            </button>
-                            <button
-                                onClick={() => handleDeletePost(confirmDeleteId)}
-                                style={{
-                                    padding: '8px 24px', borderRadius: 20, fontSize: 14, fontWeight: 600,
-                                    background: '#e74c3c', color: '#fff', border: 'none', cursor: 'pointer'
-                                }}
-                            >
-                                Delete
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            )}
-
-            {/* Save Edit Confirmation Dialog */}
-            {confirmSaveId && (
-                <div style={{
-                    position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
-                    background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(2px)',
-                    zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center'
-                }}>
-                    <div className="ln-card" style={{ padding: 24, maxWidth: 400, width: '90%', borderRadius: 12, textAlign: 'center' }}>
-                        <Edit size={36} style={{ color: '#0a66c2', marginBottom: 12 }} />
-                        <h3 style={{ fontSize: 18, fontWeight: 700, marginBottom: 8 }}>Save Changes?</h3>
-                        <p style={{ fontSize: 14, color: 'rgba(0,0,0,0.6)', marginBottom: 20 }}>
-                            Are you sure you want to save your changes to this post?
-                        </p>
-                        <div style={{ display: 'flex', gap: 10, justifyContent: 'center' }}>
-                            <button
-                                onClick={() => setConfirmSaveId(null)}
-                                className="ln-btn-sm"
-                                style={{ padding: '8px 24px', borderRadius: 20, fontSize: 14 }}
-                            >
-                                Cancel
-                            </button>
-                            <button
-                                onClick={() => handleSaveEdit(confirmSaveId)}
-                                className="ln-btn-sm ln-btn-primary"
-                                style={{ padding: '8px 24px', borderRadius: 20, fontSize: 14, fontWeight: 600 }}
-                            >
-                                Save
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            )}
 
 
 
@@ -1681,7 +1546,8 @@ class ErrorBoundary extends React.Component {
 }
 
 const ApplicationTimeline = ({ traineeId }) => {
-    const { applications, posts } = useApp();
+    const { data: applications = [] } = useApplications(traineeId);
+    const { data: posts = [] } = usePosts();
     const myApps = applications.filter(a => String(a.traineeId) === String(traineeId));
 
     const stages = [
@@ -1800,11 +1666,13 @@ const ApplicationTimeline = ({ traineeId }) => {
     );
 };
 
-// SavedItemsView is now a separate component in SavedItemsView.jsx
 
 // --- PAGE 2: PROFILE ---
 export const TraineeProfileContent = ({ viewedProfileId = null, onBack = null, openBulletinModal, onViewDetail }) => {
-    const { currentUser, userRole, trainees, updateTrainee, getSkillInterestRecommendations, programs, getSkillsDemand, applyToJob } = useApp();
+    const { currentUser, userRole, trainees, updateTrainee, getSkillInterestRecommendations, getSkillsDemand } = useApp();
+    const applyToJobMutation = useApplyToJob();
+    const { data: programsData } = usePrograms();
+    const programs = programsData?.data || [];
     const isOwnProfile = !viewedProfileId || String(viewedProfileId) === String(currentUser?.id);
     const isEmployer = userRole === 'partner';
     const [viewedTrainee, setViewedTrainee] = useState(null);
@@ -1989,6 +1857,9 @@ export const TraineeProfileContent = ({ viewedProfileId = null, onBack = null, o
         ), { duration: Infinity, id: 'career-status-toast' });
     };
 
+    // AI Resume Builder state
+    const [showAIBuilder, setShowAIBuilder] = useState(false);
+
     // Profile photo & banner state
     const profilePicRef = useRef(null);
     const bannerInputRef = useRef(null);
@@ -2087,7 +1958,7 @@ export const TraineeProfileContent = ({ viewedProfileId = null, onBack = null, o
             try {
                 const { data, error } = await supabase
                     .from('students')
-                    .select('*, programs(name, nc_level)')
+                    .select('id, full_name, student_id, program_id, phone, birthdate, gender, region, province, city, barangay, detailed_address, selfie_url, banner_url, front_id_url, back_id_url, employment_status, employment_work, employment_start, graduate_school, educ_history, work_experience, resume_url, profile_completed, created_at, updated_at, profile_picture_url, skills, interests, certifications, graduation_year, training_status, contact_email, activity_status, last_seen_at, personal_info_visibility, trainings, bio, employer, job_title, date_hired, programs(name, nc_level)')
                     .eq('id', viewedProfileId)
                     .single();
 
@@ -2359,18 +2230,22 @@ export const TraineeProfileContent = ({ viewedProfileId = null, onBack = null, o
     const handleSubmitApplication = async () => {
         if (!applyJob) return;
         setSubmittingApplication(true);
-        const r = await applyToJob(trainee?.id, applyJob.id, {
-            applicationMessage,
-            resumeUrl: resumeInfo?.file_url,
-            resumeName: resumeInfo?.file_name || 'Resume'
-        });
-        setSubmittingApplication(false);
-        if (!r.success) {
-            alert(r.error || 'Failed to submit application.');
-            return;
+        try {
+            await applyToJobMutation.mutateAsync({
+                traineeId: trainee?.id,
+                jobId: applyJob.id,
+                applicationMessage,
+                resumeUrl: resumeInfo?.file_url,
+                resumeName: resumeInfo?.file_name || 'Resume'
+            });
+            toast.success('Application submitted successfully!');
+            setApplyJob(null);
+            setApplicationMessage('');
+        } catch (err) {
+            alert(err.message || 'Failed to submit application.');
+        } finally {
+            setSubmittingApplication(false);
         }
-        setApplyJob(null);
-        setApplicationMessage('');
     };
 
     // Fetch documents on mount
@@ -2463,6 +2338,7 @@ export const TraineeProfileContent = ({ viewedProfileId = null, onBack = null, o
                 break;
             case 'skills':
                 setNewSkill('');
+                setForm(prev => ({ ...prev, skills: trainee?.skills || [] }));
                 break;
             case 'interests':
                 setNewInterest('');
@@ -2921,6 +2797,12 @@ export const TraineeProfileContent = ({ viewedProfileId = null, onBack = null, o
             <input ref={certInputRef} type="file" accept="image/*,application/pdf" style={{ display: 'none' }}
                 onChange={e => { if (uploadingIdx !== null) handleCertUpload(uploadingIdx, e.target.files[0]); e.target.value = ''; }} />
 
+            {showAIBuilder && (
+                <AIResumeBuilder 
+                    trainee={trainee} 
+                    onBack={() => setShowAIBuilder(false)} 
+                />
+            )}
             {/* Confirm Dialog */}
             {confirmDialog.open && (
                 <div style={{
@@ -2965,7 +2847,7 @@ export const TraineeProfileContent = ({ viewedProfileId = null, onBack = null, o
             )}
 
             {/* Profile Header Card */}
-            <div className="ln-card ln-profile-header-card">
+            <div className="ln-card ln-profile-header-card" style={{ position: 'relative' }}>
                 {/* Banner Background with Upload */}
                 <div className="ln-profile-header-banner" style={{
                     height: 160,
@@ -3097,6 +2979,24 @@ export const TraineeProfileContent = ({ viewedProfileId = null, onBack = null, o
                         {/* Resume section removed as per cleanup requirements */}
                     </div>
                 </div>
+                {isOwnProfile && (
+                    <button 
+                        type="button" 
+                        className="ln-btn-sm" 
+                        style={{
+                            position: 'absolute', bottom: 16, right: 16,
+                            background: 'linear-gradient(135deg, #6366f1 0%, #a855f7 100%)', 
+                            color: 'white',
+                            border: 'none', borderRadius: 8, display: 'flex', alignItems: 'center', gap: 6,
+                            padding: '10px 20px', fontWeight: 700,
+                            boxShadow: '0 4px 12px rgba(99, 102, 241, 0.3)',
+                            cursor: 'pointer', zIndex: 10
+                        }}
+                        onClick={() => setShowAIBuilder(true)}
+                    >
+                        <Sparkles size={16} /> AI Resume Builder
+                    </button>
+                )}
             </div>
 
             <div className="ln-profile-tabs" style={{ display: 'flex', gap: 24, padding: '0 16px', marginBottom: 16, borderBottom: '1px solid #e2e8f0', background: 'white' }}>
@@ -3667,7 +3567,7 @@ export const TraineeProfileContent = ({ viewedProfileId = null, onBack = null, o
                                                                 <select className="form-select" value={(programs || []).find(p => p.name === t.program)?.id || ''} onChange={e => {
                                                                     const p = (programs || []).find(p => String(p.id) === e.target.value);
                                                                     updateTraining(i, 'program', p?.name || '');
-                                                                    if (p?.nc_level) updateTraining(i, 'ncLevel', p.nc_level);
+                                                                    updateTraining(i, 'ncLevel', p?.ncLevel || '');
                                                                 }}>
                                                                     <option value="">Select Program</option>
                                                                     {(programs || []).map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
@@ -3676,7 +3576,12 @@ export const TraineeProfileContent = ({ viewedProfileId = null, onBack = null, o
                                                             </div>
                                                             <div>
                                                                 <label style={{ fontSize: 11, fontWeight: 700, color: '#64748b', display: 'block', marginBottom: 4 }}>NC Level</label>
-                                                                <select className="form-select" value={t.ncLevel || ''} onChange={e => updateTraining(i, 'ncLevel', e.target.value)}>
+                                                                <select 
+                                                                    className="form-select" 
+                                                                    value={t.ncLevel || ''} 
+                                                                    disabled 
+                                                                    style={{ cursor: 'not-allowed', background: '#f1f5f9', opacity: 0.8 }}
+                                                                >
                                                                     <option value="">N/A</option>
                                                                     <option value="NC I">NC I</option>
                                                                     <option value="NC II">NC II</option>
@@ -4668,23 +4573,41 @@ const TraineeProfile = (props) => (
 );
 
 // ─── PAGE 4: OPPORTUNITIES ───────────────────────────────────────
-const Opportunities = ({ openContactModal, openApplyModal, toggleBookmark }) => {
-    const { currentUser, trainees, posts, applications, getTraineeRecommendedJobs, applyToJob, loadMoreFeeds, updateTrainee, getUserPostInteraction } = useApp();
+const Opportunities = ({ 
+    openContactModal, openApplyModal, toggleBookmark, 
+    handleEditPost, setConfirmDeleteId,
+    editingPostId, setEditingPostId, editContent, setEditContent, handleSaveEdit,
+    postMenuId, setPostMenuId
+}) => {
+    const { currentUser, getUserPostInteraction } = useApp();
+    const { data: trainees = [] } = useTrainees();
+    const { data: posts = [] } = usePosts(50);
+    const { data: jobPostings = [] } = useJobPostings(50);
+    const { data: applications = [] } = useApplications(currentUser?.id, 'trainee');
+    const { data: partners = [] } = usePartners();
     const navigate = useNavigate();
     const trainee = currentUser || trainees[0];
     const myApps = applications.filter(a => a.traineeId === trainee?.id).map(a => a.jobId);
 
     const allJobs = useMemo(() => {
-        const jobs = getTraineeRecommendedJobs(trainee?.id) || [];
+        const jobs = getTraineeRecommendedJobs(trainee, jobPostings) || [];
         const partnerPosts = (posts || []).filter(p => {
             return p.post_type === 'hiring_update';
-        }).map(p => ({
-            ...p,
-            feedType: 'post',
-            opportunityType: 'Partner Post',
-            industry: 'General',
-            location: p.location || 'Various'
-        }));
+        }).map(p => {
+            const partner = partners.find(ptr => String(ptr.id) === String(p.author_id));
+            return {
+                ...p,
+                feedType: 'job', // Standardize to job layout for UI consistency
+                opportunityType: 'Partner Post',
+                industry: 'General',
+                location: normalizeLocation(p.location) || 'Various',
+                companyName: partner?.company_name || partner?.profileName || 'Partner Company',
+                partnerId: p.author_id,
+                description: p.content || p.description || '',
+                attachmentUrl: p.media_url || p.attachmentUrl || null,
+                attachmentType: p.media_type || p.attachmentType || 'image/jpeg'
+            };
+        });
 
         const combined = [...jobs.map(j => ({ ...j, feedType: 'job' })), ...partnerPosts];
 
@@ -4698,7 +4621,7 @@ const Opportunities = ({ openContactModal, openApplyModal, toggleBookmark }) => 
 
         return Array.from(uniqueJobsMap.values())
             .sort((a, b) => new Date(b.created_at || b.createdAt || b.datePosted || 0) - new Date(a.created_at || a.createdAt || a.datePosted || 0));
-    }, [getTraineeRecommendedJobs, trainee?.id, posts]);
+    }, [getTraineeRecommendedJobs, trainee?.id, posts, jobPostings, partners]);
 
     const [search, setSearch] = useState('');
     const [viewMode, setViewMode] = useState('list'); // 'grid' or 'list'
@@ -4710,7 +4633,7 @@ const Opportunities = ({ openContactModal, openApplyModal, toggleBookmark }) => 
     const [showAllCompetencies, setShowAllCompetencies] = useState(false);
 
     const [currentPage, setCurrentPage] = useState(1);
-    const pageSize = 10;
+    const pageSize = 12;
 
 
     useEffect(() => {
@@ -4721,13 +4644,8 @@ const Opportunities = ({ openContactModal, openApplyModal, toggleBookmark }) => 
         setShowAllCompetencies(false);
     }, [selectedJob]);
 
-    // Auto-fetch next pages from DB as we approach the end of the loaded array
-    useEffect(() => {
-        const totalPages = Math.ceil((allJobs?.length || 0) / pageSize);
-        if (currentPage >= totalPages - 1 && (allJobs?.length || 0) >= 20) {
-            try { loadMoreFeeds(); } catch (e) { }
-        }
-    }, [currentPage, allJobs?.length]);
+    // Auto-fetch next pages logic removed as we set a higher initial limit for Opportunities tab
+    // In a full implementation, we would use useInfiniteQuery
     const openProfile = (target) => {
         if (!target?.id || !target?.type) return;
         const profileType = normalizeProfileType(target.type);
@@ -4736,9 +4654,9 @@ const Opportunities = ({ openContactModal, openApplyModal, toggleBookmark }) => 
     };
 
     const hiringUpdates = allJobs;
-    const industries = ['All', ...new Set(hiringUpdates.map(j => j.industry).filter(Boolean))];
+    const industries = ['All', ...new Set(hiringUpdates.map(j => j.industry).filter(Boolean))].sort((a, b) => a === 'All' ? -1 : b === 'All' ? 1 : a.localeCompare(b));
     const types = ['All', 'Full-time', 'Part-time', 'Contract', 'Internship'];
-    const locations = ['All', ...new Set(hiringUpdates.map(j => j.location).filter(Boolean))];
+    const locations = ['All', ...new Set(hiringUpdates.map(j => normalizeLocation(j.location)).filter(Boolean))].sort((a, b) => a === 'All' ? -1 : b === 'All' ? 1 : a.localeCompare(b));
     const opTypes = ['All', 'Job', 'OJT', 'Apprenticeship'];
 
     const filtered = allJobs.filter(j => {
@@ -4748,12 +4666,13 @@ const Opportunities = ({ openContactModal, openApplyModal, toggleBookmark }) => 
         const sTitle = (j.title || '').toLowerCase();
         const sCompany = (j.companyName || j.author?.company_name || j.profileName || '').toLowerCase();
         const sContent = (j.content || '').toLowerCase();
+        const sAddress = (j.detailed_address || j.detailedAddress || '').toLowerCase();
 
         return (
-            (sTitle.includes(q) || sCompany.includes(q) || sContent.includes(q)) &&
+            (sTitle.includes(q) || sCompany.includes(q) || sContent.includes(q) || sAddress.includes(q)) &&
             (filterIndustry === 'All' || j.industry === filterIndustry) &&
             (filterType === 'All' || j.employmentType === filterType || j.feedType === 'post') &&
-            (filterLocation === 'All' || j.location === filterLocation) &&
+            (filterLocation === 'All' || normalizeLocation(j.location) === filterLocation) &&
             (filterOpType === 'All' || j.opportunityType === filterOpType || (filterOpType === 'Partner Post' && j.feedType === 'post'))
         );
     });
@@ -4810,17 +4729,53 @@ const Opportunities = ({ openContactModal, openApplyModal, toggleBookmark }) => 
             </div>
 
             {/* Job Cards - LinkedIn Style */}
-            <div className={viewMode === 'list' ? "tt-feed-list" : "tt-feed-grid"} style={viewMode === 'list' ? { display: 'flex', flexDirection: 'column', gap: '16px' } : {}}>
+            <div className={viewMode === 'list' ? "tt-feed-list" : "tt-feed-grid"} style={viewMode === 'list' ? { display: 'flex', flexDirection: 'column', gap: '16px' } : { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(360px, 1fr))', gap: '24px' }}>
                 {displayedJobs.map(job => {
                     const applied = job.feedType === 'job'
                         ? myApps.includes(job.id)
                         : !!getUserPostInteraction(job.id, 'apply');
                     if (viewMode === 'list' || job.feedType === 'post') {
+                        if (editingPostId === job.id) {
+                            return (
+                                <div key={`edit-${job.id}`} className="ln-card ln-feed-card" style={{ padding: 20 }}>
+                                    <div style={{ fontSize: 14, fontWeight: 700, color: '#0f172a', marginBottom: 12 }}>Edit Opportunity Post</div>
+                                    <textarea
+                                        value={editContent}
+                                        onChange={(e) => setEditContent(e.target.value)}
+                                        style={{
+                                            width: '100%', minHeight: 120, padding: 12, borderRadius: 8,
+                                            border: '1px solid #4f46e5', fontSize: 14, outline: 'none', resize: 'vertical',
+                                            fontFamily: 'inherit'
+                                        }}
+                                        placeholder="Edit the opportunity details..."
+                                    />
+                                    <div style={{ display: 'flex', gap: 10, marginTop: 16, justifyContent: 'flex-end' }}>
+                                        <button
+                                            onClick={() => { setEditingPostId(null); setEditContent(''); }}
+                                            style={{ padding: '8px 20px', borderRadius: 20, border: '1px solid #cbd5e1', background: '#fff', cursor: 'pointer', fontSize: 13, fontWeight: 600, color: '#475569' }}
+                                        >
+                                            Cancel
+                                        </button>
+                                        <button
+                                            onClick={() => handleSaveEdit(job.id)}
+                                            style={{ padding: '8px 20px', borderRadius: 20, border: 'none', background: '#4f46e5', color: '#fff', cursor: 'pointer', fontSize: 13, fontWeight: 600 }}
+                                        >
+                                            Save Changes
+                                        </button>
+                                    </div>
+                                </div>
+                            );
+                        }
                         return (
                             <CompactFeedItem
                                 key={`opp-compact-${job.id}`}
                                 item={{ ...job }}
-                                isOwnPost={false}
+                                isOwnPost={job.author_id === currentUser?.id || job.partnerId === currentUser?.id}
+                                postMenuId={postMenuId}
+                                setPostMenuId={setPostMenuId}
+                                // Note: In Opportunities tab, we use direct handlers if available, otherwise parent context
+                                onEdit={(i) => typeof handleEditPost === 'function' ? handleEditPost(i) : console.warn('Edit handler not found')}
+                                onDelete={(id) => typeof setConfirmDeleteId === 'function' ? setConfirmDeleteId(id) : console.warn('Delete handler not found')}
                                 applied={applied}
                                 onInquire={(j) => openContactModal({
                                     recipientId: j.partnerId || j.author_id || j.authorId,
@@ -4832,39 +4787,134 @@ const Opportunities = ({ openContactModal, openApplyModal, toggleBookmark }) => 
                                 })}
                                 onSave={toggleBookmark}
                                 onApply={(i) => openApplyModal(i)}
-                                openProfile={openProfile}
-                                onViewDetail={(i) => setSelectedJob(i)}
+                                openProfile={(target) => {
+                                    if (!target?.id || !target?.type) return;
+                                    const profileType = normalizeProfileType(target.type);
+                                    if (!profileType) return;
+                                    navigate(`/trainee/profile-view/${profileType}/${target.id}`);
+                                }}
                             />
                         );
                     }
-                    const pastelColors = ['#bfdbfe', '#bbf7d0', '#e9d5ff', '#fed7aa', '#bae6fd', '#fbcfe8', '#fef08a'];
-                    const hashString = (str) => {
-                        let hash = 0;
-                        for (let i = 0; i < str.length; i++) {
-                            hash = str.charCodeAt(i) + ((hash << 5) - hash);
-                        }
-                        return Math.abs(hash);
-                    };
-                    const bgColor = pastelColors[hashString(job.id || '123') % pastelColors.length];
+                    const theme = POST_THEME['job'] || { color: '#0a66c2', bg: '#f0f7ff' };
                     const hasAttachment = job.attachmentUrl && isImageAttachment(job.attachmentUrl, job.attachmentType);
                     
                     const jobSkills = Array.isArray(job.skills) && job.skills.length > 0 ? job.skills : (Array.isArray(job.tags) && job.tags.length > 0 ? job.tags : []);
                     const displaySkills = jobSkills.length > 0 ? jobSkills.join(', ') : (job.ncLevel ? `${job.ncLevel}, Technical Skills, Professionalism` : 'Industry Skills, Professionalism, Teamwork');
 
+                    if (editingPostId === job.id) {
+                        return (
+                            <div key={`edit-grid-${job.id}`} className="coursera-card" style={{ padding: 20, minHeight: 280, display: 'flex', flexDirection: 'column' }}>
+                                <div style={{ fontSize: 14, fontWeight: 700, color: '#0f172a', marginBottom: 12 }}>Edit Opportunity</div>
+                                <textarea
+                                    value={editContent}
+                                    onChange={(e) => setEditContent(e.target.value)}
+                                    style={{
+                                        flex: 1, width: '100%', minHeight: 120, padding: 12, borderRadius: 8,
+                                        border: '1px solid #4f46e5', fontSize: 14, outline: 'none', resize: 'none',
+                                        fontFamily: 'inherit'
+                                    }}
+                                    placeholder="Edit details..."
+                                />
+                                <div style={{ display: 'flex', gap: 10, marginTop: 16, justifyContent: 'flex-end' }}>
+                                    <button
+                                        onClick={() => { setEditingPostId(null); setEditContent(''); }}
+                                        style={{ padding: '6px 16px', borderRadius: 20, border: '1px solid #cbd5e1', background: '#fff', cursor: 'pointer', fontSize: 12, fontWeight: 600 }}
+                                    >
+                                        Cancel
+                                    </button>
+                                    <button
+                                        onClick={() => handleSaveEdit(job.id)}
+                                        style={{ padding: '6px 16px', borderRadius: 20, border: 'none', background: '#4f46e5', color: '#fff', cursor: 'pointer', fontSize: 12, fontWeight: 600 }}
+                                    >
+                                        Save
+                                    </button>
+                                </div>
+                            </div>
+                        );
+                    }
                     return (
-                        <div key={job.id} className="coursera-card" onClick={() => setSelectedJob(job)}>
+                        <div key={job.id} className="coursera-card" onClick={() => setSelectedJob(job)} style={{ 
+                            borderLeft: `4px solid ${theme.color}`,
+                            width: '100%',
+                            height: '407px',
+                            flexShrink: 0
+                        }}>
                             <div className="coursera-card-image" style={{ 
-                                backgroundColor: hasAttachment ? '#f1f5f9' : bgColor,
+                                backgroundColor: hasAttachment ? '#f1f5f9' : theme.bg,
                                 backgroundImage: hasAttachment ? `url(${job.attachmentUrl})` : 'none',
                                 display: 'flex', alignItems: 'center', justifyContent: 'center'
                             }}>
                                 {!hasAttachment && <Building2 size={48} color="rgba(0,0,0,0.1)" />}
-                                <div className="coursera-card-free-badge">Verified</div>
+                                
+                                {(job.author_id === currentUser?.id || job.partnerId === currentUser?.id) && (
+                                    <div style={{ position: 'absolute', top: 8, right: 8, zIndex: 20 }} onClick={e => e.stopPropagation()}>
+                                        <button
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                setPostMenuId(postMenuId === job.id ? null : job.id);
+                                            }}
+                                            style={{ 
+                                                background: 'rgba(255,255,255,0.9)', 
+                                                border: 'none', 
+                                                cursor: 'pointer', 
+                                                padding: 6, 
+                                                borderRadius: '50%', 
+                                                color: '#65676b',
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                justifyContent: 'center',
+                                                boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
+                                            }}
+                                        >
+                                            <MoreVertical size={18} />
+                                        </button>
+                                        {postMenuId === job.id && (
+                                            <div style={{
+                                                position: 'absolute', right: 0, top: 32, background: '#fff',
+                                                borderRadius: 8, boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+                                                border: '1px solid #e4e6eb', zIndex: 100, minWidth: 150, overflow: 'hidden'
+                                            }}>
+                                                <button
+                                                    onClick={() => {
+                                                        if (typeof handleEditPost === 'function') handleEditPost(job);
+                                                        setPostMenuId(null);
+                                                    }}
+                                                    style={{
+                                                        display: 'flex', alignItems: 'center', gap: 10, width: '100%',
+                                                        padding: '10px 16px', border: 'none', background: 'none',
+                                                        cursor: 'pointer', fontSize: 13, color: '#1c1e21', textAlign: 'left'
+                                                    }}
+                                                >
+                                                    <Edit size={14} /> Edit post
+                                                </button>
+                                                <button
+                                                    onClick={() => {
+                                                        if (typeof setConfirmDeleteId === 'function') setConfirmDeleteId(job.id);
+                                                        setPostMenuId(null);
+                                                    }}
+                                                    style={{
+                                                        display: 'flex', alignItems: 'center', gap: 10, width: '100%',
+                                                        padding: '10px 16px', border: 'none', background: 'none',
+                                                        cursor: 'pointer', fontSize: 13, color: '#dc3545', textAlign: 'left'
+                                                    }}
+                                                >
+                                                    <Trash2 size={14} /> Delete post
+                                                </button>
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
                             </div>
                             <div className="coursera-card-content">
                                 <div className="coursera-card-provider">
                                     <div className="coursera-provider-logo"><Building2 size={12} color="#0a66c2" /></div>
-                                    <span style={{fontWeight: 500, color: '#0f172a'}}>{job.companyName || job.author?.company_name || job.profileName || 'Partner Company'}</span>
+                                    <span style={{fontWeight: 500, color: '#0f172a', display: 'flex', alignItems: 'center', gap: 4}}>
+                                        {job.companyName || job.author?.company_name || job.profileName || 'Partner Company'}
+                                        {partners.find(p => p.id === job.partnerId)?.verificationStatus === 'Verified' && (
+                                            <VerifiedBadge size={14} />
+                                        )}
+                                    </span>
                                 </div>
                                 <h3 className="coursera-card-title">{job.title}</h3>
                                 <p className="coursera-card-skills">
@@ -4872,6 +4922,44 @@ const Opportunities = ({ openContactModal, openApplyModal, toggleBookmark }) => 
                                 </p>
                                 <div className="coursera-card-meta">
                                     {job.ncLevel || 'Beginner'} • {job.opportunityType} • {job.employmentType || 'Flexible'}
+                                </div>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginTop: 8, color: '#64748b', fontSize: 12 }}>
+                                    <MapPin size={14} color="#7c3aed" />
+                                    <span style={{ fontWeight: 500 }}>{job.location || 'Remote/TBD'}</span>
+                                    {job.detailed_address && (
+                                        <span style={{ color: '#94a3b8' }}>• {job.detailed_address}</span>
+                                    )}
+                                </div>
+                                <div style={{ borderTop: '1px solid #f1f5f9', marginTop: '12px', paddingTop: '12px', display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
+                                    <button 
+                                        onClick={(e) => { 
+                                            e.stopPropagation(); 
+                                            openContactModal({
+                                                recipientId: job.partnerId || job.author_id || job.authorId,
+                                                recipientName: job.companyName || job.author?.company_name || job.profileName,
+                                                recipientType: 'industry_partner',
+                                                jobPostingId: job.feedType === 'job' ? job.id : null,
+                                                postId: job.feedType === 'post' ? job.id : null,
+                                                postTitle: job.title || 'Inquiry'
+                                            });
+                                        }}
+                                        style={{ padding: '6px 16px', borderRadius: 20, fontSize: 13, fontWeight: 600, border: '1px solid #cbd5e1', backgroundColor: 'transparent', color: '#475569', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6 }}
+                                    >
+                                        <Mail size={14} /> Contact
+                                    </button>
+                                    <button 
+                                        onClick={(e) => { e.stopPropagation(); toggleBookmark(job.id); }}
+                                        style={{ padding: '6px 16px', borderRadius: 20, fontSize: 13, fontWeight: 600, border: '1px solid #cbd5e1', backgroundColor: 'transparent', color: '#475569', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6 }}
+                                    >
+                                        <Bookmark size={14} fill={(trainee?.savedOpportunities || []).includes(job.id) ? 'currentColor' : 'none'} /> {(trainee?.savedOpportunities || []).includes(job.id) ? 'Saved' : 'Save'}
+                                    </button>
+                                    <button 
+                                        disabled={applied || job.status !== 'Open'}
+                                        onClick={(e) => { e.stopPropagation(); openApplyModal(job); }}
+                                        style={{ padding: '6px 16px', borderRadius: 20, fontSize: 13, fontWeight: 600, border: 'none', backgroundColor: applied ? '#818cf8' : '#4f46e5', color: '#fff', cursor: applied ? 'default' : 'pointer', display: 'flex', alignItems: 'center', gap: 6 }}
+                                    >
+                                        {applied ? <><CheckCircle size={14} /> Applied</> : <><Send size={14} /> Apply</>}
+                                    </button>
                                 </div>
                             </div>
                         </div>
@@ -5070,10 +5158,93 @@ const Opportunities = ({ openContactModal, openApplyModal, toggleBookmark }) => 
 
 // ─── PAGE 5: MY APPLICATIONS ──────────────────────────────────────
 const MyApplications = () => {
-    const { currentUser, trainees, getTraineeApplications, saveInterviewBooking, updateApplicationStatus, deleteApplication } = useApp();
+    const { currentUser, updateApplicationStatus } = useApp();
+    const { data: trainees = [] } = useTrainees();
+    const { data: partners = [] } = usePartners();
+    const { data: jobPostings = [] } = useJobPostings(100);
+    const { data: applications = [] } = useApplications(currentUser?.id, 'trainee');
+    const { data: contactRequests = [] } = useContactRequests(currentUser?.id, 'trainee');
+    const { data: interviewBookings = [] } = useInterviewBookings(currentUser?.id, 'trainee');
+    
+    const updateApplicationStatusMutation = useUpdateApplicationStatus();
+    const deleteApplicationMutation = useDeleteApplication();
+    const saveInterviewBookingMutation = useSaveInterviewBooking();
+
     const navigate = useNavigate();
     const trainee = currentUser || trainees[0];
-    const myApps = getTraineeApplications(trainee?.id);
+
+    const myApps = useMemo(() => {
+        if (!trainee) return [];
+        
+        const applicationRecords = applications
+          .filter(a => String(a.traineeId) === String(trainee.id))
+          .map(a => {
+            const job = jobPostings.find(j => String(j.id) === String(a.jobId));
+            const partner = partners.find(p => String(p.id) === String(job?.partnerId));
+            const booking = interviewBookings.find(b => String(b.application_id) === String(a.id) && b.status !== 'cancelled');
+            
+            return {
+              ...a,
+              rowKey: `application-${a.id}`,
+              recordType: 'application',
+              activityType: 'Job Application',
+              directionLabel: 'You applied',
+              eventDate: a.appliedAt,
+              job,
+              partner: partner || (job ? { id: job.partnerId, companyName: job.companyName || 'Industry Partner' } : null),
+              outgoingMessage: a.applicationMessage || null,
+              incomingMessage: a.recruitMessage || a.notes || null,
+              attachmentName: a.resumeFileName || null,
+              attachmentUrl: a.resumeUrl || null,
+              attachmentKind: a.resumeUrl ? 'resume' : null,
+              matchRate: trainee.id && job?.id ? getMatchRate(trainee, job) : null,
+              interviewDate: booking?.start_time || a.proposedInterviewDate || null,
+              sortAt: new Date(a.appliedAt || 0).getTime(),
+            };
+          });
+
+        const contactRecords = contactRequests
+          .filter(request => String(request.sender_id) === String(trainee.id) || String(request.recipient_id) === String(trainee.id))
+          .map(request => {
+            const isOutgoing = String(request.sender_id) === String(trainee.id);
+            const partnerId = isOutgoing ? request.recipient_id : request.sender_id;
+            const partner = partners.find(p => String(p.id) === String(partnerId));
+            const jobId = request.jobPostingId || request.job_posting_id;
+            const job = jobPostings.find(j => String(j.id) === String(jobId));
+            const booking = interviewBookings.find(b => String(b.application_id) === String(request.id) && b.status !== 'cancelled');
+
+            return {
+              ...request,
+              id: request.id,
+              rowKey: `contact-${request.id}`,
+              recordType: 'contact',
+              activityType: isOutgoing ? (jobId ? 'Direct Apply Contact' : 'Direct Contact') : 'Partner Outreach',
+              directionLabel: isOutgoing ? 'You contacted partner' : 'Partner contacted you',
+              status: (() => {
+                const rawStatus = String(request.status || '').toLowerCase();
+                if (rawStatus === 'reviewed' || rawStatus === 'pending') {
+                  if (request.proposed_interview_date) {
+                    return isOutgoing ? 'Reschedule Requested' : 'Interview Requested';
+                  }
+                }
+                return request.status;
+              })(),
+              eventDate: (request.created_at || '').split('T')[0],
+              job,
+              partner: partner || (job ? { id: job.partnerId, companyName: job.companyName || 'Industry Partner' } : null),
+              outgoingMessage: isOutgoing ? request.message : null,
+              incomingMessage: isOutgoing ? (request.notes || null) : request.message,
+              attachmentName: request.attachment_name || null,
+              attachmentUrl: request.attachment_url || null,
+              attachmentKind: request.attachment_kind || null,
+              matchRate: jobId ? getMatchRate(trainee, job) : null,
+              interviewDate: booking?.start_time || request.proposed_interview_date || null,
+              sortAt: new Date(request.created_at || 0).getTime(),
+            };
+          });
+
+        return [...applicationRecords, ...contactRecords].sort((a, b) => b.sortAt - a.sortAt);
+    }, [trainee, applications, contactRequests, interviewBookings, jobPostings, partners]);
     const [search, setSearch] = useState('');
     const [currentPage, setCurrentPage] = useState(1);
     const pageSize = 10;
@@ -5344,19 +5515,19 @@ const MyApplications = () => {
                                                         </div>
                                                     );
                                                 })()}
-                                                {String(a.status).toLowerCase() === 'interview requested' && (
+                                                {['interview requested', 'reschedule requested'].includes(String(a.status).toLowerCase()) && (
                                                     <div style={{ marginTop: 8, display: 'flex', flexWrap: 'wrap', gap: 4 }}>
                                                         <button
                                                             className="ln-btn ln-btn-primary"
                                                             style={{ padding: '4px 8px', fontSize: 10, background: '#16a34a', height: 'auto', border: 'none' }}
-                                                            onClick={(e) => { e.stopPropagation(); updateApplicationStatus(a.id, 'interview confirmed', 'Interview confirmed by trainee.'); }}
+                                                            onClick={(e) => { e.stopPropagation(); updateApplicationStatus(a.id, 'interview confirmed', 'Interview confirmed by trainee.', { sourceTable: a.sourceTable }); }}
                                                         >
                                                             Accept
                                                         </button>
                                                         <button
                                                             className="ln-btn ln-btn-outline"
                                                             style={{ padding: '4px 8px', fontSize: 10, borderColor: '#ef4444', color: '#ef4444', height: 'auto' }}
-                                                            onClick={(e) => { e.stopPropagation(); updateApplicationStatus(a.id, 'interview declined', 'Interview declined by trainee.'); }}
+                                                            onClick={(e) => { e.stopPropagation(); updateApplicationStatus(a.id, 'interview declined', 'Interview declined by trainee.', { sourceTable: a.sourceTable }); }}
                                                         >
                                                             Decline
                                                         </button>
@@ -5668,7 +5839,7 @@ const MyApplications = () => {
                                     disabled={!proposedDate || !proposedTime}
                                     onClick={async () => {
                                         const fullDateTime = `${proposedDate}T${proposedTime}`;
-                                        await updateApplicationStatus(bookingApp.id, 'reschedule requested', `Trainee requested a reschedule for ${proposedDate} at ${proposedTime}.`, { proposedInterviewDate: fullDateTime });
+                                        await updateApplicationStatus(bookingApp.id, 'reschedule requested', `Trainee requested a reschedule for ${proposedDate} at ${proposedTime}.`, { proposedInterviewDate: fullDateTime, sourceTable: bookingApp.sourceTable });
                                         setBookingApp(null);
                                         setProposedDate('');
                                         setProposedTime('');
@@ -5710,13 +5881,14 @@ const MyApplications = () => {
                                 disabled={deleting}
                                 onClick={async () => {
                                     setDeleting(true);
-                                    const res = await deleteApplication(deleteConfirm.id);
-                                    setDeleting(false);
-                                    if (res.success) {
+                                    try {
+                                        await deleteApplicationMutation.mutateAsync({ applicationId: deleteConfirm.id, sourceTable: deleteConfirm.sourceTable });
                                         toast.success('Application deleted.');
                                         setDeleteConfirm(null);
-                                    } else {
-                                        toast.error(res.error || 'Failed to delete.');
+                                    } catch (err) {
+                                        toast.error(err.message || 'Failed to delete.');
+                                    } finally {
+                                        setDeleting(false);
                                     }
                                 }}
                             >
@@ -5732,22 +5904,13 @@ const MyApplications = () => {
 
 // ─── SUBCOMPONENT: PICK TIME ──────────────────────────────────────
 const PickTime = ({ partnerId, onBook }) => {
-    const { availabilitySlots, fetchAvailability, interviewBookings, fetchBookings } = useApp();
+    const { data: availabilitySlots = [], isLoading: isLoadingSlots } = useAvailability(partnerId);
+    const { data: interviewBookings = [], isLoading: isLoadingBookings } = useInterviewBookings(partnerId, 'partner');
+    
     const [selectedSlot, setSelectedSlot] = useState(null);
     const [weekOffset, setWeekOffset] = useState(0);
-    const [loading, setLoading] = useState(true);
 
-    useEffect(() => {
-        const load = async () => {
-            setLoading(true);
-            await Promise.all([
-                fetchAvailability(partnerId),
-                fetchBookings(partnerId)
-            ]);
-            setLoading(false);
-        };
-        load();
-    }, [partnerId]);
+    const isLoading = isLoadingSlots || isLoadingBookings;
 
     const dayLabels = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
@@ -5795,7 +5958,7 @@ const PickTime = ({ partnerId, onBook }) => {
         return 'available';
     };
 
-    if (loading) return <div style={{ padding: 40, textAlign: 'center' }}><Loader className="animate-spin" /></div>;
+    if (isLoading) return <div style={{ padding: 40, textAlign: 'center' }}><Loader className="animate-spin" /></div>;
 
     const hours = Array.from({ length: 11 }, (_, i) => i + 7); // 7 AM to 5 PM
 
@@ -5900,11 +6063,49 @@ const TraineeProfileViewRoute = () => {
 
 // ─── MAIN TRAINEE DASHBOARD ─────────────────────────────────────
 export default function TraineeDashboard() {
-    const { currentUser, createPostInteraction, fetchPostInteractions, updateTrainee, sendContactRequest, applyToJob } = useApp();
+    const { currentUser, createPostInteraction, fetchPostInteractions, updateTrainee, sendContactRequest } = useApp();
+    const applyToJobMutation = useApplyToJob();
     const navigate = useNavigate();
     const location = useLocation();
 
+    const updatePostMutation = useUpdatePost();
+    const deletePostMutation = useDeletePost();
+
     // ── Shared Action States ──
+    const [editingPostId, setEditingPostId] = useState(null);
+    const [editContent, setEditContent] = useState('');
+    const [postMenuId, setPostMenuId] = useState(null);
+    const [confirmDeleteId, setConfirmDeleteId] = useState(null);
+
+    // ── Shared Post Handlers ──
+    const handleEditPost = (post) => {
+        setEditingPostId(post.id);
+        setEditContent(post.content);
+        setPostMenuId(null);
+    };
+
+    const handleSaveEdit = async (postId) => {
+        if (!editContent.trim()) return;
+        try {
+            await updatePostMutation.mutateAsync({ postId, content: editContent });
+            toast.success('Post updated!');
+            setEditingPostId(null);
+            setEditContent('');
+        } catch (err) {
+            toast.error('Failed to update post');
+        }
+    };
+
+    const handleDeletePost = async (postId) => {
+        try {
+            await deletePostMutation.mutateAsync(postId);
+            toast.success('Post deleted');
+            setConfirmDeleteId(null);
+        } catch (err) {
+            toast.error('Failed to delete post');
+        }
+    };
+
     const [bulletinModal, setBulletinModal] = useState(null);
     const [bulletinMessage, setBulletinMessage] = useState('');
     const [bulletinSubmitting, setBulletinSubmitting] = useState(false);
@@ -6038,18 +6239,22 @@ export default function TraineeDashboard() {
     const handleSubmitApplication = async () => {
         if (!applyJob) return;
         setSubmittingApp(true);
-        const r = await applyToJob(currentUser?.id, applyJob.id, {
-            applicationMessage: applicationMessage,
-            resumeUrl: resumeInfo?.file_url,
-            resumeFileName: resumeInfo?.file_name || 'Resume',
-        });
-        setSubmittingApp(false);
-        if (!r.success) {
-            toast.error(r.error || 'Failed to submit application.');
-            return;
+        try {
+            await applyToJobMutation.mutateAsync({
+                traineeId: currentUser?.id,
+                jobId: applyJob.id,
+                applicationMessage,
+                resumeUrl: resumeInfo?.file_url,
+                resumeFileName: resumeInfo?.file_name || 'Resume'
+            });
+            toast.success('Application submitted successfully!');
+            setApplyJob(null);
+            setApplicationMessage('');
+        } catch (err) {
+            toast.error(err.message || 'Failed to submit application.');
+        } finally {
+            setSubmittingApp(false);
         }
-        setApplyJob(null);
-        toast.success('Application submitted successfully!');
     };
 
     const toggleBookmark = async (jobId) => {
@@ -6083,9 +6288,37 @@ export default function TraineeDashboard() {
     return (
         <TraineeLayout activePage={activePage} setActivePage={setActivePage}>
             <Routes>
-                <Route path="/" element={<TraineeDashboardHome setActivePage={setActivePage} openBulletinModal={openBulletinModal} openContactModal={openContactModal} openApplyModal={openApplyModal} toggleBookmark={toggleBookmark} />} />
+                <Route path="/" element={<TraineeDashboardHome 
+                    setActivePage={setActivePage} 
+                    openBulletinModal={openBulletinModal} 
+                    openContactModal={openContactModal} 
+                    openApplyModal={openApplyModal} 
+                    toggleBookmark={toggleBookmark}
+                    editingPostId={editingPostId}
+                    setEditingPostId={setEditingPostId}
+                    editContent={editContent}
+                    setEditContent={setEditContent}
+                    postMenuId={postMenuId}
+                    setPostMenuId={setPostMenuId}
+                    handleEditPost={handleEditPost}
+                    handleSaveEdit={handleSaveEdit}
+                    setConfirmDeleteId={setConfirmDeleteId}
+                />} />
                 <Route path="/profile" element={<TraineeProfile openBulletinModal={openBulletinModal} openContactModal={openContactModal} openApplyModal={openApplyModal} toggleBookmark={toggleBookmark} />} />
-                <Route path="/recommendations" element={<Opportunities openContactModal={openContactModal} openApplyModal={openApplyModal} toggleBookmark={toggleBookmark} />} />
+                <Route path="/recommendations" element={<Opportunities 
+                    openContactModal={openContactModal} 
+                    openApplyModal={openApplyModal} 
+                    toggleBookmark={toggleBookmark} 
+                    handleEditPost={handleEditPost} 
+                    setConfirmDeleteId={setConfirmDeleteId}
+                    editingPostId={editingPostId}
+                    setEditingPostId={setEditingPostId}
+                    editContent={editContent}
+                    setEditContent={setEditContent}
+                    handleSaveEdit={handleSaveEdit}
+                    postMenuId={postMenuId}
+                    setPostMenuId={setPostMenuId}
+                />} />
                 <Route path="/applications" element={<MyApplications openContactModal={openContactModal} />} />
                 <Route path="/profile-view/:profileType/:profileId" element={<TraineeProfileViewRoute openBulletinModal={openBulletinModal} openContactModal={openContactModal} openApplyModal={openApplyModal} toggleBookmark={toggleBookmark} />} />
                 <Route path="/settings" element={<SettingsPage />} />
@@ -6222,6 +6455,36 @@ export default function TraineeDashboard() {
                     </div>
                 );
             })()}
+            {/* Delete Confirmation Modal */}
+            {confirmDeleteId && (
+                <div className="ln-modal-overlay" style={{ zIndex: 1000 }}>
+                    <div className="ln-modal-content" style={{ maxWidth: 400, textAlign: 'center', padding: '30px 20px' }}>
+                        <div style={{ width: 60, height: 60, borderRadius: '50%', background: '#fee2e2', color: '#dc2626', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 20px' }}>
+                            <Trash2 size={30} />
+                        </div>
+                        <h3 style={{ fontSize: 18, fontWeight: 700, color: '#0f172a', marginBottom: 10 }}>Delete Post?</h3>
+                        <p style={{ fontSize: 14, color: '#64748b', marginBottom: 24, lineHeight: 1.5 }}>
+                            Are you sure you want to delete this post? This action cannot be undone.
+                        </p>
+                        <div style={{ display: 'flex', gap: 12 }}>
+                            <button
+                                className="ln-btn"
+                                style={{ flex: 1, background: '#f1f5f9', color: '#475569', border: 'none' }}
+                                onClick={() => setConfirmDeleteId(null)}
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                className="ln-btn"
+                                style={{ flex: 1, background: '#dc2626', color: '#fff', border: 'none' }}
+                                onClick={() => handleDeletePost(confirmDeleteId)}
+                            >
+                                Delete
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </TraineeLayout>
     );
 }

@@ -28,38 +28,17 @@ const STEPS = [
     });
 
 export default function RegistrationFlow({ onBackToLogin }) {
-  const { industries: industriesFromCtx, uploadOptimizedImage, compressImage } = useApp();
-
-  const FALLBACK_INDUSTRIES = [
-    'Agriculture & Forestry',
-    'Architecture & Engineering',
-    'Arts, Design & Entertainment',
-    'Automotive',
-    'Banking & Finance',
-    'Business Process Outsourcing (BPO)',
-    'Construction & Real Estate',
-    'Education & Training',
-    'Energy & Utilities',
-    'Food & Beverage',
-    'Government & Public Sector',
-    'Healthcare & Medical',
-    'Hospitality & Tourism',
-    'Information Technology',
-    'Legal & Compliance',
-    'Logistics & Supply Chain',
-    'Manufacturing',
-    'Maritime',
-    'Media & Communications',
-    'Non-Profit & NGO',
-    'Retail & E-Commerce',
-    'Telecommunications',
-    'Transportation',
-    'Other',
-  ];
+  const { industries: industriesFromCtx, fetchIndustries, uploadOptimizedImage, compressImage } = useApp();
 
   const industries = Array.isArray(industriesFromCtx) && industriesFromCtx.length > 0
     ? industriesFromCtx
-    : FALLBACK_INDUSTRIES;
+    : [];
+
+  useEffect(() => {
+    if (industries.length === 0) {
+      fetchIndustries?.();
+    }
+  }, [industries.length, fetchIndustries]);
   const [selectedRole, setSelectedRole] = useState(null); // 'trainee' | 'partner'
   const [currentStep, setCurrentStep] = useState(1);
   const [traineeData, setTraineeData] = useState({

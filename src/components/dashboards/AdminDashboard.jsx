@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useRef, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { useApp } from '../../context/AppContext';
+import { usePosts, useApplications, usePrograms, useJobPostings, useNotifications, useTrainees, usePartners, useAdminDirectory, useContactRequests } from '../../hooks';
 import { supabase } from '../../lib/supabase';
 import {
     LayoutDashboard, Users, Building2, Briefcase, TrendingUp, BarChart2,
@@ -109,7 +110,8 @@ const timeAgo = (dateStr) => {
 
 // --- LAYOUT ---
 const AppLayout = ({ sidebar, children, pageTitle, pageSubtitle }) => {
-    const { currentUser, logout, notifications, lastSeenNotificationsAt, updateLastSeenNotificationsAt, confirmAction } = useApp();
+    const { currentUser, logout, lastSeenNotificationsAt, updateLastSeenNotificationsAt, confirmAction } = useApp();
+    const { data: notifications = [] } = useNotifications();
     const [showProfile, setShowProfile] = useState(false);
     const [showNotif, setShowNotif] = useState(false);
     const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -261,7 +263,7 @@ const AdminSidebar = ({ activePage, setActivePage, mobileOpen, closeSidebar }) =
                 />
                 <div className="sidebar-brand-text">
                     <div className="sidebar-brand-name" style={{ fontWeight: 800 }}>TraineeTrack</div>
-                    <div className="sidebar-brand-sub" style={{ color: '#64748b', fontSize: 12 }}>Admin Panel</div>
+                    <div className="sidebar-brand-sub" style={{ color: 'rgba(255, 255, 255, 0.65)', fontSize: 12 }}>Admin Panel</div>
                 </div>
             </div>
 
@@ -286,12 +288,12 @@ const AdminSidebar = ({ activePage, setActivePage, mobileOpen, closeSidebar }) =
                                     justifyContent: 'space-between',
                                     padding: '8px 12px',
                                     cursor: 'pointer',
-                                    color: '#94a3b8',
+                                    color: 'rgba(255, 255, 255, 0.65)',
                                     userSelect: 'none',
                                     transition: 'color 0.2s'
                                 }}
-                                onMouseEnter={(e) => e.currentTarget.style.color = '#475569'}
-                                onMouseLeave={(e) => e.currentTarget.style.color = '#94a3b8'}
+                                onMouseEnter={(e) => e.currentTarget.style.color = '#FFFFFF'}
+                                onMouseLeave={(e) => e.currentTarget.style.color = 'rgba(255, 255, 255, 0.65)'}
                             >
                                 <span style={{
                                     fontSize: '11px',
@@ -323,13 +325,13 @@ const AdminSidebar = ({ activePage, setActivePage, mobileOpen, closeSidebar }) =
                                                 display: 'flex',
                                                 alignItems: 'center',
                                                 justifyContent: 'center',
-                                                color: activePage === item.id ? '#FFFFFF' : '#64748b'
+                                                color: activePage === item.id ? '#FFFFFF' : 'rgba(255, 255, 255, 0.65)'
                                             }}>
                                                 {item.icon}
                                             </span>
                                             <span style={{
                                                 fontWeight: activePage === item.id ? 600 : 500,
-                                                color: activePage === item.id ? '#FFFFFF' : '#475569'
+                                                color: activePage === item.id ? '#FFFFFF' : 'rgba(255, 255, 255, 0.85)'
                                             }}>
                                                 {item.label}
                                             </span>
@@ -347,7 +349,7 @@ const AdminSidebar = ({ activePage, setActivePage, mobileOpen, closeSidebar }) =
                     <div className="sidebar-avatar" style={{ background: 'linear-gradient(135deg, #7c3aed, #db2777)' }}>AD</div>
                     <div className="sidebar-user-info">
                         <div className="sidebar-user-name" style={{ fontWeight: 600 }}>PSTDII Admin</div>
-                        <div className="sidebar-user-role" style={{ fontSize: 12, color: '#64748b' }}>Administrator</div>
+                        <div className="sidebar-user-role" style={{ fontSize: 12, color: 'rgba(255, 255, 255, 0.65)' }}>Administrator</div>
                     </div>
                 </div>
                 <div
@@ -370,10 +372,16 @@ const AdminSidebar = ({ activePage, setActivePage, mobileOpen, closeSidebar }) =
     );
 };
 
-// --- PAGE 1: ADMIN DASHBOARD ---
+
+
+
 // --- PAGE 1: ADMIN DASHBOARD (COMMAND CENTER) ---
 const AdminHome = ({ setActivePage }) => {
-    const { trainees, partners, posts, applications, getEmploymentStats, getSkillsDemand } = useApp();
+    const { getEmploymentStats, getSkillsDemand } = useApp();
+    const { data: trainees = [] } = useTrainees();
+    const { data: partners = [] } = usePartners();
+    const { data: posts = [] } = usePosts();
+    const { data: applications = [] } = useApplications();
     const stats = getEmploymentStats();
 
     // Export Handlers (Mock)
@@ -536,29 +544,28 @@ const AdminHome = ({ setActivePage }) => {
 
 // --- PAGE 2: MANAGE TRAINEES ---
 const ManageTrainees = () => {
-    const { trainees, totalTrainees, updateTrainee, deleteTrainee, confirmAction, fetchAdminDirectoryData } = useApp();
+    const { updateTrainee, deleteTrainee, confirmAction } = useApp();
     const [search, setSearch] = useState('');
     const [filterStatus, setFilterStatus] = useState('All');
     const [viewT, setViewT] = useState(null);
     const [editT, setEditT] = useState(null);
     const [currentPage, setCurrentPage] = useState(1);
     const [openMenuId, setOpenMenuId] = useState(null);
-    const [isLoading, setIsLoading] = useState(false);
     const pageSize = 15;
+
+    const { data: adminData, isLoading } = useAdminDirectory({ 
+        page: currentPage, 
+        limit: pageSize, 
+        search 
+    });
+
+    const trainees = adminData?.students || [];
+    const totalTrainees = adminData?.totalStudents || 0;
 
     // Reset page when search or filters change
     useEffect(() => {
         setCurrentPage(1);
     }, [search, filterStatus]);
-
-    useEffect(() => {
-        const loadData = async () => {
-            setIsLoading(true);
-            await fetchAdminDirectoryData(currentPage, pageSize, search);
-            setIsLoading(false);
-        };
-        loadData();
-    }, [currentPage, search, fetchAdminDirectoryData]);
 
     useEffect(() => {
         if (!openMenuId) return undefined;
@@ -764,11 +771,20 @@ const ManageTrainees = () => {
 // --- TESDA PROGRAMS: ADD / EDIT / DELETE WITH COMPETENCIES ---
 const ManageTesdaPrograms = () => {
     const ncLevelOptions = ['NC I', 'NC II', 'NC III', 'NC IV'];
-    const { programs, fetchPrograms } = useApp();
-    const [totalPrograms, setTotalPrograms] = useState(0);
+    const { fetchPrograms } = useApp();
     const [search, setSearch] = useState('');
-    const [loading, setLoading] = useState(true);
-    const [isLoading, setIsLoading] = useState(false);
+    const [currentPage, setCurrentPage] = useState(1);
+    const pageSize = 20;
+
+    const { data: programsData, isLoading } = usePrograms({ 
+        page: currentPage, 
+        pageSize, 
+        search 
+    });
+
+    const programs = programsData?.data || [];
+    const totalPrograms = programsData?.total || 0;
+
     const [saving, setSaving] = useState(false);
     const [showModal, setShowModal] = useState(false);
     const [editProgram, setEditProgram] = useState(null);
@@ -782,8 +798,6 @@ const ManageTesdaPrograms = () => {
         description: '',
         competenciesText: '',
     });
-    const [currentPage, setCurrentPage] = useState(1);
-    const pageSize = 20;
 
     // Reset page when search changes
     useEffect(() => {
@@ -999,25 +1013,6 @@ const ManageTesdaPrograms = () => {
         }
     };
 
-    const loadPrograms = async (force = false) => {
-        setIsLoading(true);
-        try {
-            const res = await fetchPrograms(currentPage, pageSize, search, force);
-            if (res && res.total !== undefined) setTotalPrograms(res.total);
-        } catch (err) {
-            console.error('Failed to load programs:', err);
-            openPopup('Failed to load TESDA programs.');
-        } finally {
-            setLoading(false);
-            setIsLoading(false);
-        }
-    };
-
-    useEffect(() => {
-        loadPrograms();
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [currentPage, search]);
-
     const openCreateModal = () => {
         setEditProgram(null);
         setForm({ name: '', ncLevel: '', durationHours: '', description: '', competenciesText: '' });
@@ -1232,7 +1227,7 @@ const ManageTesdaPrograms = () => {
                             </tr>
                         </thead>
                         <tbody>
-                            {(loading || isLoading) ? (
+                            {isLoading ? (
                                 <tr>
                                     <td colSpan={5} style={{ textAlign: 'center', padding: '40px 0' }}>
                                         <div className="spinner" style={{ margin: '0 auto', width: 24, height: 24, border: '3px solid #f3f4f6', borderTopColor: '#7c3aed', borderRadius: '50%', animation: 'spin 1s linear infinite' }} />
@@ -1261,7 +1256,7 @@ const ManageTesdaPrograms = () => {
                                     </td>
                                 </tr>
                             ))}
-                            {!(loading || isLoading) && programs.length === 0 && (
+                            {!isLoading && programs.length === 0 && (
                                 <tr><td colSpan={5} style={{ textAlign: 'center', padding: 30, color: '#94a3b8' }}>No TESDA programs found.</td></tr>
                             )}
                         </tbody>
@@ -1362,7 +1357,7 @@ const ManageTesdaPrograms = () => {
 
 // ————————————————————————————————————————————————————————————————————————————
 const ManagePartners = () => {
-    const { partners, totalPartners, approvePartner, rejectPartner, updatePartner, fetchAdminDirectoryData } = useApp();
+    const { approvePartner, rejectPartner, updatePartner } = useApp();
     const [search, setSearch] = useState('');
     const [filterStatus, setFilterStatus] = useState('All');
     const [viewPartner, setViewPartner] = useState(null);
@@ -1373,21 +1368,20 @@ const ManagePartners = () => {
     const [openPartnerMenuKey, setOpenPartnerMenuKey] = useState(null);
     const [menuPos, setMenuPos] = useState({ top: 'auto', bottom: 'auto', left: 0 });
     const [currentPage, setCurrentPage] = useState(1);
-    const [isLoading, setIsLoading] = useState(false);
     const pageSize = 15;
+
+    const { data: adminData, isLoading } = useAdminDirectory({ 
+        page: currentPage, 
+        limit: pageSize, 
+        search 
+    });
+
+    const partners = adminData?.partners || [];
+    const totalPartners = adminData?.totalPartners || 0;
 
     useEffect(() => {
         setCurrentPage(1);
     }, [search, filterStatus]);
-
-    useEffect(() => {
-        const loadData = async () => {
-            setIsLoading(true);
-            await fetchAdminDirectoryData(currentPage, pageSize, search);
-            setIsLoading(false);
-        };
-        loadData();
-    }, [currentPage, search, fetchAdminDirectoryData]);
 
     const reasonOptions = ['Incomplete Verification', 'Policy Violation', 'Fraudulent Information', 'Duplicate Account', 'Other'];
     const getActionReason = (partnerId) => actionReasonById[partnerId] || '';
@@ -1676,7 +1670,8 @@ const ManagePartners = () => {
 
 // ————————————————————————————————————————————————————————————————————————————
 const OpportunitiesOversight = () => {
-    const { jobPostings, updatePartnerJobPosting, deleteJobPosting } = useApp();
+    const { updatePartnerJobPosting, deleteJobPosting } = useApp();
+    const { data: jobPostings = [] } = useJobPostings();
     const [search, setSearch] = useState('');
     const [filterStatus, setFilterStatus] = useState('All');
     const [filterType, setFilterType] = useState('All');
@@ -1808,48 +1803,22 @@ const OpportunitiesOversight = () => {
 
 // ————————————————————————————————————————————————————————————————————————————
 const EmploymentTracking = () => {
-    const { getEmploymentStats, fetchAdminDirectoryData } = useApp();
-    const stats = getEmploymentStats();
-    const [traineesList, setTraineesList] = useState([]);
-    const [totalTrainees, setTotalTrainees] = useState(0);
+    const { getEmploymentStats } = useApp();
     const [search, setSearch] = useState('');
     const [currentPage, setCurrentPage] = useState(1);
     const [filterStatus, setFilterStatus] = useState('All');
-    const [isLoading, setIsLoading] = useState(false);
     const pageSize = 20;
 
-    const loadData = async () => {
-        setIsLoading(true);
-        try {
-            const timestamp = new Date().getTime();
-            // We use the same backend endpoint but we'll only use the student data from it
-            // Or we could use supabase directly if we want, but let's stick to the endpoint for consistency
-            const res = await fetch(`/api/admin/data?t=${timestamp}&page=${currentPage}&limit=${pageSize}&search=${encodeURIComponent(search)}&status=${filterStatus}`);
-            const data = await res.json();
-            
-            if (data.students) {
-                // The backend returns snake_case keys (full_name, employment_status, etc.)
-                // Filter by status if needed (though backend handles most of it)
-                const filtered = data.students.filter(t => 
-                    filterStatus === 'All' || 
-                    t.employmentStatus === filterStatus ||
-                    (filterStatus === 'Employed' && t.employmentStatus === 'employed') ||
-                    (filterStatus === 'Seeking Employment' && t.employmentStatus === 'seeking_employment') ||
-                    (filterStatus === 'Not Employed' && (t.employmentStatus === 'not_employed' || !t.employmentStatus))
-                );
-                setTraineesList(filtered);
-                setTotalTrainees(data.totalStudents || 0);
-            }
-        } catch (err) {
-            console.error('Failed to load employment data:', err);
-        } finally {
-            setIsLoading(false);
-        }
-    };
+    const { data: adminData, isLoading } = useAdminDirectory({ 
+        page: currentPage, 
+        limit: pageSize, 
+        search,
+        status: filterStatus 
+    });
 
-    useEffect(() => {
-        loadData();
-    }, [currentPage, search, filterStatus]);
+    const traineesList = adminData?.students || [];
+    const totalTrainees = adminData?.totalStudents || 0;
+    const stats = adminData?.employmentStats || getEmploymentStats();
 
     useEffect(() => {
         setCurrentPage(1);
@@ -1914,57 +1883,221 @@ const EmploymentTracking = () => {
 
 // ——— PAGE 6: ANALYTICS (DEEP DIVE REPORTS) ————————————————————————————————
 const Analytics = () => {
-    const { trainees, posts, partners, applications, getEmploymentStats } = useApp();
+    const { trainees, partners, programs, getEmploymentStats } = useApp();
+    const { data: posts = [] } = usePosts();
+    const { data: applications = [] } = useApplications();
     const stats = getEmploymentStats();
 
     const handleExportCSV = () => { toast.success("Exporting metrics to CSV..."); };
     const handleExportChart = (chartName) => { toast.success(`Exporting ${chartName} as PNG...`); };
 
-    // Placement Funnel Logic
+    // 1. Placement Funnel Logic
     const enrolled = trainees.length;
     const certified = trainees.filter(t => t.certifications && t.certifications.length > 0).length;
     const applied = new Set(applications.map(a => a.traineeId)).size;
     const hired = stats.employed;
 
     const funnelData = [
-        { stage: 'Enrolled Trainees', count: enrolled, fill: '#cbd5e1' },
-        { stage: 'NC Certified', count: certified, fill: '#0ea5e9' },
-        { stage: 'Matched / Applied', count: applied, fill: '#d97706' },
+        { stage: 'Enrolled Trainees', count: enrolled, fill: '#94a3b8' },
+        { stage: 'NC Certified', count: certified, fill: '#7c3aed' },
+        { stage: 'Matched / Applied', count: applied, fill: '#0ea5e9' },
         { stage: 'Successfully Hired', count: hired, fill: '#16a34a' }
     ];
 
-    // Mock Partner Engagement Activity (Line Chart based on job postings over time)
-    // In a real DB, you'd group by month. Here we mock a 6-month trend ending in current month.
-    const monthNames = ["Nov", "Dec", "Jan", "Feb", "Mar", "Apr"];
-    const engagementData = monthNames.map((m, i) => ({
-        month: m,
-        postings: Math.floor(Math.random() * 15) + 5 + i, // Trending up mock
-        interactions: Math.floor(Math.random() * 40) + 20 + (i * 5)
-    }));
+    // 2. Trainee Count per Program
+    const programCounts = {};
+    const programLookup = {};
+    (programs || []).forEach(p => { programLookup[p.id] = p.name; });
+
+    trainees.forEach(t => {
+        const hasTrainings = Array.isArray(t.trainings) && t.trainings.length > 0;
+        if (hasTrainings) {
+            // Count each program in the trainings list
+            t.trainings.forEach(training => {
+                const progName = training.program || programLookup[training.programId] || 'Unspecified';
+                programCounts[progName] = (programCounts[progName] || 0) + 1;
+            });
+        } else {
+            // Fallback to the main program field
+            const prog = t.program && t.program !== 'None' ? t.program : (programLookup[t.programId] || 'Unspecified');
+            programCounts[prog] = (programCounts[prog] || 0) + 1;
+        }
+    });
+    const programData = Object.keys(programCounts)
+        .map(name => ({ name, count: programCounts[name] }))
+        .sort((a, b) => b.count - a.count);
+
+    // 3. Industry Partner Count by Industry Type
+    const industryCounts = {};
+    partners.forEach(p => {
+        const ind = p.industry || 'General';
+        industryCounts[ind] = (industryCounts[ind] || 0) + 1;
+    });
+    const industryData = Object.keys(industryCounts)
+        .map(name => ({ name, value: industryCounts[name] }))
+        .sort((a, b) => b.value - a.value);
+
+    // 4. Employment Analytics
+    const employmentData = [
+        { name: 'Employed', value: stats.employed || 0, color: '#16a34a' },
+        { name: 'Seeking Employment', value: stats.seeking_employment || 0, color: '#0ea5e9' },
+        { name: 'Unemployed', value: stats.not_employed || 0, color: '#ef4444' }
+    ];
+
+    const { data: jobPostings = [] } = useJobPostings();
+    const { data: contactRequests = [] } = useContactRequests();
+
+    const COLORS = ['#7c3aed', '#0ea5e9', '#16a34a', '#d97706', '#db2777', '#6366f1', '#8b5cf6', '#ec4899'];
+
+    // 5. Partner Engagement Trends
+    const engagementData = useMemo(() => {
+        const months = [];
+        const today = new Date();
+        
+        // Generate last 6 months
+        for (let i = 5; i >= 0; i--) {
+            const d = new Date(today.getFullYear(), today.getMonth() - i, 1);
+            months.push({
+                name: d.toLocaleString('default', { month: 'short' }),
+                month: d.getMonth(),
+                year: d.getFullYear(),
+                postings: 0,
+                interactions: 0
+            });
+        }
+
+        // Aggregate Job Postings
+        (jobPostings || []).forEach(jp => {
+            const date = new Date(jp.created_at);
+            const mIdx = months.findIndex(m => m.month === date.getMonth() && m.year === date.getFullYear());
+            if (mIdx !== -1) {
+                months[mIdx].postings++;
+            }
+        });
+
+        // Aggregate Interactions (Applications received or Contact Requests)
+        (applications || []).forEach(app => {
+            const date = new Date(app.applied_at || app.created_at);
+            const mIdx = months.findIndex(m => m.month === date.getMonth() && m.year === date.getFullYear());
+            if (mIdx !== -1) {
+                months[mIdx].interactions++;
+            }
+        });
+        
+        (contactRequests || []).forEach(cr => {
+            const date = new Date(cr.created_at);
+            const mIdx = months.findIndex(m => m.month === date.getMonth() && m.year === date.getFullYear());
+            if (mIdx !== -1) {
+                months[mIdx].interactions++;
+            }
+        });
+
+        return months;
+    }, [jobPostings, applications, contactRequests]);
 
     return (
-        <div>
-            <div className="page-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <div className="analytics-page">
+            <div className="page-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
                 <div>
                     <div className="page-title">Analytics & Reporting</div>
-                    <div className="page-subtitle">Deep dive into platform placement pipelines and engagement</div>
+                    <div className="page-subtitle">Platform performance and graduate outcomes</div>
                 </div>
-                <button className="btn btn-outline" onClick={handleExportCSV}><Download size={14} /> Export Raw Data</button>
+                <div style={{ display: 'flex', gap: 10 }}>
+                    <button className="btn btn-outline" onClick={handleExportCSV}><Download size={14} /> Export CSV</button>
+                    <button className="btn btn-primary" onClick={() => toast.success("Generating PDF Report...")}><FileText size={14} /> Full Report</button>
+                </div>
+            </div>
+
+            {/* KPI Overview */}
+            <div className="stats-grid" style={{ marginBottom: 24 }}>
+                <div className="stat-card">
+                    <div className="stat-icon" style={{ background: '#ede9fe' }}><Users size={20} color="#7c3aed" /></div>
+                    <div className="stat-info">
+                        <div className="stat-label">Total Trainees</div>
+                        <div className="stat-value">{enrolled}</div>
+                    </div>
+                </div>
+                <div className="stat-card">
+                    <div className="stat-icon" style={{ background: '#e0f2fe' }}><Building2 size={20} color="#0ea5e9" /></div>
+                    <div className="stat-info">
+                        <div className="stat-label">Industry Partners</div>
+                        <div className="stat-value">{partners.length}</div>
+                    </div>
+                </div>
+                <div className="stat-card">
+                    <div className="stat-icon" style={{ background: '#dcfce7' }}><TrendingUp size={20} color="#16a34a" /></div>
+                    <div className="stat-info">
+                        <div className="stat-label">Employment Rate</div>
+                        <div className="stat-value">{stats.employmentRate}%</div>
+                    </div>
+                </div>
+                <div className="stat-card">
+                    <div className="stat-icon" style={{ background: '#fef3c7' }}><Briefcase size={20} color="#d97706" /></div>
+                    <div className="stat-info">
+                        <div className="stat-label">Active Jobs</div>
+                        <div className="stat-value">{posts.filter(p => p.post_type === 'hiring_update' && p.status === 'Open').length}</div>
+                    </div>
+                </div>
             </div>
 
             <div className="two-col" style={{ marginBottom: 24 }}>
-                {/* Placement Funnel Chart */}
-                <div className="chart-wrap" style={{ position: 'relative' }}>
-                    <button onClick={() => handleExportChart('Pipeline Funnel')} style={{ position: 'absolute', top: 16, right: 16, background: 'transparent', border: 'none', cursor: 'pointer', color: '#94a3b8' }}><Download size={16} /></button>
-                    <div className="chart-title">Placement Pipeline Funnel</div>
-                    <div className="chart-subtitle">Trainee progression from enrollment to hire</div>
-                    <ResponsiveContainer width="100%" height={280}>
-                        <BarChart data={funnelData} layout="vertical" margin={{ top: 20, right: 30, left: 40, bottom: 5 }}>
-                            <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#f1f5f9" />
+                {/* 1. Employment Status Breakdown */}
+                <div className="chart-wrap">
+                    <div className="chart-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+                        <div>
+                            <div className="chart-title">Employment Analytics</div>
+                            <div className="chart-subtitle">Trainee career outcomes</div>
+                        </div>
+                        <button className="btn btn-ghost btn-icon btn-sm" onClick={() => handleExportChart('Employment Status')}><Download size={14} /></button>
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', height: 300, minWidth: 0 }}>
+                        <ResponsiveContainer width="60%" height="100%" minWidth={0}>
+                            <PieChart>
+                                <Pie 
+                                    data={employmentData} 
+                                    innerRadius={70} 
+                                    outerRadius={100} 
+                                    paddingAngle={5} 
+                                    dataKey="value"
+                                >
+                                    {employmentData.map((entry, index) => (
+                                        <Cell key={`cell-${index}`} fill={entry.color} />
+                                    ))}
+                                </Pie>
+                                <Tooltip contentStyle={{ borderRadius: 12, border: 'none', boxShadow: '0 10px 25px rgba(0,0,0,0.1)' }} />
+                            </PieChart>
+                        </ResponsiveContainer>
+                        <div style={{ width: '40%', paddingLeft: 20 }}>
+                            {employmentData.map((item, i) => (
+                                <div key={i} style={{ marginBottom: 12 }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+                                        <div style={{ width: 10, height: 10, borderRadius: '50%', background: item.color }} />
+                                        <span style={{ fontSize: 13, fontWeight: 600, color: '#475569' }}>{item.name}</span>
+                                    </div>
+                                    <div style={{ fontSize: 18, fontWeight: 800, paddingLeft: 18, color: '#0f172a' }}>
+                                        {item.value} <span style={{ fontSize: 12, color: '#94a3b8', fontWeight: 500 }}>({((item.value / enrolled) * 100 || 0).toFixed(1)}%)</span>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                </div>
+
+                {/* 2. Placement Funnel */}
+                <div className="chart-wrap">
+                    <div className="chart-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+                        <div>
+                            <div className="chart-title">Placement Pipeline Funnel</div>
+                            <div className="chart-subtitle">Conversion from enrollment to employment</div>
+                        </div>
+                        <button className="btn btn-ghost btn-icon btn-sm" onClick={() => handleExportChart('Placement Funnel')}><Download size={14} /></button>
+                    </div>
+                    <ResponsiveContainer width="100%" height={300} minWidth={0}>
+                        <BarChart data={funnelData} layout="vertical" margin={{ top: 10, right: 40, left: 40, bottom: 10 }}>
                             <XAxis type="number" hide />
                             <YAxis dataKey="stage" type="category" axisLine={false} tickLine={false} tick={{ fontSize: 12, fontWeight: 600, fill: '#475569' }} width={120} />
-                            <Tooltip cursor={{ fill: 'transparent' }} contentStyle={{ borderRadius: 8, border: 'none', boxShadow: '0 4px 15px rgba(0,0,0,0.1)' }} />
-                            <Bar dataKey="count" barSize={32} radius={[0, 6, 6, 0]} label={{ position: 'right', fill: '#0f172a', fontWeight: 800, fontSize: 14 }}>
+                            <Tooltip cursor={{ fill: 'transparent' }} contentStyle={{ borderRadius: 12, border: 'none', boxShadow: '0 10px 25px rgba(0,0,0,0.1)' }} />
+                            <Bar dataKey="count" barSize={35} radius={[0, 6, 6, 0]}>
                                 {funnelData.map((entry, index) => (
                                     <Cell key={`cell-${index}`} fill={entry.fill} />
                                 ))}
@@ -1972,23 +2105,102 @@ const Analytics = () => {
                         </BarChart>
                     </ResponsiveContainer>
                 </div>
+            </div>
 
-                {/* Partner Engagement Line Chart */}
-                <div className="chart-wrap" style={{ position: 'relative' }}>
-                    <button onClick={() => handleExportChart('Partner Engagement')} style={{ position: 'absolute', top: 16, right: 16, background: 'transparent', border: 'none', cursor: 'pointer', color: '#94a3b8' }}><Download size={16} /></button>
-                    <div className="chart-title">Partner Engagement Trends</div>
-                    <div className="chart-subtitle">Job postings and platform interactions over time</div>
-                    <ResponsiveContainer width="100%" height={280}>
-                        <LineChart data={engagementData} margin={{ top: 20, right: 20, left: -20, bottom: 5 }}>
-                            <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
-                            <XAxis dataKey="month" tick={{ fontSize: 12 }} axisLine={false} tickLine={false} />
-                            <YAxis tick={{ fontSize: 12 }} axisLine={false} tickLine={false} />
-                            <Tooltip contentStyle={{ borderRadius: 8, border: 'none', boxShadow: '0 4px 15px rgba(0,0,0,0.1)' }} />
-                            <Legend wrapperStyle={{ fontSize: 12, paddingTop: 10 }} />
-                            <Line type="monotone" dataKey="interactions" name="Partner Interactions" stroke="#7c3aed" strokeWidth={3} dot={{ r: 4, strokeWidth: 2 }} activeDot={{ r: 6 }} />
-                            <Line type="monotone" dataKey="postings" name="Job Postings" stroke="#0ea5e9" strokeWidth={3} dot={{ r: 4, strokeWidth: 2 }} activeDot={{ r: 6 }} />
+            {/* 3. Partner Engagement Trends */}
+            <div className="chart-wrap" style={{ marginBottom: 24 }}>
+                <div className="chart-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+                    <div>
+                        <div className="chart-title">Partner Engagement Trends</div>
+                        <div className="chart-subtitle">Job postings and platform interactions over time</div>
+                    </div>
+                    <button className="btn btn-ghost btn-icon btn-sm" onClick={() => handleExportChart('Partner Engagement Trends')}><Download size={14} /></button>
+                </div>
+                <div style={{ height: 350, width: '100%', minWidth: 0 }}>
+                    <ResponsiveContainer width="100%" height="100%" minWidth={0}>
+                        <LineChart data={engagementData} margin={{ top: 10, right: 30, left: 10, bottom: 10 }}>
+                            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                            <XAxis 
+                                dataKey="name" 
+                                axisLine={false} 
+                                tickLine={false} 
+                                tick={{ fontSize: 12, fontWeight: 500, fill: '#64748b' }} 
+                                dy={10}
+                            />
+                            <YAxis 
+                                axisLine={false} 
+                                tickLine={false} 
+                                tick={{ fontSize: 12, fontWeight: 500, fill: '#64748b' }} 
+                            />
+                            <Tooltip 
+                                contentStyle={{ borderRadius: 12, border: 'none', boxShadow: '0 10px 25px rgba(0,0,0,0.1)' }}
+                            />
+                            <Legend 
+                                verticalAlign="top" 
+                                align="right"
+                                iconType="circle" 
+                                iconSize={8}
+                                wrapperStyle={{ paddingBottom: 20, fontSize: 12, fontWeight: 600 }}
+                            />
+                            <Line 
+                                type="monotone" 
+                                dataKey="postings" 
+                                name="Job Postings" 
+                                stroke="#0ea5e9" 
+                                strokeWidth={3} 
+                                dot={{ r: 4, fill: '#0ea5e9', strokeWidth: 2, stroke: '#fff' }} 
+                                activeDot={{ r: 6, strokeWidth: 0 }} 
+                            />
+                            <Line 
+                                type="monotone" 
+                                dataKey="interactions" 
+                                name="Partner Interactions" 
+                                stroke="#7c3aed" 
+                                strokeWidth={3} 
+                                dot={{ r: 4, fill: '#7c3aed', strokeWidth: 2, stroke: '#fff' }} 
+                                activeDot={{ r: 6, strokeWidth: 0 }} 
+                            />
                         </LineChart>
                     </ResponsiveContainer>
+                </div>
+            </div>
+
+            {/* Data Tables (Redesigned for clarity) */}
+            <div className="two-col">
+                <div className="card" style={{ padding: 20 }}>
+                    <div style={{ fontWeight: 800, fontSize: 16, marginBottom: 12, color: '#0f172a' }}>Program Enrolled Count</div>
+                    <div style={{ overflowX: 'auto' }}>
+                        <table className="data-table">
+                            <thead><tr><th>Program Name</th><th style={{ textAlign: 'right' }}>Total Enrolled</th></tr></thead>
+                            <tbody>
+                                {programData.map((row, i) => (
+                                    <tr key={i}>
+                                        <td style={{ fontSize: 13, color: '#475569', fontWeight: 500 }}>{row.name}</td>
+                                        <td style={{ textAlign: 'right', fontWeight: 800, color: '#7c3aed' }}>{row.count}</td>
+                                    </tr>
+                                ))}
+                                {programData.length === 0 && <tr><td colSpan={2} style={{ textAlign: 'center', padding: 20, color: '#94a3b8' }}>No data available.</td></tr>}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <div className="card" style={{ padding: 20 }}>
+                    <div style={{ fontWeight: 800, fontSize: 16, marginBottom: 12, color: '#0f172a' }}>Partner Industry Table</div>
+                    <div style={{ overflowX: 'auto' }}>
+                        <table className="data-table">
+                            <thead><tr><th>Industry Type</th><th style={{ textAlign: 'right' }}>Total Partners</th></tr></thead>
+                            <tbody>
+                                {industryData.map((row, i) => (
+                                    <tr key={i}>
+                                        <td style={{ fontSize: 13, color: '#475569', fontWeight: 500 }}>{row.name}</td>
+                                        <td style={{ textAlign: 'right', fontWeight: 800, color: '#0ea5e9' }}>{row.value}</td>
+                                    </tr>
+                                ))}
+                                {industryData.length === 0 && <tr><td colSpan={2} style={{ textAlign: 'center', padding: 20, color: '#94a3b8' }}>No data available.</td></tr>}
+                            </tbody>
+                        </table>
+                    </div>
                 </div>
             </div>
         </div>
@@ -1997,17 +2209,29 @@ const Analytics = () => {
 
 // ————————————————————————————————————————————————————————————————————————————
 const AccountManagement = () => {
-    const { trainees, totalTrainees, partners, totalPartners, accounts, totalAccounts, updateAccountStatus, deleteAccount, isPresenceEnabled, toggleGlobalPresence, fetchAdminDirectoryData } = useApp();
-    const [currentPage, setCurrentPage] = useState(1);
+    const { updateAccountStatus, deleteAccount, isPresenceEnabled, toggleGlobalPresence, confirmAction } = useApp();
     const [search, setSearch] = useState('');
     const [filterRole, setFilterRole] = useState('All');
     const [actionReasonById, setActionReasonById] = useState({});
     const [openActionMenuKey, setOpenActionMenuKey] = useState('');
+    const [currentPage, setCurrentPage] = useState(1);
     const [accountPendingDelete, setAccountPendingDelete] = useState(null);
     const [deletingAccountKey, setDeletingAccountKey] = useState('');
     const [activityNow, setActivityNow] = useState(Date.now());
-    const [isLoading, setIsLoading] = useState(false);
     const pageSize = 15;
+
+    const { data: adminData, isLoading } = useAdminDirectory({ 
+        page: currentPage, 
+        limit: pageSize, 
+        search 
+    });
+
+    const trainees = adminData?.students || [];
+    const partners = adminData?.partners || [];
+    const accounts = adminData?.accounts || [];
+    const totalTrainees = adminData?.totalStudents || 0;
+    const totalPartners = adminData?.totalPartners || 0;
+    const totalAccounts = adminData?.totalAccounts || 0;
     const reasonOptions = ['Policy Violation', 'Fraudulent Information', 'Duplicate Account', 'Requested Deactivation', 'Other'];
 
     useEffect(() => {
@@ -2016,15 +2240,6 @@ const AccountManagement = () => {
         }, 15000);
         return () => clearInterval(timerId);
     }, []);
-
-    useEffect(() => {
-        const loadData = async () => {
-            setIsLoading(true);
-            await fetchAdminDirectoryData(currentPage, pageSize, search);
-            setIsLoading(false);
-        };
-        loadData();
-    }, [currentPage, search, fetchAdminDirectoryData]);
 
     useEffect(() => {
         setCurrentPage(1);

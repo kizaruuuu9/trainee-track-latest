@@ -16,7 +16,6 @@ export const CommunityFeedPostCard = ({
   metadata = [],      // e.g., ["5d ago", "certification"]
   postContent,        // Post text/caption
   onContactClick,     // Primary action callback
-  onCommentClick,     // Secondary action callback
   onSaveClick,        // Secondary action callback
   contactLabel = 'CONTACT'
 }) => {
@@ -193,43 +192,10 @@ export const CommunityFeedPostCard = ({
         padding: '10px 16px',
         display: 'flex',
         gap: 12,
-        justifyContent: 'space-between',
+        justifyContent: 'flex-end',
         background: '#fafbfc',
         marginTop: 'auto'
       }}>
-        {/* Comment Button */}
-        {onCommentClick && (
-          <button
-            onClick={onCommentClick}
-            style={{
-              flex: 1,
-              background: 'none',
-              border: 'none',
-              color: '#64748b',
-              fontSize: 12,
-              fontWeight: 600,
-              padding: '8px 0',
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: 6,
-              transition: 'color 0.2s',
-              borderRadius: 6
-            }}
-            onMouseEnter={e => {
-              e.target.style.color = '#0a66c2';
-              e.target.style.background = '#f0f7ff';
-            }}
-            onMouseLeave={e => {
-              e.target.style.color = '#64748b';
-              e.target.style.background = 'none';
-            }}
-          >
-            <MessageSquare size={14} /> COMMENT
-          </button>
-        )}
-
         {/* Save Button */}
         {onSaveClick && (
           <button

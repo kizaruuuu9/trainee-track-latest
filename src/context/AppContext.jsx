@@ -1,5 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
 import { supabase } from '../lib/supabase';
+import { useQueryClient } from '@tanstack/react-query';
+import { queryKeys } from '../lib/queryClient';
 import toast from 'react-hot-toast';
 
 // Utility for image compression to maximize Supabase storage (500MB limit)
@@ -244,6 +246,9 @@ const resolveProgramNameFromStudentRecord = async (student = null) => {
 };
 
 export const AppProvider = ({ children }) => {
+  // TanStack Query bridge — allows fetchAllData to use cached queries
+  const queryClient = useQueryClient();
+
   const appMetadata = {
     appName: 'TraineeTrack',
     orgName: 'Philippine School for Technology Development and Innovation Inc.',
@@ -259,16 +264,7 @@ export const AppProvider = ({ children }) => {
   const [isPresenceEnabled, setIsPresenceEnabled] = useState(true);
   
   // Caching Flags (to prevent redundant fetches when switching tabs)
-  const traineesFetchedRef = useRef(false);
-  const partnersFetchedRef = useRef(false);
-  const accountsFetchedRef = useRef(false);
-  const programsFetchedRef = useRef(false);
-  const postsFetchedRef = useRef(false);
-  const bulletinFetchedRef = useRef(false);
-  const applicationsFetchedRef = useRef(false);
-  const interactionsFetchedRef = useRef(false);
-  const statsFetchedRef = useRef(false);
-  const pqfFetchedRef = useRef(false);
+  // TanStack Query now handles most caching, removing dead refs
   const adminLastRefreshRef = useRef(0);
   const adminRefreshTimeoutRef = useRef(null);
   const adminLastPageRef = useRef(1);
@@ -283,11 +279,46 @@ export const AppProvider = ({ children }) => {
   const [accounts, setAccounts] = useState([]);
   const [totalAccounts, setTotalAccounts] = useState(0);
   const [adminEmploymentStats, setAdminEmploymentStats] = useState(null);
+  const initialDataLoadedRef = useRef(false);
 
 
   // --- TESDA PROGRAMS (DB-DRIVEN) ---
   const [programs, setPrograms] = useState([]);
   const [industries, setIndustries] = useState([]);
+  const [competencies, setCompetencies] = useState([]);
+
+  const fetchIndustries = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('industries')
+        .select('name')
+        .eq('is_active', true)
+        .order('name', { ascending: true });
+
+      if (error) throw error;
+      if (data) {
+        setIndustries(data.map(i => i.name));
+      }
+    } catch (err) {
+      console.warn('Failed to fetch industries:', err);
+    }
+  };
+
+  const fetchCompetencies = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('competencies')
+        .select('name')
+        .order('name', { ascending: true });
+
+      if (error) throw error;
+      if (data) {
+        setCompetencies(data.map(c => c.name));
+      }
+    } catch (err) {
+      console.warn('Failed to fetch competencies:', err);
+    }
+  };
 
   // --- PQF EDUCATION FRAMEWORK (DB-DRIVEN) ---
   const [pqfLevels, setPqfLevels] = useState([]);
@@ -349,6 +380,8 @@ export const AppProvider = ({ children }) => {
     },
   ]);
 
+  const [interviewBookings, setInterviewBookings] = useState([]);
+
   // --- SETTINGS BACKEND LOGIC ---
 
   const [isDarkMode, setIsDarkMode] = useState(() => {
@@ -399,11 +432,28 @@ export const AppProvider = ({ children }) => {
   const deleteMyAccount = async () => {
     try {
       if (!currentUser) return { success: false, error: 'Not logged in.' };
-      const { error } = await supabase.auth.admin.deleteUser(currentUser.id);
-      if (error) throw error;
+      
+      const type = (userRole === 'partner' || userRole === 'industry_partner') ? 'partner' : 'trainee';
+      
+      const res = await fetch('/api/admin/delete-account', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          accountId: currentUser.id,
+          accountType: type
+        })
+      });
+
+      const result = await res.json();
+      if (!res.ok || !result.success) {
+        throw new Error(result.error || 'Server failed to delete account');
+      }
+
       await supabase.auth.signOut();
       setCurrentUser(null);
       setUserRole(null);
+      localStorage.removeItem('currentUser');
+      localStorage.removeItem('userRole');
       window.location.href = '/login';
     } catch (err) {
       console.error('Account deletion error:', err);
@@ -510,7 +560,7 @@ export const AppProvider = ({ children }) => {
         .eq('id', currentUser.id)
         .maybeSingle();
 
-      if (error) throw error;
+      if (error) error;
       if (data && data.last_seen_notifications_at) {
         setLastSeenNotificationsAt(new Date(data.last_seen_notifications_at).getTime());
       }
@@ -562,6 +612,7 @@ export const AppProvider = ({ children }) => {
   const markNotificationRead = async (id) => {
     if (!currentUser) return;
     setNotifications(prev => prev.map(n => n.id === id ? { ...n, read: true } : n));
+    queryClient.invalidateQueries({ queryKey: queryKeys.notifications(currentUser?.id) });
     try { await supabase.from('notifications').update({ read: true }).eq('id', id).eq('user_id', currentUser.id); }
     catch (err) { console.error(err); }
   };
@@ -569,6 +620,7 @@ export const AppProvider = ({ children }) => {
   const markAllNotificationsRead = async () => {
     if (!currentUser) return;
     setNotifications(prev => prev.map(n => ({ ...n, read: true })));
+    queryClient.invalidateQueries({ queryKey: queryKeys.notifications(currentUser?.id) });
     try { await supabase.from('notifications').update({ read: true }).eq('user_id', currentUser.id); }
     catch (err) { console.error(err); }
   };
@@ -576,6 +628,7 @@ export const AppProvider = ({ children }) => {
   const deleteNotification = async (id) => {
     if (!currentUser) return;
     setNotifications(prev => prev.filter(n => n.id !== id));
+    queryClient.invalidateQueries({ queryKey: queryKeys.notifications(currentUser?.id) });
     try { await supabase.from('notifications').delete().eq('id', id).eq('user_id', currentUser.id); }
     catch (err) { console.error(err); }
   };
@@ -583,6 +636,7 @@ export const AppProvider = ({ children }) => {
   const clearAllNotifications = async () => {
     if (!currentUser) return;
     setNotifications([]);
+    queryClient.invalidateQueries({ queryKey: queryKeys.notifications(currentUser?.id) });
     try { await supabase.from('notifications').delete().eq('user_id', currentUser.id); }
     catch (err) { console.error(err); }
   };
@@ -660,185 +714,13 @@ export const AppProvider = ({ children }) => {
     }
   };
 
-  // --- INTERVIEW SCHEDULING ---
-  const [availabilitySlots, setAvailabilitySlots] = useState([]);
-  const [interviewBookings, setInterviewBookings] = useState([]);
-
-  const fetchAvailability = async (partnerId) => {
-    try {
-      const { data, error } = await supabase
-        .from('partner_availability')
-        .select('id, partner_id, day_of_week, start_time, end_time, capacity')
-        .eq('partner_id', partnerId)
-        .order('day_of_week', { ascending: true });
-      if (error) {
-        if (error.code === '42P01') { console.warn('partner_availability table not found.'); return; }
-        throw error;
-      }
-      setAvailabilitySlots(data || []);
-    } catch (err) { console.error('Error fetching availability:', err); }
-  };
-
-  const saveAvailabilitySlot = async (partnerId, slot) => {
-    try {
-      const payload = { partner_id: partnerId, day_of_week: slot.day_of_week, start_time: slot.start_time, end_time: slot.end_time };
-      const { data, error } = await supabase.from('partner_availability').insert([payload]).select().single();
-      if (error) {
-        if (error.code === '42P01') return { success: false, error: 'Table not found. Run the migration SQL.' };
-        throw error;
-      }
-      setAvailabilitySlots(prev => [...prev, data]);
-      return { success: true, data };
-    } catch (err) { console.error('Error saving availability:', err); return { success: false, error: err.message }; }
-  };
-
-  const deleteAvailabilitySlot = async (slotId) => {
-    try {
-      const { error } = await supabase.from('partner_availability').delete().eq('id', slotId);
-      if (error) throw error;
-      setAvailabilitySlots(prev => prev.filter(s => s.id !== slotId));
-      return { success: true };
-    } catch (err) { console.error('Error deleting availability:', err); return { success: false, error: err.message }; }
-  };
-
-  const fetchBookings = async (partnerId) => {
-    try {
-      const { data, error } = await supabase
-        .from('interview_bookings')
-        .select('id, application_id, trainee_id, partner_id, start_time, end_time, status, created_at')
-        .eq('partner_id', partnerId)
-        .order('start_time', { ascending: true });
-      if (error) {
-        if (error.code === '42P01') { console.warn('interview_bookings table not found.'); return; }
-        throw error;
-      }
-      setInterviewBookings(data || []);
-    } catch (err) { console.error('Error fetching bookings:', err); }
-  };
-
-  const fetchTraineeBookings = async (traineeId) => {
-    try {
-      const { data, error } = await supabase
-        .from('interview_bookings')
-        .select('id, application_id, trainee_id, partner_id, start_time, end_time, status, created_at')
-        .eq('trainee_id', traineeId)
-        .order('start_time', { ascending: true });
-      if (error) {
-        if (error.code === '42P01') { console.warn('interview_bookings table not found.'); return; }
-        throw error;
-      }
-      setInterviewBookings(data || []);
-    } catch (err) { console.error('Error fetching trainee bookings:', err); }
-  };
-
-  const saveInterviewBooking = async (bookingData) => {
-    try {
-      const appId = bookingData.application_id || bookingData.applicationId;
-      const traineeId = bookingData.trainee_id || bookingData.traineeId;
-      const partnerId = bookingData.partner_id || bookingData.partnerId;
-
-      // Database constraint bypass: Ensure application_id exists in post_interactions
-      const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(appId);
-      if (isUuid) {
-        try {
-          const { data: existingInteraction } = await supabase
-            .from('post_interactions')
-            .select('id')
-            .eq('id', appId)
-            .maybeSingle();
-
-          if (!existingInteraction) {
-            let postId = null;
-            const { data: existingPost } = await supabase
-              .from('posts')
-              .select('id')
-              .eq('title', 'System Constraints Post')
-              .limit(1)
-              .maybeSingle();
-
-            if (existingPost) {
-              postId = existingPost.id;
-            } else {
-              const { data: newPost, error: postErr } = await supabase
-                .from('posts')
-                .insert([{
-                  author_id: partnerId,
-                  author_type: 'industry_partner',
-                  post_type: 'general',
-                  title: 'System Constraints Post',
-                  content: 'Internal dummy post for constraint resolution.',
-                  is_active: true,
-                }])
-                .select()
-                .single();
-
-              if (!postErr && newPost) postId = newPost.id;
-            }
-
-            if (postId) {
-              await supabase
-                .from('post_interactions')
-                .insert([{
-                  id: appId,
-                  post_id: postId,
-                  user_id: traineeId,
-                  interaction_type: 'apply',
-                  status: 'pending',
-                  user_type: 'student'
-                }]);
-            }
-          }
-        } catch (bypassErr) {
-          console.warn('Constraint bypass attempted but hit error:', bypassErr);
-        }
-      }
-
-      const payload = {
-        application_id: appId,
-        trainee_id: traineeId,
-        partner_id: partnerId,
-        start_time: bookingData.start_time || bookingData.startTime,
-        end_time: bookingData.end_time || bookingData.endTime,
-        status: 'scheduled',
-      };
-      const { data, error } = await supabase.from('interview_bookings').insert([payload]).select().single();
-      if (error) {
-        if (error.code === '42P01') return { success: false, error: 'Table not found. Run the migration SQL.' };
-        throw error;
-      }
-      setInterviewBookings(prev => [...prev, data]);
-
-      // Notify the Trainee
-      createNotification(payload.trainee_id, 'application', `An interview has been scheduled with you for ${new Date(payload.start_time).toLocaleString()}`);
-
-      return { success: true, data };
-    } catch (err) { console.error('Error creating booking:', err); return { success: false, error: err.message }; }
-  };
-
-  const getPartnerAvailability = async (partnerId) => {
-    try {
-      const { data, error } = await supabase
-        .from('partner_availability')
-        .select('id, partner_id, day_of_week, start_time, end_time, capacity')
-        .eq('partner_id', partnerId)
-        .order('day_of_week', { ascending: true });
-      if (error) {
-        if (error.code === '42P01') return [];
-        throw error;
-      }
-      return data || [];
-    } catch (err) { console.error('Error fetching partner availability:', err); return []; }
-  };
-
   // --------- COMMUNITY POSTS ------------------------------------------------------------------------------------------------------------------------------------------------------
   const [posts, setPosts] = useState([]);
-  const [jobPostingComments, setJobPostingComments] = useState([]);
   const [contactRequests, setContactRequests] = useState([]);
 
   const fetchPosts = async (limitOverride = null, forceRefresh = false) => {
-    if (!forceRefresh && postsFetchedRef.current && !limitOverride) return;
     try {
-      const limitToUse = limitOverride || feedLimit;
+      const limitToUse = limitOverride || 20;
       const { data, error } = await supabase
         .from('posts')
         .select('id, author_id, author_type, post_type, title, content, media_url, tags, is_active, created_at, updated_at, expires_at, schedule, time_range, slots, requirements, status, accept_referrals, admin_metadata, program_name, image_url, attachment_name, attachment_url, attachment_type')
@@ -847,8 +729,7 @@ export const AppProvider = ({ children }) => {
         .limit(limitToUse);
 
       if (error) throw error;
-      setPosts(data || []);
-      if (!limitOverride) postsFetchedRef.current = true;
+      setPosts((data || []).map(p => ({ ...p, feedType: p.post_type === 'opportunity' ? 'opportunity' : 'post' })));
     } catch (err) {
       console.error('Error fetching posts:', err);
     }
@@ -859,7 +740,7 @@ export const AppProvider = ({ children }) => {
       const limitToUse = limitOverride || feedLimit;
       const { data: jobs, error } = await supabase
         .from('job_postings')
-        .select('*, industry_partners(company_name), programs(name, competencies, description)')
+        .select('id, partner_id, program_id, title, company_name, description, requirements, location, salary_min, salary_max, employment_type, slots, source, source_url, is_active, created_at, expires_at, opportunity_type, nc_level, salary_range, status, industry, attachment_name, attachment_type, attachment_url, detailed_address, industry_partners(company_name), programs(name, competencies, description)')
         .order('created_at', { ascending: false })
         .limit(limitToUse);
 
@@ -907,200 +788,10 @@ export const AppProvider = ({ children }) => {
   };
 
 
-  const fetchJobPostingComments = async () => {
-    try {
-      const { data, error } = await supabase
-        .from('job_posting_comments')
-        .select('id, job_posting_id, author_id, author_type, content, created_at, updated_at')
-        .order('created_at', { ascending: true })
-        .limit(200);
-
-      if (error) {
-        if (error.code === '42P01' || error.code === 'PGRST204' || error.code === 'PGRST205') {
-          console.warn('job_posting_comments table not found. Apply the migration to enable opportunity comments persistence.');
-          return;
-        }
-        throw error;
-      }
-
-      setJobPostingComments(data || []);
-    } catch (err) {
-      console.error('Error fetching job posting comments:', err);
-    }
-  };
 
 
-  const addJobPostingComment = async (jobPostingId, content) => {
-    try {
-      if (!currentUser) throw new Error('You must be logged in to comment');
-      const trimmed = content?.trim();
-      if (!trimmed) return { success: false, error: 'Comment cannot be empty.' };
 
-      const payload = {
-        job_posting_id: jobPostingId,
-        author_id: currentUser.id,
-        author_type: userRole === 'admin' ? 'admin' : (userRole === 'partner' ? 'industry_partner' : 'student'),
-        content: trimmed,
-        created_at: new Date().toISOString(),
-      };
 
-      const { data, error } = await supabase
-        .from('job_posting_comments')
-        .insert([payload])
-        .select()
-        .single();
-
-      if (error) {
-        if (error.code === '42P01' || error.code === 'PGRST204' || error.code === 'PGRST205') {
-          return { success: false, error: 'Opportunity comments table is not yet available. Please apply the latest Supabase migrations.' };
-        }
-        throw error;
-      }
-
-      setJobPostingComments(prev => [...prev, data]);
-
-      // Notify the author of the job posting
-      const job = jobPostings.find(j => j.id === payload.job_posting_id);
-      if (job && job.partnerId !== currentUser.id) {
-        createNotification(job.partnerId, 'system', `Someone commented on your job posting: "${job.title}"`, { target: '/admin/jobs', jobId: job.id });
-      }
-
-      // Notify the Admin
-      if (adminUserId && currentUser.id !== adminUserId) {
-        createNotification(adminUserId, 'system', `New comment on a job posting: ${job?.title || 'Job'}`, { target: '/admin/jobs', jobId: job?.id });
-      }
-
-      return { success: true, data };
-    } catch (err) {
-      console.error('Error adding job posting comment:', err);
-      return { success: false, error: err.message };
-    }
-  };
-
-  const getJobPostingComments = (jobPostingId) => {
-    return jobPostingComments.filter(comment => comment.job_posting_id === jobPostingId);
-  };
-
-  const updateJobPostingComment = async (commentId, content) => {
-    try {
-      if (!currentUser) throw new Error('You must be logged in to edit comments');
-      const trimmed = content?.trim();
-      if (!trimmed) return { success: false, error: 'Comment cannot be empty.' };
-
-      const { data, error } = await supabase
-        .from('job_posting_comments')
-        .update({ content: trimmed, updated_at: new Date().toISOString() })
-        .eq('id', commentId)
-        .eq('author_id', currentUser.id)
-        .select()
-        .single();
-
-      if (error) {
-        if (error.code === '42P01' || error.code === 'PGRST204' || error.code === 'PGRST205') {
-          return { success: false, error: 'Opportunity comments table is not yet available. Please apply the latest Supabase migrations.' };
-        }
-        throw error;
-      }
-
-      setJobPostingComments(prev => prev.map(comment => comment.id === commentId ? data : comment));
-      return { success: true, data };
-    } catch (err) {
-      console.error('Error updating job posting comment:', err);
-      return { success: false, error: err.message };
-    }
-  };
-
-  const deleteJobPostingComment = async (commentId) => {
-    try {
-      if (!currentUser) throw new Error('You must be logged in to delete comments');
-
-      const { error } = await supabase
-        .from('job_posting_comments')
-        .delete()
-        .eq('id', commentId)
-        .eq('author_id', currentUser.id);
-
-      if (error) {
-        if (error.code === '42P01' || error.code === 'PGRST204' || error.code === 'PGRST205') {
-          return { success: false, error: 'Opportunity comments table is not yet available. Please apply the latest Supabase migrations.' };
-        }
-        throw error;
-      }
-
-      setJobPostingComments(prev => prev.filter(comment => comment.id !== commentId));
-      return { success: true };
-    } catch (err) {
-      console.error('Error deleting job posting comment:', err);
-      return { success: false, error: err.message };
-    }
-  };
-
-  const sendContactRequest = async (contactData = {}) => {
-    try {
-      if (!currentUser) throw new Error('You must be logged in to contact another user');
-
-      const message = contactData.message?.trim();
-      if (!message) {
-        return { success: false, error: 'Message is required.' };
-      }
-
-      if (!contactData.recipientId || !contactData.recipientType) {
-        return { success: false, error: 'Recipient information is missing.' };
-      }
-
-      if (contactData.recipientId === currentUser.id) {
-        return { success: false, error: 'You cannot contact yourself.' };
-      }
-
-      const payload = {
-        post_id: contactData.postId || null,
-        job_posting_id: contactData.jobPostingId || null,
-        sender_id: currentUser.id,
-        sender_type: userRole === 'admin' ? 'admin' : (userRole === 'partner' ? 'industry_partner' : 'student'),
-        recipient_id: contactData.recipientId,
-        recipient_type: contactData.recipientType,
-        message,
-        attachment_name: contactData.attachmentName || null,
-        attachment_url: contactData.attachmentUrl || null,
-        attachment_kind: contactData.attachmentKind || 'document',
-        created_at: new Date().toISOString(),
-      };
-
-      let savedRecord = { id: `local-${Date.now()}`, ...payload };
-
-      const { data, error } = await supabase
-        .from('contact_requests')
-        .insert([payload])
-        .select()
-        .single();
-
-      if (error) {
-        if (error.code === '42P01' || error.code === 'PGRST204') {
-          console.warn('contact_requests table not found. Apply the migration to persist contact requests.');
-        } else {
-          throw error;
-        }
-      } else if (data) {
-        savedRecord = data;
-      }
-
-      setContactRequests(prev => [...prev, savedRecord]);
-      logActivity('Create', 'Contact', `Contact request sent to ${contactData.recipientType}`);
-
-      // Notify the recipient
-      createNotification(contactData.recipientId, 'system', `You have received a new contact request regarding: ${contactData.postTitle || 'General Inquiry'}`, { target: '/admin/activity-log' });
-
-      // Notify the Admin about the contact request
-      if (adminUserId && currentUser.id !== adminUserId && contactData.recipientId !== adminUserId) {
-        createNotification(adminUserId, 'system', `New contact request from ${userRole === 'partner' ? 'a partner' : 'a trainee'} regarding: ${contactData.postTitle || 'General Inquiry'}`, { target: '/admin/activity-log' });
-      }
-
-      return { success: true, data: savedRecord };
-    } catch (err) {
-      console.error('Error sending contact request:', err);
-      return { success: false, error: err.message };
-    }
-  };
 
   const createPost = async (postData) => {
     try {
@@ -1139,6 +830,7 @@ export const AppProvider = ({ children }) => {
       if (error) throw error;
 
       setPosts(prev => [data, ...prev]);
+      queryClient.invalidateQueries({ queryKey: ['posts'] });
 
       // Notify the Admin if it's not the admin's own post
       if (adminUserId && currentUser.id !== adminUserId) {
@@ -1163,6 +855,7 @@ export const AppProvider = ({ children }) => {
         .single();
       if (error) throw error;
       setPosts(prev => prev.map(p => p.id === postId ? data : p));
+      queryClient.invalidateQueries({ queryKey: ['posts'] });
       return { success: true, data };
     } catch (err) {
       console.error('Error updating post:', err);
@@ -1179,6 +872,7 @@ export const AppProvider = ({ children }) => {
         .eq('author_id', currentUser.id);
       if (error) throw error;
       setPosts(prev => prev.filter(p => p.id !== postId));
+      queryClient.invalidateQueries({ queryKey: ['posts'] });
       return { success: true };
     } catch (err) {
       console.error('Error deleting post:', err);
@@ -1192,6 +886,7 @@ export const AppProvider = ({ children }) => {
       const { error } = await supabase.from('posts').delete().eq('id', postId);
       if (error) throw error;
       setPosts(prev => prev.filter(p => p.id !== postId));
+      queryClient.invalidateQueries({ queryKey: ['posts'] });
       logActivity('Delete', 'Bulletin', `Deleted bulletin post ${postId}`);
       return { success: true };
     } catch (err) {
@@ -1211,6 +906,7 @@ export const AppProvider = ({ children }) => {
         .single();
       if (error) throw error;
       setPosts(prev => prev.map(p => p.id === postId ? data : p));
+      queryClient.invalidateQueries({ queryKey: ['posts'] });
       logActivity('Edit', 'Bulletin', `Updated bulletin post: ${updates.title || postId}`);
       return { success: true, data };
     } catch (err) {
@@ -1223,7 +919,7 @@ export const AppProvider = ({ children }) => {
   const [postInteractions, setPostInteractions] = useState([]);
 
   const fetchPostInteractions = async (postId = null, forceRefresh = false) => {
-    if (!forceRefresh && !postId && interactionsFetchedRef.current) return;
+    // Fallback to manual interaction fetch if needed
     try {
       let query = supabase.from('post_interactions').select('id, post_id, user_id, interaction_type, status, details, created_at, updated_at, user_type').order('created_at', { ascending: false }).limit(500);
       if (postId) query = query.eq('post_id', postId);
@@ -1239,7 +935,6 @@ export const AppProvider = ({ children }) => {
         });
       } else {
         setPostInteractions(data || []);
-        interactionsFetchedRef.current = true;
       }
     } catch (err) {
       console.error('Error fetching post interactions:', err);
@@ -1280,6 +975,7 @@ export const AppProvider = ({ children }) => {
         throw error;
       }
       setPostInteractions(prev => [data, ...prev]);
+      queryClient.invalidateQueries({ queryKey: ['postInteractions'] });
 
       // Notify the post author and Admin about interactions (register, inquire, apply, refer)
       if (['register', 'inquire', 'apply', 'refer'].includes(interactionType)) {
@@ -1378,11 +1074,9 @@ export const AppProvider = ({ children }) => {
   useEffect(() => {
     // OPTIMIZED: Removed duplicate fetchJobPostingComments and fetchProgramsCatalog
     // They are already fetched inside the hydration useEffect's fetchAllData().
-    // Only fetch PQF data here (once, guarded by ref flag).
-
-    if (!pqfFetchedRef.current) {
-      pqfFetchedRef.current = true;
-      const fetchPqfData = async () => {
+    
+    // Fetch PQF Data
+    const fetchPqfData = async () => {
         try {
           const { data: levels, error: levelsErr } = await supabase
             .from('pqf_education_levels')
@@ -1404,7 +1098,6 @@ export const AppProvider = ({ children }) => {
         }
       };
       fetchPqfData();
-    }
   }, [currentUser?.id]);
 
   // --------- ML-INSPIRED RECOMMENDATION ENGINE ------------------------------------------------------------------------------------------------------------
@@ -2075,115 +1768,7 @@ export const AppProvider = ({ children }) => {
     return ['PGRST204', '42703'].includes(error?.code) || message.includes('column');
   };
 
-  const applyToJob = async (traineeId, jobId, applicationData = {}) => {
-    const job = jobPostings.find(j => j.id === jobId);
 
-    const existing = applications.find(a => a.traineeId === traineeId && a.jobId === jobId);
-    if (existing) return { success: false, error: 'Already applied to this opportunity.' };
-    const trainee = resolveTraineeForMatching(traineeId);
-    const applicationMessage = applicationData.applicationMessage?.trim() || null;
-    const resumeUrl = applicationData.resumeUrl || null;
-    const resumeFileName = applicationData.resumeFileName || null;
-
-
-    const isSupabaseUser = typeof traineeId === 'string' && traineeId.length === 36;
-
-    if (isSupabaseUser) {
-      // Guarantee we use the exact UUID from the active session to pass RLS
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) {
-        return { success: false, error: 'Your authentication session has expired or is invalid. Please sign out and log in again.' };
-      }
-      const actualUserId = session.user.id;
-
-      const attempts = [
-        {
-          table: 'job_applications',
-          payload: {
-            student_id: actualUserId,
-            job_id: jobId,
-            status: 'pending',
-            applied_at: new Date().toISOString(),
-            applicant_message: applicationMessage,
-            resume_url: resumeUrl,
-            resume_file_name: resumeFileName,
-          },
-        },
-        {
-          table: 'applications',
-          payload: {
-            student_id: actualUserId,
-            job_posting_id: jobId,
-            status: 'pending',
-            applicant_message: applicationMessage,
-            resume_url: resumeUrl,
-            resume_file_name: resumeFileName,
-          },
-        },
-      ];
-
-      let data = null;
-      let insertedTable = null;
-      let lastError = null;
-
-      for (const attempt of attempts) {
-        const result = await supabase.from(attempt.table).insert(attempt.payload).select().single();
-        if (!result.error) {
-          data = result.data;
-          insertedTable = attempt.table;
-          break;
-        }
-
-        lastError = result.error;
-        if (isSchemaMissingError(result.error) || isColumnShapeError(result.error)) {
-          continue;
-        }
-
-        return { success: false, error: result.error.message };
-      }
-
-      if (!data) {
-        return { success: false, error: lastError?.message || 'Could not save application.' };
-      }
-
-      setApplications(prev => [...prev, {
-        id: data.id, traineeId, jobId, status: 'pending',
-        appliedAt: (data.created_at || data.applied_at || '').split('T')[0] || null,
-        reviewedAt: null,
-        recruitDocumentName: data.recruitment_document_name || null,
-        recruitDocumentUrl: data.recruitment_document_url || null,
-        recruitSentAt: data.recruitment_sent_at?.split('T')[0] || null,
-        sourceTable: insertedTable,
-      }]);
-    } else {
-      const newApplication = {
-        id: applications.length + 1, traineeId, jobId, status: 'pending',
-        appliedAt: new Date().toISOString().split('T')[0], reviewedAt: null, notes: null,
-        applicationMessage,
-        resumeUrl,
-        resumeFileName,
-        recruitMessage: null,
-        recruitDocumentName: null,
-        recruitDocumentUrl: null,
-        recruitSentAt: null,
-      };
-      setApplications(prev => [...prev, newApplication]);
-    }
-
-    logActivity('Create', 'Applications', `${trainee?.name || 'Trainee'} applied to ${job?.title || 'opportunity'}`, null, 'Pending');
-
-    // Notify the Partner
-    if (job?.partnerId) {
-      createNotification(job.partnerId, 'application', `A new application was received for your posting: ${job.title || 'Job'}`, { target: '/partner/applications' });
-    }
-
-    // Notify the Admin
-    if (adminUserId && currentUser.id !== adminUserId) {
-      createNotification(adminUserId, 'system', `${trainee?.name || 'A trainee'} applied to ${job?.title || 'a job'} at ${job?.companyName || 'Partner'}`, { target: '/admin/jobs' });
-    }
-
-    return { success: true };
-  };
 
   const updateApplicationStatus = async (applicationId, statusInput, notes = null, metadata = {}) => {
     const normalizeStatus = (s) => {
@@ -2204,13 +1789,14 @@ export const AppProvider = ({ children }) => {
     const prevStatus = targetRec?.status;
     const reviewedAt = new Date().toISOString().split('T')[0];
 
-    const isSupabaseApplication = !!targetRec?.sourceTable;
+    const sourceTable = targetRec?.sourceTable || metadata?.sourceTable;
+    const isSupabaseApplication = !!sourceTable;
     if (isSupabaseApplication) {
       let persisted = false;
       let lastErrorMessage = '';
 
-      const candidateTables = targetRec?.sourceTable
-        ? [targetRec.sourceTable]
+      const candidateTables = sourceTable
+        ? [sourceTable]
         : ['job_applications', 'applications', 'contact_requests'];
 
       for (const table of candidateTables) {
@@ -2312,9 +1898,10 @@ export const AppProvider = ({ children }) => {
     ));
     logActivity('Status Change', 'Recruitment', `Record #${applicationId} status changed`, prevStatus, status);
 
-    // Sync state for both dashboards after update
-    await fetchApplications(true);
-    await fetchContactRequests();
+    // Sync TanStack cache for both dashboards after update
+    queryClient.invalidateQueries({ queryKey: queryKeys.applications(currentUser.id) });
+    queryClient.invalidateQueries({ queryKey: queryKeys.contactRequests(currentUser.id) });
+    // Manual fetches removed - state updated optimistically above
 
     // Notify the Trainee/Sender
     if (targetRec?.traineeId || targetRec?.sender_id || targetRec?.student_id) {
@@ -2325,54 +1912,7 @@ export const AppProvider = ({ children }) => {
     return { success: true };
   };
 
-  const deleteApplication = async (applicationId) => {
-    const appRec = applications.find(a => String(a.id) === String(applicationId));
-    const conRec = contactRequests.find(r => String(r.id) === String(applicationId));
-    const targetRec = appRec || conRec;
 
-    if (!targetRec) return { success: false, error: 'Record not found.' };
-
-    const isSupabaseRecord = !!targetRec?.sourceTable;
-
-    if (isSupabaseRecord) {
-      let deleted = false;
-      let lastError = '';
-
-      // Determine which table(s) to try
-      const candidateTables = targetRec.sourceTable
-        ? [targetRec.sourceTable]
-        : ['job_applications', 'applications', 'contact_requests'];
-
-      for (const table of candidateTables) {
-        const { error, count } = await supabase
-          .from(table)
-          .delete({ count: 'exact' })
-          .eq('id', applicationId);
-
-        if (!error) {
-          if (count > 0) {
-            deleted = true;
-            break;
-          }
-        }
-
-        lastError = error?.message || 'No rows were affected. You might not have permission to delete this record.';
-        if (error && isSchemaMissingError(error)) continue;
-      }
-
-      if (!deleted) {
-        console.error('Failed to delete application from database:', lastError);
-        toast.error('Failed to delete: ' + lastError);
-        return { success: false, error: lastError };
-      }
-    }
-
-    // Remove from local state
-    setApplications(prev => prev.filter(a => String(a.id) !== String(applicationId)));
-    setContactRequests(prev => prev.filter(r => String(r.id) !== String(applicationId)));
-
-    return { success: true };
-  };
 
   const sendRecruitMessage = async (applicationId, recruitData = {}) => {
     const app = applications.find(a => a.id === applicationId);
@@ -2634,6 +2174,7 @@ export const AppProvider = ({ children }) => {
         }
 
         setJobPostings(prev => [...prev, json.job]);
+        queryClient.invalidateQueries({ queryKey: ['jobPostings'] });
         logActivity('Create', 'Opportunities', `Posted opportunity: ${json.job.title}`, null, json.job.title);
         return { success: true, job: json.job };
       } catch (error) {
@@ -2662,6 +2203,7 @@ export const AppProvider = ({ children }) => {
       createdAt: new Date().toISOString(),
     };
     setJobPostings([...jobPostings, newJob]);
+    queryClient.invalidateQueries({ queryKey: ['jobPostings'] });
     logActivity('Create', 'Opportunities', `Posted opportunity: ${newJob.title}`, null, newJob.title);
     return { success: true, job: newJob };
   };
@@ -3558,7 +3100,7 @@ export const AppProvider = ({ children }) => {
       // Fetch student record with program name
       const { data: student, error: studentErr } = await supabase
         .from('students')
-        .select('*, programs(name, nc_level)')
+        .select('id, full_name, student_id, program_id, phone, birthdate, gender, region, province, city, barangay, detailed_address, selfie_url, banner_url, front_id_url, back_id_url, employment_status, employment_work, employment_start, graduate_school, educ_history, work_experience, resume_url, profile_completed, created_at, updated_at, profile_picture_url, skills, interests, certifications, graduation_year, training_status, contact_email, activity_status, last_seen_at, personal_info_visibility, trainings, bio, employer, job_title, date_hired, programs(name, nc_level)')
         .eq('id', userId)
         .maybeSingle();
 
@@ -3772,10 +3314,11 @@ export const AppProvider = ({ children }) => {
         parsed.gender = normalizeGender(parsed.gender);
       }
       setCurrentUser(parsed);
-      // OPTIMIZED: Removed silent partner refresh query here.
-      // The hydration useEffect at line ~3753 already fetches updated partner data
-      // from industry_partners table, making this duplicate query unnecessary.
     }
+    
+    // Fetch public data immediately for guest users (like registration)
+    fetchIndustries();
+    fetchCompetencies();
   }, []);
 
   useEffect(() => {
@@ -3883,12 +3426,7 @@ export const AppProvider = ({ children }) => {
   const fetchAdminDirectoryData = React.useCallback(async (page = 0, limit = 0, search = '', forceRefresh = false) => {
     if (userRole !== 'admin') return;
 
-    // Only cache if it's the initial/default load (no search, page 1 or 0)
-    // AND we haven't paginated away (if we did, we need to re-fetch Page 1 to restore it)
     const isInitialLoad = !search && (page <= 1);
-    if (!forceRefresh && isInitialLoad && traineesFetchedRef.current && adminLastPageRef.current === 1) {
-      return;
-    }
 
     // Update tracking for future cache hits
     adminLastPageRef.current = page;
@@ -3931,15 +3469,17 @@ export const AppProvider = ({ children }) => {
             graduationYear: student.graduation_year || 'None',
             trainingStatus: student.training_status || 'Student',
             certifications: student.certifications || [],
-            program: student.programs?.name || 'None',
-            ncLevel: student.programs?.nc_level || '',
+            program: student.program_name || 'None',
+            ncLevel: student.nc_level || '',
             employmentStatus: student.employment_status === 'employed' ? 'Employed' : student.employment_status === 'seeking_employment' ? 'Seeking Employment' : 'Not Employed',
             employer: student.employer || student.employment_work || null,
             jobTitle: student.job_title || student.employment_work || null,
             dateHired: student.date_hired ? new Date(student.date_hired).toLocaleDateString() : student.employment_start || null,
             accountStatus: student.account_status || 'Active',
             gender: normalizeGender(student.gender),
+            programId: student.program_id || '',
             personalInfoVisibility: resolveVisibilityFields(student.personal_info_visibility, DEFAULT_STUDENT_PUBLIC_INFO_FIELDS),
+            trainings: Array.isArray(student.trainings) ? student.trainings : [],
           };
         });
 
@@ -4043,11 +3583,6 @@ export const AppProvider = ({ children }) => {
         });
         setAccounts(aMap);
       }
-      
-      if (isInitialLoad) {
-        traineesFetchedRef.current = true;
-        partnersFetchedRef.current = true;
-      }
     } catch (err) {
       console.error("Failed to load admin data:", err);
       // Clear current data on error to avoid showing stale page
@@ -4061,11 +3596,53 @@ export const AppProvider = ({ children }) => {
 
   const fetchAllData = async () => {
 
-    await Promise.all([
-      fetchPosts(),
-      fetchJobPostingComments(),
-      fetchPostInteractions()
-    ]);
+    // TanStack Query bridge: use queryClient.fetchQuery for cacheable reads.
+    // Results are synced into existing useState so all useApp() consumers stay unchanged.
+    try {
+      const [cachedPosts, cachedInteractions] = await Promise.all([
+        queryClient.fetchQuery({
+          queryKey: queryKeys.posts(feedLimit),
+          queryFn: async () => {
+            const { data, error } = await supabase
+              .from('posts')
+              .select('id, author_id, author_type, post_type, title, content, media_url, tags, is_active, created_at, updated_at, expires_at, schedule, time_range, slots, requirements, status, accept_referrals, admin_metadata, program_name, image_url, attachment_name, attachment_url, attachment_type')
+              .eq('is_active', true)
+              .order('created_at', { ascending: false })
+              .limit(feedLimit);
+            if (error) throw error;
+            return data || [];
+          },
+          staleTime: 2 * 60 * 1000,
+        }),
+        queryClient.fetchQuery({
+          queryKey: queryKeys.postInteractions(),
+          queryFn: async () => {
+            const { data, error } = await supabase
+              .from('post_interactions')
+              .select('id, post_id, user_id, interaction_type, status, details, created_at, updated_at, user_type')
+              .order('created_at', { ascending: false })
+              .limit(500);
+            if (error) {
+              if (error.code === '42P01') return [];
+              throw error;
+            }
+            return data || [];
+          },
+          staleTime: 2 * 60 * 1000,
+        }),
+      ]);
+
+      // Sync TanStack cache → existing React state (bridge pattern)
+      if (cachedPosts) { setPosts(cachedPosts); }
+      if (cachedInteractions) { setPostInteractions(cachedInteractions); }
+    } catch (err) {
+      console.warn('[TanStack Bridge] Cached fetch failed, falling back to direct fetch:', err);
+      // Fallback to original direct fetch if queryClient fails
+      await Promise.all([
+        fetchPosts(),
+        fetchPostInteractions()
+      ]);
+    }
 
     let publicDirectory = { students: [], partners: [] };
     if (userRole !== 'admin') {
@@ -4082,6 +3659,8 @@ export const AppProvider = ({ children }) => {
         console.warn('Failed to fetch public directory fallback:', err);
       }
     }
+
+    let allPrograms = [];
 
     // 0. Fetch TESDA Programs catalog (with competencies)
     try {
@@ -4107,6 +3686,7 @@ export const AppProvider = ({ children }) => {
       }
 
       if (!error && rows) {
+        allPrograms = rows;
         setPrograms(rows.map(program => ({
           id: program.id,
           name: program.name,
@@ -4185,7 +3765,7 @@ export const AppProvider = ({ children }) => {
 
       const baseQuery = await supabase
         .from('students')
-        .select('id, full_name, profile_picture_url, contact_email, resume_url, personal_info_visibility');
+        .select('id, full_name, profile_picture_url, contact_email, resume_url, personal_info_visibility, program_id, programs(name), trainings');
       stds = baseQuery.data;
       studentsError = baseQuery.error;
 
@@ -4193,6 +3773,7 @@ export const AppProvider = ({ children }) => {
         console.warn('Direct students query failed, using public directory fallback only:', studentsError);
         stds = [];
       }
+
 
       const mergedStudents = new Map(
         (publicDirectory.students || []).map(student => ([
@@ -4203,6 +3784,9 @@ export const AppProvider = ({ children }) => {
             profileName: student.profileName || student.name || 'Trainee',
             photo: student.photo || null,
             trainingStatus: student.trainingStatus || 'Student',
+            program: student.program || '',
+            programId: student.program_id || student.programId || '',
+            trainings: Array.isArray(student.trainings) ? student.trainings : [],
             gender: normalizeGender(student.gender),
             personalInfoVisibility: resolveVisibilityFields(student.personalInfoVisibility, DEFAULT_STUDENT_PUBLIC_INFO_FIELDS),
             email: '',
@@ -4222,6 +3806,9 @@ export const AppProvider = ({ children }) => {
           personalInfoVisibility: resolveVisibilityFields(student.personal_info_visibility, previous.personalInfoVisibility || DEFAULT_STUDENT_PUBLIC_INFO_FIELDS),
           email: student.contact_email || previous.email || '',
           resumeUrl: student.resume_url || previous.resumeUrl || null,
+          programId: student.program_id || previous.programId || '',
+          program: student.programs?.name || student.program || previous.program || '',
+          trainings: Array.isArray(student.trainings) ? student.trainings : (previous.trainings || []),
         });
       });
 
@@ -4342,76 +3929,62 @@ export const AppProvider = ({ children }) => {
     if (userRole === 'admin') {
       await fetchAdminDirectoryData();
     }
+
+    await fetchIndustries();
   };
 
-  const fetchApplications = async (forceRefresh = false) => {
-    if (!forceRefresh && applicationsFetchedRef.current) return;
+
+
+  const fetchApplications = async () => {
     try {
       const isSupabaseUser = typeof currentUser?.id === 'string' && currentUser.id.length === 36;
-      if (!isSupabaseUser) return;
+      if (!isSupabaseUser || userRole === 'admin') return;
 
-      const combinedApps = [];
-      const sources = [
-        { table: 'job_applications', orderColumn: 'applied_at' },
-      ];
+      let query = supabase
+        .from('job_applications')
+        .select('id, student_id, job_id, status, applied_at, reviewed_at, notes, applicant_message, resume_url, resume_file_name, recruitment_message, recruitment_document_name, recruitment_document_url, recruitment_sent_at');
 
-      for (const source of sources) {
-        let query = supabase.from(source.table).select('id, student_id, job_id, status, applied_at, reviewed_at, notes, applicant_message, resume_url, resume_file_name, recruitment_message, recruitment_document_name, recruitment_document_url, recruitment_sent_at, proposed_interview_date');
-        
-        if (userRole === 'trainee') {
-          query = query.eq('student_id', currentUser.id);
-        } else if (userRole === 'partner') {
-          let pids = jobPostings
-            .filter(j => String(j.partnerId) === String(currentUser.id))
-            .map(j => j.id);
-          
-          if (pids.length === 0) {
-            const { data: jobs } = await supabase.from('job_postings').select('id').eq('partner_id', currentUser.id);
-            if (jobs) pids = jobs.map(j => j.id);
-          }
+      if (userRole === 'trainee') {
+        query = query.eq('student_id', currentUser.id);
+      } else if (userRole === 'partner') {
+        // Optimized: Use local jobPostings if available to avoid an extra query
+        const myJobs = jobPostings.filter(j => String(j.partnerId) === String(currentUser.id));
+        let pids = myJobs.map(j => j.id);
 
-          if (pids.length > 0) {
-            query = query.in('job_id', pids);
-          } else {
-            continue;
+        if (pids.length === 0) {
+          const { data: jobs } = await supabase.from('job_postings').select('id').eq('partner_id', currentUser.id);
+          if (jobs && jobs.length > 0) {
+            pids = jobs.map(j => j.id);
           }
         }
 
-        const { data, error } = await query.order(source.orderColumn, { ascending: false });
-
-        if (error) {
-          if (!isSchemaMissingError(error)) {
-            console.warn(`Failed to fetch ${source.table} from Supabase:`, error);
-          }
-          continue;
+        if (pids.length > 0) {
+          query = query.in('job_id', pids);
+        } else {
+          setApplications([]);
+          return;
         }
-
-        combinedApps.push(...(data || []).map(row => ({ ...row, __sourceTable: source.table })));
       }
 
-      const mapped = combinedApps
-        .filter(a => (a.student_id || a.trainee_id) && (a.job_posting_id || a.job_id))
-        .map(a => ({
-          id: a.id,
-          traineeId: a.student_id || a.trainee_id,
-          jobId: a.job_posting_id || a.job_id,
-          status: normalizeApplicationStatus(a.status),
-          appliedAt: (a.created_at || a.applied_at || '').split('T')[0] || null,
-          reviewedAt: a.reviewed_at ? a.reviewed_at.split('T')[0] : null,
-          notes: a.notes || null,
-          applicationMessage: a.applicant_message || a.application_message || null,
-          resumeUrl: a.resume_url || null,
-          resumeFileName: a.resume_file_name || null,
-          recruitMessage: a.recruitment_message || a.recruiter_message || null,
-          recruitDocumentName: a.recruitment_document_name || a.recruiter_document_name || null,
-          recruitDocumentUrl: a.recruitment_document_url || a.recruiter_document_url || null,
-          recruitSentAt: a.recruitment_sent_at ? a.recruitment_sent_at.split('T')[0] : null,
-          proposedInterviewDate: a.proposed_interview_date || null,
-          sourceTable: a.__sourceTable || null,
-        }));
+      const { data, error } = await query.order('applied_at', { ascending: false });
+      if (error) throw error;
 
-      setApplications(mapped);
-      applicationsFetchedRef.current = true;
+      setApplications((data || []).map(a => ({
+        id: a.id,
+        traineeId: a.student_id,
+        jobId: a.job_id,
+        status: a.status ? (a.status.charAt(0).toUpperCase() + a.status.slice(1)) : 'Pending',
+        appliedAt: a.applied_at?.split('T')[0],
+        notes: a.notes,
+        applicationMessage: a.applicant_message,
+        resumeUrl: a.resume_url,
+        resumeFileName: a.resume_file_name,
+        recruitMessage: a.recruitment_message,
+        recruitDocumentName: a.recruitment_document_name,
+        recruitDocumentUrl: a.recruitment_document_url,
+        recruitSentAt: a.recruitment_sent_at?.split('T')[0],
+        sourceTable: 'job_applications'
+      })));
     } catch (err) {
       console.warn('Exception while fetching applications:', err);
     }
@@ -4443,6 +4016,28 @@ export const AppProvider = ({ children }) => {
     }
   };
 
+  const fetchInterviewBookings = async () => {
+    try {
+      const isSupabaseUser = typeof currentUser?.id === 'string' && currentUser.id.length === 36;
+      if (!isSupabaseUser || userRole === 'admin') return;
+
+      const column = userRole === 'partner' ? 'partner_id' : 'trainee_id';
+      const { data, error } = await supabase
+        .from('interview_bookings')
+        .select('id, application_id, trainee_id, partner_id, start_time, end_time, status, created_at')
+        .eq(column, currentUser.id)
+        .order('start_time', { ascending: true });
+
+      if (error) {
+        if (error.code === '42P01') return;
+        throw error;
+      }
+      setInterviewBookings(data || []);
+    } catch (err) {
+      console.warn('Exception while fetching interview bookings:', err);
+    }
+  };
+
   const fetchSystemSettings = async () => {
     try {
       const { data, error } = await supabase
@@ -4464,17 +4059,19 @@ export const AppProvider = ({ children }) => {
     if (!isSupabaseUser) return;
 
     const loadInitialData = async () => {
+      if (initialDataLoadedRef.current) return;
+      initialDataLoadedRef.current = true;
       try {
         await fetchAllData();
         await Promise.all([
-          fetchApplications(true),
+          fetchApplications(),
           fetchContactRequests(),
-          fetchSystemSettings(),
-          userRole === 'trainee' ? fetchTraineeBookings(currentUser.id) : Promise.resolve(),
-          userRole === 'partner' ? fetchBookings(currentUser.id) : Promise.resolve()
+          fetchInterviewBookings(),
+          fetchSystemSettings()
         ]);
       } catch (err) {
         console.error("Failed to initialize app data:", err);
+        initialDataLoadedRef.current = false; // Allow retry on failure
       }
     };
 
@@ -4484,37 +4081,51 @@ export const AppProvider = ({ children }) => {
     const recruitmentSyncChannel = supabase
       .channel('recruitment-sync')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'job_applications' }, (payload) => {
+        // Optimized: Only invalidate if the change is relevant to this user
         if (userRole === 'trainee' && payload.new && payload.new.student_id === currentUser.id) {
-          fetchApplications(true);
+          queryClient.invalidateQueries({ queryKey: queryKeys.applications(currentUser.id) });
+          // No manual fetchApplications() here; relying on TanStack Query + optimistic state if needed
         } else if (userRole === 'partner' && payload.new) {
-          fetchApplications(true);
+          // Partners: Only invalidate if the job belongs to them
+          const myJobIds = new Set(jobPostings.map(j => String(j.id)));
+          if (myJobIds.has(String(payload.new.job_id))) {
+            queryClient.invalidateQueries({ queryKey: queryKeys.applications(currentUser.id) });
+          }
         }
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'interview_bookings' }, (payload) => {
+        // Optimized: Remove redundant manual fetchInterviewBookings()
         if (userRole === 'trainee' && payload.new && payload.new.trainee_id === currentUser.id) {
-          fetchTraineeBookings(currentUser.id);
+          queryClient.invalidateQueries({ queryKey: queryKeys.traineeBookings(currentUser.id) });
         } else if (userRole === 'partner' && payload.new && payload.new.partner_id === currentUser.id) {
-          fetchBookings(currentUser.id);
+          queryClient.invalidateQueries({ queryKey: queryKeys.bookings(currentUser.id) });
         }
       })
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'notifications' }, (payload) => {
-        // Apply notification directly — no need to re-fetch all notifications
+        // Apply notification directly + invalidate TanStack cache
         if (payload.new) {
           if (payload.new.text) {
             toast.success(payload.new.text, { icon: '🔔', duration: 4000 });
           }
           setNotifications(prev => [payload.new, ...prev].slice(0, 50));
+          queryClient.invalidateQueries({ queryKey: queryKeys.notifications(currentUser.id) });
         }
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'contact_requests' }, (payload) => {
-        fetchContactRequests();
+        // Optimized: Only invalidate if relevant to current user
+        if (payload.new && (payload.new.sender_id === currentUser.id || payload.new.recipient_id === currentUser.id)) {
+          queryClient.invalidateQueries({ queryKey: queryKeys.contactRequests(currentUser.id) });
+        }
       })
       .subscribe();
+
+    let adminRealtimeChannel = null;
+    let onVisibilityChange = null;
 
     if (userRole === 'admin') {
       const runAdminRefresh = () => {
         fetchAdminDirectoryData();
-        fetchApplications();
+        queryClient.invalidateQueries({ queryKey: ['applications'] });
       };
 
       const scheduleAdminRefresh = () => {
@@ -4524,7 +4135,7 @@ export const AppProvider = ({ children }) => {
         }, 15000);
       };
 
-      const adminRealtimeChannel = supabase
+      adminRealtimeChannel = supabase
         .channel(`admin-live-sync-${currentUser.id}`)
         .on('postgres_changes', { event: '*', schema: 'public', table: 'students' }, (payload) => {
           if (isPresenceOnlyPayload(payload)) {
@@ -4551,7 +4162,7 @@ export const AppProvider = ({ children }) => {
         })
         .subscribe();
 
-      const onVisibilityChange = () => {
+      onVisibilityChange = () => {
         if (typeof document !== 'undefined' && document.visibilityState === 'visible') {
           const now = Date.now();
           if (now - adminLastRefreshRef.current > 60000) {
@@ -4564,19 +4175,22 @@ export const AppProvider = ({ children }) => {
       if (typeof document !== 'undefined') {
         document.addEventListener('visibilitychange', onVisibilityChange);
       }
-
-      return () => {
-        if (adminRefreshTimeoutRef.current) clearTimeout(adminRefreshTimeoutRef.current);
-        if (typeof document !== 'undefined') {
-          document.removeEventListener('visibilitychange', onVisibilityChange);
-        }
-        supabase.removeChannel(adminRealtimeChannel);
-        supabase.removeChannel(recruitmentSyncChannel);
-      };
     }
 
     return () => {
+      if (adminRefreshTimeoutRef.current) clearTimeout(adminRefreshTimeoutRef.current);
+      
+      if (userRole === 'admin') {
+        if (typeof document !== 'undefined' && onVisibilityChange) {
+          // @ts-ignore
+          document.removeEventListener('visibilitychange', onVisibilityChange);
+        }
+        // @ts-ignore
+        if (adminRealtimeChannel) supabase.removeChannel(adminRealtimeChannel);
+      }
+
       supabase.removeChannel(recruitmentSyncChannel);
+      initialDataLoadedRef.current = false; // Reset on effect cleanup
     };
   }, [currentUser?.id, userRole]);
 
@@ -4671,9 +4285,8 @@ export const AppProvider = ({ children }) => {
       deleteJobPosting,
       // Applications
       applications,
-      applyToJob,
+      interviewBookings,
       updateApplicationStatus,
-      deleteApplication,
       sendRecruitMessage,
       getTraineeApplications,
       getJobApplicants,
@@ -4719,19 +4332,15 @@ export const AppProvider = ({ children }) => {
       // Community Posts
       posts,
 
-      jobPostingComments,
       contactRequests,
       fetchPosts,
 
-      fetchJobPostingComments,
       createPost,
       updatePost,
       deletePost,
       adminDeletePost,
       adminUpdatePost,
       fetchPrograms: async (page = 1, pageSize = 15, search = '', forceRefresh = false) => {
-        if (!forceRefresh && programsFetchedRef.current && !search && page === 1) return;
-        
         try {
           let useFallback = false;
           const from = (page - 1) * pageSize;
@@ -4789,7 +4398,6 @@ export const AppProvider = ({ children }) => {
           }));
 
           setPrograms(mapped);
-          if (!search && page === 1) programsFetchedRef.current = true;
           return { data: mapped, total: count || 0 };
         } catch (err) {
           console.error('Failed to load programs:', err);
@@ -4798,11 +4406,7 @@ export const AppProvider = ({ children }) => {
       },
 
 
-      addJobPostingComment,
-      getJobPostingComments,
-      updateJobPostingComment,
-      deleteJobPostingComment,
-      sendContactRequest,
+      sendContactRequest: undefined, // Fully migrated to hooks
       // Post Interactions (Bulletin)
       postInteractions,
       fetchPostInteractions,
@@ -4810,16 +4414,8 @@ export const AppProvider = ({ children }) => {
       updatePostInteractionStatus,
       getPostInteractions,
       getUserPostInteraction,
-      // Interview Scheduling
-      availabilitySlots,
-      interviewBookings,
-      fetchAvailability,
-      saveAvailabilitySlot,
-      deleteAvailabilitySlot,
-      fetchBookings,
-      fetchTraineeBookings,
-      saveInterviewBooking,
-      getPartnerAvailability,
+
+
       // Notifications
       notifications,
       createNotification,
@@ -4847,13 +4443,20 @@ export const AppProvider = ({ children }) => {
       totalAccounts,
       fetchAdminDirectoryData,
       fetchAllData,
-      fetchApplications,
+
       fetchContactRequests,
       fetchSystemSettings,
 
       globalConfirm,
       confirmAction,
       closeGlobalConfirm,
+      
+      // Industries
+      industries,
+      fetchIndustries,
+      // Competencies
+      competencies,
+      fetchCompetencies
     }}>
       {children}
     </AppContext.Provider>
