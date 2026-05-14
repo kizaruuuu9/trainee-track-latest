@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { useApp } from '../../context/AppContext';
-import { usePosts, useJobPostings, useApplications, usePrograms, useDeleteApplication, useTrainees, usePartners, useContactRequests, useInterviewBookings, useAvailability, useSaveAvailabilitySlot, useDeleteAvailabilitySlot, useSaveInterviewBooking, useSendContactRequest } from '../../hooks';
+import { usePosts, useJobPostings, usePostInteractions, useApplications, usePrograms, useDeleteApplication, useTrainees, usePartners, useContactRequests, useInterviewBookings, useAvailability, useSaveAvailabilitySlot, useDeleteAvailabilitySlot, useSaveInterviewBooking, useSendContactRequest } from '../../hooks';
 
 import SavedItemsView from './SavedItemsView';
 import ProfileActivityTab from './ProfileActivityTab';
@@ -25,7 +25,7 @@ import EmptyState, {
 } from '../EmptyState';
 import BrandLogo from '../common/BrandLogo';
 import { supabase } from '../../lib/supabase';
-import { CompactFeedItem, POST_THEME, VerifiedBadge } from './FeedComponents';
+import { CompactFeedItem, FeedItemDetailModal, BULLETIN_CONFIG, POST_THEME, VerifiedBadge, RealtimeStatus, FeedSkeleton } from './FeedComponents';
 import { Routes, Route, useNavigate, useLocation, Navigate, useParams } from 'react-router-dom';
 import PhilAddressSelector from '../common/PhilAddressSelector';
 import ProfilePage from '../ProfilePage';
@@ -539,23 +539,40 @@ const RecruitmentStatsWidget = ({ myJobs, myApplicants }) => (
 );
 
 // --- PAGE 1: PARTNER DASHBOARD HOME ------------------------------
-const PartnerHome = ({ setActivePage, openContactModal }) => {
+const PartnerHome = ({ 
+    setActivePage, 
+    openContactModal, 
+    onViewDetail, 
+    openBulletinModal,
+    bulletinState,
+    setBulletinMsg,
+    setReferralName,
+    setReferralContact,
+    setReferralNotes,
+    handleBulletinSubmit,
+    setBulletinModal
+}) => {
+    const { bulletinModal, bulletinMsg, bulletinSubmitting, referralName, referralContact, referralNotes } = bulletinState;
+
   const { 
     currentUser, updatePartnerJobPosting, 
     getPartnerApplicants, createPost, updatePost, deletePost, 
     deleteJobPosting, 
-    createPostInteraction, 
+    createPostInteraction, toggleBookmark,
     getUserPostInteraction, fetchPostInteractions, fetchPosts, fetchJobPostings, 
     uploadOptimizedImage, confirmAction, loadMoreFeeds
   } = useApp();
   const sendContactMutation = useSendContactRequest();
 
-  const { data: partners = [] } = usePartners();
-  const { data: trainees = [] } = useTrainees();
-  const { data: posts = [] } = usePosts();
-  const { data: jobPostings = [] } = useJobPostings();
-  const { data: programsData } = usePrograms();
+  const { data: partners = [], isLoading: isLoadingPartners, isFetching: isFetchingPartners } = usePartners();
+  const { data: trainees = [], isLoading: isLoadingTrainees, isFetching: isFetchingTrainees } = useTrainees();
+  const { data: posts = [], isLoading: isLoadingPosts, isFetching: isFetchingPosts } = usePosts();
+  const { data: jobPostings = [], isLoading: isLoadingJobs, isFetching: isFetchingJobs } = useJobPostings();
+  const { data: programsData, isLoading: isLoadingPrograms, isFetching: isFetchingPrograms } = usePrograms();
   const programs = programsData?.data || [];
+
+  const isLoading = isLoadingPartners || isLoadingTrainees || isLoadingPosts || isLoadingJobs || isLoadingPrograms;
+  const isFetching = isFetchingPartners || isFetchingTrainees || isFetchingPosts || isFetchingJobs || isFetchingPrograms;
 
   useEffect(() => {
     // fetchPosts(); // Managed by TanStack Query
@@ -1044,53 +1061,9 @@ const PartnerHome = ({ setActivePage, openContactModal }) => {
     }, [feedCurrentPage, filteredFeed.length]);
 
   // Bulletin interaction state
-  const [bulletinModal, setBulletinModal] = useState(null); // { post, type }
-  const [bulletinMsg, setBulletinMsg] = useState('');
-  const [bulletinSubmitting, setBulletinSubmitting] = useState(false);
-  const [bulletinToast, setBulletinToast] = useState('');
 
-  useEffect(() => {
-    fetchPostInteractions();
-  }, []);
-  // Referral form fields
-  const [referralName, setReferralName] = useState('');
-  const [referralContact, setReferralContact] = useState('');
-  const [referralNotes, setReferralNotes] = useState('');
 
-  const showBulletinToast = (msg) => { setBulletinToast(msg); setTimeout(() => setBulletinToast(''), 3000); };
 
-  const openBulletinModal = (post, type) => {
-    setBulletinModal({ post, type });
-    setBulletinMsg('');
-    setReferralName('');
-    setReferralContact('');
-    setReferralNotes('');
-  };
-
-  const handleBulletinSubmit = async () => {
-    if (!bulletinModal) return;
-    setBulletinSubmitting(true);
-    const isRefer = bulletinModal.type === 'refer';
-    const details = isRefer
-      ? { apprentice_name: referralName, apprentice_contact: referralContact, notes: referralNotes, company: partner?.companyName, referred_at: new Date().toISOString() }
-      : { message: bulletinMsg, submitted_at: new Date().toISOString() };
-    const res = await createPostInteraction(bulletinModal.post.id, bulletinModal.type, details);
-    setBulletinSubmitting(false);
-    if (res.success) {
-      setBulletinModal(null);
-      showBulletinToast(isRefer ? 'Referral submitted!' : bulletinModal.type === 'register' ? 'Registration submitted!' : 'Inquiry sent!');
-      fetchPostInteractions();
-    } else {
-      toast.error(res.error || 'Failed to submit.');
-    }
-  };
-
-  const BULLETIN_CONFIG = {
-    training_batch: { label: 'Training Batch', color: '#7c3aed', bg: '#ede9fe', emoji: '🎓', partnerLabel: 'Refer Apprentice', type: 'refer' },
-    exam_schedule: { label: 'Exam Schedule', color: '#0ea5e9', bg: '#e0f2fe', emoji: '📅', partnerLabel: 'Register Apprentice', type: 'register' },
-    certification_assessment: { label: 'Certification Assessment', color: '#16a34a', bg: '#dcfce7', emoji: '📜', partnerLabel: 'Register Apprentice', type: 'register' },
-    announcement: { label: 'Announcement', color: '#d97706', bg: '#fef3c7', emoji: '📢', partnerLabel: null, type: null },
-  };
 
   const stats = [
     { label: 'Active Postings', value: myJobs.filter(j => j.status === 'Open').length, icon: <Briefcase size={20} />, color: '#0ea5e9' },
@@ -1155,7 +1128,10 @@ const PartnerHome = ({ setActivePage, openContactModal }) => {
         {/* Unified Community Feed Grid */}
         <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: '12px', marginBottom: 16 }}>
             <div style={{ flexShrink: 0 }}>
-                <h3 style={{ fontSize: 14, textTransform: 'uppercase', letterSpacing: '0.5px', color: 'rgba(0,0,0,0.6)', margin: 0, whiteSpace: 'nowrap' }}>Community Activity</h3>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <h3 style={{ fontSize: 14, textTransform: 'uppercase', letterSpacing: '0.5px', color: 'rgba(0,0,0,0.6)', margin: 0, whiteSpace: 'nowrap' }}>Community Activity</h3>
+            <RealtimeStatus isFetching={isFetching} />
+          </div>
             </div>
             
             <div style={{ display: 'flex', flex: '1 1 min-content', justifyContent: 'center', minWidth: '150px' }}>
@@ -1209,7 +1185,11 @@ const PartnerHome = ({ setActivePage, openContactModal }) => {
           </div>
         </div>
         <div className={feedViewMode === 'list' ? "tt-feed-list" : "tt-feed-grid"} style={feedViewMode === 'list' ? { display: 'flex', flexDirection: 'column', gap: '16px' } : {}}>
-          {filteredFeed.slice((feedCurrentPage - 1) * feedPageSize, feedCurrentPage * feedPageSize).map(item => {
+          {isLoading ? (
+            <FeedSkeleton count={6} viewMode={feedViewMode} />
+          ) : (
+            <>
+              {filteredFeed.slice((feedCurrentPage - 1) * feedPageSize, feedCurrentPage * feedPageSize).map(item => {
             if (feedViewMode === 'list') {
               return <CompactFeedItem 
                   key={`compact-${item.id}`} 
@@ -1218,23 +1198,23 @@ const PartnerHome = ({ setActivePage, openContactModal }) => {
                   onInquire={(i) => {
                       openContactModal({
                           recipientId: i.partnerId || i.author_id,
-                          recipientType: i.feedType === 'job' ? 'industry_partner' : i.author_type,
+                          recipientType: i.feedType === 'job' ? 'industry_partner' : (i.author_type === 'admin' ? 'admin' : (i.author_type || 'partner')),
                           recipientName: i.companyName || i.name || 'Recipient',
                           jobPostingId: i.feedType === 'job' ? i.id : undefined,
                           sourceLabel: i.title,
                       });
                   }}
-                  onSave={(id) => createPostInteraction(id, 'save')}
+                  onSave={(id) => toggleBookmark(id)}
                   onApply={(i, type) => {
                      if (i.feedType !== 'job') {
                          openBulletinModal(i, type);
+                     } else if (type === 'applicants') {
+                         setActivePage('applicants');
                      }
                   }}
                   openProfile={openProfile}
-                  onViewDetail={(i) => {
-                     if (i.feedType === 'bulletin') openBulletinModal(i, 'view');
-                  }}
-                  hideApply={true}
+                  onViewDetail={onViewDetail}
+                  saved={!!getUserPostInteraction(item.id, 'save')}
               />;
             }
             if (item.feedType === 'bulletin') {
@@ -1247,7 +1227,7 @@ const PartnerHome = ({ setActivePage, openContactModal }) => {
               const sc = { Open: { bg: '#dcfce7', color: '#16a34a' }, Full: { bg: '#fef3c7', color: '#d97706' }, Closed: { bg: '#fee2e2', color: '#dc2626' } }[item.status] || { bg: '#dcfce7', color: '#16a34a' };
               const reqs = Array.isArray(item.requirements) ? item.requirements : [];
               return (
-                <div key={`bulletin-${item.id}`} className="ln-card ln-feed-card" style={{ marginBottom: 0, borderLeft: `4px solid ${cfg.color}` }}>
+                <div key={`bulletin-${item.id}`} className="ln-card ln-feed-card" onClick={() => onViewDetail?.(item)} style={{ marginBottom: 0, borderLeft: `4px solid ${cfg.color}`, cursor: 'pointer' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '14px 16px 10px' }}>
                     <div style={{ width: 40, height: 40, borderRadius: 10, background: cfg.bg, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18, flexShrink: 0 }}>{cfg.emoji}</div>
                     <div style={{ flex: 1 }}>
@@ -1350,36 +1330,38 @@ const PartnerHome = ({ setActivePage, openContactModal }) => {
                       </div>
                     )}
                   </div>
-                  <div className="ln-feed-actions" style={{ borderTop: '1px solid #f3f3f3', padding: '8px 12px', display: 'flex', gap: 8 }}>
-                    {cfg.type && item.accept_referrals !== false && (
+                  {item.author_id !== currentUser?.id && (
+                    <div className="ln-feed-actions" style={{ borderTop: '1px solid #f3f3f3', padding: '8px 12px', display: 'flex', gap: 8 }}>
+                      {cfg.type && item.accept_referrals !== false && (
+                        <button
+                          className="ln-feed-action-btn"
+                          disabled={!!alreadyInteracted || item.status === 'Closed' || item.status === 'Full'}
+                          onClick={() => openBulletinModal(item, cfg.type)}
+                          style={alreadyInteracted ? { color: cfg.color, fontWeight: 700 } : {}}
+                        >
+                          {alreadyInteracted ? <><CheckCircle size={14} /> Submitted</> : <><Users size={14} /> {cfg.partnerLabel}</>}
+                        </button>
+                      )}
+                      <button className="ln-feed-action-btn" onClick={() => openBulletinModal(item, 'inquire')}>
+                        <MessageSquare size={14} /> Inquire
+                      </button>
                       <button
                         className="ln-feed-action-btn"
-                        disabled={!!alreadyInteracted || item.status === 'Closed' || item.status === 'Full'}
-                        onClick={() => openBulletinModal(item, cfg.type)}
-                        style={alreadyInteracted ? { color: cfg.color, fontWeight: 700 } : {}}
+                        onClick={(e) => { e.stopPropagation(); toggleBookmark(item.id); }}
+                        style={getUserPostInteraction(item.id, 'save') ? { color: '#d97706', fontWeight: 700 } : {}}
                       >
-                        {alreadyInteracted ? <><CheckCircle size={14} /> Submitted</> : <><Users size={14} /> {cfg.partnerLabel}</>}
+                        <Bookmark size={14} fill={getUserPostInteraction(item.id, 'save') ? "currentColor" : "none"} />
+                        {getUserPostInteraction(item.id, 'save') ? 'Saved' : 'Save'}
                       </button>
-                    )}
-                    <button className="ln-feed-action-btn" onClick={() => openBulletinModal(item, 'inquire')}>
-                      <MessageSquare size={14} /> Inquire
-                    </button>
-                    <button
-                      className="ln-feed-action-btn"
-                      onClick={() => createPostInteraction(item.id, 'save')}
-                      style={getUserPostInteraction(item.id, 'save') ? { color: '#d97706', fontWeight: 700 } : {}}
-                    >
-                      <Bookmark size={14} fill={getUserPostInteraction(item.id, 'save') ? "currentColor" : "none"} />
-                      {getUserPostInteraction(item.id, 'save') ? 'Saved' : 'Save'}
-                    </button>
-                  </div>
+                    </div>
+                  )}
                 </div>
               );
             } else if (item.feedType === 'job') {
               const myJob = item.partnerId === currentUser?.id;
               const tColor = POST_THEME['job']?.color || '#0a66c2';
               return (
-                <div key={`job-${item.id}`} className="ln-card ln-feed-card" style={{ marginBottom: 0, borderLeft: `4px solid ${tColor}` }}>
+                <div key={`job-${item.id}`} className="ln-card ln-feed-card" onClick={() => onViewDetail?.(item)} style={{ marginBottom: 0, borderLeft: `4px solid ${tColor}`, cursor: 'pointer' }}>
                   <div className="ln-feed-card-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                     <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
                       <button
@@ -1512,6 +1494,16 @@ const PartnerHome = ({ setActivePage, openContactModal }) => {
                     >
                       <MessageSquare size={14} /> {myJob ? 'Your Listing' : 'Contact'}
                     </button>
+                    {!myJob && (
+                      <button
+                        className="ln-feed-action-btn"
+                        onClick={(e) => { e.stopPropagation(); toggleBookmark(item.id); }}
+                        style={getUserPostInteraction(item.id, 'save') ? { color: '#d97706', fontWeight: 700 } : {}}
+                      >
+                        <Bookmark size={14} fill={getUserPostInteraction(item.id, 'save') ? "currentColor" : "none"} />
+                        {getUserPostInteraction(item.id, 'save') ? 'Saved' : 'Save'}
+                      </button>
+                    )}
                   </div>
                 </div>
               );
@@ -1725,13 +1717,25 @@ const PartnerHome = ({ setActivePage, openContactModal }) => {
                     >
                       <MessageSquare size={16} /> {isMe ? 'Your Post' : 'Contact'}
                     </button>
+                    {!isMe && (
+                      <button
+                        className="ln-feed-action-btn"
+                        onClick={(e) => { e.stopPropagation(); toggleBookmark(item.id); }}
+                        style={getUserPostInteraction(item.id, 'save') ? { color: '#d97706', fontWeight: 700 } : {}}
+                      >
+                        <Bookmark size={14} fill={getUserPostInteraction(item.id, 'save') ? "currentColor" : "none"} />
+                        {getUserPostInteraction(item.id, 'save') ? 'Saved' : 'Save'}
+                      </button>
+                    )}
                   </div>
                 </div>
               );
             }
-          })}
-          {filteredFeed.length === 0 && (
-            <div className="ln-empty-state"><TrendingUp size={48} /><h3>No community activity</h3><p>Try changing your filter or post an update.</p></div>
+              })}
+              {filteredFeed.length === 0 && (
+                <div className="ln-empty-state"><TrendingUp size={48} /><h3>No community activity</h3><p>Try changing your filter or post an update.</p></div>
+              )}
+            </>
           )}
         </div>
 
@@ -1787,73 +1791,10 @@ const PartnerHome = ({ setActivePage, openContactModal }) => {
         )}
       </div>
 
-      {/* Bulletin Toast */}
-      {bulletinToast && (
-        <div style={{ position: 'fixed', top: 20, right: 20, zIndex: 9999, background: '#0f172a', color: '#fff', padding: '12px 20px', borderRadius: 10, fontWeight: 600, fontSize: 14, boxShadow: '0 4px 20px rgba(0,0,0,0.3)', display: 'flex', alignItems: 'center', gap: 8 }}>
-          <CheckCircle size={16} color="#4ade80" />{bulletinToast}
-        </div>
-      )}
 
-      {/* Bulletin Interaction Modals */}
-      {bulletinModal && (() => {
-        const cfg = BULLETIN_CONFIG[bulletinModal.post.post_type] || BULLETIN_CONFIG.announcement;
-        const isRefer = bulletinModal.type === 'refer';
-        const isInquiry = bulletinModal.type === 'inquire';
-        const title = isRefer ? 'Refer an Apprentice' : isInquiry ? 'Send Inquiry' : 'Register Apprentice';
-        return (
-          <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
-            <div style={{ background: '#fff', borderRadius: 16, width: '100%', maxWidth: 480, boxShadow: '0 20px 60px rgba(0,0,0,0.2)', overflow: 'hidden' }}>
-              <div style={{ background: cfg.color, padding: '16px 20px', display: 'flex', alignItems: 'center', gap: 12 }}>
-                <div style={{ fontSize: 20 }}>{cfg.emoji}</div>
-                <div>
-                  <div style={{ fontWeight: 700, color: '#fff', fontSize: 15 }}>{title}</div>
-                  <div style={{ color: 'rgba(255,255,255,0.8)', fontSize: 12 }}>{bulletinModal.post.title}</div>
-                </div>
-                <button onClick={() => setBulletinModal(null)} style={{ marginLeft: 'auto', background: 'rgba(255,255,255,0.2)', border: 'none', borderRadius: 8, width: 28, height: 28, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                  <X size={14} color="#fff" />
-                </button>
-              </div>
-              <div style={{ padding: '20px' }}>
-                {isRefer ? (
-                  <>
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 14 }}>
-                      <div>
-                        <label style={{ fontSize: 12, fontWeight: 700, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.05em', display: 'block', marginBottom: 6 }}>Apprentice Name *</label>
-                        <input value={referralName} onChange={e => setReferralName(e.target.value)} placeholder="Full name" style={{ width: '100%', padding: '10px 12px', borderRadius: 8, border: '1.5px solid #e2e8f0', fontSize: 13, outline: 'none', boxSizing: 'border-box' }} />
-                      </div>
-                      <div>
-                        <label style={{ fontSize: 12, fontWeight: 700, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.05em', display: 'block', marginBottom: 6 }}>Contact / Email</label>
-                        <input value={referralContact} onChange={e => setReferralContact(e.target.value)} placeholder="email or phone" style={{ width: '100%', padding: '10px 12px', borderRadius: 8, border: '1.5px solid #e2e8f0', fontSize: 13, outline: 'none', boxSizing: 'border-box' }} />
-                      </div>
-                    </div>
-                    <div style={{ marginBottom: 14 }}>
-                      <label style={{ fontSize: 12, fontWeight: 700, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.05em', display: 'block', marginBottom: 6 }}>Notes (optional)</label>
-                      <textarea value={referralNotes} onChange={e => setReferralNotes(e.target.value)} placeholder="Add any relevant notes about the apprentice..." rows={3} style={{ width: '100%', padding: '10px 12px', borderRadius: 8, border: '1.5px solid #e2e8f0', fontSize: 13, outline: 'none', resize: 'none', boxSizing: 'border-box' }} />
-                    </div>
-                  </>
-                ) : (
-                  <div style={{ marginBottom: 14 }}>
-                    <label style={{ fontSize: 12, fontWeight: 700, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.05em', display: 'block', marginBottom: 6 }}>
-                      {isInquiry ? 'Your Inquiry *' : 'Message (optional)'}
-                    </label>
-                    <textarea value={bulletinMsg} onChange={e => setBulletinMsg(e.target.value)} placeholder={isInquiry ? 'Type your inquiry here...' : 'Add a note...'} rows={4} style={{ width: '100%', padding: '10px 12px', borderRadius: 8, border: '1.5px solid #e2e8f0', fontSize: 13, outline: 'none', resize: 'none', boxSizing: 'border-box' }} />
-                  </div>
-                )}
-                <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
-                  <button onClick={() => setBulletinModal(null)} style={{ padding: '10px 18px', borderRadius: 8, border: '1.5px solid #e2e8f0', background: '#fff', color: '#64748b', fontWeight: 600, cursor: 'pointer' }}>Cancel</button>
-                  <button
-                    onClick={handleBulletinSubmit}
-                    disabled={bulletinSubmitting || (isRefer && !referralName.trim()) || (isInquiry && !bulletinMsg.trim())}
-                    style={{ padding: '10px 20px', borderRadius: 8, border: 'none', background: cfg.color, color: '#fff', fontWeight: 700, cursor: 'pointer', opacity: bulletinSubmitting ? 0.6 : 1 }}
-                  >
-                    {bulletinSubmitting ? 'Submitting...' : isRefer ? 'Submit Referral' : isInquiry ? 'Send Inquiry' : 'Confirm'}
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-        );
-      })()}
+
+
+
 
       {editJobModal && (
 
@@ -4172,7 +4113,27 @@ const PREDEFINED_PERKS_TAGS = [
 export const CompanyProfile = ({ viewedPartnerId = null, onBack = null }) => {
   const { currentUser, updatePartner, createPostInteraction, fetchPostInteractions, uploadOptimizedImage } = useApp();
   const { data: partners = [] } = usePartners();
-  const { data: jobPostings = [] } = useJobPostings();
+  const { data: jobPostings = [] } = useJobPostings(40);
+  const { data: posts = [] } = usePosts(40);
+  const { data: postInteractions = [] } = usePostInteractions({ userId: currentUser?.id });
+  
+  // 1. Get all potential saved IDs
+  const profileSavedJobIds = currentUser?.savedOpportunities || [];
+  const interactionSavedIds = postInteractions
+      .filter(i => i.interaction_type === 'save')
+      .map(i => i.post_id);
+  const allSavedIds = useMemo(() => [...new Set([...profileSavedJobIds, ...interactionSavedIds])], [profileSavedJobIds, interactionSavedIds]);
+
+  // 2. Fetch specific items to verify existence and author validity
+  const { data: verifiedSavedJobs = [] } = useJobPostings({ ids: allSavedIds });
+  const { data: verifiedSavedPosts = [] } = usePosts({ ids: allSavedIds });
+
+  const savedItemsCount = useMemo(() => {
+    let count = 0;
+    count += verifiedSavedJobs.filter(j => j.hasValidPartner !== false).length;
+    count += verifiedSavedPosts.length;
+    return count;
+  }, [verifiedSavedJobs, verifiedSavedPosts]);
   const navigate = useNavigate();
   const isOwnProfile = !viewedPartnerId || String(viewedPartnerId) === String(currentUser?.id);
   const [viewedPartner, setViewedPartner] = useState(null);
@@ -4266,8 +4227,6 @@ export const CompanyProfile = ({ viewedPartnerId = null, onBack = null }) => {
   const [bulletinModal, setBulletinModal] = useState(null);
   const [bulletinMessage, setBulletinMessage] = useState('');
   const [bulletinSubmitting, setBulletinSubmitting] = useState(false);
-  const [bulletinToast, setBulletinToast] = useState('');
-  const showBulletinToast = (msg) => { setBulletinToast(msg); setTimeout(() => setBulletinToast(''), 3000); };
   const openBulletinModal = (post, type) => { setBulletinModal({ post, type }); setBulletinMessage(''); };
   const handleBulletinInteraction = async () => {
     if (!bulletinModal) return;
@@ -4277,7 +4236,7 @@ export const CompanyProfile = ({ viewedPartnerId = null, onBack = null }) => {
     setBulletinSubmitting(false);
     if (res.success) {
       setBulletinModal(null);
-      showBulletinToast(bulletinModal.type === 'inquire' ? 'Inquiry sent!' : 'Submitted!');
+      toast.success(bulletinModal.type === 'inquire' ? 'Inquiry sent!' : 'Submitted!');
       fetchPostInteractions();
     } else {
       toast.error(res.error || 'Failed to submit.');
@@ -4501,14 +4460,14 @@ export const CompanyProfile = ({ viewedPartnerId = null, onBack = null }) => {
       if (type === 'banner') {
         await updatePartner(partner.id, { banner_url: publicUrl });
         setForm(prev => ({ ...prev, banner_url: publicUrl }));
-        showBulletinToast('Banner updated!');
+        toast.success('Banner updated!');
       } else if (type === 'logo') {
         await updatePartner(partner.id, { company_logo_url: publicUrl });
         setForm(prev => ({ ...prev, company_logo_url: publicUrl }));
-        showBulletinToast('Logo updated!');
+        toast.success('Logo updated!');
       } else if (type === 'poc') {
         setForm(prev => ({ ...prev, poc_photo_url: publicUrl }));
-        showBulletinToast('POC photo prepared!');
+        toast.success('POC photo prepared!');
       }
     } catch (err) {
       console.error('Upload error:', err);
@@ -4849,7 +4808,16 @@ export const CompanyProfile = ({ viewedPartnerId = null, onBack = null }) => {
                     gap: 8
                   }}
                 >
-                  {tab === 'Saved' ? <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}><Bookmark size={14} /> Saved</div> : tab}
+                  {tab === 'Saved' ? (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <Bookmark size={14} /> Saved
+                      {savedItemsCount > 0 && (
+                        <span style={{ fontSize: 11, background: '#e2e8f0', padding: '2px 6px', borderRadius: 10, color: '#475569', marginLeft: 4 }}>
+                          {savedItemsCount}
+                        </span>
+                      )}
+                    </div>
+                  ) : tab}
                 </button>
               ))}
             </div>
@@ -5908,12 +5876,6 @@ export const CompanyProfile = ({ viewedPartnerId = null, onBack = null }) => {
           </div>
         </div>
       )}
-      {/* Bulletin Toast */}
-      {bulletinToast && (
-        <div style={{ position: 'fixed', top: 20, right: 20, zIndex: 9999, background: '#0f172a', color: '#fff', padding: '12px 20px', borderRadius: 10, fontWeight: 600, fontSize: 14, boxShadow: '0 4px 20px rgba(0,0,0,0.3)', display: 'flex', alignItems: 'center', gap: 8 }}>
-          <CheckCircle size={16} color="#4ade80" />{bulletinToast}
-        </div>
-      )}
 
       {/* Bulletin Interaction Modal */}
       {bulletinModal && (() => {
@@ -6628,19 +6590,19 @@ ${livePartner?.companyName}`);
   );
 };
 
-const PartnerProfileViewRoute = (props) => {
+const PartnerProfileViewRoute = ({ openContactModal, onViewDetail }) => {
   const { profileType, profileId } = useParams();
   const navigate = useNavigate();
   const normalizedProfileType = normalizeProfileType(profileType);
 
   if (normalizedProfileType === 'partner') {
-    return <CompanyProfile viewedPartnerId={profileId} onBack={() => navigate(-1)} />;
+    return <CompanyProfile viewedPartnerId={profileId} onBack={() => navigate(-1)} onViewDetail={onViewDetail} />;
   }
 
   if (normalizedProfileType === 'trainee') {
     return (
       <React.Suspense fallback={<div className="ln-page-content"><div className="ln-empty-state"><p>Loading profile...</p></div></div>}>
-        <TraineeProfileContent viewedProfileId={profileId} onBack={() => navigate(-1)} {...props} />
+        <TraineeProfileContent viewedProfileId={profileId} onBack={() => navigate(-1)} openContactModal={openContactModal} onViewDetail={onViewDetail} />
       </React.Suspense>
     );
   }
@@ -6668,8 +6630,11 @@ const VerificationRouteGuard = ({ setActivePage }) => {
 
 // --- MAIN EXPORT --------------------------------------------------
 export default function PartnerDashboard() {
-  const { currentUser } = useApp();
+  const { currentUser, getUserPostInteraction, createPostInteraction, toggleBookmark } = useApp();
   const sendContactMutation = useSendContactRequest();
+  const { data: dashboardPostInteractions = [] } = usePostInteractions({ userId: currentUser?.id });
+
+
 
   const navigate = useNavigate();
   const location = useLocation();
@@ -6679,6 +6644,7 @@ export default function PartnerDashboard() {
   const [contactMessage, setContactMessage] = useState('');
   const [contactAttachment, setContactAttachment] = useState(null);
   const [contactSubmitting, setContactSubmitting] = useState(false);
+  const [selectedJob, setSelectedJob] = useState(null);
   const contactFileInputRef = useRef(null);
 
   // Deduce active page from URL for visual consistency in child components
@@ -6692,6 +6658,11 @@ export default function PartnerDashboard() {
     } else {
       navigate(`/partner/${page}`);
     }
+  };
+
+  const openProfile = (target) => {
+    if (!target?.id || !target?.type) return;
+    navigate(`/partner/profile-view/${target.type}/${target.id}`);
   };
 
   const openContactModal = (target) => {
@@ -6721,7 +6692,7 @@ export default function PartnerDashboard() {
         attachmentName = contactAttachment.name;
       }
 
-      const result = await sendContactMutation.mutateAsync({
+      await sendContactMutation.mutateAsync({
         recipientId: contactTarget.recipientId,
         recipientType: contactTarget.recipientType,
         postId: contactTarget.postId || null,
@@ -6732,19 +6703,52 @@ export default function PartnerDashboard() {
         attachmentKind: 'document',
       });
 
-
-      if (!result.success) {
-        toast.error(result.error || 'Failed to send contact request.');
-        return;
-      }
-
       setContactTarget(null);
-      toast.success('Contact request sent.');
+      toast.success('Contact request sent successfully!');
     } catch (err) {
       console.error('Contact submit error:', err);
       toast.error(err.message || 'Failed to send contact request.');
     } finally {
       setContactSubmitting(false);
+    }
+  };
+
+  // Bulletin Interaction Logic
+  const [bulletinModal, setBulletinModal] = useState(null); // { post, type }
+  const [bulletinMsg, setBulletinMsg] = useState('');
+  const [bulletinSubmitting, setBulletinSubmitting] = useState(false);
+  const [referralName, setReferralName] = useState('');
+  const [referralContact, setReferralContact] = useState('');
+  const [referralNotes, setReferralNotes] = useState('');
+
+  const openBulletinModal = (post, type) => {
+    setBulletinModal({ post, type });
+    setBulletinMsg('');
+    setReferralName('');
+    setReferralContact('');
+    setReferralNotes('');
+  };
+
+  const handleBulletinSubmit = async () => {
+    if (!bulletinModal) return;
+    setBulletinSubmitting(true);
+    const isRefer = bulletinModal.type === 'refer' || bulletinModal.type === 'apply';
+    const details = isRefer
+      ? { apprentice_name: referralName, apprentice_contact: referralContact, notes: referralNotes, referred_at: new Date().toISOString() }
+      : { message: bulletinMsg, submitted_at: new Date().toISOString() };
+    
+    try {
+      const res = await createPostInteraction(bulletinModal.post.id, bulletinModal.type, details);
+      if (res.success) {
+        setBulletinModal(null);
+        toast.success(isRefer ? 'Referral submitted!' : bulletinModal.type === 'register' ? 'Registration submitted!' : 'Inquiry sent!');
+      } else {
+        toast.error(res.error || 'Failed to submit.');
+      }
+    } catch (err) {
+      toast.error('An error occurred. Please try again.');
+    } finally {
+      setBulletinSubmitting(false);
     }
   };
 
@@ -6756,14 +6760,28 @@ export default function PartnerDashboard() {
 
       <PartnerLayout activePage={activePage} setActivePage={setActivePage}>
         <Routes>
-          <Route path="/" element={<PartnerHome setActivePage={setActivePage} openContactModal={openContactModal} />} />
+          <Route path="/" element={
+            <PartnerHome 
+                setActivePage={setActivePage} 
+                openContactModal={openContactModal} 
+                onViewDetail={setSelectedJob} 
+                openBulletinModal={openBulletinModal}
+                bulletinState={{ bulletinModal, bulletinMsg, bulletinSubmitting, referralName, referralContact, referralNotes }}
+                setBulletinMsg={setBulletinMsg}
+                setReferralName={setReferralName}
+                setReferralContact={setReferralContact}
+                setReferralNotes={setReferralNotes}
+                handleBulletinSubmit={handleBulletinSubmit}
+                setBulletinModal={setBulletinModal}
+            />
+          } />
           <Route path="/post-job" element={<PostJob setActivePage={setActivePage} />} />
           <Route path="/calendar" element={<CalendarView setActivePage={setActivePage} />} />
           <Route path="/applicants" element={<ViewApplicants setActivePage={setActivePage} />} />
-          <Route path="/profile" element={<CompanyProfile />} />
+          <Route path="/profile" element={<CompanyProfile onViewDetail={setSelectedJob} />} />
           <Route path="/verification" element={<VerificationRouteGuard setActivePage={setActivePage} />} />
           <Route path="/settings" element={<SettingsPage />} />
-          <Route path="/profile-view/:profileType/:profileId" element={<PartnerProfileViewRoute openContactModal={openContactModal} />} />
+          <Route path="/profile-view/:profileType/:profileId" element={<PartnerProfileViewRoute openContactModal={openContactModal} onViewDetail={setSelectedJob} />} />
           <Route path="/notifications" element={<NotificationsPage />} />
           <Route path="*" element={<Navigate to="/partner" replace />} />
         </Routes>
@@ -6810,6 +6828,97 @@ export default function PartnerDashboard() {
           </div>
         </div>
       )}
+
+      {/* Unified Feed Item Detail Modal */}
+      {selectedJob && (
+        <FeedItemDetailModal 
+            item={selectedJob} 
+            onClose={() => setSelectedJob(null)}
+            onApply={(i, type) => {
+                if (i.feedType === 'applicants' || type === 'applicants') {
+                    setActivePage('applicants');
+                } else if (i.feedType === 'bulletin') {
+                    openBulletinModal(i, type);
+                } else if (i.feedType === 'job') {
+                    setActivePage('applicants');
+                }
+            }}
+            onSave={(id) => toggleBookmark(id)}
+            onInquire={(i) => {
+                openContactModal({
+                    recipientId: i.partnerId || i.author_id,
+                    recipientType: i.author_type === 'admin' ? 'admin' : (i.author_type || 'partner'),
+                    recipientName: i.companyName || i.name || 'Recipient',
+                    jobPostingId: i.feedType === 'job' ? i.id : undefined,
+                    sourceLabel: i.title,
+                });
+            }}
+            openProfile={openProfile}
+            isBookmarked={dashboardPostInteractions.some(i => i.post_id === selectedJob?.id && i.interaction_type === 'save')}
+            applied={dashboardPostInteractions.some(i => i.post_id === selectedJob?.id && ['apply', 'register', 'refer'].includes(i.interaction_type))}
+        />
+      )}
+
+      {/* Bulletin Interaction Modals */}
+      {bulletinModal && (() => {
+        const cfg = BULLETIN_CONFIG[bulletinModal.post.post_type] || BULLETIN_CONFIG.announcement;
+        const isRefer = bulletinModal.type === 'refer' || bulletinModal.type === 'apply';
+        const isInquiry = bulletinModal.type === 'inquire';
+        const title = isRefer ? 'Refer an Apprentice' : isInquiry ? 'Send Inquiry' : 'Register Apprentice';
+        return (
+          <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
+            <div style={{ background: '#fff', borderRadius: 16, width: '100%', maxWidth: 480, boxShadow: '0 20px 60px rgba(0,0,0,0.2)', overflow: 'hidden' }}>
+              <div style={{ background: cfg.color, padding: '16px 20px', display: 'flex', alignItems: 'center', gap: 12 }}>
+                <div style={{ fontSize: 20 }}>{cfg.emoji}</div>
+                <div>
+                  <div style={{ fontWeight: 700, color: '#fff', fontSize: 15 }}>{title}</div>
+                  <div style={{ color: 'rgba(255,255,255,0.8)', fontSize: 12 }}>{bulletinModal.post.title}</div>
+                </div>
+                <button onClick={() => setBulletinModal(null)} style={{ marginLeft: 'auto', background: 'rgba(255,255,255,0.2)', border: 'none', borderRadius: 8, width: 28, height: 28, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <X size={14} color="#fff" />
+                </button>
+              </div>
+              <div style={{ padding: '20px' }}>
+                {isRefer ? (
+                  <>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 14 }}>
+                      <div>
+                        <label style={{ fontSize: 12, fontWeight: 700, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.05em', display: 'block', marginBottom: 6 }}>Apprentice Name *</label>
+                        <input value={referralName} onChange={e => setReferralName(e.target.value)} placeholder="Full name" style={{ width: '100%', padding: '10px 12px', borderRadius: 8, border: '1.5px solid #e2e8f0', fontSize: 13, outline: 'none', boxSizing: 'border-box' }} />
+                      </div>
+                      <div>
+                        <label style={{ fontSize: 12, fontWeight: 700, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.05em', display: 'block', marginBottom: 6 }}>Contact / Email</label>
+                        <input value={referralContact} onChange={e => setReferralContact(e.target.value)} placeholder="email or phone" style={{ width: '100%', padding: '10px 12px', borderRadius: 8, border: '1.5px solid #e2e8f0', fontSize: 13, outline: 'none', boxSizing: 'border-box' }} />
+                      </div>
+                    </div>
+                    <div style={{ marginBottom: 14 }}>
+                      <label style={{ fontSize: 12, fontWeight: 700, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.05em', display: 'block', marginBottom: 6 }}>Notes (optional)</label>
+                      <textarea value={referralNotes} onChange={e => setReferralNotes(e.target.value)} placeholder="Add any relevant notes about the apprentice..." rows={3} style={{ width: '100%', padding: '10px 12px', borderRadius: 8, border: '1.5px solid #e2e8f0', fontSize: 13, outline: 'none', resize: 'none', boxSizing: 'border-box' }} />
+                    </div>
+                  </>
+                ) : (
+                  <div style={{ marginBottom: 14 }}>
+                    <label style={{ fontSize: 12, fontWeight: 700, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.05em', display: 'block', marginBottom: 6 }}>
+                      {isInquiry ? 'Your Inquiry *' : 'Message (optional)'}
+                    </label>
+                    <textarea value={bulletinMsg} onChange={e => setBulletinMsg(e.target.value)} placeholder={isInquiry ? 'Type your inquiry here...' : 'Add a note...'} rows={4} style={{ width: '100%', padding: '10px 12px', borderRadius: 8, border: '1.5px solid #e2e8f0', fontSize: 13, outline: 'none', resize: 'none', boxSizing: 'border-box' }} />
+                  </div>
+                )}
+                <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
+                  <button onClick={() => setBulletinModal(null)} style={{ padding: '10px 18px', borderRadius: 8, border: '1.5px solid #e2e8f0', background: '#fff', color: '#64748b', fontWeight: 600, cursor: 'pointer' }}>Cancel</button>
+                  <button
+                    onClick={handleBulletinSubmit}
+                    disabled={bulletinSubmitting || (isRefer && !referralName.trim()) || (isInquiry && !bulletinMsg.trim())}
+                    style={{ padding: '10px 20px', borderRadius: 8, border: 'none', background: cfg.color, color: '#fff', fontWeight: 700, cursor: 'pointer', opacity: bulletinSubmitting ? 0.6 : 1 }}
+                  >
+                    {bulletinSubmitting ? 'Submitting...' : isRefer ? 'Submit Referral' : isInquiry ? 'Send Inquiry' : 'Confirm'}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
     </>
   );
 }

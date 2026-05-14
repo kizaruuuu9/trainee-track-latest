@@ -125,24 +125,41 @@ const mapJobRow = (j) => ({
   status: j.status || 'Open',
   datePosted: j.created_at?.split('T')[0],
   createdAt: j.created_at,
+  hasValidPartner: !!j.industry_partners,
   feedType: 'job',
 });
 
-const fetchJobPostings = async (limit = 20) => {
-  const { data: jobs, error } = await supabase
+const fetchJobPostings = async ({ limit = 20, ids = null } = {}) => {
+  // If ids is an empty array, return empty results immediately
+  if (ids !== null && ids.length === 0) return [];
+
+  let query = supabase
     .from('job_postings')
     .select('id, partner_id, program_id, title, company_name, description, requirements, location, salary_min, salary_max, salary_range, employment_type, slots, status, created_at, opportunity_type, nc_level, required_competencies, required_skills, industry, attachment_url, attachment_name, attachment_type, source, source_url, industry_partners(company_name), programs(name, competencies, description)')
-    .order('created_at', { ascending: false })
-    .limit(limit);
+    .order('created_at', { ascending: false });
+
+  if (ids && ids.length > 0) {
+    const cleanIds = ids.filter(Boolean);
+    if (cleanIds.length === 0) return [];
+    query = query.in('id', cleanIds);
+  } else {
+    query = query.limit(limit);
+  }
+
+  const { data: jobs, error } = await query;
 
   if (error) throw error;
   return (jobs || []).map(mapJobRow);
 };
 
-export const useJobPostings = (limit = 20, options = {}) => {
+export const useJobPostings = (params = 20, options = {}) => {
+  const isObject = typeof params === 'object' && params !== null;
+  const limit = isObject ? (params.limit || 40) : (params || 40);
+  const ids = isObject ? params.ids : null;
+
   return useQuery({
-    queryKey: queryKeys.jobPostings(limit),
-    queryFn: () => fetchJobPostings(limit),
+    queryKey: queryKeys.jobPostings(isObject ? params : limit),
+    queryFn: () => fetchJobPostings({ limit, ids }),
     staleTime: 2 * 60 * 1000,
     ...options,
   });

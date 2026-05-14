@@ -1,7 +1,5 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../../lib/supabase';
-import { queryKeys } from '../../lib/queryClient';
-import toast from 'react-hot-toast';
 
 export const useCreatePost = () => {
   const queryClient = useQueryClient();

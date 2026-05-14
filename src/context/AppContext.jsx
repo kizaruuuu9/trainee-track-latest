@@ -947,11 +947,28 @@ export const AppProvider = ({ children }) => {
 
       // For 'save' interaction, check if it already exists to toggle it
       if (interactionType === 'save') {
+        // 1. Sync with student profile array if trainee (Primary legacy storage)
+        if (userRole === 'trainee' && currentUser) {
+            const currentSaved = Array.isArray(currentUser.savedOpportunities) ? currentUser.savedOpportunities : [];
+            const isSavedInProfile = currentSaved.includes(postId);
+            let updatedSaved = [...currentSaved];
+            
+            if (isSavedInProfile) {
+                updatedSaved = updatedSaved.filter(id => id !== postId);
+            } else {
+                updatedSaved = [...updatedSaved, postId];
+            }
+            // Update profile
+            await updateTrainee(currentUser.id, { savedOpportunities: updatedSaved });
+        }
+
+        // 2. Handle interaction table (Modern global storage)
         const existing = postInteractions.find(i => i.post_id === postId && i.user_id === currentUser.id && i.interaction_type === 'save');
         if (existing) {
           const { error } = await supabase.from('post_interactions').delete().eq('id', existing.id);
           if (!error) {
             setPostInteractions(prev => prev.filter(i => i.id !== existing.id));
+            queryClient.invalidateQueries({ queryKey: ['postInteractions'] });
             return { success: true, action: 'removed' };
           }
           throw error;
@@ -972,6 +989,13 @@ export const AppProvider = ({ children }) => {
       const { data, error } = await supabase.from('post_interactions').insert([payload]).select().single();
       if (error) {
         if (error.code === '42P01') return { success: false, error: 'post_interactions table not found. Run migrations.' };
+        if (error.code === '23503' && interactionType === 'save') {
+           // Handle Foreign Key violation for 'save' interactions (e.g. saving a Job ID to a table that only expects Post IDs)
+           console.warn('[PostInteraction] FK constraint violation for save. This usually happens if the ID is not in the posts table.');
+           // Note: We don't return error here if it was already saved to student profile above
+           if (userRole === 'trainee') return { success: true, action: 'profile_only' };
+           return { success: false, error: 'This item type cannot be saved to the interaction table yet due to database constraints.', code: 'FK_VIOLATION' };
+        }
         throw error;
       }
       setPostInteractions(prev => [data, ...prev]);
@@ -3100,7 +3124,7 @@ export const AppProvider = ({ children }) => {
       // Fetch student record with program name
       const { data: student, error: studentErr } = await supabase
         .from('students')
-        .select('id, full_name, student_id, program_id, phone, birthdate, gender, region, province, city, barangay, detailed_address, selfie_url, banner_url, front_id_url, back_id_url, employment_status, employment_work, employment_start, graduate_school, educ_history, work_experience, resume_url, profile_completed, created_at, updated_at, profile_picture_url, skills, interests, certifications, graduation_year, training_status, contact_email, activity_status, last_seen_at, personal_info_visibility, trainings, bio, employer, job_title, date_hired, programs(name, nc_level)')
+        .select('id, full_name, student_id, program_id, phone, birthdate, gender, region, province, city, barangay, detailed_address, selfie_url, banner_url, front_id_url, back_id_url, employment_status, employment_work, employment_start, graduate_school, educ_history, work_experience, resume_url, profile_completed, created_at, updated_at, profile_picture_url, skills, interests, certifications, graduation_year, training_status, contact_email, activity_status, last_seen_at, personal_info_visibility, trainings, bio, employer, job_title, date_hired, saved_opportunities, programs(name, nc_level)')
         .eq('id', userId)
         .maybeSingle();
 
@@ -3173,6 +3197,7 @@ export const AppProvider = ({ children }) => {
         certificationProgress: [],
         personalInfoVisibility: resolveVisibilityFields(student.personal_info_visibility, DEFAULT_STUDENT_PUBLIC_INFO_FIELDS),
         selfieUrl: student.selfie_url || null,
+        savedOpportunities: student.saved_opportunities || [],
         createdAt: student.created_at || new Date().toISOString(),
       };
 
@@ -4117,6 +4142,12 @@ export const AppProvider = ({ children }) => {
           queryClient.invalidateQueries({ queryKey: queryKeys.contactRequests(currentUser.id) });
         }
       })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'posts' }, () => {
+        queryClient.invalidateQueries({ queryKey: ['posts'] });
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'job_postings' }, () => {
+        queryClient.invalidateQueries({ queryKey: ['jobPostings'] });
+      })
       .subscribe();
 
     let adminRealtimeChannel = null;
@@ -4411,6 +4442,7 @@ export const AppProvider = ({ children }) => {
       postInteractions,
       fetchPostInteractions,
       createPostInteraction,
+      toggleBookmark: (postId) => createPostInteraction(postId, 'save'),
       updatePostInteractionStatus,
       getPostInteractions,
       getUserPostInteraction,

@@ -1233,9 +1233,10 @@ a text and a able to upload documents but not needed .two-col {
   display: flex;
   align-items: center;
   justify-content: center;
-  z-index: 1000;
-  padding: 16px;
+  z-index: 2000;
+  padding: 20px;
   backdrop-filter: blur(4px);
+  overflow: hidden;
 }
 
 .modal {
@@ -4940,24 +4941,28 @@ a text and a able to upload documents but not needed .two-col {
 .ln-modal {
   background: white;
   border-radius: 8px;
-  padding: 24px;
+  padding: 0;
   max-width: 600px;
   width: 100%;
   box-shadow: 0 12px 28px rgba(0, 0, 0, 0.2);
   animation: lnFadeIn 0.2s ease;
-  max-height: 90vh;
-  overflow-y: auto;
+  max-height: calc(100vh - 100px);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
 }
 
 .ln-modal-wide {
-  max-width: 900px !important;
+  max-width: 1100px !important;
 }
 
 .ln-modal-grid {
   display: grid;
   grid-template-columns: 1.6fr 1fr;
   gap: 32px;
-  margin-top: 16px;
+  flex: 1;
+  overflow-y: auto;
+  padding: 24px;
 }
 
 @media (max-width: 992px) {
@@ -4975,7 +4980,8 @@ a text and a able to upload documents but not needed .two-col {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
-  margin-bottom: 16px;
+  padding: 20px 24px;
+  border-bottom: 1px solid #f3f2ef;
 }
 
 .ln-modal-title {
@@ -4987,10 +4993,12 @@ a text and a able to upload documents but not needed .two-col {
 
 .ln-modal-footer {
   display: flex;
-  justify-content: space-between;
+  justify-content: flex-end;
   align-items: center;
-  padding-top: 16px;
-  border-top: 1px solid #e0dfdc;
+  gap: 12px;
+  padding: 16px 24px;
+  border-top: 1px solid #f3f2ef;
+  background: #fff;
 }
 
 /* --------- PROFILE PAGE ------------------------------------------------------------------------------------------------------------------------------------------------------ */
@@ -7915,3 +7923,8 @@ body {
   font-size: 12px;
   color: #64748b;
 }
+@keyframes shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
+
+.skeleton-shimmer { background: linear-gradient(90deg, #f1f5f9 25%, #f8fafc 50%, #f1f5f9 75%); background-size: 200% 100%; animation: shimmer 2s infinite linear; }
+.lnPulse { animation: lnPulse 2s infinite; }
+@keyframes lnPulse { 0% { box-shadow: 0 0 0 0 rgba(10, 102, 194, 0.4); } 70% { box-shadow: 0 0 0 10px rgba(10, 102, 194, 0); } 100% { box-shadow: 0 0 0 0 rgba(10, 102, 194, 0); } }

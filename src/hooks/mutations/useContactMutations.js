@@ -35,13 +35,11 @@ export const useSendContactRequest = () => {
       if (error) throw error;
       return data;
     },
-    onSuccess: (_, variables) => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.contactRequests(variables.recipientId) });
-      queryClient.invalidateQueries({ queryKey: ['applications'] }); // Since applications view merges contact requests
-      toast.success('Message sent');
+    onSuccess: (data, variables) => {
+      // Invalidate for both sender and recipient to ensure UI parity
+      if (data.sender_id) queryClient.invalidateQueries({ queryKey: queryKeys.contactRequests(data.sender_id) });
+      if (data.recipient_id) queryClient.invalidateQueries({ queryKey: queryKeys.contactRequests(data.recipient_id) });
+      queryClient.invalidateQueries({ queryKey: ['applications'] });
     },
-    onError: (error) => {
-      toast.error(`Failed to send: ${error.message}`);
-    }
   });
 };

@@ -82,7 +82,7 @@ const fetchPrograms = async ({ page = 1, pageSize = 15, search = '' }) => {
 
 export const usePrograms = ({ page, pageSize, search } = {}) => {
   return useQuery({
-    queryKey: ['programs', { page, pageSize, search }],
+    queryKey: queryKeys.programs({ page, pageSize, search }),
     queryFn: () => fetchPrograms({ page, pageSize, search }),
     staleTime: 5 * 60 * 1000, // 5 minutes
     placeholderData: (previousData) => previousData,

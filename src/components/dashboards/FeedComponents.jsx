@@ -8,6 +8,87 @@ import { useApp } from '../../context/AppContext';
 import { useTrainees, usePartners } from '../../hooks';
 import toast from 'react-hot-toast';
 
+/**
+ * RealtimeStatus: A small badge that shows the current sync status
+ */
+export const RealtimeStatus = ({ isFetching }) => {
+  return (
+    <div style={{
+      display: 'flex',
+      alignItems: 'center',
+      gap: 6,
+      padding: '4px 10px',
+      borderRadius: 20,
+      background: isFetching ? '#f0f9ff' : '#f8fafc',
+      border: '1px solid',
+      borderColor: isFetching ? '#bae6fd' : '#e2e8f0',
+      fontSize: 11,
+      fontWeight: 700,
+      color: isFetching ? '#0369a1' : '#64748b',
+      transition: 'all 0.3s ease'
+    }}>
+      <div 
+        className={isFetching ? "pulse-dot" : ""}
+        style={{
+          width: 6,
+          height: 6,
+          borderRadius: '50%',
+          background: isFetching ? '#0ea5e9' : '#94a3b8',
+          animation: isFetching ? 'lnPulse 2s infinite' : 'none'
+        }} 
+      />
+      {isFetching ? 'Syncing...' : 'Live'}
+    </div>
+  );
+};
+
+/**
+ * FeedSkeleton: Loading state for the feed
+ */
+export const FeedSkeleton = ({ count = 3, viewMode = 'list' }) => {
+  const items = Array.from({ length: count });
+  
+  if (viewMode === 'grid') {
+    return (
+      <div className="tt-feed-grid">
+        {items.map((_, i) => (
+          <div key={i} className="ln-card" style={{ height: 380, background: '#fff', overflow: 'hidden', border: '1px solid #e2e8f0' }}>
+            <div className="skeleton-shimmer" style={{ height: 160, width: '100%', background: '#f1f5f9' }} />
+            <div style={{ padding: 20 }}>
+              <div className="skeleton-shimmer" style={{ height: 24, width: '80%', marginBottom: 12, background: '#f1f5f9', borderRadius: 4 }} />
+              <div className="skeleton-shimmer" style={{ height: 16, width: '100%', marginBottom: 8, background: '#f1f5f9', borderRadius: 4 }} />
+              <div className="skeleton-shimmer" style={{ height: 16, width: '60%', marginBottom: 20, background: '#f1f5f9', borderRadius: 4 }} />
+              <div style={{ display: 'flex', gap: 10 }}>
+                <div className="skeleton-shimmer" style={{ height: 36, flex: 1, background: '#f1f5f9', borderRadius: 8 }} />
+                <div className="skeleton-shimmer" style={{ height: 36, width: 36, background: '#f1f5f9', borderRadius: 8 }} />
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+      {items.map((_, i) => (
+        <div key={i} className="ln-card" style={{ padding: 20, background: '#fff', border: '1px solid #e2e8f0' }}>
+          <div style={{ display: 'flex', gap: 12, marginBottom: 16 }}>
+            <div className="skeleton-shimmer" style={{ width: 48, height: 48, borderRadius: '50%', background: '#f1f5f9' }} />
+            <div style={{ flex: 1 }}>
+              <div className="skeleton-shimmer" style={{ height: 16, width: '150px', marginBottom: 8, background: '#f1f5f9', borderRadius: 4 }} />
+              <div className="skeleton-shimmer" style={{ height: 12, width: '80px', background: '#f1f5f9', borderRadius: 4 }} />
+            </div>
+          </div>
+          <div className="skeleton-shimmer" style={{ height: 20, width: '90%', marginBottom: 12, background: '#f1f5f9', borderRadius: 4 }} />
+          <div className="skeleton-shimmer" style={{ height: 16, width: '100%', marginBottom: 8, background: '#f1f5f9', borderRadius: 4 }} />
+          <div className="skeleton-shimmer" style={{ height: 16, width: '70%', background: '#f1f5f9', borderRadius: 4 }} />
+        </div>
+      ))}
+    </div>
+  );
+};
+
 // --- FILE SIZE HELPER ---
 const formatFileSize = (bytes) => {
   if (!bytes || bytes === 0) return '0 Bytes';
@@ -124,15 +205,15 @@ export const VerifiedBadge = ({ size = 14 }) => (
 // --- SHARED COMPONENTS ---
 
 export const BULLETIN_CONFIG = {
-  training: { label: 'Training Program', color: '#7c3aed', bg: '#ede9fe', emoji: '📚', traineeLabel: 'Apply', type: 'apply' },
-  event: { label: 'Event', color: '#0ea5e9', bg: '#e0f2fe', emoji: '📅', traineeLabel: 'Register', type: 'register' },
-  workshop: { label: 'Workshop', color: '#0ea5e9', bg: '#e0f2fe', emoji: '🛠️', traineeLabel: 'Register', type: 'register' },
-  announcement: { label: 'Announcement', color: '#d97706', bg: '#fef3c7', emoji: '📢', traineeLabel: null, type: null },
-  scholarship: { label: 'Scholarship', color: '#16a34a', bg: '#dcfce7', emoji: '🎓', traineeLabel: 'Apply', type: 'apply' },
-  ojt_opportunity: { label: 'OJT Opportunity', color: '#ef4444', bg: '#fee2e2', emoji: '💼', traineeLabel: 'Apply', type: 'apply' },
-  training_batch: { label: 'Training Batch', color: '#7c3aed', bg: '#ede9fe', emoji: '📚', traineeLabel: 'Apply', type: 'apply' },
-  exam_schedule: { label: 'Exam Schedule', color: '#0ea5e9', bg: '#e0f2fe', emoji: '📝', traineeLabel: 'Register', type: 'register' },
-  certification_assessment: { label: 'Certification Assessment', color: '#16a34a', bg: '#dcfce7', emoji: '🏆', traineeLabel: 'Register', type: 'register' }
+  training: { label: 'Training Program', color: '#7c3aed', bg: '#ede9fe', emoji: '📚', traineeLabel: 'Apply', partnerLabel: 'Refer Apprentice', type: 'apply' },
+  event: { label: 'Event', color: '#0ea5e9', bg: '#e0f2fe', emoji: '📅', traineeLabel: 'Register', partnerLabel: 'Register Apprentice', type: 'register' },
+  workshop: { label: 'Workshop', color: '#0ea5e9', bg: '#e0f2fe', emoji: '🛠️', traineeLabel: 'Register', partnerLabel: 'Register Apprentice', type: 'register' },
+  announcement: { label: 'Announcement', color: '#d97706', bg: '#fef3c7', emoji: '📢', traineeLabel: null, partnerLabel: null, type: null },
+  scholarship: { label: 'Scholarship', color: '#16a34a', bg: '#dcfce7', emoji: '🎓', traineeLabel: 'Apply', partnerLabel: 'Refer Apprentice', type: 'apply' },
+  ojt_opportunity: { label: 'OJT Opportunity', color: '#ef4444', bg: '#fee2e2', emoji: '💼', traineeLabel: 'Apply', partnerLabel: 'Refer Apprentice', type: 'apply' },
+  training_batch: { label: 'Training Batch', color: '#7c3aed', bg: '#ede9fe', emoji: '📚', traineeLabel: 'Apply', partnerLabel: 'Refer Apprentice', type: 'apply' },
+  exam_schedule: { label: 'Exam Schedule', color: '#0ea5e9', bg: '#e0f2fe', emoji: '📝', traineeLabel: 'Register', partnerLabel: 'Register Apprentice', type: 'register' },
+  certification_assessment: { label: 'Certification Assessment', color: '#16a34a', bg: '#dcfce7', emoji: '🏆', traineeLabel: 'Register', partnerLabel: 'Register Apprentice', type: 'register' }
 };
 
 export const POST_THEME = {
@@ -525,9 +606,10 @@ export const UniversalPostModal = ({
 /**
  * FeedItemDetailModal: A premium modal to show the full details of a post, job, or bulletin.
  */
-export const FeedItemDetailModal = ({ item, onClose, onApply, onSave, onInquire, openProfile }) => {
-  const { currentUser, getUserPostInteraction } = useApp();
+export const FeedItemDetailModal = ({ item, onClose, onApply, onSave, onInquire, openProfile, applied, contacted }) => {
+  const { currentUser, trainees, partners, getUserPostInteraction, userRole } = useApp();
   const [imageOrientation, setImageOrientation] = useState('landscape'); // default
+  const [optimisticSaved, setOptimisticSaved] = useState(null);
 
   useEffect(() => {
     const src = item?.media_url || item?.attachmentUrl;
@@ -556,11 +638,16 @@ export const FeedItemDetailModal = ({ item, onClose, onApply, onSave, onInquire,
   };
 
   const author = getAuthor();
+  const isApplied = applied || (isJob 
+    ? (Array.isArray(currentUser?.appliedOpportunities) && currentUser.appliedOpportunities.includes(item.id)) 
+    : !!getUserPostInteraction(item.id, 'apply'));
+
+  const isOwnPost = item.author_id === currentUser?.id || item.partnerId === currentUser?.id;
 
 
   return (
     <div className="ln-modal-overlay" style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(8px)', zIndex: 10000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }} onClick={onClose}>
-      <div className="ln-modal-content" style={{ width: '100%', maxWidth: 960, maxHeight: '94vh', background: '#fff', borderRadius: 20, display: 'flex', flexDirection: 'column', overflow: 'hidden', animation: 'lnModalIn 0.3s cubic-bezier(0.16, 1, 0.3, 1)' }} onClick={e => e.stopPropagation()}>
+      <div className="ln-modal-content" style={{ width: '100%', maxWidth: 1100, maxHeight: '94vh', background: '#fff', borderRadius: 20, display: 'flex', flexDirection: 'column', overflow: 'hidden', animation: 'lnModalIn 0.3s cubic-bezier(0.16, 1, 0.3, 1)' }} onClick={e => e.stopPropagation()}>
 
         {/* Header */}
         <div style={{ padding: '16px 24px', borderBottom: '1px solid #f1f5f9', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
@@ -580,7 +667,7 @@ export const FeedItemDetailModal = ({ item, onClose, onApply, onSave, onInquire,
         </div>
 
         {/* Scrollable Content */}
-        <div style={{ flex: 1, overflowY: 'auto', padding: '24px' }}>
+        <div style={{ flex: 1, overflowY: 'auto', padding: '32px' }}>
           {isBulletin && (
             <div style={{ marginBottom: 20 }}>
               <span style={{ fontSize: 11, fontWeight: 800, textTransform: 'uppercase', color: BULLETIN_CONFIG[item.post_type]?.color, background: BULLETIN_CONFIG[item.post_type]?.bg, padding: '4px 10px', borderRadius: 20 }}>
@@ -589,28 +676,36 @@ export const FeedItemDetailModal = ({ item, onClose, onApply, onSave, onInquire,
             </div>
           )}
 
-          <h1 style={{ fontSize: 28, fontWeight: 900, lineHeight: 1.2, color: '#0f172a', marginBottom: 16 }}>{item.title}</h1>
+          <h1 style={{ fontSize: 32, fontWeight: 900, lineHeight: 1.2, color: '#0f172a', marginBottom: 20 }}>{item.title}</h1>
 
-          <div style={{ fontSize: 16, lineHeight: 1.7, color: '#334155', whiteSpace: 'pre-wrap', marginBottom: 24 }}>
+          <div style={{ fontSize: 17, lineHeight: 1.7, color: '#334155', whiteSpace: 'pre-wrap', marginBottom: 32 }}>
             {item.description || item.content}
           </div>
 
           {(item.media_url || item.attachmentUrl) && (
             <div style={{
-              borderRadius: 16,
+              borderRadius: 20,
               overflow: 'hidden',
-              border: '1px solid #e2e8f0',
-              marginBottom: 24,
-              background: '#0f172a',
+              border: '1px solid #000',
+              marginBottom: 32,
+              background: '#000', // Pitch black for cinema bars effect
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
               position: 'relative',
-              ...(imageOrientation === 'portrait' 
-                ? { width: '100%', maxWidth: 500, height: 600, margin: '0 auto 24px' } 
-                : { width: '100%', height: 480 })
+              width: '100%',
+              height: imageOrientation === 'portrait' ? 700 : 540
             }}>
-              <img src={item.media_url || item.attachmentUrl} alt="" style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain', display: 'block' }} />
+              <img 
+                src={item.media_url || item.attachmentUrl} 
+                alt="" 
+                style={{ 
+                  maxWidth: '100%', 
+                  maxHeight: '100%', 
+                  objectFit: 'contain', 
+                  display: 'block' 
+                }} 
+              />
               {item.attachmentType && item.attachmentType.includes('(') && (
                 <div style={{
                   position: 'absolute', bottom: 16, right: 16,
@@ -635,28 +730,120 @@ export const FeedItemDetailModal = ({ item, onClose, onApply, onSave, onInquire,
                 {item.ncLevel && <div><div style={{ fontSize: 11, color: '#64748b', fontWeight: 800, textTransform: 'uppercase' }}>Requirement</div><div style={{ fontWeight: 700, fontSize: 14, color: '#7c3aed' }}>{item.ncLevel}</div></div>}
                 {item.salaryRange && <div><div style={{ fontSize: 11, color: '#64748b', fontWeight: 800, textTransform: 'uppercase' }}>Proposed Salary</div><div style={{ fontWeight: 700, fontSize: 14, color: '#16a34a' }}>{formatSalaryDisplay(item.salaryRange)}</div></div>}
               </div>
+
+              {Array.isArray(item.requiredCompetencies) && item.requiredCompetencies.length > 0 && (
+                <div style={{ marginTop: 20, paddingTop: 20, borderTop: '1px solid #e2e8f0' }}>
+                  <div style={{ fontSize: 11, color: '#64748b', fontWeight: 800, textTransform: 'uppercase', marginBottom: 12 }}>Required Competencies</div>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                    {item.requiredCompetencies.map((comp, idx) => (
+                      <span key={idx} style={{ padding: '6px 14px', borderRadius: 20, background: '#fff', border: '1px solid #e2e8f0', fontSize: 13, fontWeight: 600, color: '#475569' }}>
+                        {comp}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {isBulletin && (
+            <div style={{ background: '#f8fafc', padding: 20, borderRadius: 16, border: '1px solid #e2e8f0', marginBottom: 24 }}>
+               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 16 }}>
+                  {item.schedule && <div><div style={{ fontSize: 11, color: '#64748b', fontWeight: 800, textTransform: 'uppercase' }}>Schedule</div><div style={{ fontWeight: 700, fontSize: 14, color: '#0f172a' }}>{formatBulletinDate(item.schedule)}</div></div>}
+                  {item.time_range && <div><div style={{ fontSize: 11, color: '#64748b', fontWeight: 800, textTransform: 'uppercase' }}>Time</div><div style={{ fontWeight: 700, fontSize: 14, color: '#0f172a' }}>{item.time_range}</div></div>}
+                  {item.slots && <div><div style={{ fontSize: 11, color: '#64748b', fontWeight: 800, textTransform: 'uppercase' }}>Available Slots</div><div style={{ fontWeight: 800, fontSize: 16, color: BULLETIN_CONFIG[item.post_type]?.color || '#7c3aed' }}>{item.slots}</div></div>}
+               </div>
+
+               {Array.isArray(item.requirements) && item.requirements.length > 0 && (
+                <div style={{ marginTop: 20, paddingTop: 20, borderTop: '1px solid #e2e8f0' }}>
+                  <div style={{ fontSize: 11, color: '#64748b', fontWeight: 800, textTransform: 'uppercase', marginBottom: 12 }}>Requirements</div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                    {item.requirements.map((req, idx) => (
+                      <div key={idx} style={{ display: 'flex', gap: 8, fontSize: 14, color: '#475569', lineHeight: 1.5 }}>
+                        <span style={{ color: BULLETIN_CONFIG[item.post_type]?.color || '#7c3aed', fontWeight: 900 }}>•</span>
+                        {req}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           )}
 
           {/* Detailed Actions */}
-          <div style={{ display: 'flex', gap: 12, borderTop: '1px solid #f1f5f9', paddingTop: 20, marginBottom: 30 }}>
-            {isBulletin && BULLETIN_CONFIG[item.post_type]?.traineeLabel && (
-              <button
-                className="ln-btn ln-btn-primary"
-                disabled={getUserPostInteraction(item.id, BULLETIN_CONFIG[item.post_type]?.type)}
-                onClick={() => onApply(item, BULLETIN_CONFIG[item.post_type]?.type)}
-                style={{ flex: 1, borderRadius: 12, height: 48 }}
+          {!isOwnPost && (
+            <div style={{ display: 'flex', gap: 16, borderTop: '1px solid #f1f5f9', paddingTop: 24, marginBottom: 40 }}>
+              {/* Contact Button */}
+              <button 
+                className="ln-btn ln-btn-outline" 
+                onClick={() => onInquire(item)} 
+                disabled={contacted}
+                style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '0 24px', borderRadius: 14, height: 56, fontWeight: 700, fontSize: 15, ...(contacted ? { color: '#057642', background: '#f0fdf4', border: '1px solid #bbf7d0' } : {}) }}
               >
-                {getUserPostInteraction(item.id, BULLETIN_CONFIG[item.post_type]?.type) ? 'Applied' : BULLETIN_CONFIG[item.post_type]?.traineeLabel}
+                {contacted ? <><Check size={20} /> Contacted</> : <><Mail size={20} /> Contact</>}
               </button>
-            )}
-            {isJob && (
-              <button className="ln-btn ln-btn-primary" onClick={() => onApply(item)} style={{ flex: 1, borderRadius: 12, height: 48 }}>Apply Now</button>
-            )}
-            <button className="ln-btn ln-btn-outline" onClick={() => onSave(item.id)} style={{ padding: '0 20px', borderRadius: 12, height: 48 }}>
-              <Bookmark size={18} fill={getUserPostInteraction(item.id, 'save') ? 'currentColor' : 'none'} />
-            </button>
-          </div>
+              
+              {/* Save Button */}
+              {(() => {
+                const dbSaved = (getUserPostInteraction(item.id, 'save') || (isJob && Array.isArray(currentUser?.savedOpportunities) && currentUser.savedOpportunities.includes(item.id)));
+                const isSaved = optimisticSaved !== null ? optimisticSaved : dbSaved;
+                return (
+                  <button 
+                    className="ln-btn ln-btn-outline" 
+                    onClick={() => {
+                      setOptimisticSaved(!isSaved);
+                      onSave(item.id);
+                    }} 
+                    style={{ 
+                      display: 'flex', alignItems: 'center', gap: 10, padding: '0 24px', borderRadius: 14, height: 56, fontWeight: 700, fontSize: 15,
+                      ...(isSaved ? { color: '#d97706', background: '#fff7ed', border: '1px solid #fed7aa' } : {})
+                    }}
+                  >
+                    {isSaved ? (
+                      <>
+                        <Bookmark size={20} fill="currentColor" /> Saved
+                      </>
+                    ) : (
+                      <>
+                        <Bookmark size={20} fill="none" /> Save
+                      </>
+                    )}
+                  </button>
+                );
+              })()}
+
+              {/* Apply Button */}
+              {isBulletin && (BULLETIN_CONFIG[item.post_type]?.traineeLabel || BULLETIN_CONFIG[item.post_type]?.partnerLabel) && (
+                (() => {
+                  const cfg = BULLETIN_CONFIG[item.post_type] || BULLETIN_CONFIG.announcement;
+                  const isPartner = userRole === 'partner' || currentUser?.user_type === 'industry_partner';
+                  const label = isPartner ? (cfg.partnerLabel || 'Refer') : (cfg.traineeLabel || 'Apply');
+                  const alreadyInteracted = getUserPostInteraction(item.id, cfg.type);
+                  
+                  return (
+                    <button
+                      className="ln-btn ln-btn-primary"
+                      disabled={alreadyInteracted || item.status === 'Closed' || item.status === 'Full'}
+                      onClick={() => onApply(item, cfg.type)}
+                      style={{ flex: 1, borderRadius: 14, height: 56, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10, fontSize: 17, fontWeight: 800 }}
+                    >
+                      {alreadyInteracted ? <><CheckCircle size={22} /> {isPartner ? 'Submitted' : 'Applied'}</> : <>{isPartner ? <Users size={22} /> : <Send size={22} />} {label}</>}
+                    </button>
+                  );
+                })()
+              )}
+              {isJob && (
+                <button 
+                  className="ln-btn ln-btn-primary" 
+                  onClick={() => onApply(item)} 
+                  disabled={isApplied || item.status !== 'Open'}
+                  style={{ flex: 1, borderRadius: 14, height: 56, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10, fontSize: 17, fontWeight: 800 }}
+                >
+                  {isApplied ? <><CheckCircle size={22} /> Applied</> : <><Send size={22} /> Apply Now</>}
+                </button>
+              )}
+            </div>
+          )}
 
         </div>
       </div>
@@ -681,7 +868,7 @@ export const FeedItem = ({
   setPostMenuId,
   onViewDetail
 }) => {
-  const { currentUser, getUserPostInteraction } = useApp();
+  const { currentUser, getUserPostInteraction, trainees, partners, userRole } = useApp();
 
   const isJob = item.feedType === 'job';
 
@@ -794,19 +981,23 @@ export const FeedItem = ({
           { label: 'Save', onClick: (e) => { e.stopPropagation(); onSave(item.id); }, active: !!getUserPostInteraction(item.id, 'save') }
         ];
       }
+      const isPartner = userRole === 'partner' || currentUser?.user_type === 'industry_partner';
+      const actionLabel = isPartner ? (cfg.partnerLabel || 'Refer') : (cfg.traineeLabel || 'Apply');
+
       return [
         cfg.type ? {
-          label: alreadyInteracted ? 'Applied' : (cfg.traineeLabel || 'Apply'),
+          label: alreadyInteracted ? (isPartner ? 'Submitted' : 'Applied') : actionLabel,
           primary: !alreadyInteracted,
           disabled: !!alreadyInteracted || item.status === 'Closed' || item.status === 'Full',
           onClick: (e) => { e.stopPropagation(); onApply(item, cfg.type); }
         } : null,
-        { label: 'Inquire', onClick: (e) => { e.stopPropagation(); onInquire(item); } },
+        { label: contacted ? 'Contacted' : 'Inquire', onClick: (e) => { e.stopPropagation(); onInquire(item); }, disabled: contacted },
         { label: getUserPostInteraction(item.id, 'save') ? 'Saved' : 'Save', onClick: (e) => { e.stopPropagation(); onSave(item.id); }, active: !!getUserPostInteraction(item.id, 'save') }
       ].filter(Boolean);
     }
     if (item.feedType === 'job') {
-      const isSaved = Array.isArray(currentUser?.savedOpportunities) && currentUser.savedOpportunities.includes(item.id);
+      const isSaved = (Array.isArray(currentUser?.savedOpportunities) && currentUser.savedOpportunities.includes(item.id)) || !!getUserPostInteraction(item.id, 'save');
+      const isApplied = Array.isArray(currentUser?.appliedOpportunities) && currentUser.appliedOpportunities.includes(item.id);
       if (isOwnPost) {
         return [
           { label: 'Applicants', primary: true, onClick: (e) => { e.stopPropagation(); onApply?.(item, 'applicants'); } },
@@ -814,20 +1005,22 @@ export const FeedItem = ({
         ];
       }
       return [
-        { label: 'Apply', primary: true, onClick: (e) => { e.stopPropagation(); onApply(item); } },
-        { label: 'Contact', primary: false, onClick: (e) => { e.stopPropagation(); onInquire(item); }, border: true },
+        { 
+            label: isApplied ? 'Applied' : 'Apply', 
+            primary: !isApplied, 
+            disabled: isApplied || item.status !== 'Open',
+            onClick: (e) => { e.stopPropagation(); onApply(item); } 
+        },
+        { label: contacted ? 'Contacted' : 'Contact', primary: false, onClick: (e) => { e.stopPropagation(); onInquire(item); }, border: true, disabled: contacted },
         { label: isSaved ? 'Saved' : 'Save', onClick: (e) => { e.stopPropagation(); onSave(item.id); }, active: isSaved }
       ];
     }
     // Post
     if (isOwnPost) {
-      return [
-        { label: 'Contact', primary: true, onClick: (e) => { e.stopPropagation(); onInquire?.(item); } },
-        { label: 'Save', onClick: (e) => { e.stopPropagation(); onSave?.(item.id); } }
-      ];
+      return [];
     }
     return [
-      { label: 'Contact', primary: true, onClick: (e) => { e.stopPropagation(); onInquire?.(item); } },
+      { label: contacted ? 'Contacted' : 'Contact', primary: true, onClick: (e) => { e.stopPropagation(); onInquire?.(item); }, disabled: contacted },
       { label: getUserPostInteraction(item.id, 'save') ? 'Saved' : 'Save', onClick: (e) => { e.stopPropagation(); onSave?.(item.id); }, active: !!getUserPostInteraction(item.id, 'save') }
     ];
   };
@@ -953,8 +1146,16 @@ export const FeedItem = ({
               className={`tt-feed-card-btn${btn.primary ? ' tt-feed-card-btn-primary' : ''}`}
               onClick={btn.onClick}
               disabled={btn.disabled}
-              style={btn.active ? { color: '#4f46e5', fontWeight: 700, borderColor: '#4f46e5' } : undefined}
+              style={{
+                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+                ...(btn.active ? { color: '#4f46e5', fontWeight: 700, borderColor: '#4f46e5' } : {})
+              }}
             >
+              {['Applied', 'Submitted', 'Registered'].includes(btn.label) && <CheckCircle size={14} />}
+              {['Apply', 'Register'].includes(btn.label) && <Send size={14} />}
+              {['Register Apprentice', 'Refer Apprentice'].includes(btn.label) && <Users size={14} />}
+              {btn.label === 'Saved' && <Bookmark size={14} fill="currentColor" />}
+              {btn.label === 'Save' && <Bookmark size={14} />}
               {btn.label}
             </button>
           ))}
@@ -978,10 +1179,13 @@ export const CompactFeedItem = ({
   postMenuId,
   setPostMenuId,
   hideApply = false,
-  applied = false
+  applied = false,
+  contacted = false,
+  saved = false
 }) => {
-  const { currentUser, trainees, partners, getUserPostInteraction } = useApp();
+  const { currentUser, trainees, partners, getUserPostInteraction, userRole } = useApp();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [optimisticSaved, setOptimisticSaved] = useState(null);
   const mobileMenuRef = useRef(null);
 
   // Close menu when clicking outside
@@ -997,8 +1201,11 @@ export const CompactFeedItem = ({
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [mobileMenuOpen]);
 
-  const isJob = item.feedType === 'job';
+  const isJob = item.feedType === 'job' || !!item.opportunityType;
   const isBulletin = item.feedType === 'bulletin';
+
+  const dbSaved = saved || (Array.isArray(currentUser?.savedOpportunities) && currentUser.savedOpportunities.includes(item.id)) || !!getUserPostInteraction(item.id, 'save');
+  const isSaved = optimisticSaved !== null ? optimisticSaved : dbSaved;
 
   const pastelColors = ['#bfdbfe', '#bbf7d0', '#e9d5ff', '#fed7aa', '#bae6fd', '#fbcfe8', '#fef08a'];
   const hashString = (str) => {
@@ -1096,25 +1303,33 @@ export const CompactFeedItem = ({
     description = item.content || '';
     iconContent = <span style={{ fontSize: 24 }}>{cfg.emoji}</span>;
 
+    const isPartner = userRole === 'partner' || currentUser?.user_type === 'industry_partner';
+    const actionLabel = isPartner ? (cfg.partnerLabel || 'Refer') : (cfg.traineeLabel || 'Apply');
+
     if (isOwnPost) {
-      buttons = [
-        { label: 'Applicants', primary: true, onClick: (e) => { e.stopPropagation(); onApply?.(item, 'applicants'); } },
-        { label: `Save`, onClick: (e) => { e.stopPropagation(); onSave?.(item.id); }, active: !!getUserPostInteraction(item.id, 'save') }
-      ];
+      buttons = [];
     } else {
       buttons = [
         (!hideApply && cfg.type) ? {
-          label: alreadyInteracted ? 'Applied' : (cfg.traineeLabel || 'Apply'),
+          label: alreadyInteracted ? (isPartner ? 'Submitted' : 'Applied') : actionLabel,
           primary: !alreadyInteracted,
           disabled: !!alreadyInteracted || item.status === 'Closed' || item.status === 'Full',
           onClick: (e) => { e.stopPropagation(); onApply?.(item, cfg.type); }
         } : null,
-        { label: 'Inquire', onClick: (e) => { e.stopPropagation(); onInquire?.(item); } },
-        { label: getUserPostInteraction(item.id, 'save') ? 'Saved' : 'Save', onClick: (e) => { e.stopPropagation(); onSave?.(item.id); }, active: !!getUserPostInteraction(item.id, 'save') }
+        { label: contacted ? 'Contacted' : 'Inquire', onClick: (e) => { e.stopPropagation(); onInquire?.(item); }, disabled: contacted },
+        { 
+          label: isSaved ? 'Saved' : 'Save', 
+          onClick: (e) => { 
+            e.stopPropagation(); 
+            setOptimisticSaved(!isSaved);
+            onSave?.(item.id); 
+          }, 
+          active: isSaved 
+        }
       ].filter(Boolean);
     }
   } else if (isJob) {
-    const isSaved = Array.isArray(currentUser?.savedOpportunities) && currentUser.savedOpportunities.includes(item.id);
+    const isApplied = applied || (Array.isArray(currentUser?.appliedOpportunities) && currentUser.appliedOpportunities.includes(item.id));
     title = item.title;
     subtitle = [item.companyName, item.opportunityType, item.location].filter(Boolean).join(' | ');
     description = item.description || '';
@@ -1128,17 +1343,30 @@ export const CompactFeedItem = ({
     }
 
     if (isOwnPost) {
-      buttons = [
-        { label: 'Applicants', primary: true, onClick: (e) => { e.stopPropagation(); onApply?.(item, 'applicants'); } },
-      ];
+      buttons = [];
     } else {
       buttons = [
-        { label: 'Contact', primary: false, onClick: (e) => { e.stopPropagation(); onInquire?.(item); } },
-        { label: isSaved ? 'Saved' : 'Save', primary: false, onClick: (e) => { e.stopPropagation(); onSave?.(item.id); }, active: isSaved },
+        { 
+          label: contacted ? 'Contacted' : 'Contact', 
+          primary: false, 
+          disabled: contacted,
+          onClick: (e) => { e.stopPropagation(); onInquire?.(item); },
+          icon: contacted ? <Check size={14} /> : <Mail size={14} />
+        },
+        { 
+          label: isSaved ? 'Saved' : 'Save', 
+          primary: false, 
+          onClick: (e) => { 
+            e.stopPropagation(); 
+            setOptimisticSaved(!isSaved);
+            onSave?.(item.id); 
+          }, 
+          active: isSaved 
+        },
         !hideApply ? { 
-            label: applied ? 'Applied' : 'Apply', 
-            primary: true, 
-            disabled: applied || item.status !== 'Open',
+            label: isApplied ? 'Applied' : 'Apply', 
+            primary: !isApplied, 
+            disabled: isApplied || item.status !== 'Open',
             onClick: (e) => { e.stopPropagation(); onApply?.(item); } 
         } : null
       ].filter(Boolean);
@@ -1166,14 +1394,19 @@ export const CompactFeedItem = ({
     }
 
     if (isOwnPost) {
-      buttons = [
-        { label: 'Contact', primary: true, onClick: (e) => { e.stopPropagation(); onInquire?.(item); } },
-        { label: 'Save', onClick: (e) => { e.stopPropagation(); onSave?.(item.id); } }
-      ];
+      buttons = [];
     } else {
       buttons = [
-        { label: 'Contact', primary: true, onClick: (e) => { e.stopPropagation(); onInquire?.(item); } },
-        { label: getUserPostInteraction(item.id, 'save') ? 'Saved' : 'Save', onClick: (e) => { e.stopPropagation(); onSave?.(item.id); }, active: !!getUserPostInteraction(item.id, 'save') }
+        { label: contacted ? 'Contacted' : 'Contact', primary: true, onClick: (e) => { e.stopPropagation(); onInquire?.(item); }, disabled: contacted },
+        { 
+          label: isSaved ? 'Saved' : 'Save', 
+          onClick: (e) => { 
+            e.stopPropagation(); 
+            setOptimisticSaved(!isSaved);
+            onSave?.(item.id); 
+          }, 
+          active: isSaved 
+        }
       ];
     }
   }
@@ -1286,13 +1519,14 @@ export const CompactFeedItem = ({
                           display: 'flex', alignItems: 'center', gap: 10, width: '100%',
                           padding: '12px 16px', border: 'none', background: 'none',
                           cursor: btn.disabled ? 'default' : 'pointer', fontSize: 14, 
-                          color: btn.primary ? '#4f46e5' : '#475569', textAlign: 'left',
-                          fontWeight: btn.primary ? 700 : 500, borderBottom: i < buttons.length - 1 ? '1px solid #f1f5f9' : 'none',
+                          color: btn.primary ? '#4f46e5' : (btn.active ? '#d97706' : '#475569'), textAlign: 'left',
+                          fontWeight: (btn.primary || btn.active) ? 700 : 500, borderBottom: i < buttons.length - 1 ? '1px solid #f1f5f9' : 'none',
                           opacity: btn.disabled ? 0.5 : 1
                         }}
                       >
-                        {btn.label === 'Applied' && <CheckCircle size={16} />}
-                        {btn.label === 'Apply' && <Send size={16} />}
+                        {['Applied', 'Submitted', 'Registered'].includes(btn.label) && <CheckCircle size={16} />}
+                        {['Apply', 'Register'].includes(btn.label) && <Send size={16} />}
+                        {['Register Apprentice', 'Refer Apprentice'].includes(btn.label) && <Users size={16} />}
                         {btn.label === 'Details' && <Eye size={16} />}
                         {btn.label === 'Saved' && <Bookmark size={16} fill="currentColor" />}
                         {btn.label === 'Save' && <Bookmark size={16} />}
@@ -1339,8 +1573,9 @@ export const CompactFeedItem = ({
                     fontSize: 13,
                     fontWeight: 600,
                     border: btn.primary ? 'none' : '1px solid #cbd5e1',
-                    backgroundColor: btn.primary ? (btn.disabled && btn.label === 'Applied' ? '#818cf8' : '#4f46e5') : 'transparent',
-                    color: btn.primary ? '#fff' : '#475569',
+                    backgroundColor: btn.primary ? (btn.disabled && btn.label === 'Applied' ? '#818cf8' : '#4f46e5') : (btn.active ? '#fff7ed' : 'transparent'),
+                    color: btn.primary ? '#fff' : (btn.active ? '#d97706' : '#475569'),
+                    borderColor: btn.primary ? 'transparent' : (btn.active ? '#fed7aa' : '#cbd5e1'),
                     cursor: btn.disabled ? 'default' : 'pointer',
                     display: 'flex',
                     alignItems: 'center',
@@ -1348,8 +1583,9 @@ export const CompactFeedItem = ({
                     opacity: btn.disabled && btn.label !== 'Applied' ? 0.5 : 1
                   }}
                 >
-                  {btn.label === 'Applied' && <CheckCircle size={14} />}
-                  {btn.label === 'Apply' && <Send size={14} />}
+                  {['Applied', 'Submitted', 'Registered'].includes(btn.label) && <CheckCircle size={14} />}
+                  {['Apply', 'Register'].includes(btn.label) && <Send size={14} />}
+                  {['Register Apprentice', 'Refer Apprentice'].includes(btn.label) && <Users size={14} />}
                   {btn.label === 'Details' && <Eye size={14} />}
                   {btn.label === 'Saved' && <Bookmark size={14} fill="currentColor" />}
                   {btn.label === 'Save' && <Bookmark size={14} />}

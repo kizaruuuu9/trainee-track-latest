@@ -1,6 +1,5 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../../lib/supabase';
-import { queryKeys } from '../../lib/queryClient';
 
 export const useUpdateApplicationStatus = () => {
   const queryClient = useQueryClient();

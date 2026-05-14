@@ -7,6 +7,7 @@ const Dashboard = React.lazy(() => import('./components/Dashboard'));
 const RegistrationFlow = React.lazy(() => import('./components/auth/RegistrationFlow'));
 
 import GlobalConfirmModal from './components/common/GlobalConfirmModal';
+import RealtimeLoadingBar from './components/common/RealtimeLoadingBar';
 
 const AppRoutes = () => {
   const { userRole } = useApp();
@@ -38,6 +39,7 @@ export default function App() {
       <AppProvider>
         <Toaster 
           position="top-center" 
+          containerStyle={{ zIndex: 999999 }}
           toastOptions={{ 
             duration: 4000,
             style: { 
@@ -57,6 +59,7 @@ export default function App() {
           }} 
         />
         <GlobalConfirmModal />
+        <RealtimeLoadingBar />
         <React.Suspense fallback={<div className="min-h-screen flex items-center justify-center"><div className="w-12 h-12 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div></div>}>
           <AppRoutes />
         </React.Suspense>

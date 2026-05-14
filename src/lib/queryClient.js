@@ -31,9 +31,11 @@ export const queryKeys = {
   postInteractions: (postId) => postId ? ['postInteractions', postId] : ['postInteractions'],
 
   // Users & Directory
-  programs: () => ['programs'],
+  programs: (params) => params ? ['programs', params] : ['programs'],
   adminDirectory: (page, search) => ['admin', 'directory', page ?? 0, search ?? ''],
   publicDirectory: () => ['publicDirectory'],
+  trainees: () => ['trainees'],
+  partners: () => ['partners'],
 
   // Applications & Recruitment
   applications: (userId) => ['applications', userId],

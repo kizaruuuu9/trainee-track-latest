@@ -50,7 +50,7 @@ import { Routes, Route, useNavigate, useLocation, Navigate, useParams } from 're
 import TopNavBar from '../common/TopNavBar';
 import ImageCropModal from '../common/ImageCropModal';
 import { normalizeLocation } from '../../lib/psgc';
-import { CompactFeedItem, POST_THEME, VerifiedBadge } from './FeedComponents';
+import { CompactFeedItem, FeedItemDetailModal, BULLETIN_CONFIG, POST_THEME, VerifiedBadge, RealtimeStatus, FeedSkeleton } from './FeedComponents';
 
 const CompanyProfile = React.lazy(() => import('./PartnerDashboard').then(m => ({ default: m.CompanyProfile })));
 
@@ -305,12 +305,7 @@ const normalizeTraineeProfile = (profile) => {
 
 
 const BULLETIN_TYPES = ['training_batch', 'exam_schedule', 'certification_assessment', 'announcement'];
-const BULLETIN_CONFIG = {
-    training_batch: { label: 'Training Batch', color: '#7c3aed', bg: '#ede9fe', emoji: '📚', traineeLabel: 'Apply', type: 'apply' },
-    exam_schedule: { label: 'Exam Schedule', color: '#0ea5e9', bg: '#e0f2fe', emoji: '📝', traineeLabel: 'Register', type: 'register' },
-    certification_assessment: { label: 'Certification Assessment', color: '#16a34a', bg: '#dcfce7', emoji: '🏆', traineeLabel: 'Register', type: 'register' },
-    announcement: { label: 'Announcement', color: '#d97706', bg: '#fef3c7', emoji: '📢', traineeLabel: 'Inquire', type: 'inquire' },
-};
+
 
 // --- TOP NAVIGATION BAR (LinkedIn-style) ---
 // --- LEFT NAVIGATION BAR ---
@@ -503,7 +498,8 @@ const ProgressBar = ({ value, showLabel = true }) => {
 const TraineeDashboardHome = ({ 
     setActivePage, openBulletinModal, openContactModal, openApplyModal, toggleBookmark,
     editingPostId, setEditingPostId, editContent, setEditContent, postMenuId, setPostMenuId,
-    handleEditPost, handleSaveEdit, setConfirmDeleteId
+    handleEditPost, handleSaveEdit, setConfirmDeleteId, onViewDetail,
+    contactedJobIds = [], contactedPostIds = []
 }) => {
     const { currentUser, getUserPostInteraction, createPostInteraction } = useApp();
     const createPostMutation = useCreatePost();
@@ -515,14 +511,38 @@ const TraineeDashboardHome = ({
     const sendContactRequestMutation = useSendContactRequest();
     const { data: trainees = [] } = useTrainees();
     const { data: partners = [] } = usePartners();
-    const { data: posts = [] } = usePosts();
-    const { data: jobPostings = [] } = useJobPostings();
-    const { data: applications = [] } = useApplications();
-    const { data: postInteractions = [] } = usePostInteractions();
+    const { data: posts = [], isLoading: isLoadingPosts, isFetching: isFetchingPosts } = usePosts(40);
+    const { data: jobPostings = [], isLoading: isLoadingJobs, isFetching: isFetchingJobs } = useJobPostings(40);
+    const { data: applications = [], isLoading: isLoadingApps, isFetching: isFetchingApps } = useApplications();
+    const { data: postInteractions = [], isFetching: isFetchingInteractions } = usePostInteractions({ userId: currentUser?.id });
+    
+    // 1. Get all potential saved IDs
+    const profileSavedJobIds = currentUser?.savedOpportunities || [];
+    const interactionSavedIds = postInteractions
+        .filter(i => i.interaction_type === 'save')
+        .map(i => i.post_id);
+    const allSavedIds = useMemo(() => [...new Set([...profileSavedJobIds, ...interactionSavedIds])], [profileSavedJobIds, interactionSavedIds]);
+
+    // 2. Fetch specific items to verify existence and author validity
+    const { data: verifiedSavedJobs = [] } = useJobPostings({ ids: allSavedIds });
+    const { data: verifiedSavedPosts = [] } = usePosts({ ids: allSavedIds });
+
+    const savedItemsCount = useMemo(() => {
+        let count = 0;
+        // Count verified jobs that have valid partners
+        count += verifiedSavedJobs.filter(j => j.hasValidPartner !== false).length;
+        // Count verified posts
+        count += verifiedSavedPosts.length;
+        return count;
+    }, [verifiedSavedJobs, verifiedSavedPosts]);
+    
+    const isLoading = isLoadingPosts || isLoadingJobs || isLoadingApps;
+    const isFetching = isFetchingPosts || isFetchingJobs || isFetchingApps || isFetchingInteractions;
     const navigate = useNavigate();
     const trainee = currentUser || trainees[0];
     const myApps = applications.filter(a => a.traineeId === trainee?.id);
     const myAppJobIds = myApps.map(a => a.jobId);
+    const mySavedJobIds = useMemo(() => Array.isArray(currentUser?.savedOpportunities) ? currentUser.savedOpportunities : [], [currentUser?.savedOpportunities]);
     const recJobs = useMemo(() => getTraineeRecommendedJobs(trainee, jobPostings), [trainee, jobPostings]);
 
     // Feed Filter and Search state
@@ -715,7 +735,7 @@ const TraineeDashboardHome = ({
         { label: 'Job Applications', value: myApps.length, icon: <Send size={20} />, color: '#057642' },
         { label: 'Active Interviews', value: myApps.filter(a => String(a.status).toLowerCase() === 'interview scheduled').length, icon: <Calendar size={20} />, color: '#7c3aed' },
         { label: 'Offers Received', value: myApps.filter(a => ['accepted', 'offered'].includes(String(a.status).toLowerCase())).length, icon: <Award size={20} />, color: '#0a66c2' },
-        { label: 'Saved for Later', value: (trainee?.savedOpportunities?.length || 0) + postInteractions.filter(i => i.user_id === currentUser?.id && i.interaction_type === 'save').length, icon: <Bookmark size={20} />, color: '#d97706' },
+        { label: 'Saved for Later', value: savedItemsCount, icon: <Bookmark size={20} />, color: '#d97706' },
     ];
 
 
@@ -883,8 +903,9 @@ const TraineeDashboardHome = ({
 
                 {/* Feed Filter and Search */}
                 <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) auto minmax(0, 1fr)', alignItems: 'center', marginBottom: 16, gap: '8px' }}>
-                    <div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                         <h3 style={{ fontSize: 16, fontWeight: 700, margin: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>Community Feed</h3>
+                        <RealtimeStatus isFetching={isFetching} />
                     </div>
 
                     <div style={{ display: 'flex', justifyContent: 'center' }}>
@@ -954,7 +975,11 @@ const TraineeDashboardHome = ({
 
                 {/* Unified Feed Grid */}
                 <div className={feedViewMode === 'list' ? "tt-feed-list" : "tt-feed-grid"} style={feedViewMode === 'list' ? { display: 'flex', flexDirection: 'column', gap: '16px' } : {}}>
-                    {filteredFeed.slice((feedCurrentPage - 1) * feedPageSize, feedCurrentPage * feedPageSize).map(item => {
+                    {isLoading ? (
+                        <FeedSkeleton count={6} viewMode={feedViewMode} />
+                    ) : (
+                        <>
+                            {filteredFeed.slice((feedCurrentPage - 1) * feedPageSize, feedCurrentPage * feedPageSize).map(item => {
                         if (feedViewMode === 'list') {
                             if (editingPostId === item.id) {
                                 return (
@@ -1004,12 +1029,16 @@ const TraineeDashboardHome = ({
                                         sourceLabel: i.title,
                                     });
                                 }}
-                                onSave={(i) => toggleBookmark(i.id)}
-                                isSaved={(i) => Array.isArray(trainee?.savedOpportunities) && trainee.savedOpportunities.includes(i.id)}
-                                onApply={(i, type) => i.feedType === 'job' ? openApplyModal(i) : openBulletinModal(i, type)}
-                                openProfile={openProfile}
+                                 onSave={() => toggleBookmark(item.id)}
+                                 onApply={(i, type) => i.feedType === 'job' ? openApplyModal(i) : openBulletinModal(i, type)}
+                                 openProfile={openProfile}
+                                 applied={item.feedType === 'job' ? myAppJobIds.includes(item.id) : !!getUserPostInteraction(item.id, 'apply')}
+                                 contacted={item.feedType === 'job' ? contactedJobIds.includes(item.id) : contactedPostIds.includes(item.id)}
+                                 saved={item.feedType === 'job' ? mySavedJobIds.includes(item.id) : !!getUserPostInteraction(item.id, 'save')}
                                 onViewDetail={(i) => {
-                                    if (i.feedType === 'bulletin') openBulletinModal(i, 'view');
+                                    if (onViewDetail) {
+                                        onViewDetail(i);
+                                    }
                                 }}
                             />;
                         }
@@ -1020,7 +1049,7 @@ const TraineeDashboardHome = ({
                             const sc = statusColors[item.status] || statusColors.Open;
                             const reqs = Array.isArray(item.requirements) ? item.requirements : [];
                             return (
-                                <div key={`bulletin-${item.id}`} className="ln-card ln-feed-card" style={{ marginBottom: 0, borderLeft: `4px solid ${cfg.color}` }}>
+                                <div key={`bulletin-${item.id}`} className="ln-card ln-feed-card" onClick={() => onViewDetail?.(item)} style={{ marginBottom: 0, borderLeft: `4px solid ${cfg.color}`, cursor: 'pointer' }}>
                                     {/* Header */}
                                     <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '14px 16px 10px' }}>
                                         <div style={{ width: 40, height: 40, borderRadius: 10, background: cfg.bg, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18, flexShrink: 0 }}>{cfg.emoji}</div>
@@ -1127,38 +1156,39 @@ const TraineeDashboardHome = ({
                                             </div>
                                         )}
                                     </div>
-                                    {/* Actions */}
-                                    <div className="ln-feed-actions" style={{ borderTop: '1px solid #f3f3f3', padding: '8px 12px', display: 'flex', gap: 8 }}>
-                                        {cfg.type && (
+                                    {item.author_id !== (currentUser?.id || trainee?.id) && (
+                                        <div className="ln-feed-actions" style={{ borderTop: '1px solid #f3f3f3', padding: '8px 12px', display: 'flex', gap: 8 }}>
+                                            {cfg.type && (
+                                                <button
+                                                    className="ln-feed-action-btn"
+                                                    disabled={!!alreadyInteracted || item.status === 'Closed' || item.status === 'Full'}
+                                                    onClick={(e) => { e.stopPropagation(); openBulletinModal(item, cfg.type); }}
+                                                    style={alreadyInteracted ? { color: cfg.color, fontWeight: 700 } : {}}
+                                                >
+                                                    {alreadyInteracted ? <><CheckCircle size={14} /> Applied</> : <><Send size={14} /> {cfg.traineeLabel}</>}
+                                                </button>
+                                            )}
+                                            <button className="ln-feed-action-btn" onClick={(e) => { e.stopPropagation(); openBulletinModal(item, 'inquire'); }}>
+                                                <MessageSquare size={14} /> Inquire
+                                            </button>
                                             <button
                                                 className="ln-feed-action-btn"
-                                                disabled={!!alreadyInteracted || item.status === 'Closed' || item.status === 'Full'}
-                                                onClick={() => openBulletinModal(item, cfg.type)}
-                                                style={alreadyInteracted ? { color: cfg.color, fontWeight: 700 } : {}}
+                                                onClick={(e) => { e.stopPropagation(); toggleBookmark(item.id); }}
+                                                style={getUserPostInteraction(item.id, 'save') ? { color: '#d97706', fontWeight: 700 } : {}}
                                             >
-                                                {alreadyInteracted ? <><CheckCircle size={14} /> {cfg.traineeLabel.endsWith('y') ? cfg.traineeLabel.replace(/y$/, 'ied') : (cfg.traineeLabel.endsWith('e') ? cfg.traineeLabel + 'd' : cfg.traineeLabel + 'ed')}</> : <><Send size={14} /> {cfg.traineeLabel}</>}
+                                                <Bookmark size={14} fill={getUserPostInteraction(item.id, 'save') ? "currentColor" : "none"} />
+                                                {getUserPostInteraction(item.id, 'save') ? 'Saved' : 'Save'}
                                             </button>
-                                        )}
-                                        <button className="ln-feed-action-btn" onClick={() => openBulletinModal(item, 'inquire')}>
-                                            <MessageSquare size={14} /> Inquire
-                                        </button>
-                                        <button
-                                            className="ln-feed-action-btn"
-                                            onClick={() => createPostInteraction(item.id, 'save')}
-                                            style={getUserPostInteraction(item.id, 'save') ? { color: '#d97706', fontWeight: 700 } : {}}
-                                        >
-                                            <Bookmark size={14} fill={getUserPostInteraction(item.id, 'save') ? "currentColor" : "none"} />
-                                            {getUserPostInteraction(item.id, 'save') ? 'Saved' : 'Save'}
-                                        </button>
-                                    </div>
+                                        </div>
+                                    )}
                                 </div>
                             );
                         } else if (item.feedType === 'job') {
                             const applied = myAppJobIds.includes(item.id);
-                            const isSaved = Array.isArray(trainee?.savedOpportunities) && trainee.savedOpportunities.includes(item.id);
+                            const isSaved = (Array.isArray(trainee?.savedOpportunities) && trainee.savedOpportunities.includes(item.id)) || !!getUserPostInteraction(item.id, 'save');
                             const tColor = POST_THEME['job']?.color || '#0a66c2';
                             return (
-                                <div key={`job-${item.id}`} className="ln-card ln-feed-card" style={{ marginBottom: 0, borderLeft: `4px solid ${tColor}` }}>
+                                <div key={`job-${item.id}`} className="ln-card ln-feed-card" onClick={() => onViewDetail(item)} style={{ marginBottom: 0, borderLeft: `4px solid ${tColor}`, cursor: 'pointer' }}>
                                     <div className="ln-feed-card-header">
                                         <button
                                             type="button"
@@ -1230,27 +1260,30 @@ const TraineeDashboardHome = ({
                                         <button
                                             className="ln-feed-action-btn"
                                             disabled={applied || item.status !== 'Open'}
-                                            onClick={() => openApplyModal(item)}
+                                            onClick={(e) => { e.stopPropagation(); openApplyModal(item); }}
                                             style={applied ? { color: '#057642', fontWeight: 600 } : {}}
                                         >
                                             {applied ? <><CheckCircle size={14} /> Applied</> : <><Send size={14} /> Apply</>}
                                         </button>
                                         <button
                                             className="ln-feed-action-btn"
-                                            onClick={() => toggleBookmark(item.id)}
-                                            style={isSaved ? { color: '#0a66c2', fontWeight: 600 } : {}}
+                                            onClick={(e) => { e.stopPropagation(); toggleBookmark(item.id); }}
+                                            style={isSaved ? { color: '#d97706', fontWeight: 600 } : {}}
                                         >
-                                            <Bookmark size={14} fill={isSaved ? '#0a66c2' : 'none'} /> {isSaved ? 'Saved' : 'Save'}
+                                            <Bookmark size={14} fill={isSaved ? '#d97706' : 'none'} /> {isSaved ? 'Saved' : 'Save'}
                                         </button>
                                         <button
                                             className="ln-feed-action-btn"
-                                            onClick={() => openContactModal({
-                                                recipientId: item.partnerId,
-                                                recipientType: 'industry_partner',
-                                                recipientName: item.companyName,
-                                                jobPostingId: item.id,
-                                                sourceLabel: item.title,
-                                            })}
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                openContactModal({
+                                                    recipientId: item.partnerId,
+                                                    recipientType: 'industry_partner',
+                                                    recipientName: item.companyName,
+                                                    jobPostingId: item.id,
+                                                    sourceLabel: item.title,
+                                                });
+                                            }}
                                         >
                                             <Mail size={14} /> Inquire
                                         </button>
@@ -1271,7 +1304,7 @@ const TraineeDashboardHome = ({
                             const tColor = POST_THEME[item.post_type]?.color || POST_THEME['general'].color;
 
                             return (
-                                <div key={`post-${item.id}`} className="ln-card ln-feed-card" style={{ marginBottom: 0, borderLeft: `4px solid ${tColor}` }}>
+                                <div key={`post-${item.id}`} className="ln-card ln-feed-card" onClick={() => onViewDetail(item)} style={{ marginBottom: 0, borderLeft: `4px solid ${tColor}`, cursor: 'pointer' }}>
                                     <div className="ln-feed-card-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                                         <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
                                             <button
@@ -1449,26 +1482,40 @@ const TraineeDashboardHome = ({
                                     <div className="ln-feed-actions" style={{ borderTop: '1px solid #f3f3f3', padding: '4px 12px' }}>
                                         <button
                                             className="ln-feed-action-btn"
-                                            onClick={() => openContactModal({
-                                                recipientId: item.author_id,
-                                                recipientType: toRecipientAuthorType(item.author_type),
-                                                recipientName: authorName,
-                                                postId: item.id,
-                                                sourceLabel: item.content,
-                                            })}
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                openContactModal({
+                                                    recipientId: item.author_id,
+                                                    recipientType: toRecipientAuthorType(item.author_type),
+                                                    recipientName: authorName,
+                                                    postId: item.id,
+                                                    sourceLabel: item.content,
+                                                });
+                                            }}
                                             disabled={isOwnPost}
                                             style={isOwnPost ? { opacity: 0.55, cursor: 'not-allowed' } : undefined}
                                         >
                                             <MessageSquare size={16} /> {isOwnPost ? 'Your Post' : 'Contact'}
                                         </button>
-
+                                        {!isOwnPost && (
+                                            <button
+                                                className="ln-feed-action-btn"
+                                                onClick={(e) => { e.stopPropagation(); toggleBookmark(item.id); }}
+                                                style={getUserPostInteraction(item.id, 'save') ? { color: '#d97706', fontWeight: 700 } : {}}
+                                            >
+                                                <Bookmark size={14} fill={getUserPostInteraction(item.id, 'save') ? "currentColor" : "none"} />
+                                                {getUserPostInteraction(item.id, 'save') ? 'Saved' : 'Save'}
+                                            </button>
+                                        )}
                                     </div>
                                 </div>
                             );
                         }
-                    })}
-                    {filteredFeed.length === 0 && (
-                        <div className="ln-empty-state"><Search size={48} /><h3>No posts found</h3><p>Try changing your filter or updating your profile.</p></div>
+                            })}
+                            {filteredFeed.length === 0 && (
+                                <div className="ln-empty-state"><Search size={48} /><h3>No posts found</h3><p>Try changing your filter or updating your profile.</p></div>
+                            )}
+                        </>
                     )}
                 </div>
 
@@ -1673,6 +1720,28 @@ export const TraineeProfileContent = ({ viewedProfileId = null, onBack = null, o
     const applyToJobMutation = useApplyToJob();
     const { data: programsData } = usePrograms();
     const programs = programsData?.data || [];
+    
+    const { data: posts = [] } = usePosts(40);
+    const { data: jobPostings = [] } = useJobPostings(40);
+    const { data: postInteractions = [] } = usePostInteractions({ userId: currentUser?.id });
+
+    // 1. Get all potential saved IDs
+    const profileSavedJobIds = currentUser?.savedOpportunities || [];
+    const interactionSavedIds = postInteractions
+        .filter(i => i.interaction_type === 'save')
+        .map(i => i.post_id);
+    const allSavedIds = useMemo(() => [...new Set([...profileSavedJobIds, ...interactionSavedIds])], [profileSavedJobIds, interactionSavedIds]);
+
+    // 2. Fetch specific items to verify existence and author validity
+    const { data: verifiedSavedJobs = [] } = useJobPostings({ ids: allSavedIds });
+    const { data: verifiedSavedPosts = [] } = usePosts({ ids: allSavedIds });
+
+    const savedItemsCount = useMemo(() => {
+        let count = 0;
+        count += verifiedSavedJobs.filter(j => j.hasValidPartner !== false).length;
+        count += verifiedSavedPosts.length;
+        return count;
+    }, [verifiedSavedJobs, verifiedSavedPosts]);
     const isOwnProfile = !viewedProfileId || String(viewedProfileId) === String(currentUser?.id);
     const isEmployer = userRole === 'partner';
     const [viewedTrainee, setViewedTrainee] = useState(null);
@@ -3021,9 +3090,9 @@ export const TraineeProfileContent = ({ viewedProfileId = null, onBack = null, o
                         }}
                     >
                         {tab}
-                        {tab === 'Saved' && (trainee?.savedOpportunities?.length > 0) && (
+                        {tab === 'Saved' && (savedItemsCount > 0) && (
                             <span style={{ fontSize: 11, background: '#e2e8f0', padding: '2px 6px', borderRadius: 10, color: '#475569' }}>
-                                {trainee.savedOpportunities.length}
+                                {savedItemsCount}
                             </span>
                         )}
                     </button>
@@ -4577,13 +4646,13 @@ const Opportunities = ({
     openContactModal, openApplyModal, toggleBookmark, 
     handleEditPost, setConfirmDeleteId,
     editingPostId, setEditingPostId, editContent, setEditContent, handleSaveEdit,
-    postMenuId, setPostMenuId
+    postMenuId, setPostMenuId, onViewDetail, applications = [],
+    contactedJobIds = [], contactedPostIds = []
 }) => {
     const { currentUser, getUserPostInteraction } = useApp();
     const { data: trainees = [] } = useTrainees();
-    const { data: posts = [] } = usePosts(50);
-    const { data: jobPostings = [] } = useJobPostings(50);
-    const { data: applications = [] } = useApplications(currentUser?.id, 'trainee');
+    const { data: posts = [], isLoading: isLoadingPosts } = usePosts(50);
+    const { data: jobPostings = [], isLoading: isLoadingJobPostings } = useJobPostings(50);
     const { data: partners = [] } = usePartners();
     const navigate = useNavigate();
     const trainee = currentUser || trainees[0];
@@ -4629,8 +4698,6 @@ const Opportunities = ({
     const [filterType, setFilterType] = useState('All');
     const [filterLocation, setFilterLocation] = useState('All');
     const [filterOpType, setFilterOpType] = useState('All');
-    const [selectedJob, setSelectedJob] = useState(null);
-    const [showAllCompetencies, setShowAllCompetencies] = useState(false);
 
     const [currentPage, setCurrentPage] = useState(1);
     const pageSize = 12;
@@ -4639,10 +4706,6 @@ const Opportunities = ({
     useEffect(() => {
         setCurrentPage(prev => prev === 1 ? prev : 1);
     }, [search, filterIndustry, filterType, filterLocation, filterOpType]);
-
-    useEffect(() => {
-        setShowAllCompetencies(false);
-    }, [selectedJob]);
 
     // Auto-fetch next pages logic removed as we set a higher initial limit for Opportunities tab
     // In a full implementation, we would use useInfiniteQuery
@@ -4679,8 +4742,35 @@ const Opportunities = ({
 
     const totalPages = Math.ceil(filtered.length / pageSize);
     const displayedJobs = filtered.slice((currentPage - 1) * pageSize, currentPage * pageSize);
+    const isLoading = isLoadingPosts || isLoadingJobPostings;
 
-
+    if (isLoading) {
+        return (
+            <div className="ln-page-content">
+                <div className="ln-page-header">
+                    <div>
+                        <h1 className="ln-page-title">Opportunities</h1>
+                        <p className="ln-page-subtitle">Finding the best matches for your skills...</p>
+                    </div>
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '400px', background: '#fff', borderRadius: 12, border: '1px solid #e0dfdc', marginTop: 16 }}>
+                    <div className="ln-pulse-loader" style={{ width: 80, height: 80, borderRadius: '50%', background: '#eef3f8', display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative' }}>
+                        <Briefcase size={32} color="#0a66c2" style={{ zIndex: 2 }} />
+                        <div className="ln-pulse-ring" style={{ position: 'absolute', width: '100%', height: '100%', borderRadius: '50%', border: '4px solid #0a66c2', animation: 'lnPulse 2s infinite' }}></div>
+                    </div>
+                    <div style={{ marginTop: 24, fontSize: 16, fontWeight: 600, color: '#475569' }}>Loading Opportunities...</div>
+                    <div style={{ marginTop: 8, fontSize: 14, color: '#94a3b8' }}>Fetching the latest job postings and training sessions.</div>
+                </div>
+                <style>{`
+                    @keyframes lnPulse {
+                        0% { transform: scale(0.8); opacity: 0.8; }
+                        70% { transform: scale(1.5); opacity: 0; }
+                        100% { transform: scale(1.5); opacity: 0; }
+                    }
+                `}</style>
+            </div>
+        );
+    }
 
     return (
         <div className="ln-page-content">
@@ -4734,6 +4824,9 @@ const Opportunities = ({
                     const applied = job.feedType === 'job'
                         ? myApps.includes(job.id)
                         : !!getUserPostInteraction(job.id, 'apply');
+                    const contacted = job.feedType === 'job'
+                        ? contactedJobIds.includes(job.id)
+                        : contactedPostIds.includes(job.id);
                     if (viewMode === 'list' || job.feedType === 'post') {
                         if (editingPostId === job.id) {
                             return (
@@ -4777,6 +4870,7 @@ const Opportunities = ({
                                 onEdit={(i) => typeof handleEditPost === 'function' ? handleEditPost(i) : console.warn('Edit handler not found')}
                                 onDelete={(id) => typeof setConfirmDeleteId === 'function' ? setConfirmDeleteId(id) : console.warn('Delete handler not found')}
                                 applied={applied}
+                                contacted={contacted}
                                 onInquire={(j) => openContactModal({
                                     recipientId: j.partnerId || j.author_id || j.authorId,
                                     recipientName: j.companyName || j.author?.company_name || j.profileName,
@@ -4787,6 +4881,7 @@ const Opportunities = ({
                                 })}
                                 onSave={toggleBookmark}
                                 onApply={(i) => openApplyModal(i)}
+                                onViewDetail={onViewDetail}
                                 openProfile={(target) => {
                                     if (!target?.id || !target?.type) return;
                                     const profileType = normalizeProfileType(target.type);
@@ -4834,7 +4929,7 @@ const Opportunities = ({
                         );
                     }
                     return (
-                        <div key={job.id} className="coursera-card" onClick={() => setSelectedJob(job)} style={{ 
+                        <div key={job.id} className="coursera-card" onClick={() => onViewDetail(job)} style={{ 
                             borderLeft: `4px solid ${theme.color}`,
                             width: '100%',
                             height: '407px',
@@ -4932,6 +5027,7 @@ const Opportunities = ({
                                 </div>
                                 <div style={{ borderTop: '1px solid #f1f5f9', marginTop: '12px', paddingTop: '12px', display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
                                     <button 
+                                        disabled={contacted}
                                         onClick={(e) => { 
                                             e.stopPropagation(); 
                                             openContactModal({
@@ -4943,15 +5039,22 @@ const Opportunities = ({
                                                 postTitle: job.title || 'Inquiry'
                                             });
                                         }}
-                                        style={{ padding: '6px 16px', borderRadius: 20, fontSize: 13, fontWeight: 600, border: '1px solid #cbd5e1', backgroundColor: 'transparent', color: '#475569', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6 }}
+                                        style={{ 
+                                            padding: '6px 16px', borderRadius: 20, fontSize: 13, fontWeight: 600, 
+                                            border: contacted ? 'none' : '1px solid #cbd5e1', 
+                                            backgroundColor: contacted ? '#f0fdf4' : 'transparent', 
+                                            color: contacted ? '#057642' : '#475569', 
+                                            cursor: contacted ? 'default' : 'pointer', 
+                                            display: 'flex', alignItems: 'center', gap: 6 
+                                        }}
                                     >
-                                        <Mail size={14} /> Contact
+                                        {contacted ? <Check size={14} /> : <Mail size={14} />} {contacted ? 'Contacted' : 'Contact'}
                                     </button>
                                     <button 
                                         onClick={(e) => { e.stopPropagation(); toggleBookmark(job.id); }}
                                         style={{ padding: '6px 16px', borderRadius: 20, fontSize: 13, fontWeight: 600, border: '1px solid #cbd5e1', backgroundColor: 'transparent', color: '#475569', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6 }}
                                     >
-                                        <Bookmark size={14} fill={(trainee?.savedOpportunities || []).includes(job.id) ? 'currentColor' : 'none'} /> {(trainee?.savedOpportunities || []).includes(job.id) ? 'Saved' : 'Save'}
+                                        <Bookmark size={14} fill={((trainee?.savedOpportunities || []).includes(job.id) || !!getUserPostInteraction(job.id, 'save')) ? 'currentColor' : 'none'} /> {((trainee?.savedOpportunities || []).includes(job.id) || !!getUserPostInteraction(job.id, 'save')) ? 'Saved' : 'Save'}
                                     </button>
                                     <button 
                                         disabled={applied || job.status !== 'Open'}
@@ -5013,156 +5116,17 @@ const Opportunities = ({
                 <div className="ln-empty-state"><Briefcase size={48} /><h3>No opportunities found</h3><p>Try adjusting your filters.</p></div>
             )}
 
-            {/* Detail Modal */}
-            {selectedJob && (
-                <div className="modal-overlay" onClick={() => setSelectedJob(null)}>
-                    <div className="ln-modal ln-modal-wide" onClick={e => e.stopPropagation()}>
-                        <div className="ln-modal-header">
-                            <div>
-                                <h3 className="ln-modal-title">{selectedJob.title}</h3>
-                                <p style={{ fontSize: 14, color: 'rgba(0,0,0,0.6)', marginTop: 4 }}>
-                                    <button
-                                        type="button"
-                                        onClick={() => openProfile({ id: selectedJob.partnerId, type: 'partner' })}
-                                        style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', color: '#0a66c2', font: 'inherit' }}
-                                    >
-                                        {selectedJob.companyName}
-                                    </button>
-                                    {' '}• {selectedJob.location} | {timeAgo(selectedJob.createdAt)}
-                                </p>
-                            </div>
-                            <button className="ln-btn-icon" onClick={() => setSelectedJob(null)}><X size={18} /></button>
-                        </div>
-
-                        <div className="ln-modal-grid">
-                            <div className="ln-modal-main-col">
-                                <div style={{ display: 'flex', gap: 8, marginBottom: 16, flexWrap: 'wrap' }}>
-                                    <span className={`ln-badge ln-badge-${selectedJob.status === 'Open' ? 'green' : 'gray'}`}>{selectedJob.status}</span>
-                                    <span className="ln-badge ln-badge-blue">{selectedJob.opportunityType}</span>
-                                    <span className="ln-badge ln-badge-purple">{selectedJob.ncLevel}</span>
-                                    <span className="ln-badge ln-badge-gray">{selectedJob.employmentType}</span>
-                                </div>
-                                <div style={{ marginBottom: 16 }}>
-                                    <div style={{ fontWeight: 600, fontSize: 14, marginBottom: 6, color: 'rgba(0,0,0,0.9)' }}>Description</div>
-                                    <p style={{ fontSize: 14, color: 'rgba(0,0,0,0.6)', lineHeight: 1.7 }}>{selectedJob.description}</p>
-                                </div>
-                                {selectedJob.attachmentUrl && (
-                                    <div style={{ marginBottom: 16 }}>
-                                        <div style={{ fontWeight: 600, fontSize: 14, marginBottom: 8, color: 'rgba(0,0,0,0.9)' }}>Attachment</div>
-                                        {isImageAttachment(selectedJob.attachmentUrl, selectedJob.attachmentType) ? (
-                                            <a href={selectedJob.attachmentUrl} target="_blank" rel="noreferrer" style={{ display: 'block' }}>
-                                                <img
-                                                    src={selectedJob.attachmentUrl}
-                                                    alt={selectedJob.attachmentName || 'Opportunity attachment'}
-                                                    style={{ width: '100%', maxHeight: 300, objectFit: 'cover', borderRadius: 10, border: '1px solid #e2e8f0' }}
-                                                />
-                                            </a>
-                                        ) : (
-                                            <a href={selectedJob.attachmentUrl} target="_blank" rel="noreferrer" style={{ display: 'inline-flex', alignItems: 'center', gap: 7, color: '#2563eb', textDecoration: 'none', fontSize: 13 }}>
-                                                <FileText size={15} />
-                                                {selectedJob.attachmentName || decodeURIComponent(String(selectedJob.attachmentUrl).split('/').pop()?.split('?')[0] || 'Attachment')}
-                                            </a>
-                                        )}
-                                    </div>
-                                )}
-                            </div>
-
-                            <div className="ln-modal-side-col">
-                                <div style={{ marginBottom: 16 }}>
-                                    <div style={{ fontWeight: 600, fontSize: 14, marginBottom: 8, color: 'rgba(0,0,0,0.9)' }}>Required Competencies</div>
-                                    {(() => {
-                                        const competencies = selectedJob.requiredCompetencies || [];
-                                        const displayList = showAllCompetencies ? competencies : competencies.slice(0, 10);
-                                        return (
-                                            <>
-                                                {displayList.map((c, i) => (
-                                                    <div key={i} className="ln-skill-item" style={{ borderBottom: '1px solid #f3f2ef' }}>
-                                                        <div className="ln-skill-row">
-                                                            <CheckSquare size={14} color="#0a66c2" />
-                                                            <span className="ln-skill-name">{c}</span>
-                                                        </div>
-                                                    </div>
-                                                ))}
-                                                {competencies.length > 10 && (
-                                                    <button
-                                                        type="button"
-                                                        onClick={() => setShowAllCompetencies(!showAllCompetencies)}
-                                                        style={{
-                                                            background: 'none',
-                                                            border: 'none',
-                                                            color: '#0a66c2',
-                                                            fontSize: 13,
-                                                            fontWeight: 600,
-                                                            padding: '8px 0',
-                                                            cursor: 'pointer',
-                                                            display: 'flex',
-                                                            alignItems: 'center',
-                                                            gap: 4
-                                                        }}
-                                                    >
-                                                        {showAllCompetencies ? (
-                                                            <>See less <ChevronUp size={14} /></>
-                                                        ) : (
-                                                            <>See more ({competencies.length - 10} more) <ChevronDown size={14} /></>
-                                                        )}
-                                                    </button>
-                                                )}
-                                            </>
-                                        );
-                                    })()}
-                                </div>
-                            </div>
-                        </div>
-
-                        <div className="ln-modal-footer">
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 12, width: '100%' }}>
-                                <span style={{ fontSize: 15, fontWeight: 700, color: '#057642' }}>{formatSalaryDisplay(selectedJob.salaryRange)}</span>
-                                <div style={{ flex: 1 }} />
-                                <button
-                                    className="ln-btn ln-btn-outline"
-                                    onClick={() => {
-                                        const jobToContact = selectedJob;
-                                        setSelectedJob(null);
-                                        openContactModal({
-                                            recipientId: jobToContact.partnerId,
-                                            recipientName: jobToContact.companyName,
-                                            recipientType: 'industry_partner',
-                                            jobPostingId: jobToContact.id,
-                                            postTitle: jobToContact.title
-                                        });
-                                    }}
-                                >
-                                    <MessageSquare size={15} /> Contact
-                                </button>
-                                <button
-                                    className="ln-btn ln-btn-primary"
-                                    disabled={myApps.includes(selectedJob.id) || selectedJob.status !== 'Open'}
-                                    onClick={async () => {
-                                        const jobToApply = selectedJob;
-                                        setSelectedJob(null);
-                                        await openApplyModal(jobToApply);
-                                    }}
-                                >
-                                    {myApps.includes(selectedJob.id) ? <><CheckCircle size={15} /> Applied</> : <><Send size={15} /> Apply</>}
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            )}
-
 
         </div>
     );
 };
 
 // ─── PAGE 5: MY APPLICATIONS ──────────────────────────────────────
-const MyApplications = () => {
+const MyApplications = ({ openContactModal, applications = [] }) => {
     const { currentUser, updateApplicationStatus } = useApp();
     const { data: trainees = [] } = useTrainees();
     const { data: partners = [] } = usePartners();
     const { data: jobPostings = [] } = useJobPostings(100);
-    const { data: applications = [] } = useApplications(currentUser?.id, 'trainee');
     const { data: contactRequests = [] } = useContactRequests(currentUser?.id, 'trainee');
     const { data: interviewBookings = [] } = useInterviewBookings(currentUser?.id, 'trainee');
     
@@ -6037,7 +6001,7 @@ const PickTime = ({ partnerId, onBook }) => {
     );
 };
 
-const TraineeProfileViewRoute = () => {
+const TraineeProfileViewRoute = ({ openBulletinModal, onViewDetail }) => {
     const { profileType, profileId } = useParams();
     const navigate = useNavigate();
     const normalizedProfileType = normalizeProfileType(profileType);
@@ -6045,7 +6009,7 @@ const TraineeProfileViewRoute = () => {
     if (normalizedProfileType === 'trainee') {
         return (
             <ErrorBoundary>
-                <TraineeProfileContent viewedProfileId={profileId} onBack={() => navigate(-1)} openBulletinModal={openBulletinModal} />
+                <TraineeProfileContent viewedProfileId={profileId} onBack={() => navigate(-1)} openBulletinModal={openBulletinModal} onViewDetail={onViewDetail} />
             </ErrorBoundary>
         );
     }
@@ -6063,19 +6027,31 @@ const TraineeProfileViewRoute = () => {
 
 // ─── MAIN TRAINEE DASHBOARD ─────────────────────────────────────
 export default function TraineeDashboard() {
-    const { currentUser, createPostInteraction, fetchPostInteractions, updateTrainee, sendContactRequest } = useApp();
+    const { currentUser, createPostInteraction, fetchPostInteractions, updateTrainee, getUserPostInteraction, toggleBookmark } = useApp();
+    const sendContactRequestMutation = useSendContactRequest();
     const applyToJobMutation = useApplyToJob();
     const navigate = useNavigate();
     const location = useLocation();
 
     const updatePostMutation = useUpdatePost();
     const deletePostMutation = useDeletePost();
+    const { data: applications = [] } = useApplications(currentUser?.id, 'trainee');
+    const { data: contactRequests = [] } = useContactRequests(currentUser?.id, currentUser?.user_type);
+    const { data: jobPostings = [] } = useJobPostings();
+    const { data: posts = [] } = usePosts();
+
+    const contactedJobIds = useMemo(() => contactRequests.map(r => r.job_posting_id).filter(Boolean), [contactRequests]);
+    const contactedPostIds = useMemo(() => contactRequests.map(r => r.post_id).filter(Boolean), [contactRequests]);
+    const myAppJobIds = useMemo(() => applications.map(a => a.jobId), [applications]);
+    const mySavedJobIds = useMemo(() => Array.isArray(currentUser?.savedOpportunities) ? currentUser.savedOpportunities : [], [currentUser?.savedOpportunities]);
 
     // ── Shared Action States ──
     const [editingPostId, setEditingPostId] = useState(null);
     const [editContent, setEditContent] = useState('');
     const [postMenuId, setPostMenuId] = useState(null);
     const [confirmDeleteId, setConfirmDeleteId] = useState(null);
+    const [selectedJob, setSelectedJob] = useState(null);
+    const [showAllCompetencies, setShowAllCompetencies] = useState(false);
 
     // ── Shared Post Handlers ──
     const handleEditPost = (post) => {
@@ -6189,7 +6165,7 @@ export default function TraineeDashboard() {
                 attachmentName = contactAttachment.name;
             }
 
-            const result = await sendContactRequest({
+            await sendContactRequestMutation.mutateAsync({
                 recipientId: contactTarget.recipientId,
                 recipientType: contactTarget.recipientType,
                 postId: contactTarget.postId || null,
@@ -6200,13 +6176,8 @@ export default function TraineeDashboard() {
                 attachmentKind: requiresResume ? 'resume' : 'document',
             });
 
-            if (!result.success) {
-                toast.error(result.error || 'Failed to send contact request.');
-                return;
-            }
-
+            toast.success('Contact request sent successfully!');
             closeContactModal();
-            toast.success('Contact request sent.');
         } catch (err) {
             console.error('Contact submit error:', err);
             toast.error(err.message || 'Failed to send contact request.');
@@ -6257,18 +6228,7 @@ export default function TraineeDashboard() {
         }
     };
 
-    const toggleBookmark = async (jobId) => {
-        if (!currentUser?.id) return;
-        const current = Array.isArray(currentUser.savedOpportunities) ? currentUser.savedOpportunities : [];
-        const isSaved = current.includes(jobId);
-        const updated = isSaved ? current.filter(id => id !== jobId) : [...current, jobId];
-        const res = await updateTrainee(currentUser.id, { savedOpportunities: updated });
-        if (res.success) {
-            toast.success(isSaved ? 'Removed from bookmarks.' : 'Added to bookmarks.');
-        } else {
-            toast.error('Failed to update bookmarks.');
-        }
-    };
+
 
     // Deduce active page from URL for visual consistency in child components
     const path = location.pathname.split('/').pop();
@@ -6283,6 +6243,13 @@ export default function TraineeDashboard() {
         }
     };
 
+    const openProfile = (target) => {
+        if (!target?.id || !target?.type) return;
+        const profileType = normalizeProfileType(target.type);
+        if (!profileType) return;
+        navigate(`/trainee/profile-view/${profileType}/${target.id}`);
+    };
+
     if (!currentUser) return null;
 
     return (
@@ -6294,6 +6261,7 @@ export default function TraineeDashboard() {
                     openContactModal={openContactModal} 
                     openApplyModal={openApplyModal} 
                     toggleBookmark={toggleBookmark}
+                    onViewDetail={setSelectedJob}
                     editingPostId={editingPostId}
                     setEditingPostId={setEditingPostId}
                     editContent={editContent}
@@ -6303,8 +6271,10 @@ export default function TraineeDashboard() {
                     handleEditPost={handleEditPost}
                     handleSaveEdit={handleSaveEdit}
                     setConfirmDeleteId={setConfirmDeleteId}
+                    contactedJobIds={contactedJobIds}
+                    contactedPostIds={contactedPostIds}
                 />} />
-                <Route path="/profile" element={<TraineeProfile openBulletinModal={openBulletinModal} openContactModal={openContactModal} openApplyModal={openApplyModal} toggleBookmark={toggleBookmark} />} />
+                <Route path="/profile" element={<TraineeProfile openBulletinModal={openBulletinModal} openContactModal={openContactModal} openApplyModal={openApplyModal} toggleBookmark={toggleBookmark} onViewDetail={setSelectedJob} />} />
                 <Route path="/recommendations" element={<Opportunities 
                     openContactModal={openContactModal} 
                     openApplyModal={openApplyModal} 
@@ -6318,9 +6288,13 @@ export default function TraineeDashboard() {
                     handleSaveEdit={handleSaveEdit}
                     postMenuId={postMenuId}
                     setPostMenuId={setPostMenuId}
+                    onViewDetail={setSelectedJob}
+                    applications={applications}
+                    contactedJobIds={contactedJobIds}
+                    contactedPostIds={contactedPostIds}
                 />} />
-                <Route path="/applications" element={<MyApplications openContactModal={openContactModal} />} />
-                <Route path="/profile-view/:profileType/:profileId" element={<TraineeProfileViewRoute openBulletinModal={openBulletinModal} openContactModal={openContactModal} openApplyModal={openApplyModal} toggleBookmark={toggleBookmark} />} />
+                <Route path="/applications" element={<MyApplications openContactModal={openContactModal} applications={applications} />} />
+                <Route path="/profile-view/:profileType/:profileId" element={<TraineeProfileViewRoute openBulletinModal={openBulletinModal} openContactModal={openContactModal} openApplyModal={openApplyModal} toggleBookmark={toggleBookmark} onViewDetail={setSelectedJob} />} />
                 <Route path="/settings" element={<SettingsPage />} />
                 <Route path="/notifications" element={<NotificationsPage />} />
                 <Route path="*" element={<Navigate to="/trainee" replace />} />
@@ -6328,7 +6302,7 @@ export default function TraineeDashboard() {
 
             {/* Unified Action Modals */}
             {contactTarget && (
-                <div className="modal-overlay" onClick={closeContactModal}>
+                <div className="modal-overlay" onClick={closeContactModal} style={{ zIndex: 11000 }}>
                     <div className="ln-modal" onClick={e => e.stopPropagation()} style={{ width: '100%', maxWidth: 520 }}>
                         <div className="ln-modal-header">
                             <div>
@@ -6373,7 +6347,7 @@ export default function TraineeDashboard() {
             )}
 
             {applyJob && (
-                <div className="modal-overlay" onClick={() => setApplyJob(null)}>
+                <div className="modal-overlay" onClick={() => setApplyJob(null)} style={{ zIndex: 11000 }}>
                     <div className="ln-modal" onClick={e => e.stopPropagation()} style={{ width: '100%', maxWidth: 520 }}>
                         <div className="ln-modal-header">
                             <div>
@@ -6400,9 +6374,9 @@ export default function TraineeDashboard() {
                                 />
                             </div>
                             <div className="ln-modal-footer" style={{ padding: 0 }}>
-                                <button className="ln-btn ln-btn-outline" onClick={() => setApplyJob(null)}>Cancel</button>
+                                <button className="ln-btn ln-btn-outline" onClick={() => setApplyJob(null)} disabled={submittingApp}>Cancel</button>
                                 <button className="ln-btn ln-btn-primary" onClick={handleSubmitApplication} disabled={submittingApp}>
-                                    {submittingApp ? 'Submitting...' : 'Submit Application'}
+                                    {submittingApp ? 'Submitting...' : 'Confirm Application'}
                                 </button>
                             </div>
                         </div>
@@ -6410,12 +6384,48 @@ export default function TraineeDashboard() {
                 </div>
             )}
 
+            {/* Unified Feed Item Detail Modal */}
+            {selectedJob && (
+                <FeedItemDetailModal 
+                    item={selectedJob} 
+                    onClose={() => setSelectedJob(null)}
+                    onApply={(i, type) => {
+                        if (i.feedType === 'job') {
+                            openApplyModal(i);
+                        } else if (i.feedType === 'bulletin') {
+                            openBulletinModal(i, type || 'apply');
+                        }
+                    }}
+                    onSave={(id) => toggleBookmark(id)}
+                    onInquire={(i) => {
+                        openContactModal({
+                            recipientId: i.partnerId || i.author_id,
+                            recipientType: i.feedType === 'job' ? 'industry_partner' : (i.author_type === 'admin' ? 'admin' : (i.author_type || 'partner')),
+                            recipientName: i.companyName || i.name || 'Recipient',
+                            jobPostingId: i.feedType === 'job' ? i.id : undefined,
+                            sourceLabel: i.title,
+                        });
+                    }}
+                    openProfile={openProfile}
+                    applied={selectedJob && (
+                        selectedJob.feedType === 'job' 
+                            ? applications.some(a => String(a.jobId) === String(selectedJob.id)) 
+                            : !!getUserPostInteraction(selectedJob.id, 'apply')
+                    )}
+                    contacted={selectedJob && (
+                        selectedJob.feedType === 'job' 
+                            ? contactedJobIds.includes(selectedJob.id) 
+                            : contactedPostIds.includes(selectedJob.id)
+                    )}
+                />
+            )}
+
             {bulletinModal && (() => {
                 const cfg = BULLETIN_CONFIG[bulletinModal.post.post_type] || BULLETIN_CONFIG.announcement;
                 const isInquiry = bulletinModal.type === 'inquire';
                 const title = isInquiry ? 'Send Inquiry' : cfg.traineeLabel;
                 return (
-                    <div className="modal-overlay">
+                    <div className="modal-overlay" style={{ zIndex: 11000 }}>
                         <div className="ln-modal" style={{ width: '100%', maxWidth: 460 }}>
                             <div style={{ background: cfg.color, padding: '16px 20px', display: 'flex', alignItems: 'center', gap: 12 }}>
                                 <div style={{ fontSize: 20 }}>{cfg.emoji}</div>
@@ -6457,7 +6467,7 @@ export default function TraineeDashboard() {
             })()}
             {/* Delete Confirmation Modal */}
             {confirmDeleteId && (
-                <div className="ln-modal-overlay" style={{ zIndex: 1000 }}>
+                <div className="ln-modal-overlay" style={{ zIndex: 11000 }}>
                     <div className="ln-modal-content" style={{ maxWidth: 400, textAlign: 'center', padding: '30px 20px' }}>
                         <div style={{ width: 60, height: 60, borderRadius: '50%', background: '#fee2e2', color: '#dc2626', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 20px' }}>
                             <Trash2 size={30} />

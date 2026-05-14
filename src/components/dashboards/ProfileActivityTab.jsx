@@ -7,12 +7,12 @@ import { FeedItem, BULLETIN_CONFIG, UniversalPostModal } from './FeedComponents'
 import { supabase } from '../../lib/supabase';
 import toast from 'react-hot-toast';
 
-const ProfileActivityTab = ({ profileId, profileType, isOwnProfile }) => {
+const ProfileActivityTab = ({ profileId, profileType, isOwnProfile, onViewDetail, openContactModal, openProfile, openBulletinModal }) => {
     const {
         currentUser,
         createPost, updatePost, deletePost,
         updatePartnerJobPosting, deleteJobPosting,
-        uploadOptimizedImage
+        uploadOptimizedImage, toggleBookmark
     } = useApp();
     const { data: posts = [] } = usePosts();
     const { data: jobPostings = [] } = useJobPostings();
@@ -154,17 +154,30 @@ const ProfileActivityTab = ({ profileId, profileType, isOwnProfile }) => {
                             isOwnPost={isOwnProfile}
                             onEdit={handleOpenEditModal}
                             onDelete={handleDelete}
-                            onInquire={() => { }}
-                            onSave={() => { }}
+                            onInquire={(i) => {
+                                if (openContactModal) {
+                                    openContactModal({
+                                        recipientId: i.partnerId || i.author_id,
+                                        recipientType: i.author_type === 'admin' ? 'admin' : (i.author_type || 'partner'),
+                                        recipientName: i.companyName || i.name || 'Recipient',
+                                        jobPostingId: i.feedType === 'job' ? i.id : undefined,
+                                        sourceLabel: i.title,
+                                    });
+                                }
+                            }}
+                            onSave={(id) => toggleBookmark(id)}
                             onApply={(job, type) => {
-                                if (type === 'applicants') {
+                                if (item.feedType === 'bulletin' && openBulletinModal) {
+                                    openBulletinModal(item, type || 'apply');
+                                } else if (type === 'applicants') {
                                     toast.success('Navigating to applicants view...');
                                 }
                             }}
                             onComment={() => { }}
-                            openProfile={() => { }}
+                            openProfile={openProfile || (() => {})}
                             postMenuId={postMenuId}
                             setPostMenuId={setPostMenuId}
+                            onViewDetail={onViewDetail}
                         />
                     ))
                 )}

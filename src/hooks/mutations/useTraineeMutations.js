@@ -37,8 +37,8 @@ export const useUpdateTrainee = () => {
       if (error) throw error;
       return data;
     },
-    onSuccess: (data, variables) => {
-      queryClient.invalidateQueries({ queryKey: ['trainees'] });
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.trainees() });
       // Also invalidate currentUser if it's the same trainee
       queryClient.invalidateQueries({ queryKey: ['currentUser'] });
       toast.success('Profile updated successfully');
@@ -50,7 +50,6 @@ export const useUpdateTrainee = () => {
 };
 
 export const useToggleBookmark = () => {
-  const queryClient = useQueryClient();
   const updateMutation = useUpdateTrainee();
 
   return useMutation({

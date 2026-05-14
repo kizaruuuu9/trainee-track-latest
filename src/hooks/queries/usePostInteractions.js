@@ -2,14 +2,15 @@ import { useQuery } from '@tanstack/react-query';
 import { supabase } from '../../lib/supabase';
 import { queryKeys } from '../../lib/queryClient';
 
-const fetchPostInteractions = async (postId = null) => {
+const fetchPostInteractions = async ({ postId = null, userId = null } = {}) => {
   let query = supabase
     .from('post_interactions')
     .select('id, post_id, user_id, interaction_type, status, details, created_at, updated_at, user_type')
     .order('created_at', { ascending: false })
-    .limit(500);
+    .limit(40);
 
   if (postId) query = query.eq('post_id', postId);
+  if (userId) query = query.eq('user_id', userId);
 
   const { data, error } = await query;
 
@@ -24,10 +25,11 @@ const fetchPostInteractions = async (postId = null) => {
   return data || [];
 };
 
-export const usePostInteractions = (postId = null, options = {}) => {
+export const usePostInteractions = (params = {}, options = {}) => {
+  const { postId, userId } = params;
   return useQuery({
-    queryKey: queryKeys.postInteractions(postId),
-    queryFn: () => fetchPostInteractions(postId),
+    queryKey: queryKeys.postInteractions(postId || userId || 'all'),
+    queryFn: () => fetchPostInteractions({ postId, userId }),
     staleTime: 2 * 60 * 1000,
     ...options,
   });

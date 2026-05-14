@@ -8,7 +8,7 @@ import {
     CheckCircle2, UserPlus, Navigation, FileCheck, Bookmark, AlertTriangle, Target, Sparkles
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
-import { usePrograms, useJobPostings } from '../../hooks';
+import { usePrograms, useJobPostings, usePosts, usePostInteractions } from '../../hooks';
 import { supabase } from '../../lib/supabase';
 import SavedItemsView from './SavedItemsView';
 import PhilAddressSelector from '../common/PhilAddressSelector';
@@ -179,7 +179,7 @@ export const PREDEFINED_PERKS_TAGS = [
 
 // ─── COMPONENTS ──────────────────────────────────────────────────
 
-export const TraineeProfileContent = ({ viewedProfileId = null, onBack = null, openBulletinModal }) => {
+export const TraineeProfileContent = ({ viewedProfileId = null, onBack = null, openBulletinModal, onViewDetail }) => {
     const { 
         currentUser, userRole, trainees, updateTrainee, 
         getSkillInterestRecommendations, getSkillsDemand, 
@@ -1200,7 +1200,13 @@ export const TraineeProfileContent = ({ viewedProfileId = null, onBack = null, o
                     )}
 
                     {activeTab === 'Activity' && (
-                        <ProfileActivityTab profileId={trainee.id} profileType="trainee" isOwnProfile={isOwnProfile} />
+                        <ProfileActivityTab 
+                            profileId={trainee.id} 
+                            profileType="trainee" 
+                            isOwnProfile={isOwnProfile} 
+                            onViewDetail={onViewDetail}
+                            openBulletinModal={openBulletinModal}
+                        />
                     )}
 
                     {activeTab === 'Recommended' && (
@@ -1249,6 +1255,7 @@ export const TraineeProfileContent = ({ viewedProfileId = null, onBack = null, o
                                     userType="trainee"
                                     onOpenBulletin={(p) => openBulletinModal(p, 'inquire')}
                                     onApply={(job) => setApplyJob(job)}
+                                    onViewDetail={onViewDetail}
                                 />
                             </div>
                         </div>
@@ -1387,9 +1394,29 @@ export const TraineeProfileContent = ({ viewedProfileId = null, onBack = null, o
     );
 };
 
-export const CompanyProfile = ({ viewedPartnerId = null, onBack = null }) => {
+export const CompanyProfile = ({ viewedPartnerId = null, onBack = null, onViewDetail }) => {
   const { currentUser, partners, updatePartner, createPostInteraction, fetchPostInteractions } = useApp();
-  const { data: jobPostings = [] } = useJobPostings();
+  const { data: jobPostings = [] } = useJobPostings(40);
+  const { data: posts = [] } = usePosts(40);
+  const { data: postInteractions = [] } = usePostInteractions({ userId: currentUser?.id });
+
+  // 1. Get all potential saved IDs
+  const profileSavedJobIds = currentUser?.savedOpportunities || [];
+  const interactionSavedIds = postInteractions
+      .filter(i => i.interaction_type === 'save')
+      .map(i => i.post_id);
+  const allSavedIds = React.useMemo(() => [...new Set([...profileSavedJobIds, ...interactionSavedIds])], [profileSavedJobIds, interactionSavedIds]);
+
+  // 2. Fetch specific items to verify existence and author validity
+  const { data: verifiedSavedJobs = [] } = useJobPostings({ ids: allSavedIds });
+  const { data: verifiedSavedPosts = [] } = usePosts({ ids: allSavedIds });
+
+  const savedItemsCount = React.useMemo(() => {
+    let count = 0;
+    count += verifiedSavedJobs.filter(j => j.hasValidPartner !== false).length;
+    count += verifiedSavedPosts.length;
+    return count;
+  }, [verifiedSavedJobs, verifiedSavedPosts]);
   const navigate = useNavigate();
   const isOwnProfile = !viewedPartnerId || String(viewedPartnerId) === String(currentUser?.id);
   const [viewedPartner, setViewedPartner] = useState(null);
@@ -1421,8 +1448,6 @@ export const CompanyProfile = ({ viewedPartnerId = null, onBack = null }) => {
   const [bulletinModal, setBulletinModal] = useState(null);
   const [bulletinMessage, setBulletinMessage] = useState('');
   const [bulletinSubmitting, setBulletinSubmitting] = useState(false);
-  const [bulletinToast, setBulletinToast] = useState('');
-  const showBulletinToast = (msg) => { setBulletinToast(msg); setTimeout(() => setBulletinToast(''), 3000); };
   const openBulletinModal = (post, type) => { setBulletinModal({ post, type }); setBulletinMessage(''); };
   const handleBulletinInteraction = async () => {
     if (!bulletinModal) return;
@@ -1432,7 +1457,7 @@ export const CompanyProfile = ({ viewedPartnerId = null, onBack = null }) => {
     setBulletinSubmitting(false);
     if (res.success) {
       setBulletinModal(null);
-      showBulletinToast(bulletinModal.type === 'inquire' ? 'Inquiry sent!' : 'Submitted!');
+      toast.success(bulletinModal.type === 'inquire' ? 'Inquiry sent!' : 'Submitted!');
       fetchPostInteractions();
     } else {
       toast.error(res.error || 'Failed to submit.');
@@ -1574,7 +1599,7 @@ export const CompanyProfile = ({ viewedPartnerId = null, onBack = null }) => {
       const { data: { publicUrl } } = supabase.storage.from('registration-uploads').getPublicUrl(path);
       await updatePartner(partner.id, { banner_url: publicUrl });
       setForm(prev => ({ ...prev, banner_url: publicUrl }));
-      showBulletinToast('Banner updated successfully!');
+      toast.success('Banner updated successfully!');
     } catch (err) { console.error('Banner upload error:', err); toast.error('Failed to upload banner: ' + err.message); }
     finally { setSaving(false); }
   };
@@ -1590,7 +1615,7 @@ export const CompanyProfile = ({ viewedPartnerId = null, onBack = null }) => {
       const { data: { publicUrl } } = supabase.storage.from('registration-uploads').getPublicUrl(path);
       await updatePartner(partner.id, { company_logo_url: publicUrl });
       setForm(prev => ({ ...prev, company_logo_url: publicUrl }));
-      showBulletinToast('Logo updated successfully!');
+      toast.success('Logo updated successfully!');
     } catch (err) { console.error('Logo upload error:', err); toast.error('Failed to upload logo: ' + err.message); }
     finally { setSaving(false); }
   };
@@ -1605,7 +1630,7 @@ export const CompanyProfile = ({ viewedPartnerId = null, onBack = null }) => {
       if (uploadErr) throw uploadErr;
       const { data: { publicUrl } } = supabase.storage.from('registration-uploads').getPublicUrl(path);
       setForm(prev => ({ ...prev, poc_photo_url: publicUrl }));
-      showBulletinToast('POC photo updated!');
+      toast.success('POC photo updated!');
     } catch (err) { console.error('POC photo upload error:', err); toast.error('Failed to upload photo: ' + err.message); }
     finally { setSaving(false); }
   };
@@ -1759,7 +1784,16 @@ export const CompanyProfile = ({ viewedPartnerId = null, onBack = null }) => {
                     color: activeTab === tab ? '#0a66c2' : '#64748b', fontWeight: 600, fontSize: 14.5, cursor: 'pointer', transition: 'all 0.2s', display: 'flex', alignItems: 'center', gap: 8
                   }}
                 >
-                  {tab === 'Saved' ? <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}><Bookmark size={14} /> Saved</div> : tab}
+                   {tab === 'Saved' ? (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <Bookmark size={14} /> Saved
+                      {savedItemsCount > 0 && (
+                        <span style={{ fontSize: 11, background: '#e2e8f0', padding: '2px 6px', borderRadius: 10, color: '#475569', marginLeft: 4 }}>
+                          {savedItemsCount}
+                        </span>
+                      )}
+                    </div>
+                  ) : tab}
                 </button>
               ))}
             </div>
@@ -1929,21 +1963,22 @@ export const CompanyProfile = ({ viewedPartnerId = null, onBack = null }) => {
           {activeTab === 'Saved' && isOwnProfile && (
             <div className="ln-card">
               <div className="ln-section-header"><h3>Saved Items</h3></div>
-              <div style={{ padding: '0 20px 20px' }}><SavedItemsView userId={partner.id} userType="partner" onOpenBulletin={(p) => openBulletinModal(p, 'inquire')} /></div>
+              <div style={{ padding: '0 20px 20px' }}><SavedItemsView userId={partner.id} userType="partner" onOpenBulletin={(p) => openBulletinModal(p, 'inquire')} onViewDetail={onViewDetail} /></div>
             </div>
           )}
 
           {activeTab === 'Activity' && isOwnProfile && (
-            <ProfileActivityTab profileId={partner.id} profileType="partner" isOwnProfile={isOwnProfile} />
+            <ProfileActivityTab 
+                profileId={partner.id} 
+                profileType="partner" 
+                isOwnProfile={isOwnProfile} 
+                onViewDetail={onViewDetail}
+                openBulletinModal={openBulletinModal}
+            />
           )}
         </div>
       </div>
 
-      {bulletinToast && (
-        <div style={{ position: 'fixed', top: 20, right: 20, zIndex: 9999, background: '#0f172a', color: '#fff', padding: '12px 20px', borderRadius: 10, display: 'flex', alignItems: 'center', gap: 8 }}>
-          <CheckCircle size={16} color="#4ade80" />{bulletinToast}
-        </div>
-      )}
 
       {bulletinModal && (
           <div className="modal-overlay">
