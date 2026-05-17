@@ -8,7 +8,7 @@ import {
     Settings, LogOut, Bell, ChevronDown, Search, Eye, Edit, CheckCircle,
     XCircle, Download, Plus, X, AlertCircle, FileText, Award, Shield,
     UserCheck, Clock, MapPin, Star, Filter, Trash2, Menu, MoreVertical,
-    ChevronLeft, ChevronRight, BookOpen
+    ChevronLeft, ChevronRight, BookOpen, Upload
 } from 'lucide-react';
 import {
     BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid,
@@ -799,6 +799,137 @@ const ManageTesdaPrograms = () => {
         competenciesText: '',
     });
 
+    // Standalone program requirements states
+    const [selectedProgramForReqs, setSelectedProgramForReqs] = useState(null);
+    const [showReqsModal, setShowReqsModal] = useState(false);
+    const [reqsList, setReqsList] = useState([]);
+    const [loadingReqs, setLoadingReqs] = useState(false);
+    const [newReqDesc, setNewReqDesc] = useState('');
+    const [newReqFile, setNewReqFile] = useState(null);
+    const [uploadingNewReq, setUploadingNewReq] = useState(false);
+
+    const openRequirementsModal = async (program) => {
+        setSelectedProgramForReqs(program);
+        setShowReqsModal(true);
+        setNewReqDesc('');
+        setNewReqFile(null);
+        setReqsList([]);
+        setLoadingReqs(true);
+        try {
+            const { data, error } = await supabase
+                .from('program_requirements')
+                .select('*')
+                .eq('program_id', program.id)
+                .order('created_at', { ascending: true });
+            if (error) throw error;
+            setReqsList(data || []);
+        } catch (err) {
+            console.error('Failed to load program requirements:', err);
+            toast.error('Failed to load program requirement files.');
+        } finally {
+            setLoadingReqs(false);
+        }
+    };
+
+    const handleAddRequirement = async (e) => {
+        e.preventDefault();
+        if (!newReqDesc.trim()) {
+            toast.error('Please enter a description of the file.');
+            return;
+        }
+        if (!newReqFile) {
+            toast.error('Please select a template file to upload.');
+            return;
+        }
+
+        const allowedTypes = [
+            'application/pdf', 
+            'application/msword', 
+            'application/vnd.openxmlformats-officedocument.wordprocessingml.document', 
+            'image/jpeg', 
+            'image/png', 
+            'image/jpg'
+        ];
+        if (!allowedTypes.includes(newReqFile.type)) {
+            toast.error('Only PDF, Word documents, JPG, and PNG files are allowed.');
+            return;
+        }
+        const maxSize = 10 * 1024 * 1024; // 10MB
+        if (newReqFile.size > maxSize) {
+            toast.error('File size must be less than 10MB.');
+            return;
+        }
+
+        setUploadingNewReq(true);
+        try {
+            const fileExt = newReqFile.name.split('.').pop();
+            const fileName = `program_requirement_${Date.now()}_${Math.random().toString(36).substring(2, 15)}.${fileExt}`;
+            const path = `requirements/${fileName}`;
+
+            // Upload file to Supabase Storage
+            const { error: uploadErr } = await supabase.storage
+                .from('registration-uploads')
+                .upload(path, newReqFile);
+            if (uploadErr) throw uploadErr;
+
+            const { data: urlData } = supabase.storage
+                .from('registration-uploads')
+                .getPublicUrl(path);
+
+            const payload = {
+                program_id: selectedProgramForReqs.id,
+                name: newReqDesc.trim(),
+                description: '',
+                is_required: true,
+                file_name: newReqFile.name,
+                file_url: urlData.publicUrl,
+                file_type: newReqFile.type
+            };
+
+            // Insert into program_requirements table
+            const { data: inserted, error: insertErr } = await supabase
+                .from('program_requirements')
+                .insert([payload])
+                .select()
+                .single();
+
+            if (insertErr) throw insertErr;
+
+            toast.success('Requirement file uploaded and connected successfully!');
+            setNewReqDesc('');
+            setNewReqFile(null);
+            
+            // Clear the file input in DOM
+            const fileInput = document.getElementById('new-req-file-input');
+            if (fileInput) fileInput.value = '';
+
+            // Update local list
+            setReqsList(prev => [...prev, inserted]);
+        } catch (err) {
+            console.error('Failed to add program requirement:', err);
+            toast.error('Failed to upload and connect requirement file.');
+        } finally {
+            setUploadingNewReq(false);
+        }
+    };
+
+    const handleDeleteRequirement = async (reqId) => {
+        if (!window.confirm('Are you sure you want to remove this requirement file?')) return;
+        try {
+            const { error } = await supabase
+                .from('program_requirements')
+                .delete()
+                .eq('id', reqId);
+            if (error) throw error;
+
+            toast.success('Requirement file removed.');
+            setReqsList(prev => prev.filter(r => r.id !== reqId));
+        } catch (err) {
+            console.error('Failed to delete program requirement:', err);
+            toast.error('Failed to delete requirement file.');
+        }
+    };
+
     // Reset page when search changes
     useEffect(() => {
         setCurrentPage(1);
@@ -1019,7 +1150,7 @@ const ManageTesdaPrograms = () => {
         setShowModal(true);
     };
 
-    const openEditModal = (program) => {
+    const openEditModal = async (program) => {
         setEditProgram(program);
         setForm({
             name: program.name || '',
@@ -1251,6 +1382,7 @@ const ManageTesdaPrograms = () => {
                                     <td>
                                         <div style={{ display: 'flex', gap: 6 }}>
                                             <button className="btn btn-outline btn-sm" onClick={() => openEditModal(program)}><Edit size={12} /> Edit</button>
+                                            <button className="btn btn-outline btn-sm" style={{ borderColor: '#7c3aed', color: '#7c3aed' }} onClick={() => openRequirementsModal(program)}><FileText size={12} /> Requirements</button>
                                             <button className="btn btn-danger btn-sm" onClick={() => deleteProgram(program)}><Trash2 size={12} /> Delete</button>
                                         </div>
                                     </td>
@@ -1327,12 +1459,102 @@ const ManageTesdaPrograms = () => {
                             </div>
                         </div>
 
+
+
                         <div style={{ display: 'flex', gap: 10 }}>
                             <button className="btn btn-outline" style={{ flex: 1 }} onClick={closeModal} disabled={saving}>Cancel</button>
                             <button className="btn btn-primary" style={{ flex: 1 }} onClick={saveProgram} disabled={saving}>
                                 <CheckCircle size={15} /> {saving ? 'Saving...' : (editProgram ? 'Save Changes' : 'Add Program')}
                             </button>
                         </div>
+                    </div>
+                </div>
+            )}
+
+            {showReqsModal && selectedProgramForReqs && (
+                <div className="modal-overlay" onClick={() => setShowReqsModal(false)}>
+                    <div className="modal" style={{ maxWidth: 640, width: '95%' }} onClick={e => e.stopPropagation()}>
+                        <div className="modal-header">
+                            <div>
+                                <h3 className="modal-title" style={{ fontSize: 16, fontWeight: 800 }}>Program Requirements: {selectedProgramForReqs.name}</h3>
+                                <p style={{ margin: '2px 0 0', fontSize: 13, color: '#64748b' }}>Manage downloadable files required for this program checklist</p>
+                            </div>
+                            <button className="btn btn-outline btn-icon" onClick={() => setShowReqsModal(false)}><X size={16} /></button>
+                        </div>
+
+                        {/* Existing Checklist Files */}
+                        <div style={{ marginBottom: 20 }}>
+                            <label className="form-label" style={{ fontSize: 13, fontWeight: 700, marginBottom: 8, color: '#0f172a' }}>Active Document Requirements</label>
+                            {loadingReqs ? (
+                                <div style={{ textAlign: 'center', padding: '20px 0', color: '#64748b' }}>
+                                    <div className="spinner" style={{ display: 'inline-block', width: 16, height: 16, border: '2px solid #f3f4f6', borderTopColor: '#7c3aed', borderRadius: '50%', animation: 'spin 1s linear infinite', marginRight: 8 }} />
+                                    Loading requirements...
+                                </div>
+                            ) : reqsList.length === 0 ? (
+                                <div style={{ textAlign: 'center', padding: '24px 16px', color: '#94a3b8', fontSize: 13.5, border: '1.5px dashed #e2e8f0', borderRadius: 10, background: '#f8fafc' }}>
+                                    No dedicated files uploaded for this program yet.
+                                </div>
+                            ) : (
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: 10, maxHeight: 220, overflowY: 'auto', paddingRight: 4 }}>
+                                    {reqsList.map(req => (
+                                        <div key={req.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 14px', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 8 }}>
+                                            <div style={{ display: 'flex', flexDirection: 'column', gap: 2, overflow: 'hidden' }}>
+                                                <div style={{ fontSize: 13.5, fontWeight: 700, color: '#0f172a' }}>{req.name}</div>
+                                                <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                                                    <FileText size={13} color="#64748b" />
+                                                    <a href={req.file_url} target="_blank" rel="noopener noreferrer" style={{ fontSize: 12, color: '#0284c7', textDecoration: 'underline', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 220 }}>
+                                                        {req.file_name}
+                                                    </a>
+                                                </div>
+                                            </div>
+                                            <button className="btn btn-outline" style={{ padding: 6, color: '#ef4444', borderColor: '#fee2e2', width: 28, height: 28, display: 'flex', alignItems: 'center', justifyContent: 'center' }} onClick={() => handleDeleteRequirement(req.id)} title="Delete file">
+                                                <Trash2 size={13} />
+                                            </button>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
+
+                        {/* Upload Form */}
+                        <form onSubmit={handleAddRequirement} style={{ borderTop: '1px solid #e2e8f0', paddingTop: 18 }}>
+                            <h4 style={{ margin: '0 0 14px', fontSize: 13.5, fontWeight: 700, color: '#0f172a' }}>Upload New Requirement</h4>
+                            
+                            <div className="form-group" style={{ marginBottom: 12 }}>
+                                <label className="form-label" style={{ fontSize: 12.5, fontWeight: 600 }}>Description of the file *</label>
+                                <input 
+                                    type="text" 
+                                    className="form-input" 
+                                    value={newReqDesc} 
+                                    onChange={e => setNewReqDesc(e.target.value)} 
+                                    placeholder="e.g. PSA Birth Certificate Template, Trainee Profile Form..." 
+                                    required 
+                                />
+                            </div>
+
+                            <div className="form-group" style={{ marginBottom: 16 }}>
+                                <label className="form-label" style={{ fontSize: 12.5, fontWeight: 600 }}>Select File *</label>
+                                <input 
+                                    id="new-req-file-input"
+                                    type="file" 
+                                    className="form-input" 
+                                    onChange={e => setNewReqFile(e.target.files[0])}
+                                    accept=".pdf,.doc,.docx,.jpg,.jpeg,.png"
+                                    style={{ padding: '6px 12px' }}
+                                    required
+                                />
+                                <div style={{ fontSize: 11.5, color: '#64748b', marginTop: 4 }}>
+                                    Supported formats: PDF, DOC, DOCX, JPG, PNG (Max 10MB)
+                                </div>
+                            </div>
+
+                            <div style={{ display: 'flex', gap: 10 }}>
+                                <button type="button" className="btn btn-outline" style={{ flex: 1 }} onClick={() => setShowReqsModal(false)}>Close</button>
+                                <button type="submit" className="btn btn-primary" style={{ flex: 1 }} disabled={uploadingNewReq}>
+                                    {uploadingNewReq ? 'Uploading...' : 'Upload & Save'}
+                                </button>
+                            </div>
+                        </form>
                     </div>
                 </div>
             )}
@@ -2671,6 +2893,8 @@ const SystemSettings = () => {
         </div>
     );
 };
+
+;
 
 // â”€â”€â”€ MAIN EXPORT â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 export default function AdminDashboard() {

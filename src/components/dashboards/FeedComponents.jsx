@@ -2,7 +2,8 @@ import React, { useState, useRef, useEffect } from 'react';
 import {
   Building2, MapPin, Clock, Briefcase, Users, CheckCircle,
   Target, ShieldCheck, Plus, X, Camera, FileText,
-  MessageSquare, Bookmark, Send, Trash2, Edit, Mail, Info, ChevronRight, Eye, MoreVertical, Check
+  MessageSquare, Bookmark, Send, Trash2, Edit, Mail, Info, ChevronRight, Eye, MoreVertical, Check,
+  Download, Link
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { useTrainees, usePartners } from '../../hooks';
@@ -140,6 +141,15 @@ export const formatBulletinDate = (dateStr) => {
   if (!dateStr) return '';
   const d = new Date(dateStr);
   return d.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+};
+
+const ensureAbsoluteUrl = (url) => {
+  if (!url) return '#';
+  const trimmed = String(url).trim();
+  if (!trimmed || trimmed === '#') return '#';
+  if (/^https?:\/\//i.test(trimmed)) return trimmed;
+  if (trimmed.startsWith('//')) return `https:${trimmed}`;
+  return `https://${trimmed}`;
 };
 
 const isStudentAuthorType = (authorType = '') => {
@@ -604,12 +614,77 @@ export const UniversalPostModal = ({
 };
 
 /**
+ * FilePreviewModal: A simple modal to preview images or PDFs
+ */
+export const FilePreviewModal = ({ file, onClose }) => {
+  if (!file) return null;
+  const isImg = isImageAttachment(file.url, file.type);
+  const isPdf = String(file.name || file.url).toLowerCase().endsWith('.pdf') || String(file.type).toLowerCase().includes('pdf');
+
+  return (
+    <div className="ln-modal-overlay" style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)', backdropFilter: 'blur(10px)', zIndex: 20000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }} onClick={onClose}>
+      <div className="ln-modal-content" style={{ width: '95%', maxWidth: 1200, height: '90vh', background: '#fff', borderRadius: 24, display: 'flex', flexDirection: 'column', overflow: 'hidden', position: 'relative', boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.5)' }} onClick={e => e.stopPropagation()}>
+        <div style={{ padding: '16px 24px', borderBottom: '1px solid #f1f5f9', display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: '#fff', zIndex: 10 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12, minWidth: 0 }}>
+            <div style={{ width: 36, height: 36, borderRadius: 8, background: '#f1f5f9', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#64748b' }}>
+              {isPdf ? <FileText size={18} /> : <Camera size={18} />}
+            </div>
+            <div style={{ fontWeight: 800, fontSize: 18, color: '#0f172a', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+              {file.name || 'File Preview'}
+            </div>
+          </div>
+          <button onClick={onClose} style={{ background: '#f1f5f9', border: 'none', width: 40, height: 40, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', transition: 'all 0.2s' }} onMouseEnter={e => e.currentTarget.style.background = '#e2e8f0'} onMouseLeave={e => e.currentTarget.style.background = '#f1f5f9'}>
+            <X size={20} color="#64748b" />
+          </button>
+        </div>
+        <div style={{ flex: 1, overflow: 'hidden', background: '#334155', display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative' }}>
+          {isImg ? (
+            <div style={{ width: '100%', height: '100%', padding: 20, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+               <img src={file.url} alt="" style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain', borderRadius: 8, boxShadow: '0 10px 30px rgba(0,0,0,0.3)' }} />
+            </div>
+          ) : isPdf ? (
+            <iframe src={`${file.url}#view=FitH`} title="PDF Preview" style={{ width: '100%', height: '100%', border: 'none', background: '#fff' }} />
+          ) : (
+            <div style={{ padding: 60, textAlign: 'center', color: '#fff' }}>
+              <FileText size={80} color="#94a3b8" style={{ marginBottom: 24, opacity: 0.5 }} />
+              <div style={{ fontSize: 20, fontWeight: 700, marginBottom: 8 }}>Preview not available</div>
+              <div style={{ color: '#94a3b8', marginBottom: 32 }}>We can't preview this file type directly, but you can still view it in a new tab.</div>
+              <a href={file.url} target="_blank" rel="noopener noreferrer" className="ln-btn ln-btn-primary" style={{ padding: '12px 32px', borderRadius: 12, fontSize: 16, fontWeight: 700 }}>Open in New Tab</a>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+/**
  * FeedItemDetailModal: A premium modal to show the full details of a post, job, or bulletin.
  */
 export const FeedItemDetailModal = ({ item, onClose, onApply, onSave, onInquire, openProfile, applied, contacted }) => {
   const { currentUser, trainees, partners, getUserPostInteraction, userRole } = useApp();
   const [imageOrientation, setImageOrientation] = useState('landscape'); // default
   const [optimisticSaved, setOptimisticSaved] = useState(null);
+  const [previewFile, setPreviewFile] = useState(null);
+
+  const handleDownload = async (url, filename) => {
+    try {
+      const response = await fetch(url);
+      const blob = await response.blob();
+      const blobUrl = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = blobUrl;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(blobUrl);
+    } catch (err) {
+      console.error('Download failed:', err);
+      // Fallback
+      window.open(url, '_blank');
+    }
+  };
 
   useEffect(() => {
     const src = item?.media_url || item?.attachmentUrl;
@@ -756,12 +831,75 @@ export const FeedItemDetailModal = ({ item, onClose, onApply, onSave, onInquire,
 
                {Array.isArray(item.requirements) && item.requirements.length > 0 && (
                 <div style={{ marginTop: 20, paddingTop: 20, borderTop: '1px solid #e2e8f0' }}>
-                  <div style={{ fontSize: 11, color: '#64748b', fontWeight: 800, textTransform: 'uppercase', marginBottom: 12 }}>Requirements</div>
+                  <div style={{ fontSize: 11, color: '#64748b', fontWeight: 800, textTransform: 'uppercase', marginBottom: 12 }}>Requirement Instructions</div>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                     {item.requirements.map((req, idx) => (
                       <div key={idx} style={{ display: 'flex', gap: 8, fontSize: 14, color: '#475569', lineHeight: 1.5 }}>
                         <span style={{ color: BULLETIN_CONFIG[item.post_type]?.color || '#7c3aed', fontWeight: 900 }}>•</span>
                         {req}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Attachments Section */}
+              {item.admin_metadata?.attachments && item.admin_metadata.attachments.length > 0 && (
+                <div style={{ marginTop: 20, paddingTop: 20, borderTop: '1px solid #e2e8f0' }}>
+                  <div style={{ fontSize: 11, color: '#64748b', fontWeight: 800, textTransform: 'uppercase', marginBottom: 12 }}>Requirement Documents</div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                    {item.admin_metadata.attachments.map((file, idx) => (
+                      <div key={idx} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 16px', background: '#fff', border: '1px solid #e2e8f0', borderRadius: 10, transition: 'all 0.2s' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 12, minWidth: 0, flex: 1 }}>
+                          <div style={{ width: 32, height: 32, borderRadius: 8, background: '#f1f5f9', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#64748b', flexShrink: 0 }}>
+                            <FileText size={16} />
+                          </div>
+                          <div style={{ minWidth: 0, flex: 1 }}>
+                            <div style={{ fontSize: 14, fontWeight: 700, color: '#1e293b', wordBreak: 'break-word', lineHeight: 1.2 }}>{file.name}</div>
+                            {file.instruction && <div style={{ fontSize: 12, color: '#64748b', marginTop: 1 }}>Note: {file.instruction}</div>}
+                          </div>
+                        </div>
+                        <div style={{ display: 'flex', gap: 8, flexShrink: 0, marginLeft: 16 }}>
+                          <button 
+                            onClick={() => setPreviewFile({ ...file, url: ensureAbsoluteUrl(file.url) })}
+                            className="ln-btn ln-btn-sm ln-btn-outline" 
+                            style={{ height: 32, display: 'flex', alignItems: 'center', gap: 6, borderRadius: 6, padding: '0 12px', fontSize: 12, fontWeight: 600 }}
+                          >
+                            <Eye size={14} /> View
+                          </button>
+                          <button 
+                            onClick={() => handleDownload(ensureAbsoluteUrl(file.url), file.name)}
+                            className="ln-btn ln-btn-sm ln-btn-outline" 
+                            style={{ height: 32, display: 'flex', alignItems: 'center', gap: 6, borderRadius: 6, padding: '0 12px', fontSize: 12, fontWeight: 600, background: '#f8fafc' }}
+                          >
+                            <Download size={14} /> Download
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Links Section */}
+              {item.admin_metadata?.links && item.admin_metadata.links.length > 0 && (
+                <div style={{ marginTop: 20, paddingTop: 20, borderTop: '1px solid #e2e8f0' }}>
+                  <div style={{ fontSize: 11, color: '#64748b', fontWeight: 800, textTransform: 'uppercase', marginBottom: 12 }}>Requirement Links</div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                    {item.admin_metadata.links.map((link, idx) => (
+                      <div key={idx} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 16px', background: '#fff', border: '1px solid #e2e8f0', borderRadius: 10 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 12, minWidth: 0, flex: 1 }}>
+                          <div style={{ width: 32, height: 32, borderRadius: 8, background: '#f1f5f9', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#64748b', flexShrink: 0 }}>
+                            <Link size={16} />
+                          </div>
+                          <div style={{ minWidth: 0, flex: 1 }}>
+                            <div style={{ fontSize: 14, fontWeight: 700, color: '#1e293b', wordBreak: 'break-word', lineHeight: 1.2 }}>{link.label || 'Link'}</div>
+                            {link.instruction && <div style={{ fontSize: 12, color: '#64748b', marginTop: 1 }}>Note: {link.instruction}</div>}
+                          </div>
+                        </div>
+                        <a href={ensureAbsoluteUrl(link.url)} target="_blank" rel="noopener noreferrer" className="ln-btn ln-btn-sm ln-btn-outline" style={{ height: 32, display: 'flex', alignItems: 'center', gap: 6, borderRadius: 6, padding: '0 12px', fontSize: 12, fontWeight: 600, marginLeft: 16 }}>
+                          <Eye size={14} /> Visit
+                        </a>
                       </div>
                     ))}
                   </div>
@@ -847,6 +985,7 @@ export const FeedItemDetailModal = ({ item, onClose, onApply, onSave, onInquire,
 
         </div>
       </div>
+      {previewFile && <FilePreviewModal file={previewFile} onClose={() => setPreviewFile(null)} />}
     </div>
   );
 };

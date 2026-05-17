@@ -33,7 +33,7 @@ import AIResumeBuilder from './AIResumeBuilder';
 import {
     User, Briefcase, FileText, CheckCircle, Bell, ChevronDown, ChevronUp, Search, Filter, MapPin, Clock, Building2,
     Award, Send, CheckSquare, Check, X, Eye, EyeOff, Plus, Menu, Home, Settings, LogOut, MessageSquare, Bookmark,
-    Trash2, Camera, Loader, GraduationCap, MoveRight, ExternalLink, ShieldCheck, Mail, Calendar, AlignLeft, Users, ChevronRight, ChevronLeft, Edit, Upload, Link, Star, Heart, MoreVertical, Info, LayoutDashboard, Target, FileCheck, AlertCircle, Sparkles
+    Trash2, Camera, Loader, GraduationCap, MoveRight, ExternalLink, ShieldCheck, Mail, Calendar, AlignLeft, Users, ChevronRight, ChevronLeft, Edit, Upload, Link, Star, Heart, MoreVertical, Info, LayoutDashboard, Target, FileCheck, AlertCircle, Sparkles, XCircle
 } from 'lucide-react';
 import ProfileActivityTab from './ProfileActivityTab';
 import EmptyState, {
@@ -320,6 +320,7 @@ const TraineeSideNav = ({ activePage, setActivePage }) => {
         { id: 'dashboard', label: 'Home', icon: <LayoutDashboard size={18} /> },
         { id: 'recommendations', label: 'Opportunities', icon: <Target size={18} /> },
         { id: 'applications', label: 'My Applications', icon: <FileCheck size={18} /> },
+        { id: 'requirements', label: 'Program Requirements', icon: <FileText size={18} /> },
     ];
 
     return (
@@ -5122,6 +5123,280 @@ const Opportunities = ({
 };
 
 // ─── PAGE 5: MY APPLICATIONS ──────────────────────────────────────
+const TraineeRequirements = () => {
+    const { currentUser } = useApp();
+    const { data: programs = [] } = usePrograms();
+    const [requirements, setRequirements] = useState([]);
+    const [uploads, setUploads] = useState({});
+    const [loading, setLoading] = useState(true);
+    const [uploadingId, setUploadingId] = useState(null);
+
+    const trainee = currentUser;
+
+    const myProgram = useMemo(() => {
+        if (!trainee || !programs.length) return null;
+        return programs.find(p => p.name === trainee.program || p.id === trainee.program_id);
+    }, [trainee, programs]);
+
+    const loadRequirementsData = async () => {
+        if (!myProgram || !trainee) {
+            setLoading(false);
+            return;
+        }
+        setLoading(true);
+        try {
+            const { data: reqs, error: reqsErr } = await supabase
+                .from('program_requirements')
+                .select('*')
+                .eq('program_id', myProgram.id)
+                .order('created_at', { ascending: true });
+            
+            if (reqsErr) throw reqsErr;
+            setRequirements(reqs || []);
+
+            const { data: ups, error: upsErr } = await supabase
+                .from('student_requirement_uploads')
+                .select('*')
+                .eq('student_id', trainee.id);
+            
+            if (upsErr) throw upsErr;
+
+            const uploadMap = {};
+            (ups || []).forEach(u => {
+                uploadMap[u.requirement_id] = u;
+            });
+            setUploads(uploadMap);
+        } catch (err) {
+            console.error('Error loading requirements data:', err);
+            toast.error('Failed to load requirements checklist.');
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    useEffect(() => {
+        loadRequirementsData();
+    }, [myProgram, trainee]);
+
+    const handleUploadRequirement = async (reqId, file) => {
+        if (!file) return;
+        
+        const allowedTypes = [
+            'application/pdf', 
+            'application/msword', 
+            'application/vnd.openxmlformats-officedocument.wordprocessingml.document', 
+            'image/jpeg', 
+            'image/png', 
+            'image/jpg'
+        ];
+        if (!allowedTypes.includes(file.type)) {
+            toast.error('Only PDF, Word documents, JPG, and PNG files are allowed.');
+            return;
+        }
+        const maxSize = 10 * 1024 * 1024; // 10MB
+        if (file.size > maxSize) {
+            toast.error('File size must be less than 10MB.');
+            return;
+        }
+
+        setUploadingId(reqId);
+        try {
+            const fileExt = file.name.split('.').pop();
+            const fileName = `student_${trainee.id}_req_${reqId}_${Date.now()}.${fileExt}`;
+            const path = `student-requirements/${fileName}`;
+            
+            const { error: uploadErr } = await supabase.storage
+                .from('registration-uploads')
+                .upload(path, file);
+                
+            if (uploadErr) throw uploadErr;
+            
+            const { data: urlData } = supabase.storage
+                .from('registration-uploads')
+                .getPublicUrl(path);
+                
+            const payload = {
+                student_id: trainee.id,
+                requirement_id: reqId,
+                file_name: file.name,
+                file_url: urlData.publicUrl,
+                file_type: file.type,
+                status: 'Pending Verification',
+                rejection_reason: null
+            };
+
+            const existingUpload = uploads[reqId];
+            if (existingUpload) {
+                const { error: dbErr } = await supabase
+                    .from('student_requirement_uploads')
+                    .update(payload)
+                    .eq('id', existingUpload.id);
+                if (dbErr) throw dbErr;
+            } else {
+                const { error: dbErr } = await supabase
+                    .from('student_requirement_uploads')
+                    .insert([payload]);
+                if (dbErr) throw dbErr;
+            }
+
+            toast.success('Document uploaded successfully!');
+            await loadRequirementsData();
+        } catch (err) {
+            console.error('Failed to upload document:', err);
+            toast.error('Failed to upload document.');
+        } finally {
+            setUploadingId(null);
+        }
+    };
+
+    if (!trainee?.program) {
+        return (
+            <div className="ln-page-content">
+                <div style={{ textAlign: 'center', padding: '60px 20px', background: '#fff', borderRadius: 12, boxShadow: '0 4px 12px rgba(0,0,0,0.05)' }}>
+                    <AlertCircle size={48} color="#eab308" style={{ margin: '0 auto 16px' }} />
+                    <h2 style={{ fontSize: 20, fontWeight: 700, color: '#0f172a', marginBottom: 8 }}>No Program Enrolled</h2>
+                    <p style={{ fontSize: 15, color: '#64748b', maxWidth: 460, margin: '0 auto 24px', lineHeight: 1.6 }}>
+                        You must be enrolled in a TESDA training program to access requirement document submissions. Please contact support or your program administrator.
+                    </p>
+                </div>
+            </div>
+        );
+    }
+
+    return (
+        <div className="ln-page-content">
+            <div className="ln-page-header" style={{ marginBottom: 24 }}>
+                <div>
+                    <h1 className="ln-page-title" style={{ fontSize: 24, fontWeight: 800 }}>Program Requirements Documents</h1>
+                    <p className="ln-page-subtitle" style={{ color: '#64748b', marginTop: 4 }}>
+                        Checklist for <strong style={{ color: '#0f172a' }}>{trainee.program}</strong> ({myProgram?.nc_level || 'N/A'})
+                    </p>
+                </div>
+                {myProgram?.duration_hours && (
+                    <span className="ln-badge ln-badge-blue" style={{ fontSize: 13, padding: '6px 12px' }}>
+                        {myProgram.duration_hours} Hours Course
+                    </span>
+                )}
+            </div>
+
+            {loading ? (
+                <div style={{ textAlign: 'center', padding: '60px 0' }}>
+                    <div className="spinner" style={{ margin: '0 auto', width: 32, height: 32, border: '3px solid #f3f4f6', borderTopColor: '#7c3aed', borderRadius: '50%', animation: 'spin 1s linear infinite' }} />
+                    <div style={{ marginTop: 16, color: '#64748b', fontSize: 14 }}>Loading requirements checklist...</div>
+                </div>
+            ) : requirements.length === 0 ? (
+                <div style={{ textAlign: 'center', padding: '60px 20px', background: '#fff', borderRadius: 12, boxShadow: '0 4px 12px rgba(0,0,0,0.05)' }}>
+                    <FileText size={48} color="#94a3b8" style={{ margin: '0 auto 16px' }} />
+                    <h2 style={{ fontSize: 18, fontWeight: 700, color: '#0f172a', marginBottom: 8 }}>No Requirements Defined</h2>
+                    <p style={{ fontSize: 14, color: '#64748b', maxWidth: 460, margin: '0 auto', lineHeight: 1.5 }}>
+                        Your administrator hasn't defined any document requirements for {trainee.program} yet.
+                    </p>
+                </div>
+            ) : (
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: 16 }}>
+                    {requirements.map((req) => {
+                        const up = uploads[req.id];
+                        const isUploaded = !!up;
+                        const status = up?.status || 'Not Submitted';
+                        const isVerified = status === 'Verified';
+                        const isRejected = status === 'Rejected';
+                        
+                        return (
+                            <div key={req.id} style={{ 
+                                background: '#ffffff', 
+                                border: `1px solid ${isVerified ? '#bbf7d0' : isRejected ? '#fecaca' : isUploaded ? '#fed7aa' : '#e2e8f0'}`, 
+                                borderRadius: 12, 
+                                padding: 20, 
+                                display: 'grid', 
+                                gridTemplateColumns: '1.2fr 2fr 1.2fr 1fr', 
+                                gap: 16, 
+                                alignItems: 'center',
+                                boxShadow: '0 2px 8px rgba(15, 23, 42, 0.04)',
+                                transition: 'all 0.2s ease-in-out'
+                            }}>
+                                <div>
+                                    <h4 style={{ margin: 0, fontSize: 15, fontWeight: 700, color: '#0f172a', display: 'flex', alignItems: 'center', gap: 6 }}>
+                                        {req.name}
+                                        {req.is_required && (
+                                            <span style={{ fontSize: 10, color: '#ef4444', background: '#fee2e2', padding: '2px 6px', borderRadius: 4, fontWeight: 700 }}>Required</span>
+                                        )}
+                                    </h4>
+                                    <p style={{ margin: '4px 0 0', fontSize: 13, color: '#64748b', lineHeight: 1.4 }}>{req.description}</p>
+                                </div>
+
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                                    {req.file_url ? (
+                                        <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                                            <span style={{ fontSize: 12, color: '#475569', fontWeight: 600 }}>Download template file:</span>
+                                            <a href={req.file_url} download={req.file_name} target="_blank" rel="noopener noreferrer" style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: '#f1f5f9', border: '1px solid #cbd5e1', padding: '6px 12px', borderRadius: 8, fontSize: 12.5, fontWeight: 700, color: '#0f172a', textDecoration: 'none', transition: 'all 0.2s' }}>
+                                                <Download size={13} /> {req.file_name}
+                                            </a>
+                                        </div>
+                                    ) : (
+                                        <span style={{ fontSize: 12, color: '#94a3b8', fontStyle: 'italic' }}>No template file provided by admin.</span>
+                                    )}
+                                </div>
+
+                                <div>
+                                    <div style={{ fontSize: 12, color: '#64748b', marginBottom: 6 }}>Upload Status:</div>
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                                        {status === 'Verified' && (
+                                            <span className="badge badge-green" style={{ display: 'inline-flex', alignItems: 'center', gap: 4, width: 'fit-content', fontSize: 12, fontWeight: 700, padding: '4px 10px' }}>
+                                                <CheckCircle size={12} /> Verified
+                                            </span>
+                                        )}
+                                        {status === 'Pending Verification' && (
+                                            <span className="badge badge-yellow" style={{ display: 'inline-flex', alignItems: 'center', gap: 4, width: 'fit-content', fontSize: 12, fontWeight: 700, padding: '4px 10px' }}>
+                                                <Clock size={12} /> Pending Review
+                                            </span>
+                                        )}
+                                        {status === 'Rejected' && (
+                                            <span className="badge badge-red" style={{ display: 'inline-flex', alignItems: 'center', gap: 4, width: 'fit-content', fontSize: 12, fontWeight: 700, padding: '4px 10px' }}>
+                                                <XCircle size={12} /> Rejected
+                                            </span>
+                                        )}
+                                        {status === 'Not Submitted' && (
+                                            <span className="badge badge-gray" style={{ display: 'inline-flex', alignItems: 'center', gap: 4, width: 'fit-content', fontSize: 12, fontWeight: 700, padding: '4px 10px' }}>
+                                                Not Submitted
+                                            </span>
+                                        )}
+
+                                        {isUploaded && (
+                                            <a href={up.file_url} target="_blank" rel="noopener noreferrer" style={{ fontSize: 11.5, color: '#0284c7', textDecoration: 'underline', marginTop: 2, display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={up.file_name}>
+                                                Uploaded: {up.file_name}
+                                            </a>
+                                        )}
+                                        {isRejected && up?.rejection_reason && (
+                                            <div style={{ fontSize: 11, color: '#b91c1c', marginTop: 4, background: '#fef2f2', padding: '6px 8px', borderRadius: 6, border: '1px solid #fee2e2', lineHeight: 1.4 }}>
+                                                <strong>Reason:</strong> {up.rejection_reason}
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+
+                                <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                                    {uploadingId === req.id ? (
+                                        <div style={{ fontSize: 13, color: '#64748b', display: 'flex', alignItems: 'center', gap: 6 }}>
+                                            <div className="spinner" style={{ width: 14, height: 14, border: '2px solid #f3f4f6', borderTopColor: '#7c3aed', borderRadius: '50%', animation: 'spin 1s linear infinite' }} />
+                                            Uploading...
+                                        </div>
+                                    ) : (
+                                        <label className={`btn ${isVerified ? 'btn-outline' : 'btn-primary'}`} style={{ cursor: isVerified ? 'not-allowed' : 'pointer', fontSize: 12.5, padding: '8px 14px', margin: 0, opacity: isVerified ? 0.6 : 1, pointerEvents: isVerified ? 'none' : 'auto' }}>
+                                            <Upload size={13} style={{ marginRight: 4 }} /> 
+                                            {isUploaded ? 'Replace File' : 'Upload File'}
+                                            <input type="file" onChange={e => handleUploadRequirement(req.id, e.target.files[0])} style={{ display: 'none' }} accept=".pdf,.doc,.docx,.jpg,.jpeg,.png" disabled={isVerified} />
+                                        </label>
+                                    )}
+                                </div>
+                            </div>
+                        );
+                    })}
+                </div>
+            )}
+        </div>
+    );
+};
+
 const MyApplications = ({ openContactModal, applications = [] }) => {
     const { currentUser, updateApplicationStatus } = useApp();
     const { data: trainees = [] } = useTrainees();
@@ -6294,6 +6569,7 @@ export default function TraineeDashboard() {
                     contactedPostIds={contactedPostIds}
                 />} />
                 <Route path="/applications" element={<MyApplications openContactModal={openContactModal} applications={applications} />} />
+                <Route path="/requirements" element={<TraineeRequirements />} />
                 <Route path="/profile-view/:profileType/:profileId" element={<TraineeProfileViewRoute openBulletinModal={openBulletinModal} openContactModal={openContactModal} openApplyModal={openApplyModal} toggleBookmark={toggleBookmark} onViewDetail={setSelectedJob} />} />
                 <Route path="/settings" element={<SettingsPage />} />
                 <Route path="/notifications" element={<NotificationsPage />} />

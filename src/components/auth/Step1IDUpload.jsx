@@ -1,11 +1,12 @@
 import React, { useState, useRef, useCallback, useEffect } from 'react';
 import {
-    Upload, X, CheckCircle, AlertTriangle, Image, Loader, Eye, ShieldCheck, ShieldAlert
+    Upload, X, CheckCircle, AlertTriangle, Image, Loader, Eye, ShieldCheck, ShieldAlert, Check
 } from 'lucide-react';
 import * as Tesseract from 'tesseract.js';
 import { supabase } from '../../lib/supabase';
 import { validateIDCard } from '../../utils/idCardValidator';
 import toast from 'react-hot-toast';
+import SearchableSelect from '../common/SearchableSelect';
 
 const ACCEPTED_TYPES = ['image/png', 'image/jpeg', 'image/jpg'];
 
@@ -777,8 +778,9 @@ export default function Step1IDUpload({ data, onChange, onValidChange }) {
                         {/* Program */}
                         <div className="form-group" style={{ marginBottom: 0 }}>
                             <label className="form-label">Program Taken <span style={{ color: '#ef4444' }}>*</span></label>
-                            <select
-                                className={`form-select ${getFieldStatus('program')}`}
+                            <SearchableSelect
+                                placeholder="— Select Program —"
+                                options={PROGRAMS}
                                 value={data.programId || ''}
                                 onChange={(e) => {
                                     const selectedProgram = PROGRAMS.find(program => String(program.id) === e.target.value);
@@ -789,13 +791,9 @@ export default function Step1IDUpload({ data, onChange, onValidChange }) {
                                     });
                                 }}
                                 onBlur={() => handleBlur('program')}
-                            >
-                                <option value="">— Select Program —</option>
-                                {PROGRAMS.map((prog) => (
-                                    <option key={prog.id || prog.name} value={prog.id || ''}>{prog.label || prog.name}</option>
-                                ))}
-                            </select>
-                            {touched.program && errors.program && <div className="form-error">{errors.program}</div>}
+                                status={getFieldStatus('program')}
+                                error={touched.program && errors.program ? errors.program : ''}
+                            />
                         </div>
 
                         {/* NC Level */}
@@ -830,37 +828,39 @@ export default function Step1IDUpload({ data, onChange, onValidChange }) {
                         {/* Gender */}
                         <div className="form-group" style={{ marginBottom: 0 }}>
                             <label className="form-label">Sex / Gender <span style={{ color: '#ef4444' }}>*</span></label>
-                            <select
-                                className={`form-select ${getFieldStatus('gender')}`}
+                            <SearchableSelect
+                                placeholder="Select Gender"
+                                options={GENDERS.map(g => ({ id: g, label: g }))}
                                 value={data.gender}
                                 onChange={(e) => onChange({ gender: e.target.value })}
                                 onBlur={() => handleBlur('gender')}
-                            >
-                                <option value="">Select Gender</option>
-                                {GENDERS.map(g => <option key={g} value={g}>{g}</option>)}
-                            </select>
-                            {touched.gender && errors.gender && <div className="form-error">{errors.gender}</div>}
+                                searchable={false}
+                                status={getFieldStatus('gender')}
+                                error={touched.gender && errors.gender ? errors.gender : ''}
+                            />
                         </div>
 
                         {/* Training Status */}
                         <div className="form-group" style={{ marginBottom: 0 }}>
                             <label className="form-label">Training Status <span style={{ color: '#ef4444' }}>*</span></label>
-                            <select
-                                className={`form-select ${getFieldStatus('trainingStatus')}`}
+                            <SearchableSelect
+                                placeholder="Select Status"
+                                options={[
+                                    { id: 'Student', label: 'Current Student' },
+                                    { id: 'Graduated', label: 'Graduated' }
+                                ]}
                                 value={data.trainingStatus || ''}
                                 onChange={(e) => {
                                     onChange({ trainingStatus: e.target.value });
                                     if (e.target.value === 'Student') {
-                                        onChange({ graduationYear: '' }); // Clear it if they switch back to student
+                                        onChange({ graduationYear: '' });
                                     }
                                 }}
                                 onBlur={() => handleBlur('trainingStatus')}
-                            >
-                                <option value="">Select Status</option>
-                                <option value="Student">Current Student</option>
-                                <option value="Graduated">Graduated</option>
-                            </select>
-                            {touched.trainingStatus && errors.trainingStatus && <div className="form-error">{errors.trainingStatus}</div>}
+                                searchable={false}
+                                status={getFieldStatus('trainingStatus')}
+                                error={touched.trainingStatus && errors.trainingStatus ? errors.trainingStatus : ''}
+                            />
                         </div>
 
                         {/* Graduation Year (Only if Graduated) */}

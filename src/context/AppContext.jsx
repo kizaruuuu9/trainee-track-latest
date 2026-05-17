@@ -809,7 +809,10 @@ export const AppProvider = ({ children }) => {
 
       const actualUserId = session.user.id;
 
-      const authorType = userRole === 'admin' ? 'admin' : (userRole === 'partner' ? 'industry_partner' : 'student');
+      // Robust author type determination: Use role/user_type from currentUser if userRole is ambiguous
+      const isAdmin = userRole === 'admin' || currentUser?.role === 'admin' || currentUser?.user_type === 'admin';
+      const isPartner = userRole === 'partner' || userRole === 'industry_partner' || currentUser?.user_type === 'industry_partner';
+      const authorType = isAdmin ? 'admin' : (isPartner ? 'industry_partner' : 'student');
 
       const newPost = {
         author_id: actualUserId,
@@ -819,6 +822,7 @@ export const AppProvider = ({ children }) => {
         created_at: new Date().toISOString(),
       };
 
+      console.log(`[createPost] Debug - userRole: "${userRole}", currentUserRole: "${currentUser?.role}", authorType resolved to: "${authorType}"`);
       console.log("Attempting to insert post:", newPost, "with active UID:", actualUserId);
 
       const { data, error } = await supabase
@@ -980,7 +984,7 @@ export const AppProvider = ({ children }) => {
       const payload = {
         post_id: postId,
         user_id: currentUser.id,
-        user_type: userRole === 'partner' ? 'industry_partner' : 'student',
+        user_type: (userRole === 'admin' || currentUser?.role === 'admin') ? 'admin' : (userRole === 'partner' ? 'industry_partner' : 'student'),
         interaction_type: interactionType,
         status: 'pending',
         details: { ...details, user_name: userName },
@@ -3048,6 +3052,8 @@ export const AppProvider = ({ children }) => {
           name: 'Administrator',
           email: authData.user.email,
           username: authData.user.email,
+          role: 'admin',
+          user_type: 'admin'
         };
         presenceApiFailedRef.current = false;
         setUserRole('admin');

@@ -4,6 +4,7 @@ import {
     FileText, Plus, X, ChevronDown, Upload, Trash2, ExternalLink, Link2
 } from 'lucide-react';
 import { useAppContext } from '../../context/AppContext';
+import SearchableSelect from '../common/SearchableSelect';
 
 const MAX_INTERESTS = 10;
 
@@ -281,21 +282,23 @@ export default function Step3ProfileSetup({ data, onChange, onValidChange }) {
 
                 <div className="form-group">
                     <label className="form-label">What is your current status? <span className="required">*</span></label>
-                    <select
-                        className={selectClass('status')}
+                    <SearchableSelect
+                        placeholder="Select status..."
+                        options={[
+                            { id: 'student', label: 'Student' },
+                            { id: 'alumni', label: 'Alumni' },
+                            { id: 'graduate', label: 'Graduate' }
+                        ]}
                         value={data.status || ''}
                         onChange={(e) => {
                             handleChange('status', e.target.value);
-                            // Reset conditional fields
                             if (e.target.value !== 'graduate') handleChange('graduateSchool', '');
                         }}
-                    >
-                        <option value="">Select status...</option>
-                        <option value="student">Student</option>
-                        <option value="alumni">Alumni</option>
-                        <option value="graduate">Graduate</option>
-                    </select>
-                    {touched.status && errors.status && <div className="field-error">{errors.status}</div>}
+                        onBlur={() => setTouched(prev => ({ ...prev, status: true }))}
+                        searchable={false}
+                        status={touched.status ? (errors.status ? 'error' : 'valid') : ''}
+                        error={touched.status && errors.status ? errors.status : ''}
+                    />
                 </div>
 
                 {data.status === 'graduate' && (

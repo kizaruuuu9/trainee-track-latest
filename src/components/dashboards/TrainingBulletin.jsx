@@ -6,8 +6,9 @@ import {
     Plus, Eye, Edit, Trash2, X, CheckCircle, XCircle, Clock,
     Calendar, Users, FileText, Award, Megaphone, ChevronDown,
     ChevronUp, Search, Filter, BookOpen, Send, Bookmark,
-    MessageSquare, UserCheck, AlertCircle, RefreshCw
+    MessageSquare, UserCheck, AlertCircle, RefreshCw, Download, Check
 } from 'lucide-react';
+import { supabase } from '../../lib/supabase';
 
 // ─── CONSTANTS ───────────────────────────────────────────────────────────────
 const POST_TYPES = [
@@ -73,6 +74,8 @@ const emptyForm = {
     accept_referrals: true,
     image: null,
     imagePreview: null,
+    attachments: [], // Array of { file, name, url, instruction }
+    links: [], // Array of { url, label, instruction }
 };
 
 const formatBulletinDate = (dateStr) => {
@@ -96,10 +99,7 @@ const PreviewCard = ({ form, viewAs }) => {
     const isAnnouncement = form.post_type === 'announcement';
     let actions = viewAs === 'trainee' ? pt.traineeActions : pt.partnerActions;
 
-    // Dynamically add Refer Apprentice if enabled for announcements
-    if (viewAs === 'partner' && form.accept_referrals && isAnnouncement && !actions.includes('Refer Apprentice')) {
-        actions = ['Refer Apprentice', ...actions];
-    }
+    // General announcements only have 'View' by default. No dynamic referral button.
 
     const reqs = form.requirements ? form.requirements.split('\n').filter(Boolean) : [];
 
@@ -170,12 +170,15 @@ const PreviewCard = ({ form, viewAs }) => {
 
                 {reqs.length > 0 && (
                     <div style={{ marginBottom: 12 }}>
-                        <div style={{ fontSize: 12, color: '#64748b', fontWeight: 700, marginBottom: 6 }}>Requirements</div>
-                        {reqs.map((r, i) => (
-                            <div key={i} style={{ fontSize: 13, color: '#475569', display: 'flex', gap: 6, marginBottom: 3 }}>
-                                <span style={{ color: pt.color }}>•</span> {r}
-                            </div>
-                        ))}
+                        <div style={{ fontSize: 12, color: '#64748b', fontWeight: 700, marginBottom: 6 }}>Requirement Instructions</div>
+                        <div style={{ 
+                            fontSize: 13, 
+                            color: '#475569', 
+                            whiteSpace: 'pre-wrap', 
+                            lineHeight: 1.5 
+                        }}>
+                            {form.requirements}
+                        </div>
                     </div>
                 )}
 
@@ -193,6 +196,105 @@ const PreviewCard = ({ form, viewAs }) => {
                             {action}
                         </button>
                     ))}
+
+                    {/* Multiple Attachments Display */}
+                    {(form.attachments && form.attachments.length > 0) && (
+                        <div style={{ width: '100%', marginTop: 8, display: 'flex', flexDirection: 'column', gap: 6 }}>
+                            <div style={{ fontSize: 11, fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.02em', marginBottom: 2 }}>Requirements Documents</div>
+                            {form.attachments.map((at, idx) => (
+                                <div key={idx} style={{ 
+                                    padding: '8px 12px', 
+                                    background: '#f8fafc', 
+                                    borderRadius: 8, 
+                                    border: '1px solid #e2e8f0',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'space-between',
+                                    gap: 12
+                                }}>
+                                    <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0, flex: 1 }}>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                            <FileText size={14} color={pt.color} />
+                                            <span style={{ fontSize: 12, fontWeight: 600, color: '#1e293b', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                                {at.name}
+                                            </span>
+                                        </div>
+                                        {at.instruction && (
+                                            <div style={{ fontSize: 10, color: '#64748b', marginTop: 2, paddingLeft: 22 }}>
+                                                Note: {at.instruction}
+                                            </div>
+                                        )}
+                                    </div>
+                                    <button 
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            if (at.url) window.open(at.url, '_blank');
+                                        }}
+                                        style={{ padding: '4px 10px', borderRadius: 4, border: `1px solid ${pt.color}`, background: 'transparent', color: pt.color, fontSize: 11, fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 }}
+                                    >
+                                        <Download size={11} /> {at.url ? 'Download' : 'Preview'}
+                                    </button>
+                                </div>
+                            ))}
+                        </div>
+                    )}
+                    {/* Multiple Links Display */}
+                    {(form.links && form.links.length > 0) && (
+                        <div style={{ width: '100%', marginTop: 8, display: 'flex', flexDirection: 'column', gap: 6 }}>
+                            <div style={{ fontSize: 11, fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.02em', marginBottom: 2 }}>Relevant Links</div>
+                            {form.links.map((ln, idx) => (
+                                <div key={idx} style={{ 
+                                    padding: '8px 12px', 
+                                    background: '#f8fafc', 
+                                    borderRadius: 8, 
+                                    border: '1px solid #e2e8f0',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'space-between',
+                                    gap: 12
+                                }}>
+                                    <div 
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            if (ln.url) window.open(ln.url.startsWith('http') ? ln.url : `https://${ln.url}`, '_blank');
+                                        }}
+                                        style={{ display: 'flex', flexDirection: 'column', minWidth: 0, flex: 1, cursor: 'pointer' }}
+                                    >
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                            <Search size={14} color={pt.color} />
+                                            <span style={{ 
+                                                fontSize: 12, 
+                                                fontWeight: 700, 
+                                                color: pt.color,
+                                                textDecoration: 'none',
+                                                borderBottom: `1.5px solid transparent`,
+                                                transition: 'all 0.2s'
+                                            }}
+                                            onMouseOver={e => e.currentTarget.style.borderBottomColor = pt.color}
+                                            onMouseOut={e => e.currentTarget.style.borderBottomColor = 'transparent'}
+                                            >
+                                                {ln.label || ln.url}
+                                            </span>
+                                        </div>
+                                        {ln.instruction && (
+                                            <div style={{ fontSize: 10, color: '#64748b', marginTop: 2, paddingLeft: 22 }}>
+                                                Note: {ln.instruction}
+                                            </div>
+                                        )}
+                                    </div>
+                                    <button 
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            if (ln.url) window.open(ln.url.startsWith('http') ? ln.url : `https://${ln.url}`, '_blank');
+                                        }}
+                                        style={{ padding: '4px 10px', borderRadius: 4, border: `1px solid ${pt.color}`, background: 'transparent', color: pt.color, fontSize: 11, fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 }}
+                                    >
+                                        <Eye size={11} /> Visit
+                                    </button>
+                                </div>
+                            ))}
+                        </div>
+                    )}
                 </div>
             </div>
         </div>
@@ -213,17 +315,83 @@ const PostFormModal = ({ editPost, onClose, onSave, saving, programs }) => {
         accept_referrals: editPost.accept_referrals !== false,
         image: null,
         imagePreview: editPost.image_url || null,
+        attachments: editPost.admin_metadata?.attachments || (editPost.attachment_url ? [{ name: editPost.attachment_name || 'Requirements', url: editPost.attachment_url }] : []),
+        links: editPost.admin_metadata?.links || [],
     } : { ...emptyForm });
     const [previewAs, setPreviewAs] = useState('trainee');
     const [showPreview, setShowPreview] = useState(false);
+    const [attachmentError, setAttachmentError] = useState('');
+    const [programChecklist, setProgramChecklist] = useState([]);
+    const [loadingChecklist, setLoadingChecklist] = useState(false);
     const pt = getPostType(form.post_type);
     const isAnnouncement = form.post_type === 'announcement';
 
     const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
 
+    // Fetch program requirements checklist templates when program name changes
+    useEffect(() => {
+        if (!form.title || isAnnouncement) {
+            setProgramChecklist([]);
+            return;
+        }
+
+        const matchingProgram = programs.find(p => p.name === form.title);
+        if (!matchingProgram) {
+            setProgramChecklist([]);
+            return;
+        }
+
+        const fetchProgramChecklist = async () => {
+            setLoadingChecklist(true);
+            try {
+                const { data, error } = await supabase
+                    .from('program_requirements')
+                    .select('*')
+                    .eq('program_id', matchingProgram.id)
+                    .order('created_at', { ascending: true });
+                if (error) throw error;
+                setProgramChecklist(data || []);
+            } catch (err) {
+                console.error('Error fetching program requirements checklist:', err);
+            } finally {
+                setLoadingChecklist(false);
+            }
+        };
+
+        fetchProgramChecklist();
+    }, [form.title, form.post_type, programs, isAnnouncement]);
+
+    const isIncluded = (req) => {
+        return (form.attachments || []).some(at => at.url === req.file_url);
+    };
+
+    const handleToggleChecklist = (req) => {
+        if (isIncluded(req)) {
+            // Remove from attachments list
+            set('attachments', (form.attachments || []).filter(at => at.url !== req.file_url));
+        } else {
+            // Append to attachments list as standard template document attachment
+            // Actual file name is the name, and the description of the file is the instruction/note
+            set('attachments', [
+                ...(form.attachments || []),
+                { name: req.file_name, url: req.file_url, instruction: req.name }
+            ]);
+        }
+    };
+
     return (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 1000, display: 'flex', alignItems: 'flex-start', justifyContent: 'center', padding: '24px 16px', overflowY: 'auto' }}>
-            <div style={{ background: '#fff', borderRadius: 16, width: '100%', maxWidth: showPreview ? 900 : 600, boxShadow: '0 20px 60px rgba(0,0,0,0.2)' }} onClick={e => e.stopPropagation()}>
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(15, 23, 42, 0.4)', backdropFilter: 'blur(10px)', WebkitBackdropFilter: 'blur(10px)', zIndex: 1000, display: 'flex', alignItems: 'flex-start', justifyContent: 'center', padding: '24px 16px', overflowY: 'auto' }}>
+            <div style={{ 
+                background: '#fff', 
+                borderRadius: 16, 
+                width: '95%', 
+                maxWidth: showPreview ? 1300 : 1000, // Added 200px more per user request
+                maxHeight: '90vh',
+                display: 'flex',
+                flexDirection: 'column',
+                boxShadow: '0 20px 60px rgba(0,0,0,0.2)',
+                position: 'relative'
+            }} onClick={e => e.stopPropagation()}>
                 {/* Modal Header */}
                 <div style={{ padding: '18px 24px', borderBottom: '1px solid #e2e8f0', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                     <div>
@@ -243,9 +411,15 @@ const PostFormModal = ({ editPost, onClose, onSave, saving, programs }) => {
                     </div>
                 </div>
 
-                <div style={{ display: 'grid', gridTemplateColumns: showPreview ? '1fr 1fr' : '1fr', gap: 0 }}>
+                <div style={{ 
+                    display: 'grid', 
+                    gridTemplateColumns: showPreview ? 'repeat(auto-fit, minmax(350px, 1fr))' : '1fr', 
+                    gap: 0,
+                    flex: 1,
+                    overflow: 'hidden'
+                }}>
                     {/* Form Side */}
-                    <div style={{ padding: '20px 24px', borderRight: showPreview ? '1px solid #e2e8f0' : 'none', maxHeight: '75vh', overflowY: 'auto' }}>
+                    <div style={{ padding: '20px 24px', borderRight: (showPreview && window.innerWidth > 768) ? '1px solid #e2e8f0' : 'none', overflowY: 'auto' }}>
                         {/* Post Type Selector */}
                         <div style={{ marginBottom: 16 }}>
                             <label style={{ fontSize: 12, fontWeight: 700, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.05em', display: 'block', marginBottom: 8 }}>Post Type *</label>
@@ -253,7 +427,11 @@ const PostFormModal = ({ editPost, onClose, onSave, saving, programs }) => {
                                 {POST_TYPES.map(type => (
                                     <button
                                         key={type.id}
-                                        onClick={() => set('post_type', type.id)}
+                                        onClick={() => {
+                                            set('post_type', type.id);
+                                            // Announcements don't accept referrals
+                                            if (type.id === 'announcement') set('accept_referrals', false);
+                                        }}
                                         style={{
                                             padding: '10px 12px',
                                             borderRadius: 10,
@@ -300,6 +478,12 @@ const PostFormModal = ({ editPost, onClose, onSave, saving, programs }) => {
                                         </option>
                                     ))}
                                 </select>
+                            )}
+                            {!isAnnouncement && !form.title && (
+                                <div style={{ fontSize: 11.5, color: '#ef4444', marginTop: 6, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 4 }}>
+                                    <AlertCircle size={12} />
+                                    Program selection is required to publish a training batch or exam schedule.
+                                </div>
                             )}
                         </div>
 
@@ -392,47 +576,438 @@ const PostFormModal = ({ editPost, onClose, onSave, saving, programs }) => {
                                     </div>
                                 </div>
 
-                                {/* Requirements */}
+                                {/* Requirement Instructions Text */}
                                 <div style={{ marginBottom: 14 }}>
-                                    <label style={{ fontSize: 12, fontWeight: 700, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.05em', display: 'block', marginBottom: 6 }}>Requirements <span style={{ color: '#94a3b8', textTransform: 'none', fontWeight: 400 }}>(one per line)</span></label>
+                                    <label style={{ fontSize: 12, fontWeight: 700, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.05em', display: 'block', marginBottom: 6 }}>Requirement Instructions</label>
                                     <textarea
                                         value={form.requirements}
                                         onChange={e => set('requirements', e.target.value)}
-                                        placeholder={"High school graduate\nBasic computer knowledge"}
-                                        rows={3}
+                                        placeholder={"e.g. Please bring original birth certificate\nWear formal attire during the exam"}
+                                        rows={6}
                                         style={{ width: '100%', padding: '10px 12px', borderRadius: 8, border: '1.5px solid #e2e8f0', fontSize: 13, outline: 'none', resize: 'vertical', boxSizing: 'border-box' }}
                                     />
+                                </div>
+
+                                {/* Dedicated Program Checklist Templates Selector */}
+                                {!isAnnouncement && form.title && (
+                                    <div style={{ 
+                                        marginBottom: 16, 
+                                        padding: 16, 
+                                        background: 'linear-gradient(135deg, #faf5ff 0%, #f3e8ff 100%)', 
+                                        border: '1.5px solid #e9d5ff', 
+                                        borderRadius: 12,
+                                        boxShadow: '0 4px 12px rgba(124, 58, 237, 0.04)' 
+                                    }}>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+                                            <Award size={16} color="#7c3aed" />
+                                            <h4 style={{ margin: 0, fontSize: 13, fontWeight: 800, color: '#1e293b', textTransform: 'uppercase', letterSpacing: '0.03em' }}>
+                                                Dedicated Program Checklist Templates
+                                            </h4>
+                                        </div>
+                                        <p style={{ margin: '0 0 12px', fontSize: 12, color: '#475569', lineHeight: 1.45 }}>
+                                            Select default requirement templates configured for <strong>{form.title}</strong> to automatically attach them to this post.
+                                        </p>
+
+                                        {loadingChecklist ? (
+                                            <div style={{ fontSize: 12, color: '#64748b', display: 'flex', alignItems: 'center', gap: 6, padding: '4px 0' }}>
+                                                <div style={{ width: 12, height: 12, border: '2px solid #cbd5e1', borderTopColor: '#7c3aed', borderRadius: '50%', animation: 'spin 1s linear infinite' }} />
+                                                Scanning program checklist requirements...
+                                            </div>
+                                        ) : programChecklist.length === 0 ? (
+                                            <div style={{ fontSize: 12, color: '#94a3b8', fontStyle: 'italic', background: '#ffffff', padding: '10px 12px', borderRadius: 8, border: '1px solid #f1f5f9' }}>
+                                                No checklist requirement templates configured for this program. You can configure them in the TESDA Programs tab.
+                                            </div>
+                                        ) : (
+                                            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                                                {programChecklist.map(req => {
+                                                    const checked = isIncluded(req);
+                                                    return (
+                                                        <div 
+                                                            key={req.id} 
+                                                            onClick={() => handleToggleChecklist(req)}
+                                                            style={{ 
+                                                                padding: '10px 12px', 
+                                                                background: '#ffffff', 
+                                                                border: `1.5px solid ${checked ? '#7c3aed' : '#e2e8f0'}`, 
+                                                                borderRadius: 8, 
+                                                                display: 'flex', 
+                                                                alignItems: 'center', 
+                                                                justifyContent: 'space-between',
+                                                                cursor: 'pointer',
+                                                                transition: 'all 0.2s',
+                                                                boxShadow: checked ? '0 2px 8px rgba(124, 58, 237, 0.08)' : 'none'
+                                                            }}
+                                                        >
+                                                            <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0, flex: 1 }}>
+                                                                <div style={{ 
+                                                                    width: 18, 
+                                                                    height: 18, 
+                                                                    borderRadius: 4, 
+                                                                    border: `1.5px solid ${checked ? '#7c3aed' : '#cbd5e1'}`, 
+                                                                    background: checked ? '#7c3aed' : '#ffffff', 
+                                                                    display: 'flex', 
+                                                                    alignItems: 'center', 
+                                                                    justifyContent: 'center',
+                                                                    flexShrink: 0,
+                                                                    transition: 'all 0.15s'
+                                                                }}>
+                                                                    {checked && <Check size={12} color="#ffffff" strokeWidth={3} />}
+                                                                </div>
+                                                                <div style={{ minWidth: 0 }}>
+                                                                    <div style={{ fontSize: 13, fontWeight: 700, color: '#1e293b' }}>{req.name}</div>
+                                                                    <div style={{ fontSize: 11, color: '#64748b', marginTop: 2, display: 'flex', alignItems: 'center', gap: 4 }}>
+                                                                        <FileText size={11} color="#64748b" />
+                                                                        <span>File: <strong style={{ color: '#475569' }}>{req.file_name}</strong></span>
+                                                                    </div>
+                                                                </div>
+                                                            </div>
+                                                            {req.file_url && (
+                                                                <a 
+                                                                    href={req.file_url} 
+                                                                    target="_blank" 
+                                                                    rel="noopener noreferrer" 
+                                                                    onClick={e => e.stopPropagation()}
+                                                                    style={{ 
+                                                                        fontSize: 11.5, 
+                                                                        color: '#0284c7', 
+                                                                        fontWeight: 600, 
+                                                                        textDecoration: 'underline',
+                                                                        marginLeft: 8,
+                                                                        display: 'inline-flex',
+                                                                        alignItems: 'center',
+                                                                        gap: 4
+                                                                    }}
+                                                                >
+                                                                    <FileText size={12} /> Template
+                                                                </a>
+                                                            )}
+                                                        </div>
+                                                    );
+                                                })}
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
+
+                                {/* Multiple Requirements Files Upload */}
+                                <div style={{ marginBottom: 14 }}>
+                                    <label style={{ fontSize: 12, fontWeight: 700, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.05em', display: 'block', marginBottom: 6 }}>Requirements Documents <span style={{ color: '#94a3b8', textTransform: 'none', fontWeight: 400 }}>(Optional - Multiple Files)</span></label>
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                                        <input
+                                            type="file"
+                                            multiple
+                                            onChange={e => {
+                                                const files = Array.from(e.target.files);
+                                                if (files.length > 0) {
+                                                    const existingNames = form.attachments.map(a => a.name);
+                                                    const filtered = files.filter(f => !existingNames.includes(f.name));
+                                                    
+                                                    if (filtered.length < files.length) {
+                                                        setAttachmentError("This file is already in the requirements list.");
+                                                    }
+
+                                                    if (filtered.length > 0) {
+                                                        setAttachmentError(''); // Clear error if at least one new file is added
+                                                        const newAttachments = filtered.map(file => ({ file, name: file.name, url: null, instruction: '' }));
+                                                        set('attachments', [...form.attachments, ...newAttachments]);
+                                                    }
+                                                    e.target.value = ''; // Clear the input so filename doesn't stick
+                                                }
+                                            }}
+                                            style={{ width: '100%', padding: '8px', borderRadius: 8, border: '1.5px dashed #cbd5e1', fontSize: 13, outline: 'none', boxSizing: 'border-box', background: '#f8fafc', cursor: 'pointer' }}
+                                        />
+
+                                        {attachmentError && (
+                                            <div style={{ fontSize: 10, color: '#ef4444', marginTop: 4, fontWeight: 500 }}>
+                                                {attachmentError}
+                                            </div>
+                                        )}
+                                        
+                                        {form.attachments.length > 0 && (
+                                            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                                                {form.attachments.map((at, idx) => (
+                                                    <div key={idx} style={{ padding: '10px 12px', background: '#f1f5f9', borderRadius: 8, display: 'flex', flexDirection: 'column', gap: 8 }}>
+                                                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                                                            <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
+                                                                <FileText size={14} color="#64748b" />
+                                                                <span style={{ fontSize: 13, color: '#334155', fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                                                    {at.name}
+                                                                </span>
+                                                            </div>
+                                                            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                                                <button
+                                                                    onClick={() => {
+                                                                        const updated = [...form.attachments];
+                                                                        updated.splice(idx, 1);
+                                                                        set('attachments', updated);
+                                                                    }}
+                                                                    style={{ background: 'transparent', border: 'none', color: '#ef4444', cursor: 'pointer', padding: 4 }}
+                                                                >
+                                                                    <Trash2 size={14} />
+                                                                </button>
+                                                            </div>
+                                                        </div>
+
+                                                        {(!at.showInstruction && !at.instruction) && (
+                                                            <div style={{ display: 'flex', justifyContent: 'flex-start' }}>
+                                                                <button
+                                                                    onClick={() => {
+                                                                        const updated = [...form.attachments];
+                                                                        updated[idx].showInstruction = true;
+                                                                        set('attachments', updated);
+                                                                    }}
+                                                                    style={{ background: 'transparent', border: 'none', color: '#7c3aed', cursor: 'pointer', fontSize: 11, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 4, padding: '2px 0' }}
+                                                                >
+                                                                    <Plus size={12} /> Add Note
+                                                                </button>
+                                                            </div>
+                                                        )}
+
+                                                        {(at.showInstruction || at.instruction) && (
+                                                            <div style={{ position: 'relative' }}>
+                                                                <input 
+                                                                    type="text"
+                                                                    value={at.instruction || ''}
+                                                                    onChange={e => {
+                                                                        const updated = [...form.attachments];
+                                                                        updated[idx].instruction = e.target.value;
+                                                                        set('attachments', updated);
+                                                                    }}
+                                                                    placeholder="Add specific instruction for this file (optional)..."
+                                                                    style={{ width: '100%', padding: '6px 10px', borderRadius: 6, border: '1px solid #cbd5e1', fontSize: 11, outline: 'none', background: '#fff' }}
+                                                                />
+                                                                {!at.instruction && (
+                                                                    <button 
+                                                                        onClick={() => {
+                                                                            const updated = [...form.attachments];
+                                                                            updated[idx].showInstruction = false;
+                                                                            set('attachments', updated);
+                                                                        }}
+                                                                        style={{ position: 'absolute', right: 8, top: '50%', transform: 'translateY(-50%)', background: 'transparent', border: 'none', color: '#94a3b8', cursor: 'pointer' }}
+                                                                    >
+                                                                        <X size={12} />
+                                                                    </button>
+                                                                )}
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+
+                                {/* Requirement Links */}
+                                <div style={{ marginBottom: 14 }}>
+                                    <label style={{ fontSize: 12, fontWeight: 700, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.05em', display: 'block', marginBottom: 6 }}>Requirement Links <span style={{ color: '#94a3b8', textTransform: 'none', fontWeight: 400 }}>(Optional - Multiple URLs)</span></label>
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                                        <button
+                                            type="button"
+                                            onClick={() => {
+                                                set('links', [...form.links, { url: '', label: '', instruction: '', isValid: null, validating: false }]);
+                                            }}
+                                            style={{ padding: '8px 12px', borderRadius: 8, border: '1.5px dashed #cbd5e1', fontSize: 13, color: '#64748b', fontWeight: 600, background: '#f8fafc', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}
+                                        >
+                                            <Plus size={14} /> Add Link
+                                        </button>
+
+                                        {form.links.length > 0 && (
+                                            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                                                {form.links.map((ln, idx) => (
+                                                    <div key={idx} style={{ padding: '12px', background: '#f1f5f9', borderRadius: 8, display: 'flex', flexDirection: 'column', gap: 8, border: '1px solid #e2e8f0' }}>
+                                                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                                            <input 
+                                                                type="text"
+                                                                value={ln.label}
+                                                                onChange={e => {
+                                                                    const updated = [...form.links];
+                                                                    updated[idx].label = e.target.value;
+                                                                    set('links', updated);
+                                                                }}
+                                                                placeholder="Link Label (e.g., Application Form)"
+                                                                style={{ flex: 1, padding: '6px 10px', borderRadius: 6, border: '1px solid #cbd5e1', fontSize: 12, outline: 'none' }}
+                                                            />
+                                                            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => {
+                                                                        const updated = [...form.links];
+                                                                        updated.splice(idx, 1);
+                                                                        set('links', updated);
+                                                                    }}
+                                                                    style={{ background: 'transparent', border: 'none', color: '#ef4444', cursor: 'pointer' }}
+                                                                >
+                                                                    <Trash2 size={16} />
+                                                                </button>
+                                                            </div>
+                                                        </div>
+                                                        <div style={{ position: 'relative' }}>
+                                                            <input 
+                                                                type="text"
+                                                                value={ln.url}
+                                                                onChange={e => {
+                                                                    const val = e.target.value;
+                                                                    const updated = [...form.links];
+                                                                    updated[idx].url = val;
+                                                                    updated[idx].isValid = null;
+                                                                    updated[idx].validating = !!val;
+                                                                    set('links', updated);
+
+                                                                    // Debounced validation
+                                                                    if (ln.validationTimeout) clearTimeout(ln.validationTimeout);
+                                                                    updated[idx].validationTimeout = setTimeout(async () => {
+                                                                        if (!val.trim()) {
+                                                                            setForm(prev => {
+                                                                                const next = [...prev.links];
+                                                                                if (next[idx]) {
+                                                                                    next[idx].isValid = null;
+                                                                                    next[idx].validating = false;
+                                                                                }
+                                                                                return { ...prev, links: next };
+                                                                            });
+                                                                            return;
+                                                                        }
+
+                                                                        const urlPattern = /^(https?:\/\/)?([\w\d.-]+\.)+[\w\d.-]+(\/.*)?$/i;
+                                                                        const isFormatOk = urlPattern.test(val);
+                                                                        
+                                                                        if (!isFormatOk) {
+                                                                            setForm(prev => {
+                                                                                const next = [...prev.links];
+                                                                                if (next[idx]) {
+                                                                                    next[idx].isValid = false;
+                                                                                    next[idx].validating = false;
+                                                                                }
+                                                                                return { ...prev, links: next };
+                                                                            });
+                                                                            return;
+                                                                        }
+
+                                                                        // Reachability check
+                                                                        try {
+                                                                            const targetUrl = val.startsWith('http') ? val : `https://${val}`;
+                                                                            // Using no-cors to check existence without being blocked by CORS
+                                                                            // This is a "best effort" check.
+                                                                            await fetch(targetUrl, { mode: 'no-cors' });
+                                                                            
+                                                                            setForm(prev => {
+                                                                                const next = [...prev.links];
+                                                                                if (next[idx]) {
+                                                                                    next[idx].isValid = true;
+                                                                                    next[idx].validating = false;
+                                                                                }
+                                                                                return { ...prev, links: next };
+                                                                            });
+                                                                        } catch (err) {
+                                                                            setForm(prev => {
+                                                                                const next = [...prev.links];
+                                                                                if (next[idx]) {
+                                                                                    next[idx].isValid = false;
+                                                                                    next[idx].validating = false;
+                                                                                }
+                                                                                return { ...prev, links: next };
+                                                                            });
+                                                                        }
+                                                                    }, 1000);
+                                                                }}
+                                                                placeholder="URL (e.g., https://example.com)"
+                                                                style={{ width: '100%', padding: '6px 32px 6px 10px', borderRadius: 6, border: `1px solid ${ln.isValid === false ? '#ef4444' : ln.isValid === true ? '#22c55e' : '#cbd5e1'}`, fontSize: 12, outline: 'none', transition: 'border-color 0.2s' }}
+                                                            />
+                                                            <div style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', display: 'flex', alignItems: 'center' }}>
+                                                                {ln.validating && <div className="animate-spin" style={{ width: 14, height: 14, border: '2px solid #cbd5e1', borderTopColor: '#7c3aed', borderRadius: '50%' }} />}
+                                                                {!ln.validating && ln.isValid === true && <Check size={14} color="#22c55e" />}
+                                                                {!ln.validating && ln.isValid === false && <AlertCircle size={14} color="#ef4444" />}
+                                                            </div>
+                                                        </div>
+
+                                                        {!ln.validating && ln.isValid === false && (
+                                                            <div style={{ fontSize: 10, color: '#ef4444', marginTop: -4, paddingLeft: 2, fontWeight: 500 }}>
+                                                                Invalid or unreachable link
+                                                            </div>
+                                                        )}
+
+                                                        {(!ln.showInstruction && !ln.instruction) && (
+                                                            <div style={{ display: 'flex', justifyContent: 'flex-start' }}>
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => {
+                                                                        const updated = [...form.links];
+                                                                        updated[idx].showInstruction = true;
+                                                                        set('links', updated);
+                                                                    }}
+                                                                    style={{ background: 'transparent', border: 'none', color: '#7c3aed', cursor: 'pointer', fontSize: 11, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 4, padding: '2px 0' }}
+                                                                >
+                                                                    <Plus size={12} /> Add Note
+                                                                </button>
+                                                            </div>
+                                                        )}
+
+                                                        {(ln.showInstruction || ln.instruction) && (
+                                                            <div style={{ position: 'relative' }}>
+                                                                <input 
+                                                                    type="text"
+                                                                    value={ln.instruction || ''}
+                                                                    onChange={e => {
+                                                                        const updated = [...form.links];
+                                                                        updated[idx].instruction = e.target.value;
+                                                                        set('links', updated);
+                                                                    }}
+                                                                    placeholder="Add specific instruction for this link (optional)..."
+                                                                    style={{ width: '100%', padding: '6px 10px', borderRadius: 6, border: '1px solid #cbd5e1', fontSize: 11, outline: 'none', background: '#fff' }}
+                                                                />
+                                                                {!ln.instruction && (
+                                                                    <button 
+                                                                        type="button"
+                                                                        onClick={() => {
+                                                                            const updated = [...form.links];
+                                                                            updated[idx].showInstruction = false;
+                                                                            set('links', updated);
+                                                                        }}
+                                                                        style={{ position: 'absolute', right: 8, top: '50%', transform: 'translateY(-50%)', background: 'transparent', border: 'none', color: '#94a3b8', cursor: 'pointer' }}
+                                                                    >
+                                                                        <X size={12} />
+                                                                    </button>
+                                                                )}
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        )}
+                                    </div>
                                 </div>
 
                             </>
                         )}
 
-                        {/* Accept Referrals Toggle (Always visible for all types) */}
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14, padding: '10px 14px', background: '#f8fafc', borderRadius: 10 }}>
-                            <div
-                                onClick={() => set('accept_referrals', !form.accept_referrals)}
-                                style={{
-                                    width: 40, height: 22, borderRadius: 11,
-                                    background: form.accept_referrals ? '#7c3aed' : '#e2e8f0',
-                                    cursor: 'pointer', position: 'relative', flexShrink: 0, transition: 'background 0.2s'
-                                }}
-                            >
-                                <div style={{
-                                    width: 16, height: 16, borderRadius: '50%', background: '#fff',
-                                    position: 'absolute', top: 3, left: form.accept_referrals ? 21 : 3,
-                                    transition: 'left 0.2s', boxShadow: '0 1px 3px rgba(0,0,0,0.2)'
-                                }} />
+                        {/* Accept Referrals Toggle (Hidden for announcements) */}
+                        {!isAnnouncement && (
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14, padding: '10px 14px', background: '#f8fafc', borderRadius: 10 }}>
+                                <div
+                                    onClick={() => set('accept_referrals', !form.accept_referrals)}
+                                    style={{
+                                        width: 40, height: 22, borderRadius: 11,
+                                        background: form.accept_referrals ? '#7c3aed' : '#e2e8f0',
+                                        cursor: 'pointer', position: 'relative', flexShrink: 0, transition: 'background 0.2s'
+                                    }}
+                                >
+                                    <div style={{
+                                        width: 16, height: 16, borderRadius: '50%', background: '#fff',
+                                        position: 'absolute', top: 3, left: form.accept_referrals ? 21 : 3,
+                                        transition: 'left 0.2s', boxShadow: '0 1px 3px rgba(0,0,0,0.2)'
+                                    }} />
+                                </div>
+                                <div>
+                                    <div style={{ fontSize: 13, fontWeight: 600, color: '#334155' }}>Accept Industry Partner Referrals</div>
+                                    <div style={{ fontSize: 11, color: '#94a3b8' }}>Allow companies to refer apprentices for this post</div>
+                                </div>
                             </div>
-                            <div>
-                                <div style={{ fontSize: 13, fontWeight: 600, color: '#334155' }}>Accept Industry Partner Referrals</div>
-                                <div style={{ fontSize: 11, color: '#94a3b8' }}>Allow companies to refer apprentices for this post</div>
-                            </div>
-                        </div>
+                        )}
                     </div>
 
                     {/* Preview Side */}
                     {showPreview && (
-                        <div style={{ padding: '20px', background: '#f8fafc', maxHeight: '75vh', overflowY: 'auto' }}>
+                        <div style={{ padding: '20px', background: '#f8fafc', overflowY: 'auto' }}>
                             <div style={{ display: 'flex', gap: 8, marginBottom: 14 }}>
                                 {['trainee', 'partner'].map(v => (
                                     <button
@@ -522,37 +1097,116 @@ export default function TrainingBulletin() {
         return matchSearch && matchType && matchStatus;
     });
 
-    const handleSave = async (form) => {
-        setSaving(true);
-        const payload = {
-            post_type: form.post_type,
-            title: form.title,
-            content: form.content,
-            schedule: form.schedule || null,
-            time_range: form.time_range || null,
-            slots: form.slots ? parseInt(form.slots) : null,
-            requirements: form.requirements ? form.requirements.split('\n').filter(Boolean) : [],
-            status: form.status || 'Open',
-            accept_referrals: form.accept_referrals !== false,
-            author_type: 'student',
-            image_url: form.imagePreview || null,
-            tags: [],
-        };
-
-        let res;
-        if (editPost) {
-            res = await adminUpdatePost(editPost.id, payload);
+    // Prevent background scroll when modal is open
+    useEffect(() => {
+        if (showForm) {
+            document.body.style.overflow = 'hidden';
+            document.documentElement.style.overflow = 'hidden';
         } else {
-            res = await createPost(payload);
+            document.body.style.overflow = 'unset';
+            document.documentElement.style.overflow = 'unset';
+        }
+        return () => { 
+            document.body.style.overflow = 'unset'; 
+            document.documentElement.style.overflow = 'unset';
+        };
+    }, [showForm]);
+
+    const handleSave = async (form) => {
+        // Enforce program selection validation for training batch and exam schedule posts
+        if (form.post_type !== 'announcement' && !form.title) {
+            toast.error("Please select a program before publishing.");
+            return;
         }
 
-        setSaving(false);
-        if (res.success) {
-            toast.success(editPost ? 'Post updated successfully!' : 'Post published successfully!');
-            setShowForm(false);
-            setEditPost(null);
-        } else {
-            toast.error(res.error || 'Failed to save post.');
+        setSaving(true);
+        try {
+            // Filter out completely blank requirement link entries
+            const activeLinks = (form.links || []).filter(ln => (ln.url || '').trim() !== '' || (ln.label || '').trim() !== '');
+
+            // Validate active links
+            if (activeLinks.length > 0) {
+                const urlPattern = /^(https?:\/\/)?([\w\d.-]+\.)+[\w\d.-]+(\/.*)?$/i;
+                for (const ln of activeLinks) {
+                    if (!ln.url) {
+                        toast.error("Please provide a URL for all links.");
+                        setSaving(false);
+                        return;
+                    }
+                    if (!urlPattern.test(ln.url)) {
+                        toast.error(`Invalid URL format: ${ln.url}`);
+                        setSaving(false);
+                        return;
+                    }
+                }
+            }
+
+            let finalImageUrl = form.imagePreview;
+            const finalAttachments = [];
+
+            // Handle Image Upload
+            if (form.image) {
+                const path = `bulletin/images/${Date.now()}_${form.image.name}`;
+                const { error: uploadErr } = await supabase.storage.from('registration-uploads').upload(path, form.image);
+                if (uploadErr) throw uploadErr;
+                const { data: { publicUrl } } = supabase.storage.from('registration-uploads').getPublicUrl(path);
+                finalImageUrl = publicUrl;
+            }
+
+            // Handle Multiple Attachments Upload
+            for (const at of form.attachments) {
+                if (at.file) {
+                    const path = `bulletin/attachments/${Date.now()}_${at.file.name}`;
+                    const { error: uploadErr } = await supabase.storage.from('registration-uploads').upload(path, at.file);
+                    if (uploadErr) throw uploadErr;
+                    const { data: { publicUrl } } = supabase.storage.from('registration-uploads').getPublicUrl(path);
+                    finalAttachments.push({ name: at.file.name, url: publicUrl, type: at.file.type, instruction: at.instruction });
+                } else if (at.url) {
+                    finalAttachments.push(at);
+                }
+            }
+
+            const payload = {
+                post_type: form.post_type,
+                title: form.title,
+                content: form.content,
+                schedule: form.schedule || null,
+                time_range: form.time_range || null,
+                slots: form.slots ? parseInt(form.slots) : null,
+                requirements: form.requirements.split('\n').filter(line => line.trim() !== ''),
+                status: form.status || 'Open',
+                accept_referrals: form.accept_referrals !== false,
+                image_url: finalImageUrl,
+                attachment_url: finalAttachments[0]?.url || null, // Keep for backward compatibility
+                attachment_name: finalAttachments[0]?.name || null,
+                attachment_type: finalAttachments[0]?.type || null,
+                admin_metadata: {
+                    ...editPost?.admin_metadata,
+                    attachments: finalAttachments,
+                    links: activeLinks
+                },
+                tags: [],
+            };
+
+            let res;
+            if (editPost) {
+                res = await adminUpdatePost(editPost.id, payload);
+            } else {
+                res = await createPost(payload);
+            }
+
+            if (res.success) {
+                toast.success(editPost ? 'Post updated successfully!' : 'Post published successfully!');
+                setShowForm(false);
+                setEditPost(null);
+            } else {
+                throw new Error(res.error || 'Failed to save post.');
+            }
+        } catch (err) {
+            console.error('Save error:', err);
+            toast.error(err.message);
+        } finally {
+            setSaving(false);
         }
     };
 
@@ -719,7 +1373,86 @@ export default function TrainingBulletin() {
                                     </div>
                                 )}
 
-                                {/* Actions row */}
+                                {/* Attachments row */}
+                                {(() => {
+                                    const attachments = post.admin_metadata?.attachments || (post.attachment_url ? [{ name: post.attachment_name || 'Requirements', url: post.attachment_url }] : []);
+                                    if (attachments.length === 0) return null;
+
+                                    return (
+                                        <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 12 }}>
+                                            {attachments.map((at, i) => (
+                                                <div key={i} style={{ padding: '8px 12px', background: '#f8fafc', borderRadius: 8, border: '1px solid #e2e8f0', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+                                                    <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0, flex: 1 }}>
+                                                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                                            <FileText size={14} color={pt.color} />
+                                                            <span style={{ fontSize: 12, fontWeight: 600, color: '#334155', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                                                {at.name}
+                                                            </span>
+                                                        </div>
+                                                        {at.instruction && (
+                                                            <div style={{ fontSize: 10, color: '#64748b', marginTop: 2, paddingLeft: 22 }}>
+                                                                Note: {at.instruction}
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                    <button 
+                                                        onClick={(e) => { e.stopPropagation(); window.open(at.url, '_blank'); }}
+                                                        style={{ padding: '4px 8px', borderRadius: 4, border: `1px solid ${pt.color}`, background: 'transparent', color: pt.color, fontSize: 11, fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 }}
+                                                    >
+                                                        <Download size={12} /> Download
+                                                    </button>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    );
+                                })()}
+
+                                {/* Links row */}
+                                {(() => {
+                                    const links = post.admin_metadata?.links || [];
+                                    if (links.length === 0) return null;
+
+                                    return (
+                                        <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 12 }}>
+                                            {links.map((ln, i) => (
+                                                <div key={i} style={{ padding: '8px 12px', background: '#f8fafc', borderRadius: 8, border: '1px solid #e2e8f0', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+                                                    <div 
+                                                        onClick={(e) => { e.stopPropagation(); window.open(ln.url.startsWith('http') ? ln.url : `https://${ln.url}`, '_blank'); }}
+                                                        style={{ display: 'flex', flexDirection: 'column', minWidth: 0, flex: 1, cursor: 'pointer' }}
+                                                    >
+                                                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                                            <Search size={14} color={pt.color} />
+                                                            <span style={{ 
+                                                                fontSize: 12, 
+                                                                fontWeight: 700, 
+                                                                color: pt.color,
+                                                                textDecoration: 'none',
+                                                                borderBottom: `1.5px solid transparent`,
+                                                                transition: 'all 0.2s'
+                                                            }}
+                                                            onMouseOver={e => e.currentTarget.style.borderBottomColor = pt.color}
+                                                            onMouseOut={e => e.currentTarget.style.borderBottomColor = 'transparent'}
+                                                            >
+                                                                {ln.label || ln.url}
+                                                            </span>
+                                                        </div>
+                                                        {ln.instruction && (
+                                                            <div style={{ fontSize: 10, color: '#64748b', marginTop: 2, paddingLeft: 22 }}>
+                                                                Note: {ln.instruction}
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                    <button 
+                                                        onClick={(e) => { e.stopPropagation(); window.open(ln.url.startsWith('http') ? ln.url : `https://${ln.url}`, '_blank'); }}
+                                                        style={{ padding: '4px 8px', borderRadius: 4, border: `1px solid ${pt.color}`, background: 'transparent', color: pt.color, fontSize: 11, fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 }}
+                                                    >
+                                                        <Eye size={12} /> Visit
+                                                    </button>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    );
+                                })()}
                                 <div style={{ display: 'flex', gap: 6, borderTop: '1px solid #f1f5f9', paddingTop: 10, flexWrap: 'wrap' }} onClick={e => e.stopPropagation()}>
                                     {/* Status change */}
                                     {STATUSES.filter(s => s !== post.status).map(s => (

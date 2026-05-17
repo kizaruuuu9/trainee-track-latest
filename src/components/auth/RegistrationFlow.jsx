@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { ArrowLeft, ArrowRight, CheckCircle, Loader, Users, Building2, ShieldCheck, Mail, MapPin, Building, Lock, Send, Eye, EyeOff, Briefcase } from 'lucide-react';
+import { ArrowLeft, ArrowRight, CheckCircle, Loader, Users, Building2, ShieldCheck, Mail, MapPin, Building, Lock, Send, Eye, EyeOff, Briefcase, Search, ChevronDown, Check, X } from 'lucide-react';
 import BrandLogo from '../common/BrandLogo';
 import Step1IDUpload from './Step1IDUpload';
 import Step2PersonalInfo from './Step2PersonalInfo';
 import PhilAddressSelector from '../common/PhilAddressSelector';
+import SearchableSelect from '../common/SearchableSelect';
 import { supabase } from '../../lib/supabase';
 import { useApp } from '../../context/AppContext';
 
@@ -299,15 +300,25 @@ export default function RegistrationFlow({ onBackToLogin }) {
             </div>
           </div>
           <div className="form-group">
-            <label className="form-label">Industry</label>
-            <div style={{ position: 'relative' }}>
-              <select className="form-input" style={{ paddingLeft: 38 }} value={partnerData.industry} onChange={e => setPartnerData({ ...partnerData, industry: e.target.value })}>
-                <option value="" disabled>Select an Industry</option>
-                {industries.map(ind => (
-                  <option key={ind} value={ind}>{ind}</option>
-                ))}
-              </select>
-              <Briefcase size={16} style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: '#94a3b8' }} />
+            <div className="form-group" style={{ flex: 1 }}>
+              <label className="form-label">Industry</label>
+              <div style={{ position: 'relative' }}>
+                <SearchableSelect
+                  placeholder="Select Industry"
+                  options={[
+                    { id: 'Technology', label: 'Technology' },
+                    { id: 'Construction', label: 'Construction' },
+                    { id: 'Manufacturing', label: 'Manufacturing' },
+                    { id: 'Services', label: 'Services' },
+                    { id: 'Agriculture', label: 'Agriculture' },
+                    { id: 'Education', label: 'Education' },
+                    { id: 'Healthcare', label: 'Healthcare' },
+                    { id: 'Others', label: 'Others' }
+                  ]}
+                  value={partnerData.industry}
+                  onChange={value => setPartnerData({ ...partnerData, industry: value })}
+                />
+              </div>
             </div>
           </div>
           <div className="reg-full-width">
@@ -591,8 +602,17 @@ export default function RegistrationFlow({ onBackToLogin }) {
 
       <style>{`
         @keyframes fadeSlideIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        @keyframes fadeSlideInUp { from { opacity: 0; transform: translateY(-10px); } to { opacity: 1; transform: translateY(0); } }
         .spin { animation: spin 0.8s linear infinite; }
         @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+
+        /* Searchable Select Styles */
+        .searchable-select-trigger.active { border-color: #3b82f6 !important; box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.12) !important; }
+        .searchable-select-trigger.error { border-color: #ef4444 !important; }
+        .searchable-select-trigger.valid { border-color: #16a34a !important; }
+        .searchable-select-option:hover { background-color: #f8fafc; }
+        .searchable-select-option.selected { background-color: #eff6ff !important; color: #2563eb !important; font-weight: 600; }
+        .searchable-select-dropdown { animation: fadeSlideIn 0.2s ease-out; }
       `}</style>
     </div>
   );
