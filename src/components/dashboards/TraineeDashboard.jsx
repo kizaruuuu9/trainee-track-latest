@@ -320,7 +320,6 @@ const TraineeSideNav = ({ activePage, setActivePage }) => {
         { id: 'dashboard', label: 'Home', icon: <LayoutDashboard size={18} /> },
         { id: 'recommendations', label: 'Opportunities', icon: <Target size={18} /> },
         { id: 'applications', label: 'My Applications', icon: <FileCheck size={18} /> },
-        { id: 'requirements', label: 'Program Requirements', icon: <FileText size={18} /> },
     ];
 
     return (
@@ -6569,7 +6568,6 @@ export default function TraineeDashboard() {
                     contactedPostIds={contactedPostIds}
                 />} />
                 <Route path="/applications" element={<MyApplications openContactModal={openContactModal} applications={applications} />} />
-                <Route path="/requirements" element={<TraineeRequirements />} />
                 <Route path="/profile-view/:profileType/:profileId" element={<TraineeProfileViewRoute openBulletinModal={openBulletinModal} openContactModal={openContactModal} openApplyModal={openApplyModal} toggleBookmark={toggleBookmark} onViewDetail={setSelectedJob} />} />
                 <Route path="/settings" element={<SettingsPage />} />
                 <Route path="/notifications" element={<NotificationsPage />} />
